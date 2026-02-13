@@ -126,6 +126,7 @@ class OrderItem(BaseMixin, Base):
 
     # Relationships
     order: Mapped[Order] = relationship("Order", back_populates="items")
+    menu_item: Mapped["MenuItem | None"] = relationship("MenuItem", lazy="raise")
     modifiers: Mapped[list["OrderItemModifier"]] = relationship(
         "OrderItemModifier", back_populates="order_item", lazy="selectin",
         cascade="all, delete-orphan",
@@ -186,4 +187,5 @@ class OrderStatusLog(BaseMixin, Base):
 
 # Avoid circular import issues — use string references above
 from app.models.floor import Table  # noqa: E402, F401
+from app.models.menu import MenuItem  # noqa: E402, F401
 from app.models.user import User  # noqa: E402, F401

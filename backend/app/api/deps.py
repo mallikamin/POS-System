@@ -1,9 +1,9 @@
 """FastAPI dependencies for authentication and authorization."""
 
 import uuid
-from typing import Callable
+from typing import Callable, Optional
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Query, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,14 +13,20 @@ from app.database import get_db
 from app.models.user import User
 from app.utils.security import TokenError, verify_token
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
 
 
 async def get_current_user(
-    token: str = Depends(oauth2_scheme),
+    request: Request,
+    bearer_token: Optional[str] = Depends(oauth2_scheme),
+    query_token: Optional[str] = Query(None, alias="token", include_in_schema=False),
     db: AsyncSession = Depends(get_db),
 ) -> User:
     """Decode the JWT, fetch the user from the database, and verify they are active.
+
+    Accepts the token from either:
+      1. Authorization: Bearer <token>  header  (standard)
+      2. ?token=<token>  query parameter  (fallback for file downloads)
 
     Raises:
         HTTPException 401: If the token is invalid, the user does not exist,
@@ -31,6 +37,11 @@ async def get_current_user(
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+
+    # Pick whichever token source is available
+    token = bearer_token or query_token
+    if not token:
+        raise credentials_exception
 
     try:
         payload = verify_token(token)
@@ -46,7 +57,7 @@ async def get_current_user(
     except (TokenError, ValueError):
         raise credentials_exception
 
-    # Fix #4: Filter by BOTH user_id AND tenant_id for tenant isolation
+    # Filter by BOTH user_id AND tenant_id for tenant isolation
     result = await db.execute(
         select(User)
         .options(selectinload(User.role))

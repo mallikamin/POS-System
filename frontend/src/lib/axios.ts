@@ -13,22 +13,26 @@ const api = axios.create({
   },
 });
 
+/** Read access token from persisted auth store */
+export function getAccessToken(): string | null {
+  try {
+    const stored = localStorage.getItem("auth-storage");
+    if (!stored) return null;
+    const parsed = JSON.parse(stored) as {
+      state?: { tokens?: { access_token?: string } };
+    };
+    return parsed?.state?.tokens?.access_token ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /** Attach access token to every outgoing request */
 api.interceptors.request.use(
   (config) => {
-    const stored = localStorage.getItem("auth-storage");
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored) as {
-          state?: { tokens?: { access_token?: string } };
-        };
-        const token = parsed?.state?.tokens?.access_token;
-        if (token) {
-          config.headers.Authorization = `Bearer ${token}`;
-        }
-      } catch {
-        // Ignore malformed storage
-      }
+    const token = getAccessToken();
+    if (token) {
+      config.headers.set("Authorization", `Bearer ${token}`);
     }
     return config;
   },
@@ -68,7 +72,7 @@ api.interceptors.response.use(
         return new Promise<string>((resolve, reject) => {
           failedQueue.push({ resolve, reject });
         }).then((token) => {
-          originalRequest.headers.Authorization = `Bearer ${token}`;
+          originalRequest.headers.set("Authorization", `Bearer ${token}`);
           return api(originalRequest);
         });
       }
@@ -94,14 +98,15 @@ api.interceptors.response.use(
           refresh_token: refreshToken,
         });
 
-        // Update stored tokens
-        const current = JSON.parse(stored);
+        // Update stored tokens — re-read in case Zustand wrote between await
+        const freshStored = localStorage.getItem("auth-storage") ?? stored;
+        const current = JSON.parse(freshStored);
         current.state.tokens = data;
         localStorage.setItem("auth-storage", JSON.stringify(current));
 
         processQueue(null, data.access_token);
 
-        originalRequest.headers.Authorization = `Bearer ${data.access_token}`;
+        originalRequest.headers.set("Authorization", `Bearer ${data.access_token}`);
         return api(originalRequest);
       } catch (refreshError) {
         processQueue(refreshError, null);

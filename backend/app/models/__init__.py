@@ -11,6 +11,13 @@ from app.models.menu import (
 )
 from app.models.floor import Floor, Table
 from app.models.order import Order, OrderItem, OrderItemModifier, OrderStatusLog
+from app.models.quickbooks import (
+    QBConnection,
+    QBAccountMapping,
+    QBEntityMapping,
+    QBSyncJob,
+    QBSyncLog,
+)
 
 __all__ = [
     "Base",
@@ -32,4 +39,9 @@ __all__ = [
     "OrderItem",
     "OrderItemModifier",
     "OrderStatusLog",
+    "QBConnection",
+    "QBAccountMapping",
+    "QBEntityMapping",
+    "QBSyncJob",
+    "QBSyncLog",
 ]

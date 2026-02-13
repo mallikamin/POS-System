@@ -1,9 +1,10 @@
-import { useCallback, useLayoutEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useState } from "react";
 import { MenuGrid } from "@/components/pos/MenuGrid";
 import { CartPanel } from "@/components/pos/CartPanel";
 import { FloorGrid } from "@/components/pos/FloorGrid";
 import { useCartStore } from "@/stores/cartStore";
 import { useFloorStore } from "@/stores/floorStore";
+import { useUIStore } from "@/stores/uiStore";
 import { OrderTicker } from "@/components/pos/OrderTicker";
 import type { CartItem } from "@/types/cart";
 
@@ -11,6 +12,11 @@ function DineInPage() {
   const addItem = useCartStore((s) => s.addItem);
   const setActiveCart = useCartStore((s) => s.setActiveCart);
   const selectedTableId = useFloorStore((s) => s.selectedTableId);
+  const setCurrentChannel = useUIStore((s) => s.setCurrentChannel);
+
+  useEffect(() => {
+    setCurrentChannel("dine_in");
+  }, [setCurrentChannel]);
 
   // Track whether a table is selected (show menu or prompt)
   const [tableSelected, setTableSelected] = useState(false);

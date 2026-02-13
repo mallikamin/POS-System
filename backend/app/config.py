@@ -27,6 +27,34 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 480  # 8 hours for a POS shift
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
 
+    # QuickBooks Integration
+    QB_CLIENT_ID: str = ""
+    QB_CLIENT_SECRET: str = ""
+    QB_REDIRECT_URI: str = "http://localhost:8090/api/v1/integrations/quickbooks/callback"
+    QB_ENVIRONMENT: str = "sandbox"  # sandbox | production
+
+    @property
+    def qb_base_url(self) -> str:
+        if self.QB_ENVIRONMENT == "production":
+            return "https://quickbooks.api.intuit.com"
+        return "https://sandbox-quickbooks.api.intuit.com"
+
+    @property
+    def qb_auth_url(self) -> str:
+        return "https://appcenter.intuit.com/connect/oauth2"
+
+    @property
+    def qb_token_url(self) -> str:
+        return "https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer"
+
+    @property
+    def qb_revoke_url(self) -> str:
+        return "https://developer.api.intuit.com/v2/oauth2/tokens/revoke"
+
+    @property
+    def qb_configured(self) -> bool:
+        return bool(self.QB_CLIENT_ID and self.QB_CLIENT_SECRET)
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]

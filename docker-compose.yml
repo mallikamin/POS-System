@@ -42,6 +42,10 @@ services:
       - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-pos_admin}:${POSTGRES_PASSWORD:-localdev123}@postgres:5432/${POSTGRES_DB:-pos_system}
       - REDIS_URL=redis://:${REDIS_PASSWORD:-pos_redis_dev_secret}@redis:6379/0
       - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://localhost:5173,http://localhost}
+      - QB_CLIENT_ID=${QB_CLIENT_ID:-}
+      - QB_CLIENT_SECRET=${QB_CLIENT_SECRET:-}
+      - QB_REDIRECT_URI=${QB_REDIRECT_URI:-http://localhost:8090/api/v1/integrations/quickbooks/callback}
+      - QB_ENVIRONMENT=${QB_ENVIRONMENT:-sandbox}
     expose:
       - "8000"
     depends_on:

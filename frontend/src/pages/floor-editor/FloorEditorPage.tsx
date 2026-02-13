@@ -47,6 +47,7 @@ function FloorEditorPage() {
   const [showFloorDialog, setShowFloorDialog] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [dragState, setDragState] = useState<DragState>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   // New table form
   const [newTableNumber, setNewTableNumber] = useState("");
@@ -58,6 +59,11 @@ function FloorEditorPage() {
   const [newFloorName, setNewFloorName] = useState("");
 
   const canvasRef = useRef<HTMLDivElement>(null);
+
+  function showSuccess(msg: string) {
+    setSuccessMessage(msg);
+    setTimeout(() => setSuccessMessage(null), 3000);
+  }
 
   const activeFloor = floors.find((f) => f.id === activeFloorId);
   const selectedTable = activeFloor?.tables.find((t) => t.id === selectedTableId);
@@ -145,6 +151,7 @@ function FloorEditorPage() {
         })),
       });
       setHasChanges(false);
+      showSuccess("Layout saved");
     } catch {
       setError("Failed to save positions");
     } finally {
@@ -180,6 +187,7 @@ function FloorEditorPage() {
       setNewTableCapacity("4");
       setNewTableShape("square");
       setNewTableLabel("");
+      showSuccess("Table added");
     } catch {
       setError("Failed to create table");
     }
@@ -199,6 +207,7 @@ function FloorEditorPage() {
       );
       setSelectedTableId(null);
       setShowDeleteConfirm(false);
+      showSuccess("Table deleted");
     } catch {
       setError("Failed to delete table");
     }
@@ -240,6 +249,7 @@ function FloorEditorPage() {
       setActiveFloorId(floor.id);
       setShowFloorDialog(false);
       setNewFloorName("");
+      showSuccess("Floor created");
     } catch {
       setError("Failed to create floor");
     }
@@ -327,6 +337,12 @@ function FloorEditorPage() {
         </div>
       )}
 
+      {successMessage && (
+        <div className="bg-success-50 px-4 py-2 text-sm text-success-700">
+          {successMessage}
+        </div>
+      )}
+
       <div className="flex flex-1 overflow-hidden">
         {/* Canvas */}
         <div
@@ -348,6 +364,19 @@ function FloorEditorPage() {
               backgroundSize: "20px 20px",
             }}
           />
+
+          {/* Empty state */}
+          {floors.length === 0 && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+              <LayoutGrid className="h-12 w-12 text-secondary-300" />
+              <p className="text-lg font-medium text-secondary-400">No floors yet</p>
+              <p className="text-sm text-secondary-300">Create a floor to start designing your layout</p>
+              <Button onClick={() => setShowFloorDialog(true)}>
+                <Plus className="h-4 w-4 mr-1" />
+                Add Floor
+              </Button>
+            </div>
+          )}
 
           {/* Tables */}
           {activeFloor?.tables.map((table) => (

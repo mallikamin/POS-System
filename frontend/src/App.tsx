@@ -27,6 +27,7 @@ const MenuManagementPage = lazy(() => import("@/pages/admin/MenuManagementPage")
 const StaffManagementPage = lazy(() => import("@/pages/admin/StaffManagementPage"));
 const SettingsPage = lazy(() => import("@/pages/admin/SettingsPage"));
 const ReportsPage = lazy(() => import("@/pages/admin/ReportsPage"));
+const QuickBooksPage = lazy(() => import("@/pages/admin/QuickBooksPage"));
 
 function LoadingFallback() {
   return (
@@ -69,6 +70,7 @@ export function App() {
             <Route path="staff" element={<StaffManagementPage />} />
             <Route path="settings" element={<SettingsPage />} />
             <Route path="reports" element={<ReportsPage />} />
+            <Route path="quickbooks" element={<QuickBooksPage />} />
           </Route>
         </Routes>
       </Suspense>

@@ -19,7 +19,29 @@
       "Bash(find:*)",
       "Bash(npx --package typescript tsc:*)",
       "Bash(npx -p typescript tsc:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git branch:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nPOS System Phases 1-5: Foundation through Orders + Dashboard + Reports\n\nComplete restaurant POS system with Auth, Menu Engine, Floor Plan,\nOrders, Dashboard KPIs, and Reports. Ready for QuickBooks integration.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git checkout:*)",
+      "WebSearch",
+      "Bash(wc:*)",
+      "Bash(for t in cafe shawarma_wrap_shop tea_house marketplace_heavy)",
+      "Bash(do echo \"=== $t ===\")",
+      "Bash(done)",
+      "Bash(docker exec:*)",
+      "Bash(docker restart:*)",
+      "Bash(xargs ls:*)",
+      "Bash(node_modules/.bin/tsc:*)",
+      "Bash(python3:*)",
+      "Bash(TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI4Zjk0ZWFlMy1kNWRkLTQ1OTMtYmU4My1iMDk2NTc0ZGU1ZjciLCJ0ZW5hbnRfaWQiOiJkYjE0MWRiNy1kZmIwLTQ2YzEtYWVmNi0yYTAxNTYwNzdmNTMiLCJyb2xlIjoiYWRtaW4iLCJleHAiOjE3NzEwMjk3NjIsInR5cGUiOiJhY2Nlc3MiLCJqdGkiOiIxY2E0MDkyYS1hMmRlLTQ4NzItODI2ZC01OGI3MWRiNGZjODcifQ.Hs1NFY5oymi9Wn7MS1hGLkgIGlcbjMI3VBriBJHPMAc\":*)",
+      "Bash(npm run type-check:*)",
+      "Bash(docker-compose build:*)",
+      "Bash(docker-compose up:*)",
+      "Bash(docker-compose logs:*)",
+      "Bash(docker-compose exec backend python:*)",
+      "Bash(docker-compose exec:*)",
+      "Bash(docker-compose restart:*)",
+      "Bash(TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI4Zjk0ZWFlMy1kNWRkLTQ1OTMtYmU4My1iMDk2NTc0ZGU1ZjciLCJ0ZW5hbnRfaWQiOiJkYjE0MWRiNy1kZmIwLTQ2YzEtYWVmNi0yYTAxNTYwNzdmNTMiLCJyb2xlIjoiYWRtaW4iLCJleHAiOjE3NzEwNDYwMzksInR5cGUiOiJhY2Nlc3MiLCJqdGkiOiIzMjRjMDhiZS1hOGExLTQwOGEtYmU3OS1mZjhjMGFkODI0M2EifQ.YbyY_J5sGa7Lq5Pa80RonxG-ZmGMBw-hsq-rwrRWlMc\")"
     ]
   }
 }

@@ -1,13 +1,19 @@
-import { useCallback, useLayoutEffect } from "react";
+import { useCallback, useEffect, useLayoutEffect } from "react";
 import { MenuGrid } from "@/components/pos/MenuGrid";
 import { CartPanel } from "@/components/pos/CartPanel";
 import { useCartStore } from "@/stores/cartStore";
+import { useUIStore } from "@/stores/uiStore";
 import { OrderTicker } from "@/components/pos/OrderTicker";
 import type { CartItem } from "@/types/cart";
 
 function TakeawayPage() {
   const addItem = useCartStore((s) => s.addItem);
   const setActiveCart = useCartStore((s) => s.setActiveCart);
+  const setCurrentChannel = useUIStore((s) => s.setCurrentChannel);
+
+  useEffect(() => {
+    setCurrentChannel("takeaway");
+  }, [setCurrentChannel]);
 
   useLayoutEffect(() => {
     setActiveCart("takeaway");
