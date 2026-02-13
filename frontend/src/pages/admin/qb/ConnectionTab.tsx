@@ -188,9 +188,8 @@ export function ConnectionTab() {
           ) : (
             <>
               <p className="text-sm text-secondary-600">
-                Connect your QuickBooks Online account to sync orders, invoices,
-                and financial data automatically. Templates and Preview are available
-                in simulation mode without connecting.
+                Connect your QuickBooks Online account to automatically match
+                POS accounts and start syncing orders and financial data.
               </p>
 
               <Button onClick={handleConnect} disabled={connecting}>

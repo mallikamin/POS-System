@@ -1,7 +1,7 @@
 /**
- * QuickBooks integration TypeScript types.
+ * QuickBooks integration TypeScript types (Attempt 2 — client-centric).
  *
- * Maps to backend schemas in backend/app/schemas/quickbooks.py
+ * No templates. POS declares needs, fuzzy-matches against partner's QB accounts.
  */
 
 // ---------------------------------------------------------------------------
@@ -19,111 +19,43 @@ export interface QBConnectionStatus {
 }
 
 // ---------------------------------------------------------------------------
-// Templates
+// POS Accounting Needs
 // ---------------------------------------------------------------------------
 
-export interface QBTemplateMappingDef {
-  mapping_type: string;
-  name: string;
-  account_type: string;
-  account_sub_type: string;
-  is_default: boolean;
+export interface POSAccountingNeed {
+  key: string;
+  label: string;
   description: string;
+  expected_qb_types: string[];
+  expected_qb_sub_type: string | null;
+  required: boolean;
+  search_hints: string[];
 }
 
-export interface QBTemplateInfo {
-  template_name: string;
-  name: string;
-  description: string;
-  mapping_count: number;
-  mappings: QBTemplateMappingDef[];
-}
-
-export type TemplateCategory =
-  | "all"
-  | "pakistani"
-  | "international"
-  | "format"
-  | "specialty"
-  | "niche";
-
-export const TEMPLATE_CATEGORIES: Record<string, TemplateCategory> = {
-  // Pakistani (8)
-  pakistani_restaurant: "pakistani",
-  pakistani_bbq_specialist: "pakistani",
-  biryani_house: "pakistani",
-  pakistani_street_food: "pakistani",
-  nihari_paye_house: "pakistani",
-  pakistani_sweets_bakery: "pakistani",
-  karachi_seafood: "pakistani",
-  lahore_food_street: "pakistani",
-  // International (8)
-  international_restaurant: "international",
-  chinese_restaurant: "international",
-  pizza_chain: "international",
-  burger_joint: "international",
-  steakhouse: "international",
-  japanese_sushi: "international",
-  thai_restaurant: "international",
-  italian_restaurant: "international",
-  // Format (10)
-  qsr: "format",
-  cafe: "format",
-  fine_dining: "format",
-  buffet_restaurant: "format",
-  food_court_vendor: "format",
-  cloud_kitchen: "format",
-  food_truck: "format",
-  catering_company: "format",
-  hotel_restaurant: "format",
-  bar_lounge: "format",
-  // Specialty (8)
-  juice_bar: "specialty",
-  ice_cream_parlor: "specialty",
-  bakery_wholesale: "specialty",
-  breakfast_spot: "specialty",
-  dessert_parlor: "specialty",
-  tea_house: "specialty",
-  shawarma_wrap_shop: "specialty",
-  fried_chicken_chain: "specialty",
-  // Niche (6)
-  electronics_food: "niche",
-  vegan_vegetarian: "niche",
-  organic_farm_to_table: "niche",
-  dark_kitchen: "niche",
-  diner: "niche",
-  roti_canteen: "niche",
-};
-
-export const CATEGORY_LABELS: Record<TemplateCategory, string> = {
-  all: "All",
-  pakistani: "Pakistani",
-  international: "International",
-  format: "Format / Model",
-  specialty: "Specialty",
-  niche: "Niche",
-};
-
 // ---------------------------------------------------------------------------
-// Shared Constants
+// Mapping Type Labels
 // ---------------------------------------------------------------------------
 
-/** Canonical mapping type labels — single source of truth for all QB tabs */
 export const MAPPING_TYPE_LABELS: Record<string, string> = {
-  income: "Income",
+  income: "Food Sales Income",
+  beverage_income: "Beverage Sales",
   cogs: "Cost of Goods Sold",
-  tax_payable: "Tax Payable",
-  bank: "Bank / Cash",
-  expense: "Expenses",
-  discount: "Discounts",
-  rounding: "Rounding",
+  tax_payable: "Sales Tax Payable",
+  bank: "Bank / Deposit",
+  cash: "Cash on Hand",
+  mobile_wallet: "Mobile Wallet",
+  discount: "Discounts Given",
+  rounding: "Rounding Adjustment",
   cash_over_short: "Cash Over/Short",
-  tips: "Tips",
+  tips: "Tips / Gratuity",
   service_charge: "Service Charge",
   delivery_fee: "Delivery Fee",
   foodpanda_commission: "Platform Commission",
   gift_card_liability: "Gift Cards",
-  other_current_liability: "Other Liabilities",
+  rent_expense: "Rent / Occupancy",
+  salary_expense: "Salaries & Wages",
+  utility_expense: "Utilities",
+  packaging_expense: "Packaging",
 };
 
 // ---------------------------------------------------------------------------
@@ -156,17 +88,6 @@ export interface QBAccountMappingCreate {
   pos_reference_type?: string;
   pos_reference_name?: string;
   is_default?: boolean;
-}
-
-// ---------------------------------------------------------------------------
-// Smart Defaults
-// ---------------------------------------------------------------------------
-
-export interface QBSmartDefaultsResult {
-  accounts_created: number;
-  mappings_created: number;
-  mappings_skipped: number;
-  details: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -216,25 +137,12 @@ export interface QBSyncLog {
 }
 
 // ---------------------------------------------------------------------------
-// Preview / Simulation
-// ---------------------------------------------------------------------------
-
-export interface QBPreviewResponse {
-  template_name: string;
-  template_display_name: string;
-  order_number: string;
-  order_type: string;
-  qb_entity_type: string;
-  payload: Record<string, unknown>;
-  mappings_used: QBTemplateMappingDef[];
-}
-
-// ---------------------------------------------------------------------------
-// Diagnostic & Onboarding Tool
+// Account Matching (Attempt 2)
 // ---------------------------------------------------------------------------
 
 export interface QBMatchSignals {
   exact: number;
+  anchor: number;
   jaccard: number;
   synonym: number;
   type_match: number;
@@ -253,13 +161,13 @@ export interface QBMatchCandidate {
   confidence: "high" | "medium" | "low";
 }
 
-export interface QBDiagnosticItem {
-  mapping_type: string;
-  template_account_name: string;
-  template_account_type: string;
-  template_account_sub_type?: string;
-  template_description: string;
-  is_default: boolean;
+export interface QBMatchItem {
+  need_key: string;
+  need_label: string;
+  need_description: string;
+  expected_qb_types: string[];
+  expected_qb_sub_type?: string;
+  required: boolean;
   status: "matched" | "candidates" | "unmatched";
   best_match: QBMatchCandidate | null;
   candidates: QBMatchCandidate[];
@@ -286,57 +194,40 @@ export interface QBDecisionSummary {
   ready_to_apply: boolean;
 }
 
-export interface QBDiagnosticReport {
+export interface QBMatchResult {
   id: string;
-  template_key: string;
-  template_name: string;
   created_at: string;
-  fixture_name: string | null;
   is_live: boolean;
-  total_template_mappings: number;
+  total_needs: number;
   total_qb_accounts: number;
   matched: number;
   candidates: number;
   unmatched: number;
+  required_total: number;
+  required_matched: number;
   coverage_pct: number;
   health_grade: "A" | "B" | "C" | "F";
-  summary: string;
-  items: QBDiagnosticItem[];
+  items: QBMatchItem[];
   unmapped_qb_accounts: QBUnmappedAccount[];
   decision_summary?: QBDecisionSummary;
   apply_result?: Record<string, unknown>;
   applied_at?: string;
 }
 
-export interface QBDiagnosticReportSummary {
-  id: string;
-  template_key: string;
-  template_name: string;
-  created_at: string;
-  health_grade: string;
-  matched: number;
-  candidates: number;
-  unmatched: number;
-  total_template_mappings: number;
-  coverage_pct: number;
-  is_live: boolean;
-  fixture_name: string | null;
-}
-
-export interface QBDiagnosticDecision {
+export interface QBMatchDecision {
   index: number;
   decision: "use_existing" | "create_new" | "skip";
   qb_account_id?: string;
   qb_account_name?: string;
 }
 
-export interface QBDiagnosticApplyResult {
+export interface QBMatchApplyResult {
   accounts_created: number;
   mappings_created: number;
   skipped: number;
   errors: string[];
   details: string[];
-  report_id: string;
+  result_id: string;
 }
 
 export interface QBHealthCheckDetail {
@@ -358,10 +249,4 @@ export interface QBHealthCheckResult {
   critical: number;
   checked_at: string;
   details: QBHealthCheckDetail[];
-}
-
-export interface QBTestFixture {
-  name: string;
-  description: string;
-  account_count: number;
 }

@@ -4,11 +4,9 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useQuickBooksStore } from "@/stores/quickbooksStore";
 import { ConnectionTab } from "./qb/ConnectionTab";
-import { TemplatesTab } from "./qb/TemplatesTab";
+import { AccountSetupTab } from "./qb/AccountSetupTab";
 import { MappingsTab } from "./qb/MappingsTab";
 import { SyncTab } from "./qb/SyncTab";
-import { PreviewTab } from "./qb/PreviewTab";
-import { DiagnosticTab } from "./qb/DiagnosticTab";
 
 function QuickBooksPage() {
   const connectionStatus = useQuickBooksStore((s) => s.connectionStatus);
@@ -36,39 +34,30 @@ function QuickBooksPage() {
         {isConnected ? (
           <Badge variant="success">Connected</Badge>
         ) : (
-          <Badge variant="warning">Simulation Mode</Badge>
+          <Badge variant="warning">Not Connected</Badge>
         )}
       </div>
 
       {!isConnected && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          No QuickBooks connection active. Templates and Preview work in simulation mode.
-          Connect to QuickBooks to enable Mappings, Sync, and live data.
+          Connect your QuickBooks account to set up account matching and enable order syncing.
         </div>
       )}
 
       {/* Tabs */}
-      <Tabs defaultValue="diagnostic">
+      <Tabs defaultValue={isConnected ? "setup" : "connection"}>
         <TabsList>
-          <TabsTrigger value="diagnostic">Diagnostic</TabsTrigger>
           <TabsTrigger value="connection">Connection</TabsTrigger>
-          <TabsTrigger value="templates">Templates</TabsTrigger>
-          <TabsTrigger value="preview">Preview</TabsTrigger>
+          <TabsTrigger value="setup">Account Setup</TabsTrigger>
           <TabsTrigger value="mappings">Mappings</TabsTrigger>
           <TabsTrigger value="sync">Sync</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="diagnostic">
-          <DiagnosticTab isConnected={isConnected} />
-        </TabsContent>
         <TabsContent value="connection">
           <ConnectionTab />
         </TabsContent>
-        <TabsContent value="templates">
-          <TemplatesTab isConnected={isConnected} />
-        </TabsContent>
-        <TabsContent value="preview">
-          <PreviewTab />
+        <TabsContent value="setup">
+          <AccountSetupTab isConnected={isConnected} />
         </TabsContent>
         <TabsContent value="mappings">
           <MappingsTab isConnected={isConnected} />

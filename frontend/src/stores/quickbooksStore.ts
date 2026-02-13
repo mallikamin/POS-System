@@ -1,15 +1,15 @@
 /**
- * QuickBooks integration Zustand store.
+ * QuickBooks integration Zustand store (Attempt 2 — client-centric).
+ *
+ * No templates. POS declares needs, fuzzy-matches against partner's QB accounts.
  */
 
 import { create } from "zustand";
 import type {
   QBConnectionStatus,
-  QBTemplateInfo,
   QBAccountMapping,
   QBSyncStats,
-  QBDiagnosticReport,
-  QBTestFixture,
+  QBMatchResult,
 } from "@/types/quickbooks";
 import * as qbApi from "@/services/quickbooksApi";
 
@@ -17,9 +17,8 @@ interface QBState {
   connectionStatus: QBConnectionStatus | null;
   isLoadingConnection: boolean;
 
-  templates: QBTemplateInfo[];
-  isLoadingTemplates: boolean;
-  selectedTemplate: string | null;
+  matchResult: QBMatchResult | null;
+  isMatching: boolean;
 
   mappings: QBAccountMapping[];
   isLoadingMappings: boolean;
@@ -27,39 +26,27 @@ interface QBState {
   syncStats: QBSyncStats | null;
   isLoadingSyncStats: boolean;
 
-  // Diagnostic
-  diagnosticReport: QBDiagnosticReport | null;
-  isRunningDiagnostic: boolean;
-  fixtures: QBTestFixture[];
-
   error: string | null;
 }
 
 interface QBActions {
   loadConnectionStatus: () => Promise<void>;
-  loadTemplates: () => Promise<void>;
-  selectTemplate: (name: string | null) => void;
+  runMatching: () => Promise<QBMatchResult | null>;
+  setMatchResult: (result: QBMatchResult | null) => void;
   loadMappings: (mappingType?: string) => Promise<void>;
   loadSyncStats: () => Promise<void>;
-  loadFixtures: () => Promise<void>;
-  setDiagnosticReport: (report: QBDiagnosticReport | null) => void;
-  setIsRunningDiagnostic: (v: boolean) => void;
   clearError: () => void;
 }
 
-export const useQuickBooksStore = create<QBState & QBActions>()((set, get) => ({
+export const useQuickBooksStore = create<QBState & QBActions>()((set) => ({
   connectionStatus: null,
   isLoadingConnection: false,
-  templates: [],
-  isLoadingTemplates: false,
-  selectedTemplate: null,
+  matchResult: null,
+  isMatching: false,
   mappings: [],
   isLoadingMappings: false,
   syncStats: null,
   isLoadingSyncStats: false,
-  diagnosticReport: null,
-  isRunningDiagnostic: false,
-  fixtures: [],
   error: null,
 
   loadConnectionStatus: async () => {
@@ -68,7 +55,6 @@ export const useQuickBooksStore = create<QBState & QBActions>()((set, get) => ({
       const status = await qbApi.fetchConnectionStatus();
       set({ connectionStatus: status, isLoadingConnection: false });
     } catch {
-      // 404 = no connection — that's fine for simulation mode
       set({
         connectionStatus: { is_connected: false },
         isLoadingConnection: false,
@@ -76,18 +62,19 @@ export const useQuickBooksStore = create<QBState & QBActions>()((set, get) => ({
     }
   },
 
-  loadTemplates: async () => {
-    if (get().isLoadingTemplates) return;
-    set({ isLoadingTemplates: true, error: null });
+  runMatching: async () => {
+    set({ isMatching: true, error: null });
     try {
-      const templates = await qbApi.fetchTemplates();
-      set({ templates, isLoadingTemplates: false });
+      const result = await qbApi.runAccountMatching();
+      set({ matchResult: result, isMatching: false });
+      return result;
     } catch {
-      set({ error: "Failed to load templates", isLoadingTemplates: false });
+      set({ error: "Failed to run account matching", isMatching: false });
+      return null;
     }
   },
 
-  selectTemplate: (name) => set({ selectedTemplate: name }),
+  setMatchResult: (result) => set({ matchResult: result }),
 
   loadMappings: async (mappingType?) => {
     set({ isLoadingMappings: true, error: null });
@@ -108,18 +95,6 @@ export const useQuickBooksStore = create<QBState & QBActions>()((set, get) => ({
       set({ isLoadingSyncStats: false });
     }
   },
-
-  loadFixtures: async () => {
-    try {
-      const fixtures = await qbApi.fetchTestFixtures();
-      set({ fixtures });
-    } catch {
-      // Non-critical
-    }
-  },
-
-  setDiagnosticReport: (report) => set({ diagnosticReport: report }),
-  setIsRunningDiagnostic: (v) => set({ isRunningDiagnostic: v }),
 
   clearError: () => set({ error: null }),
 }));

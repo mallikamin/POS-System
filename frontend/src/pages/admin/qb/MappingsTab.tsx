@@ -82,9 +82,15 @@ export function MappingsTab({ isConnected }: MappingsTabProps) {
     setSaving(true);
     setError(null);
     try {
-      await qbApi.updateMapping(editMapping.id, {
+      // Delete old + create new with updated values
+      await qbApi.deleteMapping(editMapping.id);
+      await qbApi.createMapping({
+        mapping_type: editMapping.mapping_type,
+        qb_account_id: editMapping.qb_account_id,
         qb_account_name: editAccountName,
         qb_account_type: editAccountType,
+        qb_account_sub_type: editMapping.qb_account_sub_type ?? undefined,
+        is_default: editMapping.is_default,
       });
       setEditMapping(null);
       load();
@@ -114,7 +120,10 @@ export function MappingsTab({ isConnected }: MappingsTabProps) {
     setError(null);
     try {
       const result = await qbApi.validateMappings();
-      setValidationResult(result);
+      setValidationResult({
+        valid: result.is_valid,
+        errors: result.missing_required,
+      });
     } catch {
       setError("Failed to validate mappings");
     }
@@ -127,7 +136,7 @@ export function MappingsTab({ isConnected }: MappingsTabProps) {
           Connect to QuickBooks to view and manage account mappings.
         </p>
         <p className="text-sm text-secondary-300 mt-1">
-          Use the Templates tab to browse mapping templates in simulation mode.
+          Use the Account Setup tab to run matching and create mappings.
         </p>
       </div>
     );
@@ -214,7 +223,7 @@ export function MappingsTab({ isConnected }: MappingsTabProps) {
         </div>
       ) : mappings.length === 0 ? (
         <div className="py-12 text-center text-sm text-secondary-400">
-          No mappings found. Apply a template first.
+          No mappings found. Use the Account Setup tab to run matching.
         </div>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-secondary-200">

@@ -144,9 +144,6 @@ export function SyncTab({ isConnected }: SyncTabProps) {
         <p className="text-secondary-400">
           Connect to QuickBooks to sync data and view job queue.
         </p>
-        <p className="text-sm text-secondary-300 mt-1">
-          Use the Preview tab to simulate sync payloads without a connection.
-        </p>
       </div>
     );
   }
