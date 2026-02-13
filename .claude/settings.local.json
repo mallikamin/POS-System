@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git init:*)",
+      "Bash(docker --version:*)",
+      "Bash(docker compose:*)",
+      "Bash(docker info:*)",
+      "Bash(docker ps:*)",
+      "Bash(netstat:*)",
+      "Bash(ss:*)",
+      "Bash(powershell -Command:*)",
+      "Bash(curl:*)",
+      "Bash(python -m json.tool:*)",
+      "Bash(npx tsc:*)",
+      "Bash(./node_modules/.bin/tsc:*)",
+      "Bash(ls:*)",
+      "Bash(python:*)",
+      "Bash(TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI4Zjk0ZWFlMy1kNWRkLTQ1OTMtYmU4My1iMDk2NTc0ZGU1ZjciLCJ0ZW5hbnRfaWQiOiJkYjE0MWRiNy1kZmIwLTQ2YzEtYWVmNi0yYTAxNTYwNzdmNTMiLCJyb2xlIjoiYWRtaW4iLCJleHAiOjE3NzA3Njg5NjUsInR5cGUiOiJhY2Nlc3MiLCJqdGkiOiI5NjgzOTlkOS02MmQ2LTQzZjgtYjhiYS01MDdlOGYyMmQ1YWEifQ.wLhjPMEZmXmL7JDCIuECpD1nqtY_mFA7T27j8pbZaUg\")",
+      "Bash(find:*)",
+      "Bash(npx --package typescript tsc:*)",
+      "Bash(npx -p typescript tsc:*)",
+      "Bash(git add:*)"
+    ]
+  }
+}

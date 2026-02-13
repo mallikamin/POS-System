@@ -1,0 +1,53 @@
+name: pos-system
+
+services:
+  test:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    environment:
+      - ENVIRONMENT=testing
+      - DEBUG=true
+      - LOG_LEVEL=debug
+      - SECRET_KEY=test-secret-key-not-for-production
+      - DATABASE_URL=postgresql+asyncpg://pos_test:pos_test_pass@postgres-test:5432/pos_test
+      - REDIS_URL=redis://redis-test:6379/0
+      - CORS_ORIGINS=http://localhost
+    depends_on:
+      postgres-test:
+        condition: service_healthy
+      redis-test:
+        condition: service_healthy
+    command: >
+      sh -c "
+        echo 'Waiting for database...' &&
+        sleep 2 &&
+        echo 'Running migrations...' &&
+        alembic upgrade head &&
+        echo 'Running tests...' &&
+        pytest -v --tb=short --cov=app --cov-report=term-missing --cov-report=xml:/app/coverage.xml
+      "
+    volumes:
+      - ./backend:/app
+
+  postgres-test:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_DB=pos_test
+      - POSTGRES_USER=pos_test
+      - POSTGRES_PASSWORD=pos_test_pass
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pos_test -d pos_test"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  redis-test:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 10

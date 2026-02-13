@@ -1,0 +1,18 @@
+# =============================================================================
+# Development Dockerfile
+# =============================================================================
+
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Copy package.json only (source is bind-mounted at runtime)
+COPY package.json ./
+
+# Install dependencies
+RUN npm install
+
+EXPOSE 5173
+
+# On container start: ensure deps are fresh, then start dev server
+CMD ["sh", "-c", "npm install --prefer-offline && npm run dev"]

@@ -1,0 +1,22 @@
+# Force LF line endings for shell scripts (they run in Linux containers)
+*.sh text eol=lf
+*.bash text eol=lf
+
+# Force LF for Docker and nginx configs
+Dockerfile* text eol=lf
+*.conf text eol=lf
+*.ini text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.mako text eol=lf
+
+# Binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary

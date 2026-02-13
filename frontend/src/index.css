@@ -1,0 +1,116 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Primary - Blue */
+  --color-primary-50: 239 246 255;
+  --color-primary-100: 219 234 254;
+  --color-primary-200: 191 219 254;
+  --color-primary-300: 147 197 253;
+  --color-primary-400: 96 165 250;
+  --color-primary-500: 59 130 246;
+  --color-primary-600: 37 99 235;
+  --color-primary-700: 29 78 216;
+  --color-primary-800: 30 64 175;
+  --color-primary-900: 30 58 138;
+
+  /* Success - Green */
+  --color-success-500: 34 197 94;
+  --color-success-600: 22 163 74;
+
+  /* Warning - Amber */
+  --color-warning-500: 245 158 11;
+  --color-warning-600: 217 119 6;
+
+  /* Danger - Red */
+  --color-danger-500: 239 68 68;
+  --color-danger-600: 220 38 38;
+
+  /* Accent - Purple */
+  --color-accent-500: 168 85 247;
+  --color-accent-600: 147 51 234;
+
+  /* Surfaces */
+  --color-surface: 255 255 255;
+  --color-surface-elevated: 248 250 252;
+
+  /* Font */
+  --font-sans: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html {
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply min-h-screen bg-secondary-50 text-secondary-900;
+    overscroll-behavior: none;
+  }
+
+  /* Prevent text selection on POS touch elements */
+  .no-select {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  /* Scrollbar styling */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply rounded-full bg-secondary-300;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-secondary-400;
+  }
+}
+
+@layer components {
+  /* Touch-optimized feedback for POS buttons */
+  .touch-feedback {
+    @apply transition-transform duration-75 active:scale-[0.97];
+  }
+
+  /* Ensure minimum touch target size per WCAG 2.1 */
+  .touch-target {
+    @apply min-h-touch min-w-touch;
+  }
+
+  .touch-target-lg {
+    @apply min-h-touch-lg min-w-touch-lg;
+  }
+
+  .touch-target-xl {
+    @apply min-h-touch-xl min-w-touch-xl;
+  }
+}
+
+@layer utilities {
+  /* Hide scrollbar but keep functionality */
+  .scrollbar-hidden {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hidden::-webkit-scrollbar {
+    display: none;
+  }
+}
