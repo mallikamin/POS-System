@@ -46,6 +46,9 @@ from app.schemas.quickbooks import (
     QBMatchApplyResponse,
     QBMatchResult,
     QBMatchResultSummary,
+    QBSnapshotCreateResponse,
+    QBSnapshotDetail,
+    QBSnapshotSummary,
     QBSyncJobResponse,
     QBSyncLogResponse,
     QBSyncStats,
@@ -62,6 +65,7 @@ from app.services.quickbooks.oauth import (
     validate_state,
 )
 from app.services.quickbooks.pos_needs import get_all_needs_as_dicts
+from app.services.quickbooks.snapshot import SnapshotService
 from app.services.quickbooks.sync import SyncService
 
 logger = logging.getLogger(__name__)
@@ -133,7 +137,7 @@ async def quickbooks_callback(
     user_id = uuid.UUID(state_data["user_id"])
 
     try:
-        await exchange_code_for_tokens(
+        connection = await exchange_code_for_tokens(
             code=code, realm_id=realmId,
             tenant_id=tenant_id, user_id=user_id, db=db,
         )
@@ -142,6 +146,20 @@ async def quickbooks_callback(
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Failed to connect to QuickBooks.",
+        )
+
+    # Auto-fetch CoA and create backup + working copy snapshots
+    try:
+        snapshot_svc = SnapshotService(connection, db)
+        snap_result = await snapshot_svc.create_initial_snapshots()
+        logger.info(
+            "Auto-created CoA snapshots on connect: %d accounts, v%d",
+            snap_result["account_count"], snap_result["version"],
+        )
+    except Exception as exc:
+        # Non-fatal: connection still works, snapshots can be created later
+        logger.warning(
+            "Failed to auto-create CoA snapshots on connect: %s", exc, exc_info=True,
         )
 
     await db.commit()
@@ -230,13 +248,18 @@ async def run_account_matching(
 ) -> QBMatchResult:
     """Match POS needs against partner's QB Chart of Accounts.
 
-    No template needed — pulls QB accounts and fuzzy-matches against
-    the fixed list of POS accounting needs.
+    Uses the working copy from CoA snapshots if available.
+    Falls back to live QB fetch if no snapshot exists.
     """
     conn = await _require_connection(db, current_user.tenant_id)
+
+    # Try to use working copy from snapshot (no live QB call needed)
+    snapshot_svc = SnapshotService(conn, db)
+    working_accounts = await snapshot_svc.get_working_copy_accounts()
+
     svc = MatchingService(conn, db)
     try:
-        result = await svc.run_matching()
+        result = await svc.run_matching(qb_accounts=working_accounts)
     except RuntimeError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc))
     return QBMatchResult(**result)
@@ -296,6 +319,93 @@ async def apply_match_decisions(
 
     await db.commit()
     return QBMatchApplyResponse(**result)
+
+
+# =========================================================================
+# COA SNAPSHOTS (backup + working copy)
+# =========================================================================
+
+@router.get("/snapshots", response_model=list[QBSnapshotSummary])
+async def list_snapshots(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[QBSnapshotSummary]:
+    """List all CoA snapshots for this connection."""
+    conn = await _require_connection(db, current_user.tenant_id)
+    svc = SnapshotService(conn, db)
+    snapshots = await svc.list_snapshots()
+    return [QBSnapshotSummary.model_validate(s) for s in snapshots]
+
+
+@router.get("/snapshots/latest")
+async def get_latest_snapshots(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Get the latest backup and working copy summaries."""
+    conn = await _require_connection(db, current_user.tenant_id)
+    svc = SnapshotService(conn, db)
+    backup = await svc.get_latest_backup()
+    working = await svc.get_latest_working_copy()
+    return {
+        "backup": QBSnapshotSummary.model_validate(backup) if backup else None,
+        "working_copy": QBSnapshotSummary.model_validate(working) if working else None,
+    }
+
+
+@router.get("/snapshots/{snapshot_id}", response_model=QBSnapshotDetail)
+async def get_snapshot_detail(
+    snapshot_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> QBSnapshotDetail:
+    """Get full snapshot detail including account data."""
+    conn = await _require_connection(db, current_user.tenant_id)
+    svc = SnapshotService(conn, db)
+    snapshot = await svc.get_snapshot(snapshot_id)
+    if snapshot is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Snapshot not found.")
+    return QBSnapshotDetail.model_validate(snapshot)
+
+
+@router.get("/snapshots/{snapshot_id}/export")
+async def export_snapshot_json(
+    snapshot_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Export snapshot as downloadable JSON file (for git archival)."""
+    from fastapi.responses import Response
+
+    conn = await _require_connection(db, current_user.tenant_id)
+    svc = SnapshotService(conn, db)
+    snapshot = await svc.get_snapshot(snapshot_id)
+    if snapshot is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Snapshot not found.")
+
+    json_str = svc.export_as_json(snapshot)
+    filename = f"coa_backup_{snapshot.qb_realm_id}_v{snapshot.version}_{snapshot.snapshot_type}.json"
+    return Response(
+        content=json_str,
+        media_type="application/json",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.post("/snapshots/refresh", response_model=QBSnapshotCreateResponse)
+async def refresh_snapshots(
+    current_user: User = Depends(require_role("admin")),
+    db: AsyncSession = Depends(get_db),
+) -> QBSnapshotCreateResponse:
+    """Re-fetch CoA from QB and create a new versioned backup + working copy pair."""
+    conn = await _require_connection(db, current_user.tenant_id)
+    svc = SnapshotService(conn, db)
+    try:
+        result = await svc.refresh_snapshots()
+    except RuntimeError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc))
+    await db.commit()
+    return QBSnapshotCreateResponse(**result)
 
 
 # =========================================================================

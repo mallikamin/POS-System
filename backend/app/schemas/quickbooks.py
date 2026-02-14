@@ -315,3 +315,37 @@ class QBHealthCheckResponse(BaseModel):
     critical: int
     checked_at: str
     details: list[QBHealthCheckDetail] = Field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
+# CoA Snapshots
+# ---------------------------------------------------------------------------
+
+class QBSnapshotSummary(BaseModel):
+    """Summary view of a CoA snapshot (without full account data)."""
+    id: uuid.UUID
+    snapshot_type: str
+    account_count: int
+    is_locked: bool
+    version: int
+    qb_company_name: str
+    qb_realm_id: str
+    fetched_at: datetime
+    created_at: datetime
+    notes: str | None = None
+    model_config = {"from_attributes": True}
+
+
+class QBSnapshotDetail(QBSnapshotSummary):
+    """Full snapshot including account data."""
+    coa_data: list[dict] = Field(default_factory=list)
+
+
+class QBSnapshotCreateResponse(BaseModel):
+    """Response after creating snapshots."""
+    backup_id: str
+    working_copy_id: str
+    account_count: int
+    version: int
+    company_name: str
+    fetched_at: str

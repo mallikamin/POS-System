@@ -1,5 +1,5 @@
 """QuickBooks integration models: connections, account mappings, entity mappings,
-sync queue, and sync audit log.
+sync queue, sync audit log, and CoA snapshots.
 
 OAuth tokens are stored Fernet-encrypted.  All monetary amounts remain in paisa.
 """
@@ -18,7 +18,7 @@ from sqlalchemy import (
     UniqueConstraint,
     Uuid,
 )
-from sqlalchemy.dialects.postgresql import JSON
+from sqlalchemy.dialects.postgresql import JSON, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -383,6 +383,78 @@ class QBSyncLog(BaseMixin, Base):
 
     batch_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid, nullable=True, comment="Groups related sync operations",
+    )
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("tenants.id"), nullable=False, index=True,
+    )
+
+
+# ---------------------------------------------------------------------------
+# 6. QBCoASnapshot
+# ---------------------------------------------------------------------------
+
+class QBCoASnapshot(BaseMixin, Base):
+    """Immutable backup + working copy of a partner's QB Chart of Accounts.
+
+    On first OAuth connect, we immediately fetch the full CoA and store:
+      - snapshot_type='original_backup' (locked, never modified)
+      - snapshot_type='working_copy' (cloned from backup, used for matching)
+
+    The original_backup serves as a safety net — we can always prove what the
+    partner's books looked like before we touched anything.
+    """
+
+    __tablename__ = "qb_coa_snapshots"
+    __table_args__ = (
+        Index("ix_qbcoa_tenant_conn_type", "tenant_id", "connection_id", "snapshot_type"),
+    )
+
+    connection_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("qb_connections.id", ondelete="CASCADE"), nullable=False,
+    )
+
+    snapshot_type: Mapped[str] = mapped_column(
+        String(20), nullable=False,
+        comment="original_backup | working_copy",
+    )
+
+    coa_data: Mapped[list] = mapped_column(
+        JSONB, nullable=False,
+        comment="Full array of QB account objects at time of snapshot",
+    )
+
+    account_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0,
+    )
+
+    is_locked: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False,
+        comment="True for original_backup — prevents edits",
+    )
+
+    fetched_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False,
+        comment="When the CoA was fetched from QB API",
+    )
+
+    qb_company_name: Mapped[str] = mapped_column(
+        String(255), nullable=False,
+        comment="Company name at time of snapshot for identification",
+    )
+
+    qb_realm_id: Mapped[str] = mapped_column(
+        String(50), nullable=False,
+        comment="QB company ID at time of snapshot",
+    )
+
+    notes: Mapped[str | None] = mapped_column(
+        String(500), nullable=True,
+    )
+
+    version: Mapped[int] = mapped_column(
+        Integer, default=1, nullable=False,
+        comment="Incremented on refresh — tracks how many times CoA was re-fetched",
     )
 
     tenant_id: Mapped[uuid.UUID] = mapped_column(

@@ -250,3 +250,25 @@ export interface QBHealthCheckResult {
   checked_at: string;
   details: QBHealthCheckDetail[];
 }
+
+// ---------------------------------------------------------------------------
+// CoA Snapshots
+// ---------------------------------------------------------------------------
+
+export interface QBSnapshotSummary {
+  id: string;
+  snapshot_type: "original_backup" | "working_copy";
+  account_count: number;
+  is_locked: boolean;
+  version: number;
+  qb_company_name: string;
+  qb_realm_id: string;
+  fetched_at: string;
+  created_at: string;
+  notes: string | null;
+}
+
+export interface QBSnapshotLatest {
+  backup: QBSnapshotSummary | null;
+  working_copy: QBSnapshotSummary | null;
+}

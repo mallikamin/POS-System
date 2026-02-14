@@ -14,6 +14,8 @@ import type {
   QBMatchDecision,
   QBMatchApplyResult,
   QBHealthCheckResult,
+  QBSnapshotSummary,
+  QBSnapshotLatest,
 } from "@/types/quickbooks";
 
 const QB = "/integrations/quickbooks";
@@ -67,6 +69,43 @@ export async function applyMatchDecisions(resultId: string): Promise<QBMatchAppl
     `${QB}/match/results/${resultId}/apply`,
   );
   return data;
+}
+
+// ---------------------------------------------------------------------------
+// CoA Snapshots
+// ---------------------------------------------------------------------------
+
+export async function fetchLatestSnapshots(): Promise<QBSnapshotLatest> {
+  const { data } = await api.get<QBSnapshotLatest>(`${QB}/snapshots/latest`);
+  return data;
+}
+
+export async function fetchSnapshots(): Promise<QBSnapshotSummary[]> {
+  const { data } = await api.get<QBSnapshotSummary[]>(`${QB}/snapshots`);
+  return data;
+}
+
+export async function refreshSnapshots(): Promise<{
+  backup_id: string;
+  working_copy_id: string;
+  account_count: number;
+  version: number;
+}> {
+  const { data } = await api.post(`${QB}/snapshots/refresh`);
+  return data;
+}
+
+export async function exportSnapshotJson(snapshotId: string): Promise<void> {
+  const { data } = await api.get(`${QB}/snapshots/${snapshotId}/export`, {
+    responseType: "blob",
+  });
+  const blob = new Blob([data as BlobPart], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `coa_backup_${snapshotId}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 // ---------------------------------------------------------------------------

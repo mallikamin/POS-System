@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Link2,
   Link2Off,
@@ -6,6 +6,10 @@ import {
   Building2,
   Clock,
   RefreshCw,
+  Shield,
+  Download,
+  Database,
+  Copy,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +24,7 @@ import {
 } from "@/components/ui/dialog";
 import { useQuickBooksStore } from "@/stores/quickbooksStore";
 import * as qbApi from "@/services/quickbooksApi";
+import type { QBSnapshotLatest } from "@/types/quickbooks";
 
 export function ConnectionTab() {
   const connectionStatus = useQuickBooksStore((s) => s.connectionStatus);
@@ -30,8 +35,44 @@ export function ConnectionTab() {
   const [disconnecting, setDisconnecting] = useState(false);
   const [showDisconnectDialog, setShowDisconnectDialog] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [snapshots, setSnapshots] = useState<QBSnapshotLatest | null>(null);
+  const [loadingSnapshots, setLoadingSnapshots] = useState(false);
+  const [refreshingSnapshots, setRefreshingSnapshots] = useState(false);
 
   const isConnected = connectionStatus?.is_connected ?? false;
+
+  // Load snapshots when connected
+  useEffect(() => {
+    if (isConnected) {
+      setLoadingSnapshots(true);
+      qbApi.fetchLatestSnapshots()
+        .then(setSnapshots)
+        .catch(() => { /* non-fatal */ })
+        .finally(() => setLoadingSnapshots(false));
+    }
+  }, [isConnected]);
+
+  async function handleRefreshSnapshots() {
+    setRefreshingSnapshots(true);
+    try {
+      await qbApi.refreshSnapshots();
+      const updated = await qbApi.fetchLatestSnapshots();
+      setSnapshots(updated);
+    } catch {
+      setError("Failed to refresh CoA snapshots.");
+    } finally {
+      setRefreshingSnapshots(false);
+    }
+  }
+
+  async function handleExportBackup() {
+    if (!snapshots?.backup?.id) return;
+    try {
+      await qbApi.exportSnapshotJson(snapshots.backup.id);
+    } catch {
+      setError("Failed to download backup.");
+    }
+  }
 
   async function handleConnect() {
     setConnecting(true);
@@ -204,6 +245,125 @@ export function ConnectionTab() {
           )}
         </CardContent>
       </Card>
+
+      {/* CoA Snapshot Status */}
+      {isConnected && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Shield className="h-5 w-5 text-primary-600" />
+              Chart of Accounts Backup
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {loadingSnapshots ? (
+              <div className="flex items-center gap-2 text-sm text-secondary-500">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Loading snapshot info...
+              </div>
+            ) : snapshots?.backup ? (
+              <>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div className="flex items-center gap-2">
+                    <Database className="h-4 w-4 text-success-600" />
+                    <div>
+                      <p className="text-secondary-500">Original Backup</p>
+                      <p className="font-medium text-secondary-900">
+                        {snapshots.backup.account_count} accounts
+                        <Badge variant="outline" className="ml-2 text-xs">
+                          v{snapshots.backup.version}
+                        </Badge>
+                        <Badge variant="success" className="ml-1 text-xs">
+                          Locked
+                        </Badge>
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Copy className="h-4 w-4 text-primary-600" />
+                    <div>
+                      <p className="text-secondary-500">Working Copy</p>
+                      <p className="font-medium text-secondary-900">
+                        {snapshots.working_copy
+                          ? `${snapshots.working_copy.account_count} accounts`
+                          : "Not created"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-4 w-4 text-secondary-400" />
+                    <div>
+                      <p className="text-secondary-500">Captured At</p>
+                      <p className="text-secondary-700">
+                        {new Date(snapshots.backup.fetched_at).toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="text-secondary-500">Company</p>
+                    <p className="text-secondary-700">
+                      {snapshots.backup.qb_company_name}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleExportBackup}
+                  >
+                    <Download className="h-4 w-4 mr-1" />
+                    Download Backup JSON
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleRefreshSnapshots}
+                    disabled={refreshingSnapshots}
+                  >
+                    {refreshingSnapshots ? (
+                      <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-4 w-4 mr-1" />
+                    )}
+                    Re-fetch from QB
+                  </Button>
+                </div>
+
+                <p className="text-xs text-secondary-400">
+                  The original backup is immutable and never modified. Download it
+                  and commit to git for an audit trail. All matching and mapping
+                  happens on the working copy.
+                </p>
+              </>
+            ) : (
+              <div className="text-sm text-secondary-500">
+                No CoA snapshot found. Snapshots are created automatically when
+                you connect. Click &quot;Re-fetch from QB&quot; to create one now.
+                <div className="mt-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleRefreshSnapshots}
+                    disabled={refreshingSnapshots}
+                  >
+                    {refreshingSnapshots ? (
+                      <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-4 w-4 mr-1" />
+                    )}
+                    Fetch CoA Now
+                  </Button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Disconnect Confirmation */}
       <Dialog open={showDisconnectDialog} onOpenChange={setShowDisconnectDialog}>
