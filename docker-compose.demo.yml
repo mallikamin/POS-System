@@ -49,17 +49,17 @@ services:
     deploy:
       resources:
         limits:
-          memory: 64M
+          memory: 128M
           cpus: "0.25"
         reservations:
-          memory: 16M
+          memory: 32M
     security_opt:
       - no-new-privileges:true
     read_only: true
     tmpfs:
-      - /var/cache/nginx:size=16M
+      - /var/cache/nginx:size=32M
       - /var/run:size=1M
-      - /tmp:size=8M
+      - /tmp:size=16M
     logging:
       driver: json-file
       options:
