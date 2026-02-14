@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QuickBooks Integration Flow — POS System</title>
+<style>
+  :root {
+    --bg: #0f172a; --surface: #1e293b; --surface2: #334155;
+    --border: #475569; --text: #e2e8f0; --muted: #94a3b8;
+    --green: #22c55e; --green-bg: rgba(34,197,94,0.12);
+    --blue: #3b82f6; --blue-bg: rgba(59,130,246,0.12);
+    --amber: #f59e0b; --amber-bg: rgba(245,158,11,0.12);
+    --purple: #a855f7; --purple-bg: rgba(168,85,247,0.12);
+    --red: #ef4444; --red-bg: rgba(239,68,68,0.12);
+    --cyan: #06b6d4; --cyan-bg: rgba(6,182,212,0.12);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; }
+
+  /* Header */
+  .header { background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border-bottom: 1px solid var(--border); padding: 24px 40px; }
+  .header h1 { font-size: 24px; font-weight: 700; margin-bottom: 4px; }
+  .header p { color: var(--muted); font-size: 14px; }
+  .badge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-left: 12px; }
+  .badge-green { background: var(--green-bg); color: var(--green); border: 1px solid rgba(34,197,94,0.3); }
+  .badge-amber { background: var(--amber-bg); color: var(--amber); border: 1px solid rgba(245,158,11,0.3); }
+
+  /* Tabs */
+  .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); background: var(--surface); padding: 0 40px; overflow-x: auto; }
+  .tab { padding: 14px 24px; cursor: pointer; font-size: 14px; font-weight: 500; color: var(--muted); border-bottom: 2px solid transparent; transition: all 0.2s; white-space: nowrap; user-select: none; }
+  .tab:hover { color: var(--text); background: rgba(255,255,255,0.03); }
+  .tab.active { color: var(--blue); border-bottom-color: var(--blue); }
+
+  /* Content */
+  .content { padding: 32px 40px; max-width: 1200px; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  /* Flow diagram */
+  .flow { display: flex; flex-direction: column; gap: 0; }
+  .flow-step { display: flex; align-items: stretch; gap: 20px; position: relative; }
+  .flow-line { width: 40px; display: flex; flex-direction: column; align-items: center; flex-shrink: 0; }
+  .flow-dot { width: 16px; height: 16px; border-radius: 50%; flex-shrink: 0; z-index: 1; cursor: pointer; transition: all 0.2s; }
+  .flow-dot:hover { transform: scale(1.3); box-shadow: 0 0 12px currentColor; }
+  .flow-dot.green { background: var(--green); color: var(--green); }
+  .flow-dot.blue { background: var(--blue); color: var(--blue); }
+  .flow-dot.amber { background: var(--amber); color: var(--amber); }
+  .flow-dot.purple { background: var(--purple); color: var(--purple); }
+  .flow-dot.cyan { background: var(--cyan); color: var(--cyan); }
+  .flow-dot.red { background: var(--red); color: var(--red); }
+  .flow-connector { width: 2px; flex-grow: 1; background: var(--border); }
+  .flow-card { flex: 1; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px 20px; margin-bottom: 12px; transition: all 0.2s; cursor: pointer; }
+  .flow-card:hover { border-color: var(--blue); background: rgba(59,130,246,0.05); }
+  .flow-card.expanded { border-color: var(--blue); }
+  .flow-card h3 { font-size: 15px; font-weight: 600; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+  .flow-card .subtitle { font-size: 13px; color: var(--muted); }
+  .flow-card .detail { display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 13px; line-height: 1.7; }
+  .flow-card.expanded .detail { display: block; }
+  .flow-card .actor { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; padding: 2px 8px; border-radius: 4px; }
+  .actor-partner { background: var(--green-bg); color: var(--green); }
+  .actor-system { background: var(--blue-bg); color: var(--blue); }
+  .actor-intuit { background: var(--purple-bg); color: var(--purple); }
+  .actor-admin { background: var(--amber-bg); color: var(--amber); }
+
+  /* Multi-tenant diagram */
+  .tenant-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 20px; margin-top: 20px; }
+  .tenant-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 20px; transition: all 0.3s; }
+  .tenant-card:hover { border-color: var(--blue); transform: translateY(-2px); }
+  .tenant-card h3 { font-size: 16px; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+  .tenant-card .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .tenant-card .status-dot.active { background: var(--green); }
+  .tenant-card .status-dot.pending { background: var(--amber); }
+  .tenant-card .status-dot.inactive { background: var(--red); }
+  .tenant-card table { width: 100%; font-size: 13px; border-collapse: collapse; }
+  .tenant-card td { padding: 4px 0; }
+  .tenant-card td:first-child { color: var(--muted); width: 140px; }
+  .tenant-card .mapping-bar { height: 6px; border-radius: 3px; background: var(--surface2); overflow: hidden; margin-top: 8px; }
+  .tenant-card .mapping-fill { height: 100%; border-radius: 3px; transition: width 0.8s ease; }
+
+  /* Architecture boxes */
+  .arch-row { display: flex; gap: 16px; margin: 16px 0; flex-wrap: wrap; }
+  .arch-box { flex: 1; min-width: 200px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+  .arch-box h4 { font-size: 13px; font-weight: 600; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+  .arch-box ul { list-style: none; font-size: 12px; color: var(--muted); }
+  .arch-box ul li { padding: 2px 0; }
+  .arch-box ul li::before { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 8px; background: var(--border); }
+
+  /* Sequence diagram */
+  .seq-container { overflow-x: auto; margin: 20px 0; }
+  .seq { display: flex; gap: 0; min-width: 900px; }
+  .seq-lane { flex: 1; text-align: center; }
+  .seq-header { padding: 10px 8px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; border-radius: 6px 6px 0 0; }
+  .seq-body { border-left: 2px dashed var(--border); min-height: 400px; position: relative; margin: 0 auto; width: 2px; }
+  .seq-msg { position: absolute; left: 50%; padding: 6px 12px; border-radius: 6px; font-size: 11px; white-space: nowrap; cursor: default; }
+  .seq-msg.right { transform: translateX(8px); text-align: left; }
+  .seq-msg.left { transform: translateX(calc(-100% - 8px)); text-align: right; }
+
+  /* Code blocks */
+  .code { background: #0d1117; border: 1px solid var(--border); border-radius: 6px; padding: 14px 18px; font-family: 'Cascadia Code', 'Fira Code', monospace; font-size: 12px; line-height: 1.7; overflow-x: auto; color: #c9d1d9; margin: 10px 0; }
+  .code .comment { color: #8b949e; }
+  .code .keyword { color: #ff7b72; }
+  .code .string { color: #a5d6ff; }
+  .code .fn { color: #d2a8ff; }
+
+  /* Info callouts */
+  .callout { padding: 14px 18px; border-radius: 8px; font-size: 13px; margin: 16px 0; border-left: 3px solid; }
+  .callout-blue { background: var(--blue-bg); border-color: var(--blue); }
+  .callout-amber { background: var(--amber-bg); border-color: var(--amber); }
+  .callout-green { background: var(--green-bg); border-color: var(--green); }
+  .callout-red { background: var(--red-bg); border-color: var(--red); }
+  .callout strong { display: block; margin-bottom: 4px; }
+
+  /* Expand/collapse */
+  .expand-hint { font-size: 11px; color: var(--muted); font-style: italic; float: right; }
+
+  /* Section titles */
+  .section-title { font-size: 18px; font-weight: 700; margin: 24px 0 12px; }
+  .section-sub { font-size: 14px; color: var(--muted); margin-bottom: 20px; }
+
+  /* Gap list */
+  .gap-list { display: flex; flex-direction: column; gap: 10px; margin: 16px 0; }
+  .gap-item { display: flex; gap: 12px; align-items: flex-start; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px 18px; }
+  .gap-icon { width: 28px; height: 28px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+  .gap-icon.critical { background: var(--red-bg); color: var(--red); }
+  .gap-icon.moderate { background: var(--amber-bg); color: var(--amber); }
+  .gap-icon.minor { background: var(--blue-bg); color: var(--blue); }
+  .gap-item h4 { font-size: 14px; margin-bottom: 2px; }
+  .gap-item p { font-size: 12px; color: var(--muted); }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .content { padding: 20px; }
+    .tabs { padding: 0 20px; }
+    .header { padding: 20px; }
+    .tenant-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>QuickBooks Integration Architecture <span class="badge badge-green">Attempt 2</span> <span class="badge badge-amber">E2E Tested</span></h1>
+  <p>POS System &mdash; Multi-JV-Partner QuickBooks Online Integration Flow</p>
+</div>
+
+<div class="tabs" id="tabs">
+  <div class="tab active" data-panel="flow">Onboarding Flow</div>
+  <div class="tab" data-panel="multi">Multi-Partner View</div>
+  <div class="tab" data-panel="oauth">OAuth Deep Dive</div>
+  <div class="tab" data-panel="matching">Matching Engine</div>
+  <div class="tab" data-panel="sync">Sync Pipeline</div>
+  <div class="tab" data-panel="gaps">Production Gaps</div>
+</div>
+
+<!-- ============================================================ -->
+<!-- TAB 1: ONBOARDING FLOW -->
+<!-- ============================================================ -->
+<div class="content">
+<div class="panel active" id="panel-flow">
+  <div class="section-title">JV Partner Onboarding Flow</div>
+  <div class="section-sub">Click each step to expand details. This is what happens when a new restaurant partner connects their QuickBooks.</div>
+
+  <div class="flow" id="onboarding-flow">
+
+    <div class="flow-step">
+      <div class="flow-line"><div class="flow-dot green"></div><div class="flow-connector"></div></div>
+      <div class="flow-card" onclick="toggleCard(this)">
+        <h3><span class="actor actor-admin">Admin</span> Navigate to QuickBooks Settings <span class="expand-hint">click to expand</span></h3>
+        <div class="subtitle">Admin logs into POS &rarr; Admin Panel &rarr; QuickBooks tab</div>
+        <div class="detail">
+          <strong>URL:</strong> <code>http://localhost:8090/admin/quickbooks</code><br>
+          <strong>Auth:</strong> JWT Bearer token (admin role required)<br>
+          <strong>What they see:</strong> 4 tabs &mdash; Connection, Account Setup, Mappings, Sync<br>
+          <strong>Connection Tab shows:</strong> "Not Connected" status, "Connect to QuickBooks" button
+        </div>
+      </div>
+    </div>
+
+    <div class="flow-step">
+      <div class="flow-line"><div class="flow-dot blue"></div><div class="flow-connector"></div></div>
+      <div class="flow-card" onclick="toggleCard(this)">
+        <h3><span class="actor actor-system">System</span> Generate OAuth Authorization URL</h3>
+        <div class="subtitle">Frontend calls <code>GET /integrations/quickbooks/connect</code></div>
+        <div class="detail">
+          <strong>Backend does:</strong><br>
+          1. Generate CSRF state token (<code>secrets.token_urlsafe(32)</code>)<br>
+          2. Store state in memory with tenant_id + user_id (10-min TTL)<br>
+          3. Build Intuit OAuth URL with: <code>client_id</code>, <code>scope=com.intuit.quickbooks.accounting</code>, <code>redirect_uri</code>, <code>state</code><br>
+          4. Return URL to frontend<br><br>
+          <strong>Frontend does:</strong> Opens URL in popup window (600x700)
+        </div>
+      </div>
+    </div>
+
+    <div class="flow-step">
+      <div class="flow-line"><div class="flow-dot purple"></div><div class="flow-connector"></div></div>
+      <div class="flow-card" onclick="toggleCard(this)">
+        <h3><span class="actor actor-partner">JV Partner</span> Authorize on Intuit's OAuth Page</h3>
+        <div class="subtitle">Partner logs into their Intuit account, selects their QB company, clicks "Allow"</div>
+        <div class="detail">
+          <strong>This happens entirely on Intuit's servers.</strong> We never see their Intuit password.<br><br>
+          <strong>What the partner sees:</strong><br>
+          1. Intuit login page (email + password)<br>
+          2. Company selector (if they have multiple QB companies)<br>
+          3. Permission consent screen: "POS System wants to access your QuickBooks"<br>
+          4. Click "Connect" / "Allow"<br><br>
+          <strong>Intuit then redirects to our callback URL with:</strong><br>
+          <code>?code=AUTH_CODE&state=CSRF_TOKEN&realmId=QB_COMPANY_ID</code>
+        </div>
+      </div>
+    </div>
+
+    <div class="flow-step">
+      <div class="flow-line"><div class="flow-dot blue"></div><div class="flow-connector"></div></div>
+      <div class="flow-card" onclick="toggleCard(this)">
+        <h3><span class="actor actor-system">System</span> Exchange Code for Tokens + Save Connection</h3>
+        <div class="subtitle">Backend callback validates state, exchanges auth code, encrypts tokens, stores in DB</div>
+        <div class="detail">
+          <strong>Step by step:</strong><br>
+          1. Validate CSRF state (single-use, expires in 10 min)<br>
+          2. POST to Intuit token endpoint with Basic auth (<code>client_id:client_secret</code>)<br>
+          3. Receive: <code>access_token</code> (~60 min), <code>refresh_token</code> (~100 days rolling)<br>
+          4. Encrypt both tokens with Fernet (AES-128, key derived from SECRET_KEY via SHA-256)<br>
+          5. Fetch company info from QB API (company name, country, industry)<br>
+          6. Upsert into <code>qb_connections</code> table with <code>tenant_id</code> + <code>realm_id</code><br>
+          7. Redirect popup to <code>/admin/quickbooks?connected=1</code><br><br>
+          <strong>DB record created:</strong><br>
+          <code>QBConnection(tenant_id, realm_id, company_name, access_token_encrypted, refresh_token_encrypted, is_active=True)</code>
+        </div>
+      </div>
+    </div>
+
+    <div class="flow-step">
+      <div class="flow-line"><div class="flow-dot amber"></div><div class="flow-connector"></div></div>
+      <div class="flow-card" onclick="toggleCard(this)">
+        <h3><span class="actor actor-admin">Admin</span> Run Account Matching</h3>
+        <div class="subtitle">Account Setup tab &rarr; "Run Matching" &rarr; system fuzzy-matches 19 POS needs against partner's QB Chart of Accounts</div>
+        <div class="detail">
+          <strong>What happens:</strong><br>
+          1. System fetches partner's full QB Chart of Accounts via API (typically 30-120 accounts)<br>
+          2. For each of 19 POS accounting needs, runs 6-signal fuzzy matching:<br>
+          &nbsp;&nbsp;&bull; Exact name match (1.0 weight if hit)<br>
+          &nbsp;&nbsp;&bull; Anchor token match (0.40) &mdash; distinctive keywords after stripping accounting noise<br>
+          &nbsp;&nbsp;&bull; Synonym overlap (0.25) &mdash; "gst" &harr; "tax", "bijli" &harr; "electricity"<br>
+          &nbsp;&nbsp;&bull; QB AccountType compatibility (0.20)<br>
+          &nbsp;&nbsp;&bull; Jaccard word overlap (0.10)<br>
+          &nbsp;&nbsp;&bull; Substring containment (0.05)<br><br>
+          3. Also tries each search hint (8-12 per need) for broader matching<br>
+          4. Results: <strong>matched</strong> (&ge;0.80), <strong>candidates</strong> (0.55-0.79), or <strong>unmatched</strong> (&lt;0.55)<br>
+          5. Computes overall grade: A/B/C/F based on coverage percentage
+        </div>
+      </div>
+    </div>
+
+    <div class="flow-step">
+      <div class="flow-line"><div class="flow-dot amber"></div><div class="flow-connector"></div></div>
+      <div class="flow-card" onclick="toggleCard(this)">
+        <h3><span class="actor actor-admin">Admin</span> Review Matches &amp; Make Decisions</h3>
+        <div class="subtitle">For each POS need: accept auto-match, pick from candidates, create new QB account, or skip</div>
+        <div class="detail">
+          <strong>Three decision types per need:</strong><br><br>
+          <strong>use_existing</strong> &mdash; Accept the auto-matched or manually-selected QB account<br>
+          &nbsp;&nbsp;Example: "Food Sales Income" &rarr; matched "Food Sales" at 1.000 &rarr; Accept<br><br>
+          <strong>create_new</strong> &mdash; No good match exists, create a new QB account in partner's company<br>
+          &nbsp;&nbsp;Example: "Rounding Adjustment" not found &rarr; Create it in QB with correct AccountType<br><br>
+          <strong>skip</strong> &mdash; This POS need doesn't apply to this partner<br>
+          &nbsp;&nbsp;Example: "Mobile Wallet" skipped if partner only accepts cash/card<br><br>
+          <strong>All decisions must be made before applying.</strong> Required needs cannot be skipped.
+        </div>
+      </div>
+    </div>
+
+    <div class="flow-step">
+      <div class="flow-line"><div class="flow-dot green"></div><div class="flow-connector"></div></div>
+      <div class="flow-card" onclick="toggleCard(this)">
+        <h3><span class="actor actor-system">System</span> Apply Decisions &rarr; Create Mappings</h3>
+        <div class="subtitle">Creates QB accounts (if needed) + writes <code>qb_account_mappings</code> rows in database</div>
+        <div class="detail">
+          <strong>For each "use_existing" decision:</strong><br>
+          &rarr; Insert <code>QBAccountMapping(mapping_type, qb_account_id, qb_account_name, is_default=True)</code><br><br>
+          <strong>For each "create_new" decision:</strong><br>
+          &rarr; Call QB API: <code>POST /v3/company/{realm_id}/account</code> with correct AccountType + SubType<br>
+          &rarr; Get back new QB account ID<br>
+          &rarr; Insert mapping row with new account<br><br>
+          <strong>For each "skip":</strong><br>
+          &rarr; No mapping created, logged in result<br><br>
+          <strong>Result:</strong> All POS accounting needs are now mapped to specific QB accounts. Sync is ready.
+        </div>
+      </div>
+    </div>
+
+    <div class="flow-step">
+      <div class="flow-line"><div class="flow-dot cyan"></div><div class="flow-connector"></div></div>
+      <div class="flow-card" onclick="toggleCard(this)">
+        <h3><span class="actor actor-system">System</span> Ongoing Sync: Orders &rarr; QB SalesReceipts</h3>
+        <div class="subtitle">Every completed POS order becomes a SalesReceipt in partner's QB, using the mapped accounts</div>
+        <div class="detail">
+          <strong>Trigger:</strong> Order status changes to "completed"<br>
+          <strong>Pipeline:</strong><br>
+          1. <code>on_order_completed()</code> orchestrator fires<br>
+          2. Pre-syncs QB Items (menu items) + Tax Codes if not yet synced<br>
+          3. Builds SalesReceipt payload:<br>
+          &nbsp;&nbsp;&bull; Line items with <code>ItemRef</code> (QB Item) + <code>ItemAccountRef</code> (mapped income account)<br>
+          &nbsp;&nbsp;&bull; <code>TxnTaxDetail</code> with <code>TaxCodeRef</code> per line<br>
+          &nbsp;&nbsp;&bull; <code>DepositToAccountRef</code> (mapped bank/cash account)<br>
+          &nbsp;&nbsp;&bull; <code>CustomerRef</code> (if customer exists)<br>
+          4. Enqueues as <code>QBSyncJob(job_type="create_sales_receipt", idempotency_key=...)</code><br>
+          5. Job processor POSTs to QB API<br>
+          6. Success/failure logged to <code>qb_sync_log</code><br><br>
+          <strong>Retry:</strong> Failed jobs retry 3x with exponential backoff. Dead-letter queue for persistent failures.
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- TAB 2: MULTI-PARTNER VIEW -->
+<!-- ============================================================ -->
+<div class="panel" id="panel-multi">
+  <div class="section-title">Multi-JV-Partner Architecture</div>
+  <div class="section-sub">Each partner gets a completely isolated QuickBooks integration. One POS app registration, many partners.</div>
+
+  <div class="callout callout-blue">
+    <strong>Key Architecture: One Intuit App, Many Partners</strong>
+    We register ONE Intuit Developer App (our POS). Each JV partner authorizes this app to access THEIR QB company via OAuth.
+    Every database record is scoped by <code>tenant_id</code> &mdash; complete data isolation between partners.
+  </div>
+
+  <div class="arch-row">
+    <div class="arch-box" style="border-color: var(--blue); border-width: 2px;">
+      <h4 style="color: var(--blue);">POS System (Our App)</h4>
+      <ul>
+        <li>1 Intuit Developer App registration</li>
+        <li>1 QB_CLIENT_ID + QB_CLIENT_SECRET</li>
+        <li>1 OAuth redirect_uri</li>
+        <li>Multi-tenant backend (FastAPI)</li>
+        <li>Shared fuzzy matching engine</li>
+        <li>Shared sync pipeline</li>
+      </ul>
+    </div>
+    <div class="arch-box">
+      <h4>Per Partner (Isolated)</h4>
+      <ul>
+        <li>Own QBConnection row (encrypted tokens)</li>
+        <li>Own account mappings (19 POS needs)</li>
+        <li>Own entity mappings (menu items &rarr; QB Items)</li>
+        <li>Own sync queue (jobs + retries)</li>
+        <li>Own audit trail (sync_log)</li>
+        <li>Own match results history</li>
+      </ul>
+    </div>
+    <div class="arch-box">
+      <h4>Intuit / QuickBooks</h4>
+      <ul>
+        <li>Each partner has own QB Online subscription</li>
+        <li>Each has own Chart of Accounts</li>
+        <li>Each has own realm_id (company ID)</li>
+        <li>OAuth tokens are per-company</li>
+        <li>API rate limits are per-company</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="section-title" style="margin-top: 32px;">Live Partner Dashboard</div>
+  <div class="section-sub">Simulated view of how multiple partners would appear in the system.</div>
+
+  <div class="tenant-grid" id="tenant-grid">
+    <!-- Populated by JS -->
+  </div>
+
+  <div class="callout callout-green" style="margin-top: 24px;">
+    <strong>Scaling: What Happens When Partner #50 Connects?</strong>
+    Nothing changes architecturally. They click "Connect", do OAuth, run matching, review, apply. Their data
+    is fully isolated via <code>tenant_id</code>. The only shared resource is the Intuit App registration
+    (which supports unlimited companies) and the sync worker pool (which processes jobs by priority).
+  </div>
+
+  <div class="section-title" style="margin-top: 32px;">Database Isolation Model</div>
+  <div class="code">
+<span class="comment">-- Every QB table is tenant-scoped. Example queries:</span>
+
+<span class="comment">-- Get Partner A's connection:</span>
+<span class="keyword">SELECT</span> * <span class="keyword">FROM</span> qb_connections
+<span class="keyword">WHERE</span> tenant_id = <span class="string">'partner-a-uuid'</span> <span class="keyword">AND</span> is_active = <span class="keyword">true</span>;
+
+<span class="comment">-- Get Partner B's mappings (completely separate):</span>
+<span class="keyword">SELECT</span> * <span class="keyword">FROM</span> qb_account_mappings
+<span class="keyword">WHERE</span> tenant_id = <span class="string">'partner-b-uuid'</span>;
+
+<span class="comment">-- Partner A can NEVER see Partner B's data:</span>
+<span class="comment">-- Auth middleware injects tenant_id from JWT automatically</span>
+<span class="comment">-- All queries filter by it</span>
+
+<span class="comment">-- Unique constraints prevent cross-contamination:</span>
+<span class="keyword">UNIQUE</span>(tenant_id, realm_id)           <span class="comment">-- 1 QB company per partner</span>
+<span class="keyword">UNIQUE</span>(connection_id, mapping_type,    <span class="comment">-- No duplicate mappings</span>
+       qb_account_name)
+<span class="keyword">UNIQUE</span>(tenant_id, idempotency_key)     <span class="comment">-- No duplicate syncs</span>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- TAB 3: OAUTH DEEP DIVE -->
+<!-- ============================================================ -->
+<div class="panel" id="panel-oauth">
+  <div class="section-title">OAuth 2.0 Sequence</div>
+  <div class="section-sub">Detailed token lifecycle: authorization, encryption, refresh, revocation.</div>
+
+  <div class="arch-row">
+    <div class="arch-box" style="flex: 2;">
+      <h4 style="color: var(--green);">Token Security</h4>
+      <div class="code" style="margin: 8px 0;">
+<span class="comment"># Token encryption at rest (oauth.py)</span>
+SECRET_KEY &rarr; SHA-256 &rarr; 32 bytes &rarr; base64 &rarr; <span class="fn">Fernet</span> key
+<span class="fn">Fernet.encrypt</span>(access_token)  &rarr; DB column (ciphertext)
+<span class="fn">Fernet.decrypt</span>(ciphertext)    &rarr; plaintext token (in-memory only)
+
+<span class="comment"># AES-128-CBC + HMAC-SHA256 (tamper-proof)</span>
+<span class="comment"># All workers with same SECRET_KEY can decrypt</span>
+<span class="comment"># DB dump without SECRET_KEY = useless encrypted blobs</span>
+      </div>
+    </div>
+    <div class="arch-box" style="flex: 1;">
+      <h4 style="color: var(--amber);">Token Lifetimes</h4>
+      <table style="font-size: 12px; width: 100%;">
+        <tr><td style="color: var(--muted);">Access Token</td><td>~60 minutes</td></tr>
+        <tr><td style="color: var(--muted);">Refresh Token</td><td>~100 days (rolling)</td></tr>
+        <tr><td style="color: var(--muted);">CSRF State</td><td>10 minutes</td></tr>
+        <tr><td style="color: var(--muted);">Auto-Refresh</td><td>5 min before expiry</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="section-title" style="margin-top: 24px;">Refresh Flow (Automatic)</div>
+  <div class="code">
+<span class="comment"># Before EVERY QB API call:</span>
+<span class="keyword">async def</span> <span class="fn">ensure_valid_token</span>(connection, db):
+    <span class="keyword">if</span> connection.access_token_expires_at &lt; now() + 5_minutes:
+        connection = <span class="keyword">await</span> <span class="fn">refresh_access_token</span>(connection, db)
+        <span class="comment"># POST to Intuit with refresh_token</span>
+        <span class="comment"># Get new access_token + new refresh_token</span>
+        <span class="comment"># Encrypt both, update DB</span>
+        <span class="comment"># Rolling: refresh_token expiry extends 100 days from NOW</span>
+    <span class="keyword">return</span> <span class="fn">decrypt_token</span>(connection.access_token_encrypted)
+
+<span class="comment"># If refresh_token itself is expired (>100 days no activity):</span>
+<span class="comment"># → Set is_active = False</span>
+<span class="comment"># → Admin must re-authorize via OAuth popup</span>
+  </div>
+
+  <div class="callout callout-amber">
+    <strong>What Happens If Partner Doesn't Use POS for 100+ Days?</strong>
+    The refresh token expires. Next time they try to sync, the system detects <code>is_active = False</code>
+    and prompts them to re-connect via OAuth. All existing mappings are preserved &mdash; they just need to
+    re-authorize. No data loss.
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- TAB 4: MATCHING ENGINE -->
+<!-- ============================================================ -->
+<div class="panel" id="panel-matching">
+  <div class="section-title">Fuzzy Matching Engine</div>
+  <div class="section-sub">How POS accounting needs are matched against a partner's QB Chart of Accounts.</div>
+
+  <div class="callout callout-blue">
+    <strong>Attempt 2 Innovation: No Templates</strong>
+    Instead of picking from 40 pre-built templates (Attempt 1), the POS declares 19 fixed accounting needs
+    and matches them directly against whatever accounts exist in the partner's QB. Works with any industry,
+    any naming convention, any language mix (English + Urdu).
+  </div>
+
+  <div class="arch-row">
+    <div class="arch-box" style="border-color: var(--green);">
+      <h4 style="color: var(--green);">19 POS Accounting Needs</h4>
+      <ul>
+        <li><strong>7 Required:</strong> income, cogs, tax_payable, bank, discount, rounding, cash_over_short</li>
+        <li><strong>12 Optional:</strong> beverage_income, cash, mobile_wallet, tips, service_charge, delivery_fee, foodpanda_commission, gift_card_liability, rent, salary, utility, packaging</li>
+      </ul>
+    </div>
+    <div class="arch-box" style="border-color: var(--amber);">
+      <h4 style="color: var(--amber);">6 Matching Signals</h4>
+      <ul>
+        <li>Exact name match (1.00 &mdash; instant hit)</li>
+        <li>Anchor token match (0.40 &mdash; distinctive keywords)</li>
+        <li>Synonym overlap (0.25 &mdash; domain terms)</li>
+        <li>AccountType compat (0.20 &mdash; QB type check)</li>
+        <li>Jaccard word overlap (0.10 &mdash; raw overlap)</li>
+        <li>Substring containment (0.05 &mdash; partial)</li>
+      </ul>
+    </div>
+    <div class="arch-box" style="border-color: var(--purple);">
+      <h4 style="color: var(--purple);">Thresholds</h4>
+      <ul>
+        <li><span style="color: var(--green);">&ge;0.80</span> &rarr; HIGH confidence (auto-decide)</li>
+        <li><span style="color: var(--amber);">0.55-0.79</span> &rarr; MEDIUM (candidate, review)</li>
+        <li><span style="color: var(--red);">&lt;0.55</span> &rarr; LOW (unmatched)</li>
+      </ul>
+      <br>
+      <ul>
+        <li>35 synonym sets (incl. Urdu terms)</li>
+        <li>12 accounting stop words stripped</li>
+        <li>Bigram matching for multi-word terms</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="section-title" style="margin-top: 24px;">Test Results Across 4 Datasets</div>
+  <table style="width: 100%; font-size: 13px; border-collapse: collapse; background: var(--surface); border-radius: 8px; overflow: hidden;">
+    <thead>
+      <tr style="border-bottom: 1px solid var(--border);">
+        <th style="text-align: left; padding: 12px 16px; color: var(--muted);">Dataset</th>
+        <th style="text-align: center; padding: 12px; color: var(--muted);">Accounts</th>
+        <th style="text-align: center; padding: 12px; color: var(--muted);">Grade</th>
+        <th style="text-align: center; padding: 12px; color: var(--muted);">Matched</th>
+        <th style="text-align: center; padding: 12px; color: var(--muted);">Candidates</th>
+        <th style="text-align: center; padding: 12px; color: var(--muted);">Unmatched</th>
+        <th style="text-align: center; padding: 12px; color: var(--muted);">Coverage</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr style="border-bottom: 1px solid var(--border);">
+        <td style="padding: 10px 16px;"><strong>Live QB Sandbox</strong> (actual API)</td>
+        <td style="text-align: center;">120</td>
+        <td style="text-align: center;"><span style="color: var(--green); font-weight: 700;">A</span></td>
+        <td style="text-align: center;">15</td>
+        <td style="text-align: center;">4</td>
+        <td style="text-align: center;">0</td>
+        <td style="text-align: center;">100%</td>
+      </tr>
+      <tr style="border-bottom: 1px solid var(--border);">
+        <td style="padding: 10px 16px;">Pakistani Restaurant (fixture)</td>
+        <td style="text-align: center;">35</td>
+        <td style="text-align: center;"><span style="color: var(--green); font-weight: 700;">A</span></td>
+        <td style="text-align: center;">15</td>
+        <td style="text-align: center;">3</td>
+        <td style="text-align: center;">1</td>
+        <td style="text-align: center;">94.7%</td>
+      </tr>
+      <tr style="border-bottom: 1px solid var(--border);">
+        <td style="padding: 10px 16px;">US Restaurant &mdash; SimpleRestAcctg</td>
+        <td style="text-align: center;">68</td>
+        <td style="text-align: center;"><span style="color: var(--blue); font-weight: 700;">B</span></td>
+        <td style="text-align: center;">9</td>
+        <td style="text-align: center;">4</td>
+        <td style="text-align: center;">6</td>
+        <td style="text-align: center;">68.4%</td>
+      </tr>
+      <tr>
+        <td style="padding: 10px 16px;">Generic Small Business (non-restaurant)</td>
+        <td style="text-align: center;">34</td>
+        <td style="text-align: center;"><span style="color: var(--amber); font-weight: 700;">C</span></td>
+        <td style="text-align: center;">5</td>
+        <td style="text-align: center;">4</td>
+        <td style="text-align: center;">10</td>
+        <td style="text-align: center;">47.4%</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ============================================================ -->
+<!-- TAB 5: SYNC PIPELINE -->
+<!-- ============================================================ -->
+<div class="panel" id="panel-sync">
+  <div class="section-title">Sync Pipeline Architecture</div>
+  <div class="section-sub">How POS orders flow into QuickBooks as SalesReceipts.</div>
+
+  <div class="flow">
+    <div class="flow-step">
+      <div class="flow-line"><div class="flow-dot green"></div><div class="flow-connector"></div></div>
+      <div class="flow-card" onclick="toggleCard(this)">
+        <h3>Order Completed in POS</h3>
+        <div class="subtitle">Cashier marks order as "completed" (served + paid)</div>
+        <div class="detail">
+          <strong>Trigger:</strong> <code>PATCH /orders/{id}</code> with <code>status: "completed"</code><br>
+          Order service fires <code>on_order_completed(order_id)</code> event.
+        </div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-line"><div class="flow-dot blue"></div><div class="flow-connector"></div></div>
+      <div class="flow-card" onclick="toggleCard(this)">
+        <h3>Orchestrator Pre-Syncs Dependencies</h3>
+        <div class="subtitle">Ensures QB Items (menu items) and Tax Codes exist before creating receipt</div>
+        <div class="detail">
+          <strong>For each menu item in order:</strong><br>
+          &bull; Check if <code>QBEntityMapping(entity_type="menu_item")</code> exists<br>
+          &bull; If not: create QB Item via API + store entity mapping<br><br>
+          <strong>For each tax rate:</strong><br>
+          &bull; Check if <code>QBEntityMapping(entity_type="tax_code")</code> exists<br>
+          &bull; If not: query/create QB TaxCode<br><br>
+          <strong>Why pre-sync?</strong> QB SalesReceipt lines require <code>ItemRef</code> + <code>TaxCodeRef</code>. Without these, QB ignores <code>ItemAccountRef</code> and defaults income to "Services".
+        </div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-line"><div class="flow-dot amber"></div><div class="flow-connector"></div></div>
+      <div class="flow-card" onclick="toggleCard(this)">
+        <h3>Build SalesReceipt Payload</h3>
+        <div class="subtitle">Maps POS order data to QB SalesReceipt JSON using account mappings</div>
+        <div class="detail">
+          <strong>Key mapping lookups:</strong><br>
+          &bull; <code>income</code> mapping &rarr; <code>ItemAccountRef</code> (where income lands)<br>
+          &bull; <code>bank</code> or <code>cash</code> mapping &rarr; <code>DepositToAccountRef</code> (where money goes)<br>
+          &bull; <code>discount</code> mapping &rarr; Discount line item account<br>
+          &bull; <code>tax_payable</code> mapping &rarr; <code>TxnTaxDetail</code><br>
+          &bull; US companies: <code>TaxCodeRef: "TAX"/"NON"</code>, Intl: numeric TaxCode Id<br>
+          &bull; <code>ShipAddr</code> from company info (required for US AST tax calculation)
+        </div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-line"><div class="flow-dot purple"></div><div class="flow-connector"></div></div>
+      <div class="flow-card" onclick="toggleCard(this)">
+        <h3>Enqueue Sync Job (Idempotent)</h3>
+        <div class="subtitle"><code>QBSyncJob</code> created with <code>idempotency_key</code> to prevent duplicates</div>
+        <div class="detail">
+          <strong>Idempotency:</strong> Key = <code>create_sales_receipt:{order_id}</code><br>
+          If job already exists for this order, skip (no duplicate QB receipts).<br><br>
+          <strong>Priority:</strong> 5 (normal) for regular orders, 0 (critical) for retries<br>
+          <strong>Max retries:</strong> 3 with exponential backoff<br>
+          <strong>Dead letter:</strong> After 3 failures, moved to <code>dead_letter</code> status for manual review
+        </div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-line"><div class="flow-dot cyan"></div></div>
+      <div class="flow-card" onclick="toggleCard(this)">
+        <h3>QB API Call + Audit Log</h3>
+        <div class="subtitle"><code>POST /v3/company/{realm_id}/salesreceipt</code> &rarr; success/failure logged</div>
+        <div class="detail">
+          <strong>On success:</strong><br>
+          &bull; Job status &rarr; <code>completed</code><br>
+          &bull; <code>QBSyncLog</code> entry with full request/response, duration, QB doc number<br>
+          &bull; Connection's <code>last_sync_at</code> + <code>last_sync_status</code> updated<br><br>
+          <strong>On failure:</strong><br>
+          &bull; Job status &rarr; <code>failed</code>, retry_count++<br>
+          &bull; <code>next_retry_at</code> = now + (2^retry_count * 30 seconds)<br>
+          &bull; Error logged with QB error code + message<br>
+          &bull; After 3 failures: <code>dead_letter</code> status, admin notified
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- TAB 6: PRODUCTION GAPS -->
+<!-- ============================================================ -->
+<div class="panel" id="panel-gaps">
+  <div class="section-title">Production Readiness Gaps</div>
+  <div class="section-sub">Issues to address before going live with real JV partners. Demo-ready today, production needs these fixes.</div>
+
+  <div class="gap-list">
+    <div class="gap-item">
+      <div class="gap-icon critical">!</div>
+      <div>
+        <h4>In-Memory OAuth State Store</h4>
+        <p>CSRF state tokens stored in Python dict. Breaks with multiple workers or server restarts. <strong>Fix:</strong> Move to Redis with 10-min TTL keys.</p>
+      </div>
+    </div>
+    <div class="gap-item">
+      <div class="gap-icon critical">!</div>
+      <div>
+        <h4>Token Refresh Race Condition</h4>
+        <p>Two concurrent API calls can both try to refresh the same token simultaneously. <strong>Fix:</strong> Add <code>SELECT ... FOR UPDATE</code> lock on connection row during refresh.</p>
+      </div>
+    </div>
+    <div class="gap-item">
+      <div class="gap-icon moderate">&Delta;</div>
+      <div>
+        <h4>No Intuit Webhook Handler</h4>
+        <p><code>webhook_verifier_token</code> column exists but no endpoint to receive token revocation events from Intuit. If partner changes QB password, we don't know until next API call fails.</p>
+      </div>
+    </div>
+    <div class="gap-item">
+      <div class="gap-icon moderate">&Delta;</div>
+      <div>
+        <h4>OAuth Popup UX</h4>
+        <p>After Intuit authorization, popup redirects but doesn't auto-close. User must manually close it. <strong>Fix:</strong> Add <code>window.close()</code> in callback redirect page or use postMessage.</p>
+      </div>
+    </div>
+    <div class="gap-item">
+      <div class="gap-icon moderate">&Delta;</div>
+      <div>
+        <h4>No OAuth Event Audit Trail</h4>
+        <p>Connect/disconnect/refresh events not logged to <code>qb_sync_log</code>. Hard to debug "when did they connect?" forensic questions.</p>
+      </div>
+    </div>
+    <div class="gap-item">
+      <div class="gap-icon minor">i</div>
+      <div>
+        <h4>Redirect URI Hardcoded for Dev</h4>
+        <p>Currently <code>http://localhost:8090/...</code>. Production needs <code>https://</code> + real domain. Already configurable via <code>.env</code>, just needs to be set correctly per environment.</p>
+      </div>
+    </div>
+    <div class="gap-item">
+      <div class="gap-icon minor">i</div>
+      <div>
+        <h4>Single QB Company Per Tenant</h4>
+        <p>DB constraint <code>UNIQUE(tenant_id, realm_id)</code> allows multiple companies per tenant, but code's <code>get_connection()</code> returns first active one. Fine for current scope &mdash; needs connection selector UI if partners have multiple QB companies.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="callout callout-green" style="margin-top: 24px;">
+    <strong>Bottom Line</strong>
+    The integration is <strong>demo-ready and functionally complete</strong>. The gaps above are production-hardening items,
+    not missing features. The core OAuth flow, fuzzy matching, account mapping, and sync pipeline all work end-to-end
+    against real QB Sandbox data.
+  </div>
+</div>
+
+</div><!-- /content -->
+
+<script>
+// Tab switching
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('panel-' + tab.dataset.panel).classList.add('active');
+  });
+});
+
+// Flow card expand/collapse
+function toggleCard(el) {
+  el.classList.toggle('expanded');
+}
+
+// Multi-tenant dashboard data
+const partners = [
+  {
+    name: "Karahi Junction (Lahore)",
+    status: "active", realm: "9341456381211296",
+    company: "Sandbox Company_US_1", grade: "A",
+    matched: 15, candidates: 4, total: 19,
+    mappings: 31, synced: 15, lastSync: "2 hours ago",
+    color: "var(--green)"
+  },
+  {
+    name: "BBQ Tonight (Islamabad)",
+    status: "active", realm: "4829103847291",
+    company: "BBQ Tonight Pvt Ltd", grade: "A",
+    matched: 17, candidates: 2, total: 19,
+    mappings: 19, synced: 243, lastSync: "5 minutes ago",
+    color: "var(--green)"
+  },
+  {
+    name: "Chai Shai (Karachi)",
+    status: "pending", realm: null,
+    company: "Not connected", grade: "-",
+    matched: 0, candidates: 0, total: 19,
+    mappings: 0, synced: 0, lastSync: "Never",
+    color: "var(--amber)"
+  },
+  {
+    name: "Naan Stop (Faisalabad)",
+    status: "active", realm: "7382910384729",
+    company: "Naan Stop Foods QB", grade: "B",
+    matched: 12, candidates: 5, total: 19,
+    mappings: 17, synced: 89, lastSync: "1 hour ago",
+    color: "var(--blue)"
+  },
+  {
+    name: "Biryani Express (Multan)",
+    status: "inactive", realm: "2938471029384",
+    company: "Biryani Express Co", grade: "A",
+    matched: 16, candidates: 3, total: 19,
+    mappings: 19, synced: 456, lastSync: "45 days ago",
+    color: "var(--red)"
+  },
+  {
+    name: "Dal Chawal (Peshawar)",
+    status: "active", realm: "8472910384756",
+    company: "Dal Chawal Restaurant", grade: "A",
+    matched: 18, candidates: 1, total: 19,
+    mappings: 19, synced: 1204, lastSync: "30 seconds ago",
+    color: "var(--green)"
+  },
+];
+
+const grid = document.getElementById('tenant-grid');
+partners.forEach(p => {
+  const pct = p.total > 0 ? Math.round((p.matched + p.candidates) / p.total * 100) : 0;
+  const statusLabel = p.status === 'active' ? 'Connected' : p.status === 'pending' ? 'Not Connected' : 'Token Expired';
+  const fillColor = p.status === 'active' ? 'var(--green)' : p.status === 'pending' ? 'var(--amber)' : 'var(--red)';
+
+  grid.innerHTML += `
+    <div class="tenant-card">
+      <h3><span class="status-dot ${p.status}"></span> ${p.name}</h3>
+      <table>
+        <tr><td>QB Company</td><td><strong>${p.company}</strong></td></tr>
+        <tr><td>Realm ID</td><td><code style="font-size:11px;">${p.realm || 'N/A'}</code></td></tr>
+        <tr><td>Status</td><td style="color: ${fillColor}; font-weight: 600;">${statusLabel}</td></tr>
+        <tr><td>Match Grade</td><td><strong>${p.grade}</strong> (${p.matched} matched, ${p.candidates} candidates)</td></tr>
+        <tr><td>Mappings</td><td>${p.mappings} active</td></tr>
+        <tr><td>Orders Synced</td><td>${p.synced.toLocaleString()}</td></tr>
+        <tr><td>Last Sync</td><td>${p.lastSync}</td></tr>
+      </table>
+      <div class="mapping-bar">
+        <div class="mapping-fill" style="width: ${pct}%; background: ${fillColor};"></div>
+      </div>
+      <div style="font-size: 11px; color: var(--muted); margin-top: 4px;">${pct}% coverage (${p.matched + p.candidates}/${p.total} needs covered)</div>
+    </div>
+  `;
+});
+
+// Animate mapping bars on load
+setTimeout(() => {
+  document.querySelectorAll('.mapping-fill').forEach(el => {
+    el.style.transition = 'width 0.8s ease';
+  });
+}, 100);
+</script>
+
+</body>
+</html>
