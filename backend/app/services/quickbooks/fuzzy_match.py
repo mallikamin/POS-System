@@ -71,7 +71,7 @@ SYNONYM_SETS: list[set[str]] = [
     {"utility", "utilities", "electricity", "gas", "water", "bijli",
      "sui gas", "paani"},
     # 18 — Payroll
-    {"payroll", "salary", "salaries", "wages", "compensation",
+    {"payroll", "salary", "salaries", "wages",
      "staff cost", "tankhwah"},
     # 19 — Marketing
     {"marketing", "advertising", "promotion", "publicity", "istihar", "ads"},
