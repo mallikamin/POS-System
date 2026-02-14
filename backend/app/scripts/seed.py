@@ -95,6 +95,13 @@ SEED_USERS = [
         "pin": "9012",
         "role_name": "kitchen",
     },
+    {
+        "email": "youniskamran@demo.com",
+        "full_name": "Younis Kamran",
+        "password": "yk123",
+        "pin": "1111",
+        "role_name": "admin",
+    },
 ]
 
 
