@@ -232,6 +232,10 @@ function FloorEditorPage() {
             : f
         )
       );
+      // Mark changes for properties that affect layout (pos, size, rotation)
+      if (field === "pos_x" || field === "pos_y" || field === "width" || field === "height" || field === "rotation") {
+        setHasChanges(true);
+      }
     } catch {
       setError("Failed to update table");
     }

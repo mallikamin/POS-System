@@ -1,5 +1,5 @@
-import { useEffect } from "react";
-import { Loader2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Loader2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useFloorStore } from "@/stores/floorStore";
 import { TableCard } from "./TableCard";
@@ -17,6 +17,8 @@ export function FloorGrid({ onTableSelect }: FloorGridProps) {
   const loadFloors = useFloorStore((s) => s.loadFloors);
   const setSelectedFloor = useFloorStore((s) => s.setSelectedFloor);
   const setSelectedTable = useFloorStore((s) => s.setSelectedTable);
+  const setTableStatus = useFloorStore((s) => s.setTableStatus);
+  const [statusError, setStatusError] = useState<string | null>(null);
 
   useEffect(() => {
     loadFloors();
@@ -24,10 +26,23 @@ export function FloorGrid({ onTableSelect }: FloorGridProps) {
 
   const activeFloor = floors.find((f) => f.id === selectedFloorId);
   const activeTables = activeFloor?.tables.filter((t) => t.is_active) ?? [];
+  const selectedTable = activeTables.find((t) => t.id === selectedTableId) ?? null;
 
   function handleTableClick(tableId: string) {
     setSelectedTable(tableId);
     onTableSelect(tableId);
+  }
+
+  async function handleSetTableStatus(tableId: string, status: "available" | "reserved" | "occupied" | "cleaning") {
+    setStatusError(null);
+    try {
+      await setTableStatus(tableId, status);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to update table status";
+      setStatusError(message);
+      // Auto-dismiss after 5 seconds
+      setTimeout(() => setStatusError(null), 5000);
+    }
   }
 
   if (isLoading && floors.length === 0) {
@@ -98,6 +113,45 @@ export function FloorGrid({ onTableSelect }: FloorGridProps) {
                 onClick={() => handleTableClick(table.id)}
               />
             ))}
+          </div>
+        )}
+
+        {selectedTable && (
+          <div className="mt-3 rounded-lg border border-secondary-200 bg-white p-2">
+            <p className="mb-2 text-xs font-medium text-secondary-600">
+              {selectedTable.label || `Table ${selectedTable.number}`}
+            </p>
+            {statusError && (
+              <div className="mb-2 flex items-center justify-between rounded-md bg-danger-50 px-2 py-1.5 text-xs text-danger-700">
+                <span>{statusError}</span>
+                <button
+                  onClick={() => setStatusError(null)}
+                  className="ml-2 rounded p-0.5 hover:bg-danger-100"
+                  aria-label="Dismiss error"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            )}
+            <div className="flex gap-2">
+              <button
+                onClick={() =>
+                  handleSetTableStatus(
+                    selectedTable.id,
+                    selectedTable.status === "reserved" ? "available" : "reserved"
+                  )
+                }
+                className="rounded-md bg-warning-100 px-2.5 py-1.5 text-xs font-medium text-warning-800 hover:bg-warning-200"
+              >
+                {selectedTable.status === "reserved" ? "Unreserve" : "Reserve"}
+              </button>
+              <button
+                onClick={() => handleSetTableStatus(selectedTable.id, "available")}
+                className="rounded-md bg-success-100 px-2.5 py-1.5 text-xs font-medium text-success-800 hover:bg-success-200"
+              >
+                Mark Available
+              </button>
+            </div>
           </div>
         )}
       </div>

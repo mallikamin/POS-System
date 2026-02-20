@@ -87,6 +87,11 @@ async def create_order(
     order_number = await generate_order_number(db, tenant_id)
     tax_rate_bps = await _get_tax_rate(db, tenant_id)
 
+    # Normalize customer_phone to digits-only
+    customer_phone = data.customer_phone
+    if customer_phone:
+        customer_phone = "".join(c for c in customer_phone if c.isdigit()) or None
+
     # Build order items and compute subtotal server-side
     order_items: list[OrderItem] = []
     subtotal = 0
@@ -130,7 +135,7 @@ async def create_order(
         payment_status="unpaid",
         table_id=data.table_id,
         customer_name=data.customer_name,
-        customer_phone=data.customer_phone,
+        customer_phone=customer_phone,
         subtotal=subtotal,
         tax_amount=tax_amount,
         discount_amount=0,

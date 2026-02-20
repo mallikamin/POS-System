@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.database import engine
 from app.api.v1.router import api_v1_router
+from app.websockets.routes import router as ws_router
 
 
 @asynccontextmanager
@@ -45,3 +46,6 @@ app.add_middleware(
 
 # Mount API v1 router
 app.include_router(api_v1_router, prefix="/api/v1")
+
+# Mount WebSocket router (no prefix — /ws is at root)
+app.include_router(ws_router)

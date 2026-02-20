@@ -18,6 +18,7 @@ from app.schemas.floor import (
     FloorWithTables,
     TableCreate,
     TableResponse,
+    TableStatusUpdate,
     TableUpdate,
 )
 from app.services import floor_service
@@ -191,7 +192,7 @@ async def bulk_update_positions(
 @router.patch("/tables/{table_id}/status", response_model=TableResponse)
 async def update_table_status(
     table_id: uuid.UUID,
-    body: TableUpdate,
+    body: TableStatusUpdate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> TableResponse:

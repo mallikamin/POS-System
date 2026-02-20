@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import type { FloorWithTables, TableResponse } from "@/types/floor";
-import { fetchStatusBoard } from "@/services/floorApi";
+import { fetchStatusBoard, updateTableStatus } from "@/services/floorApi";
 
 interface FloorState {
   floors: FloorWithTables[];
@@ -15,6 +15,10 @@ interface FloorActions {
   loadFloors: () => Promise<void>;
   setSelectedFloor: (id: string | null) => void;
   setSelectedTable: (id: string | null) => void;
+  setTableStatus: (
+    tableId: string,
+    status: TableResponse["status"]
+  ) => Promise<void>;
   getSelectedFloor: () => FloorWithTables | null;
   getSelectedTable: () => TableResponse | null;
   updateTableInStore: (tableId: string, updates: Partial<TableResponse>) => void;
@@ -66,6 +70,26 @@ export const useFloorStore = create<FloorStore>()((set, get) => ({
 
   setSelectedTable: (id) => {
     set({ selectedTableId: id });
+  },
+
+  setTableStatus: async (tableId, status) => {
+    try {
+      const updated = await updateTableStatus(tableId, status);
+      set((state) => ({
+        floors: state.floors.map((floor) => ({
+          ...floor,
+          tables: floor.tables.map((table) =>
+            table.id === tableId ? updated : table
+          ),
+        })),
+        error: null,
+      }));
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to update table status";
+      set({ error: message });
+      throw err;
+    }
   },
 
   getSelectedFloor: () => {

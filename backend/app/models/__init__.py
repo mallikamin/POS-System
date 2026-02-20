@@ -18,6 +18,9 @@ from app.models.quickbooks import (
     QBSyncJob,
     QBSyncLog,
 )
+from app.models.payment import PaymentMethod, Payment, CashDrawerSession
+from app.models.customer import Customer
+from app.models.kitchen import KitchenStation, KitchenTicket, KitchenTicketItem
 
 __all__ = [
     "Base",
@@ -44,4 +47,11 @@ __all__ = [
     "QBEntityMapping",
     "QBSyncJob",
     "QBSyncLog",
+    "PaymentMethod",
+    "Payment",
+    "CashDrawerSession",
+    "Customer",
+    "KitchenStation",
+    "KitchenTicket",
+    "KitchenTicketItem",
 ]

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Minus, Plus, ShoppingCart, ChefHat, X, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +14,7 @@ import { formatPKR } from "@/utils/currency";
 import { useCartStore, type CartLine, type Cart, EMPTY_CART } from "@/stores/cartStore";
 import { useOrderStore } from "@/stores/orderStore";
 import { useUIStore } from "@/stores/uiStore";
+import { useCustomerStore } from "@/stores/customerStore";
 
 const TAX_BPS = 1600; // 16.00% in basis points (integer math)
 
@@ -25,11 +26,21 @@ export function CartPanel() {
   const removeItem = useCartStore((s) => s.removeItem);
   const clearCart = useCartStore((s) => s.clearCart);
   const isSending = useOrderStore((s) => s.isSending);
+  const orderError = useOrderStore((s) => s.error);
   const currentChannel = useUIStore((s) => s.currentChannel);
+  const selectedCustomer = useCustomerStore((s) => s.selectedCustomer);
 
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
   const [sentSuccess, setSentSuccess] = useState(false);
   const [orderNumber, setOrderNumber] = useState<string | null>(null);
+  const [displayError, setDisplayError] = useState<string | null>(null);
+
+  // Sync orderError to displayError
+  useEffect(() => {
+    if (orderError) {
+      setDisplayError(orderError);
+    }
+  }, [orderError]);
 
   const subtotal = cart.lines.reduce((sum, l) => sum + l.unitPrice * l.quantity, 0);
   const itemCount = cart.lines.reduce((sum, l) => sum + l.quantity, 0);
@@ -45,7 +56,17 @@ export function CartPanel() {
       : undefined;
 
     try {
-      const order = await useOrderStore.getState().createOrderFromCart(orderType, tableId);
+      setDisplayError(null);
+      const customerName =
+        orderType === "call_center" && selectedCustomer ? selectedCustomer.name : undefined;
+      const customerPhone =
+        orderType === "call_center" && selectedCustomer ? selectedCustomer.phone : undefined;
+      const order = await useOrderStore.getState().createOrderFromCart(
+        orderType,
+        tableId,
+        customerName,
+        customerPhone
+      );
       setOrderNumber(order.order_number);
       setSentSuccess(true);
       setTimeout(() => {
@@ -53,7 +74,7 @@ export function CartPanel() {
         setOrderNumber(null);
       }, 4000);
     } catch {
-      // Error is stored in orderStore.error
+      // Error is stored in orderStore.error and will be displayed via useEffect
     }
   }
 
@@ -81,6 +102,18 @@ export function CartPanel() {
           <div className="mx-4 mt-3 flex items-center gap-2 rounded-lg bg-success-50 px-3 py-2 text-sm text-success-700">
             <ChefHat className="h-4 w-4" />
             Order #{orderNumber} sent to kitchen!
+          </div>
+        )}
+        {displayError && (
+          <div className="mx-4 mt-3 flex items-center justify-between rounded-lg bg-danger-50 px-3 py-2 text-sm text-danger-700">
+            <span>{displayError}</span>
+            <button
+              onClick={() => setDisplayError(null)}
+              className="ml-2 rounded p-0.5 hover:bg-danger-100"
+              aria-label="Dismiss error"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
           </div>
         )}
 

@@ -62,6 +62,11 @@ class TableUpdate(BaseModel):
     is_active: bool | None = None
 
 
+class TableStatusUpdate(BaseModel):
+    """Dedicated schema for the table status endpoint — status is required."""
+    status: str = Field(..., pattern=r"^(available|occupied|reserved|cleaning)$")
+
+
 class TableResponse(BaseModel):
     id: uuid.UUID
     floor_id: uuid.UUID

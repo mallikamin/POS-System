@@ -6,7 +6,7 @@ All monetary amounts are in paisa (integer). Frontend converts to PKR for displa
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 # ---------------------------------------------------------------------------
@@ -35,6 +35,12 @@ class OrderCreate(BaseModel):
     customer_phone: str | None = Field(None, max_length=20)
     items: list[OrderItemCreate] = Field(..., min_length=1)
     notes: str | None = None
+
+    @model_validator(mode="after")
+    def call_center_requires_phone(self) -> "OrderCreate":
+        if self.order_type == "call_center" and not self.customer_phone:
+            raise ValueError("customer_phone is required for call_center orders")
+        return self
 
 
 class OrderStatusUpdate(BaseModel):

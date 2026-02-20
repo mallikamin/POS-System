@@ -24,7 +24,9 @@ interface OrderActions {
   }) => Promise<void>;
   createOrderFromCart: (
     orderType?: string,
-    tableId?: string
+    tableId?: string,
+    customerName?: string,
+    customerPhone?: string
   ) => Promise<OrderResponse>;
   transitionOrder: (id: string, status: string) => Promise<void>;
   voidOrder: (id: string, reason?: string) => Promise<void>;
@@ -66,7 +68,12 @@ export const useOrderStore = create<OrderStore>()((set, get) => ({
     }
   },
 
-  createOrderFromCart: async (orderType?: string, tableId?: string) => {
+  createOrderFromCart: async (
+    orderType?: string,
+    tableId?: string,
+    customerName?: string,
+    customerPhone?: string
+  ) => {
     set({ isSending: true, error: null });
     try {
       const cartState = useCartStore.getState();
@@ -95,6 +102,8 @@ export const useOrderStore = create<OrderStore>()((set, get) => ({
       const payload: OrderCreateRequest = {
         order_type: channel as OrderCreateRequest["order_type"],
         table_id: tableId || undefined,
+        customer_name: customerName || undefined,
+        customer_phone: customerPhone || undefined,
         items,
       };
 
