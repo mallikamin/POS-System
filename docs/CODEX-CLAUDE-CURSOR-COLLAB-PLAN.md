@@ -106,3 +106,8 @@
   - test evidence.
 - Codex keeps a single source of truth checklist in this file.
 - Any blocker >30 minutes is escalated back to Codex for reassignment.
+
+## Current Resume Point
+- Implementation status: complete through Pre-Phase 6 + Phase 7 + Phase 8 + Phase 6 KDS realtime.
+- Deployment status: paused pending manual browser UAT.
+- Resume from: execute manual checklist, capture PASS/FAIL, patch only failing flows, then deploy.
