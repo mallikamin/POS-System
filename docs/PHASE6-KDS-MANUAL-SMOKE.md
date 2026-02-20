@@ -15,8 +15,19 @@ Environment: frontend + backend running, authenticated user can access `/kitchen
 - Verify unauthenticated access to `/kitchen` redirects to `/login`.
 - Verify any API error appears in the top error banner.
 
+## WebSocket Connectivity
+
+- Open browser DevTools Network tab → WS filter before navigating to `/kitchen`.
+- Verify a WebSocket connection is established to `/ws`.
+- In the WS messages, verify auth handshake: client sends `{"type":"auth","token":"..."}`, server responds `{"type":"auth_ok"}`.
+- Verify room join: client sends `{"type":"join","room":"kitchen:all"}`, server responds with join confirmation.
+- Open `/kitchen` in a second browser tab.
+- Bump a ticket in Tab 1 → verify Tab 2 updates within 1-2 seconds without manual refresh.
+- Kill the backend container briefly (`docker compose stop backend`), verify the KDS shows a connection error or falls back to polling, then restart and verify reconnection.
+
 ## Expected Pass Criteria
 
 - No runtime crash.
 - No blocked UI interaction.
 - Ticket actions reflect backend transition behavior.
+- WebSocket events propagate between tabs in real-time.

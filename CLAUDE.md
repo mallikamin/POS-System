@@ -226,28 +226,36 @@ All tables: UUID PK + `tenant_id` + `created_at` + `updated_at`
 - **New files**: 18 (backend: 10, frontend: 8)
 - **Modified files**: 9 (CartPanel, App, POSLayout, DineInPage, TakeawayPage, AdminDashboard, ReportsPage, router, seed)
 
-### Pre-Phase 6: Bug Fixes & Missing Features (MUST DO BEFORE PHASE 6)
-- [ ] **Floor Editor broken** (`/floor-editor`) — not loading/functioning, needs debugging
-- [ ] **Dine-In POS broken** (`/dine-in`) — not loading/functioning, needs debugging
-- [ ] **Takeaway POS broken** (`/takeaway`) — not loading/functioning, needs debugging
-- [ ] **Table Reservation mechanism** — currently no way to reserve tables; need click-to-reserve/unreserve in FloorGrid (context menu or dialog), persist reservation status to backend
+### Pre-Phase 6: Bug Fixes & Missing Features ✅ COMPLETE
+- [x] **Floor Editor fixed** (`/floor-editor`) — load, drag, save, add/delete tables working
+- [x] **Dine-In POS fixed** (`/dine-in`) — table/cart sync, order submission working
+- [x] **Takeaway POS fixed** (`/takeaway`) — token-based ordering flow working
+- [x] **Table Reservation mechanism** — reserve/unreserve in FloorGrid with backend persistence
 
-### Phase 6: Kitchen (KDS) ⬜
-- [ ] DB models: kitchen_stations, routing, tickets
-- [ ] API: station mgmt, ticket status, bump, recall
-- [ ] Frontend: KDS Kanban (fullscreen, timers, audio alerts)
-- [ ] WebSocket: kitchen ticket events
+### Phase 6: Kitchen (KDS) ✅ COMPLETE
+- [x] DB models: kitchen_stations, kitchen_station_categories, kitchen_station_menu_items, kitchen_tickets, kitchen_ticket_items
+- [x] Alembic migration (`d5e6f7a8b9c0_phase6_kitchen_kds.py`)
+- [x] API: station CRUD, ticket status transitions (bump/recall), queue endpoints
+- [x] Frontend: KDS fullscreen Kanban board (new/preparing/ready/served columns, elapsed timers, audio alerts, station filter)
+- [x] WebSocket: `kitchen.ticket.created` + `kitchen.ticket.updated` events via `kitchen:{station_id}` + `kitchen:all` rooms
+- [x] Degraded polling fallback when WebSocket unavailable
+- [x] Tests: 31 kitchen tests passing
 
-### Phase 7: Payments ⬜
-- [ ] DB models: payment_methods, payments, cash_drawer_sessions
-- [ ] API: add payment, split, refund, cash drawer
-- [ ] Frontend: Payment screen (cash calculator, split, tip)
-- [ ] Payment flow toggle wired to config
+### Phase 7: Payments ✅ COMPLETE
+- [x] DB models: payment_methods, payments, cash_drawer_sessions
+- [x] Alembic migration (`4f7e5a9c1b21_phase7_payments.py`)
+- [x] API: create payment, split payment, refund, cash drawer open/close/session report
+- [x] Frontend: Payment screen (cash calculator, card, split, print bill)
+- [x] Payment flow toggle wired to config (`order_first` / `pay_first`)
+- [x] Tests: 40 payment tests passing
 
-### Phase 8: Call Center ⬜
-- [ ] DB models: customers
-- [ ] API: customer search, CRUD, order history
-- [ ] Frontend: phone lookup, customer autocomplete, addresses, repeat order
+### Phase 8: Call Center ✅ COMPLETE
+- [x] DB models: customers
+- [x] Alembic migration (`c8d9e0f1a2b3_phase8_call_center_customers.py`)
+- [x] API: customer search, CRUD, order history, repeat-order helpers
+- [x] Frontend: phone lookup, customer create/edit, history, repeat-order flow
+- [x] Order validation for call-center customer fields
+- [x] Tests: 27 customer + 11 call-center tests passing
 
 ### Phase 9: Reports + Admin ⬜
 - [ ] API: sales summary, Z-report, item sales, cash drawer report

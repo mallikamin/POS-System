@@ -43,9 +43,16 @@
 4. Deploy to target environment after UAT sign-off.
 
 ## Key Pages to Verify in UAT
-- `/dine-in`
-- `/takeaway`
-- `/floor-editor`
-- `/payment/:orderId` (must show post payment + print bill path)
-- `/call-center`
-- `/kitchen`
+- `/login` (PIN mode + password mode, redirect to dashboard on success)
+- `/dashboard` (channel selector cards render, navigation to each channel works)
+- `/dine-in` (table selection, cart switching, order submission, table status update)
+- `/takeaway` (token-based order, cart, submit)
+- `/floor-editor` (load floors, drag tables, save positions, add/delete tables)
+- `/payment/:orderId` (cash calculator, card, split payment, print bill, drawer open/close)
+- `/call-center` (phone lookup, customer create/edit, address selection, repeat order)
+- `/kitchen` (KDS board renders, station filter, bump/recall, timers, audio toggle)
+- `/orders` (order list, status filter tabs, 15s auto-refresh)
+- `/admin` (menu management — categories/items/modifiers)
+- `/admin/dashboard` (KPI cards, live operations, charts)
+- `/admin/reports` (date picker, summary, item table, hourly chart, CSV export)
+- WebSocket connectivity: open `/kitchen` in two tabs, bump a ticket in one, verify the other updates in real-time
