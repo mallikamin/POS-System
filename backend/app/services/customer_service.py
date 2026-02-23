@@ -87,12 +87,15 @@ async def update_customer(
 ) -> Customer:
     update_data = data.model_dump(exclude_unset=True)
 
-    # If phone is being changed, check uniqueness
+    # If phone is being changed, normalize and check uniqueness
     new_phone = update_data.get("phone")
-    if new_phone is not None and new_phone != customer.phone:
-        existing = await get_by_phone(db, tenant_id, new_phone)
-        if existing is not None:
-            raise ValueError(f"Customer with phone {new_phone} already exists")
+    if new_phone is not None:
+        normalized = "".join(c for c in new_phone if c.isdigit())
+        update_data["phone"] = normalized
+        if normalized != customer.phone:
+            existing = await get_by_phone(db, tenant_id, normalized)
+            if existing is not None:
+                raise ValueError(f"Customer with phone {new_phone} already exists")
 
     for field, value in update_data.items():
         setattr(customer, field, value)
