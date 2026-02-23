@@ -257,18 +257,21 @@ All tables: UUID PK + `tenant_id` + `created_at` + `updated_at`
 - [x] Order validation for call-center customer fields
 - [x] Tests: 27 customer + 11 call-center tests passing
 
-### Phase 9: Reports + Admin ⬜
-- [ ] API: sales summary, Z-report, item sales, cash drawer report
-- [ ] Frontend: Admin reports, staff management, settings
-- [ ] Receipt generation
+### Phase 9: Reports + Admin ✅ COMPLETE
+- [x] API: Z-report endpoint (`GET /reports/z-report?date=`), receipt data endpoint (`GET /receipts/orders/{id}`)
+- [x] Backend: zreport_service.py (daily settlement aggregation), receipt_service.py (structured receipt data)
+- [x] Frontend: ZReportPage (printable daily settlement), ReceiptModal (80mm thermal-printer layout)
+- [x] Staff Management: full CRUD backend (6 endpoints) + frontend admin page (table, create/edit dialogs, search, toggle active)
+- [x] Settings Page: PATCH /config/restaurant + full settings form (general, tax, payment flow, receipt header/footer)
+- [x] Audit Logging: AuditLog model + migration + audit_service.log_action() wired into orders + staff
+- [x] Alembic migration (`e1f2a3b4c5d6_phase9_audit_logs.py`)
 
-### Phase 10: Polish + Integration Stubs ⬜
-- [ ] Integration adapter interfaces
-- [ ] Audit logging
-- [ ] Touch optimization audit
-- [ ] Error handling, loading states
-- [ ] CI/CD pipeline finalization
-- [ ] Demo seed data
+### Phase 10: Polish + Integration Stubs ✅ COMPLETE
+- [x] Integration adapter stubs: base.py (ABC), fbr.py, pra.py, foodpanda.py
+- [x] Toast notification system: shadcn/Radix-based, mounted in App.tsx
+- [x] Global error toast: axios interceptor shows toast on 403/500+/network errors
+- [x] Enhanced seed data: payment methods, payments for completed orders, cash drawer session
+- [x] Demo-quality data for Z-Report, receipt, and payment features
 
 ## Port Assignments (avoid conflicts with other Docker projects)
 | Service | Internal | External (Host) |

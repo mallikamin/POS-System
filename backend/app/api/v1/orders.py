@@ -17,6 +17,7 @@ from app.schemas.order import (
     OrderVoidRequest,
 )
 from app.services import order_service
+from app.services import audit_service
 
 router = APIRouter(prefix="/orders", tags=["orders"])
 
@@ -35,6 +36,18 @@ async def create_order(
     order = await order_service.create_order(
         db, current_user.tenant_id, current_user.id, body
     )
+    await audit_service.log_action(
+        db,
+        tenant_id=current_user.tenant_id,
+        user_id=current_user.id,
+        user_name=current_user.full_name,
+        entity_type="order",
+        entity_id=order.id,
+        action="create",
+        detail=f"Order {order.order_number} created ({order.order_type})",
+    )
+    await db.commit()
+    await db.refresh(order)
     return OrderResponse.model_validate(order)
 
 
@@ -116,6 +129,18 @@ async def transition_order(
         )
     except ValueError as e:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e))
+    await audit_service.log_action(
+        db,
+        tenant_id=current_user.tenant_id,
+        user_id=current_user.id,
+        user_name=current_user.full_name,
+        entity_type="order",
+        entity_id=order.id,
+        action="status_change",
+        detail=f"Order {order.order_number} → {body.status}",
+    )
+    await db.commit()
+    await db.refresh(order)
     return OrderResponse.model_validate(order)
 
 
@@ -137,4 +162,16 @@ async def void_order(
         )
     except ValueError as e:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e))
+    await audit_service.log_action(
+        db,
+        tenant_id=current_user.tenant_id,
+        user_id=current_user.id,
+        user_name=current_user.full_name,
+        entity_type="order",
+        entity_id=order.id,
+        action="void",
+        detail=f"Order {order.order_number} voided: {body.reason or 'No reason'}",
+    )
+    await db.commit()
+    await db.refresh(order)
     return OrderResponse.model_validate(order)

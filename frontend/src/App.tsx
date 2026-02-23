@@ -1,6 +1,7 @@
 import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { Toaster } from "@/components/ui/toaster";
 
 /* ---------- Layouts ---------- */
 const POSLayout = lazy(() => import("@/components/layout/POSLayout"));
@@ -28,6 +29,7 @@ const StaffManagementPage = lazy(() => import("@/pages/admin/StaffManagementPage
 const SettingsPage = lazy(() => import("@/pages/admin/SettingsPage"));
 const ReportsPage = lazy(() => import("@/pages/admin/ReportsPage"));
 const QuickBooksPage = lazy(() => import("@/pages/admin/QuickBooksPage"));
+const ZReportPage = lazy(() => import("@/pages/admin/ZReportPage"));
 
 function LoadingFallback() {
   return (
@@ -43,6 +45,7 @@ function LoadingFallback() {
 export function App() {
   return (
     <ErrorBoundary>
+    <Toaster />
     <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <Suspense fallback={<LoadingFallback />}>
         <Routes>
@@ -70,6 +73,7 @@ export function App() {
             <Route path="staff" element={<StaffManagementPage />} />
             <Route path="settings" element={<SettingsPage />} />
             <Route path="reports" element={<ReportsPage />} />
+            <Route path="z-report" element={<ZReportPage />} />
             <Route path="quickbooks" element={<QuickBooksPage />} />
           </Route>
         </Routes>

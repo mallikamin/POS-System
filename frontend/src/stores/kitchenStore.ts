@@ -33,8 +33,8 @@ interface KitchenActions {
   applyTicketEvent: (evt: KitchenTicketEvent) => void;
   bumpTicket: (ticket: KitchenTicket) => Promise<void>;
   updateTicketStatus: (
-    orderId: string,
-    status: "confirmed" | "in_kitchen" | "ready" | "served" | "completed"
+    ticketId: string,
+    status: "new" | "preparing" | "ready" | "served"
   ) => Promise<void>;
 }
 
@@ -295,9 +295,9 @@ export const useKitchenStore = create<KitchenStore>()((set, get) => ({
     }
   },
 
-  updateTicketStatus: async (orderId, status) => {
+  updateTicketStatus: async (ticketId, status) => {
     try {
-      await kitchenApi.setKitchenTicketStatus(orderId, status);
+      await kitchenApi.setKitchenTicketStatus(ticketId, status);
       await get().loadTickets(true);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to update ticket status";

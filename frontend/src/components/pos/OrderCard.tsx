@@ -1,4 +1,6 @@
 import { useMemo } from "react";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Clock,
   ChefHat,
@@ -7,12 +9,16 @@ import {
   UtensilsCrossed,
   Package,
   Phone,
+  CreditCard,
+  Receipt,
+  Send,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { formatPKR } from "@/utils/currency";
+import { ReceiptModal } from "@/components/pos/ReceiptModal";
 import type { OrderListItem } from "@/types/order";
 
 /* -------------------------------------------------------------------------- */
@@ -102,10 +108,11 @@ const STATUS_CONFIG: Record<
 };
 
 /** Statuses that can receive a transition (non-terminal). */
-const TRANSITION_ACTIONS: Record<string, { label: string; next: string }> = {
-  in_kitchen: { label: "Mark Ready", next: "ready" },
-  ready: { label: "Mark Served", next: "served" },
-  served: { label: "Complete", next: "completed" },
+const TRANSITION_ACTIONS: Record<string, { label: string; next: string; icon: React.ElementType }> = {
+  confirmed: { label: "Send to Kitchen", next: "in_kitchen", icon: Send },
+  in_kitchen: { label: "Mark Ready", next: "ready", icon: ChefHat },
+  ready: { label: "Mark Served", next: "served", icon: UtensilsCrossed },
+  served: { label: "Complete", next: "completed", icon: CheckCircle },
 };
 
 /** Statuses from which voiding is allowed (anything not already terminal). */
@@ -139,10 +146,14 @@ function formatElapsed(createdAt: string): string {
 /* -------------------------------------------------------------------------- */
 
 export function OrderCard({ order, onTransition, onVoid }: OrderCardProps) {
+  const navigate = useNavigate();
+  const [receiptOpen, setReceiptOpen] = useState(false);
   const typeConfig = ORDER_TYPE_CONFIG[order.order_type] ?? { label: "Order", bg: "bg-secondary-100", text: "text-secondary-700", icon: Package };
   const statusConfig = STATUS_CONFIG[order.status] ?? { label: "Unknown", bg: "bg-secondary-100", text: "text-secondary-600", dot: "bg-secondary-400" };
   const transition = TRANSITION_ACTIONS[order.status];
   const canVoid = VOIDABLE_STATUSES.has(order.status);
+  const canPay = order.payment_status !== "paid" && order.status !== "voided" && order.status !== "draft";
+  const canReceipt = order.status !== "draft";
 
   const TypeIcon = typeConfig.icon;
 
@@ -215,24 +226,37 @@ export function OrderCard({ order, onTransition, onVoid }: OrderCardProps) {
         </div>
 
         {/* Row 3: Actions */}
-        {(transition || canVoid) && (
-          <div className="flex items-center gap-2 pt-1">
+        {(transition || canVoid || canPay || canReceipt) && (
+          <div className="flex flex-wrap items-center gap-2 pt-1">
             {transition && (
               <Button
                 size="sm"
                 className="flex-1 gap-1.5"
                 onClick={() => onTransition(order.id, transition.next)}
               >
-                {transition.next === "ready" && (
-                  <ChefHat className="h-3.5 w-3.5" />
-                )}
-                {transition.next === "served" && (
-                  <UtensilsCrossed className="h-3.5 w-3.5" />
-                )}
-                {transition.next === "completed" && (
-                  <CheckCircle className="h-3.5 w-3.5" />
-                )}
+                <transition.icon className="h-3.5 w-3.5" />
                 {transition.label}
+              </Button>
+            )}
+            {canPay && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1"
+                onClick={() => navigate(`/payment/${order.id}`)}
+              >
+                <CreditCard className="h-3.5 w-3.5" />
+                Pay
+              </Button>
+            )}
+            {canReceipt && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="gap-1"
+                onClick={() => setReceiptOpen(true)}
+              >
+                <Receipt className="h-3.5 w-3.5" />
               </Button>
             )}
             {canVoid && (
@@ -250,6 +274,13 @@ export function OrderCard({ order, onTransition, onVoid }: OrderCardProps) {
           </div>
         )}
       </CardContent>
+
+      {/* Receipt Modal */}
+      <ReceiptModal
+        orderId={order.id}
+        open={receiptOpen}
+        onClose={() => setReceiptOpen(false)}
+      />
     </Card>
   );
 }

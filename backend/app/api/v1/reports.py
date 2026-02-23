@@ -1,4 +1,4 @@
-"""Report endpoints -- sales summary, item performance, hourly breakdown."""
+"""Report endpoints -- sales summary, item performance, hourly breakdown, Z-report."""
 
 import csv
 import io
@@ -8,11 +8,13 @@ from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import require_role
+from app.api.deps import get_current_user, require_role
 from app.database import get_db
 from app.models.user import User
 from app.schemas.report import HourlyBreakdown, ItemPerformance, SalesSummary
+from app.schemas.zreport import ZReport
 from app.services import report_service
+from app.services import zreport_service
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
@@ -93,3 +95,16 @@ async def export_sales_csv(
         media_type="text/csv",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
+
+
+@router.get("/z-report", response_model=ZReport)
+async def get_z_report(
+    target_date: date = Query(default_factory=date.today, alias="date"),
+    current_user: User = Depends(_admin),
+    db: AsyncSession = Depends(get_db),
+) -> ZReport:
+    """Generate Z-Report (daily settlement) for a given date."""
+    data = await zreport_service.generate_zreport(
+        db, current_user.tenant_id, target_date, current_user.full_name
+    )
+    return ZReport(**data)

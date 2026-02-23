@@ -62,13 +62,14 @@ async def get_by_phone(
 async def create_customer(
     db: AsyncSession, tenant_id: uuid.UUID, data: CustomerCreate
 ) -> Customer:
-    existing = await get_by_phone(db, tenant_id, data.phone)
+    normalized_phone = "".join(c for c in data.phone if c.isdigit())
+    existing = await get_by_phone(db, tenant_id, normalized_phone)
     if existing is not None:
         raise ValueError(f"Customer with phone {data.phone} already exists")
     customer = Customer(
         tenant_id=tenant_id,
         name=data.name,
-        phone=data.phone,
+        phone=normalized_phone,
         email=data.email,
         default_address=data.default_address,
         notes=data.notes,

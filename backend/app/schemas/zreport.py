@@ -1,0 +1,59 @@
+"""Z-Report / Daily Settlement response schemas."""
+
+from datetime import date, datetime
+
+from pydantic import BaseModel
+
+
+class DrawerSummary(BaseModel):
+    opening_float: int
+    cash_in: int
+    cash_out_change: int
+    cash_out_refund: int
+    expected_balance: int
+    counted_balance: int | None = None
+    variance: int | None = None
+    session_status: str | None = None  # open | closed | None
+
+
+class ChannelBreakdown(BaseModel):
+    channel: str
+    orders: int
+    revenue: int
+
+
+class PaymentMethodBreakdown(BaseModel):
+    method: str
+    count: int
+    total: int
+
+
+class StatusBreakdown(BaseModel):
+    status: str
+    count: int
+
+
+class TopItem(BaseModel):
+    name: str
+    quantity: int
+    revenue: int
+
+
+class ZReport(BaseModel):
+    date: date
+    generated_at: datetime
+    generated_by: str
+
+    # Drawer
+    drawer: DrawerSummary | None = None
+
+    # Sales
+    total_orders: int
+    total_revenue: int
+    total_tax: int
+    total_discount: int
+
+    by_channel: list[ChannelBreakdown]
+    by_payment_method: list[PaymentMethodBreakdown]
+    by_status: list[StatusBreakdown]
+    top_items: list[TopItem]

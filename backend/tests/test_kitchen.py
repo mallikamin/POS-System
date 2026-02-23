@@ -110,12 +110,12 @@ class TestStationCRUD:
     """POST/GET/PATCH /api/v1/kitchen/stations"""
 
     async def test_create_station(
-        self, client: AsyncClient, cashier_token: str,
+        self, client: AsyncClient, admin_token: str,
     ):
         resp = await client.post(
             "/api/v1/kitchen/stations",
             json={"name": "Fryer", "display_order": 2, "description": "Deep fry station"},
-            headers=_auth(cashier_token),
+            headers=_auth(admin_token),
         )
         assert resp.status_code == 201
         body = resp.json()
@@ -125,12 +125,12 @@ class TestStationCRUD:
         assert body["description"] == "Deep fry station"
 
     async def test_create_duplicate_station_409(
-        self, client: AsyncClient, cashier_token: str, station: KitchenStation,
+        self, client: AsyncClient, admin_token: str, station: KitchenStation,
     ):
         resp = await client.post(
             "/api/v1/kitchen/stations",
             json={"name": "Grill"},
-            headers=_auth(cashier_token),
+            headers=_auth(admin_token),
         )
         assert resp.status_code == 409
         assert "already exists" in resp.json()["detail"].lower()
@@ -166,12 +166,12 @@ class TestStationCRUD:
         assert resp.status_code == 404
 
     async def test_update_station(
-        self, client: AsyncClient, cashier_token: str, station: KitchenStation,
+        self, client: AsyncClient, admin_token: str, station: KitchenStation,
     ):
         resp = await client.patch(
             f"/api/v1/kitchen/stations/{station.id}",
             json={"name": "Charcoal Grill", "display_order": 5},
-            headers=_auth(cashier_token),
+            headers=_auth(admin_token),
         )
         assert resp.status_code == 200
         body = resp.json()
@@ -179,30 +179,30 @@ class TestStationCRUD:
         assert body["display_order"] == 5
 
     async def test_update_station_duplicate_name_409(
-        self, client: AsyncClient, cashier_token: str, station: KitchenStation,
+        self, client: AsyncClient, admin_token: str, station: KitchenStation,
     ):
         # Create a second station
         resp = await client.post(
             "/api/v1/kitchen/stations",
             json={"name": "Beverage"},
-            headers=_auth(cashier_token),
+            headers=_auth(admin_token),
         )
         sid2 = resp.json()["id"]
         # Try to rename it to "Grill"
         resp = await client.patch(
             f"/api/v1/kitchen/stations/{sid2}",
             json={"name": "Grill"},
-            headers=_auth(cashier_token),
+            headers=_auth(admin_token),
         )
         assert resp.status_code == 409
 
     async def test_deactivate_station(
-        self, client: AsyncClient, cashier_token: str, station: KitchenStation,
+        self, client: AsyncClient, admin_token: str, station: KitchenStation,
     ):
         resp = await client.patch(
             f"/api/v1/kitchen/stations/{station.id}",
             json={"is_active": False},
-            headers=_auth(cashier_token),
+            headers=_auth(admin_token),
         )
         assert resp.status_code == 200
         assert resp.json()["is_active"] is False

@@ -21,6 +21,7 @@ from app.models.quickbooks import (
 from app.models.payment import PaymentMethod, Payment, CashDrawerSession
 from app.models.customer import Customer
 from app.models.kitchen import KitchenStation, KitchenTicket, KitchenTicketItem
+from app.models.audit import AuditLog
 
 __all__ = [
     "Base",
@@ -54,4 +55,5 @@ __all__ = [
     "KitchenStation",
     "KitchenTicket",
     "KitchenTicketItem",
+    "AuditLog",
 ]

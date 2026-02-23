@@ -15,8 +15,9 @@ import { useCartStore, type CartLine, type Cart, EMPTY_CART } from "@/stores/car
 import { useOrderStore } from "@/stores/orderStore";
 import { useUIStore } from "@/stores/uiStore";
 import { useCustomerStore } from "@/stores/customerStore";
+import { useConfigStore } from "@/stores/configStore";
 
-const TAX_BPS = 1600; // 16.00% in basis points (integer math)
+const DEFAULT_TAX_BPS = 1600; // 16.00% in basis points (integer math)
 
 export function CartPanel() {
   // Direct property selectors — stable references, no method calls
@@ -28,6 +29,8 @@ export function CartPanel() {
   const isSending = useOrderStore((s) => s.isSending);
   const orderError = useOrderStore((s) => s.error);
   const currentChannel = useUIStore((s) => s.currentChannel);
+  const configTaxRate = useConfigStore((s) => s.config?.default_tax_rate);
+  const TAX_BPS = configTaxRate ?? DEFAULT_TAX_BPS;
   const selectedCustomer = useCustomerStore((s) => s.selectedCustomer);
 
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
@@ -148,7 +151,7 @@ export function CartPanel() {
               <span>{formatPKR(subtotal)}</span>
             </div>
             <div className="flex justify-between text-secondary-600">
-              <span>Tax (16% GST)</span>
+              <span>Tax ({TAX_BPS / 100}% GST)</span>
               <span>{formatPKR(tax)}</span>
             </div>
             <div className="flex justify-between font-bold text-secondary-900 text-base pt-1 border-t border-secondary-100">
@@ -262,7 +265,7 @@ function CartLineItem({ line, onUpdateQty, onRemove }: CartLineItemProps) {
           <button
             onClick={() => onUpdateQty(line.quantity - 1)}
             aria-label="Decrease quantity"
-            className="flex h-8 w-8 items-center justify-center rounded-lg border border-secondary-200 text-secondary-600 hover:bg-secondary-50 active:bg-secondary-100 transition-colors"
+            className="flex h-12 w-12 items-center justify-center rounded-lg border border-secondary-200 text-secondary-600 hover:bg-secondary-50 active:bg-secondary-100 transition-colors"
           >
             <Minus className="h-3.5 w-3.5" />
           </button>
@@ -272,7 +275,7 @@ function CartLineItem({ line, onUpdateQty, onRemove }: CartLineItemProps) {
           <button
             onClick={() => onUpdateQty(line.quantity + 1)}
             aria-label="Increase quantity"
-            className="flex h-8 w-8 items-center justify-center rounded-lg border border-secondary-200 text-secondary-600 hover:bg-secondary-50 active:bg-secondary-100 transition-colors"
+            className="flex h-12 w-12 items-center justify-center rounded-lg border border-secondary-200 text-secondary-600 hover:bg-secondary-50 active:bg-secondary-100 transition-colors"
           >
             <Plus className="h-3.5 w-3.5" />
           </button>

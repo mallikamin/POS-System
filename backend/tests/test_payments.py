@@ -307,13 +307,13 @@ class TestRefund:
         return resp.json()["payments"][0]["id"]
 
     async def test_full_refund(
-        self, client: AsyncClient, order: Order, cashier_token: str
+        self, client: AsyncClient, order: Order, admin_token: str, cashier_token: str
     ):
         payment_id = await self._pay_order(client, order, cashier_token)
         resp = await client.post(
             "/api/v1/payments/refund",
             json={"payment_id": payment_id, "amount": 10000, "note": "Customer complaint"},
-            headers=_auth(cashier_token),
+            headers=_auth(admin_token),
         )
         assert resp.status_code == 201
         body = resp.json()
@@ -321,13 +321,13 @@ class TestRefund:
         assert body["payment_status"] == "refunded"
 
     async def test_partial_refund(
-        self, client: AsyncClient, order: Order, cashier_token: str
+        self, client: AsyncClient, order: Order, admin_token: str, cashier_token: str
     ):
         payment_id = await self._pay_order(client, order, cashier_token)
         resp = await client.post(
             "/api/v1/payments/refund",
             json={"payment_id": payment_id, "amount": 3000},
-            headers=_auth(cashier_token),
+            headers=_auth(admin_token),
         )
         assert resp.status_code == 201
         body = resp.json()
@@ -336,54 +336,54 @@ class TestRefund:
         assert body["payment_status"] == "partial"
 
     async def test_refund_exceeds_refundable_rejected(
-        self, client: AsyncClient, order: Order, cashier_token: str
+        self, client: AsyncClient, order: Order, admin_token: str, cashier_token: str
     ):
         payment_id = await self._pay_order(client, order, cashier_token)
         resp = await client.post(
             "/api/v1/payments/refund",
             json={"payment_id": payment_id, "amount": 20000},
-            headers=_auth(cashier_token),
+            headers=_auth(admin_token),
         )
         assert resp.status_code == 400
         assert "exceeds" in resp.json()["detail"].lower()
 
     async def test_double_full_refund_rejected(
-        self, client: AsyncClient, order: Order, cashier_token: str
+        self, client: AsyncClient, order: Order, admin_token: str, cashier_token: str
     ):
         payment_id = await self._pay_order(client, order, cashier_token)
         # First refund: full
         await client.post(
             "/api/v1/payments/refund",
             json={"payment_id": payment_id, "amount": 10000},
-            headers=_auth(cashier_token),
+            headers=_auth(admin_token),
         )
         # Second refund: rejected
         resp = await client.post(
             "/api/v1/payments/refund",
             json={"payment_id": payment_id, "amount": 1},
-            headers=_auth(cashier_token),
+            headers=_auth(admin_token),
         )
         assert resp.status_code == 400
         assert "exceeds" in resp.json()["detail"].lower()
 
     async def test_refund_nonexistent_payment_400(
-        self, client: AsyncClient, cashier_token: str
+        self, client: AsyncClient, admin_token: str
     ):
         resp = await client.post(
             "/api/v1/payments/refund",
             json={"payment_id": str(uuid.uuid4()), "amount": 1000},
-            headers=_auth(cashier_token),
+            headers=_auth(admin_token),
         )
         assert resp.status_code == 400
         assert "not found" in resp.json()["detail"].lower()
 
     async def test_refund_zero_amount_422(
-        self, client: AsyncClient, cashier_token: str
+        self, client: AsyncClient, admin_token: str
     ):
         resp = await client.post(
             "/api/v1/payments/refund",
             json={"payment_id": str(uuid.uuid4()), "amount": 0},
-            headers=_auth(cashier_token),
+            headers=_auth(admin_token),
         )
         assert resp.status_code == 422
 

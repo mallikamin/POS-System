@@ -6,6 +6,7 @@ import {
   Settings,
   BarChart3,
   BookOpen,
+  FileText,
   ArrowLeft,
   LogOut,
 } from "lucide-react";
@@ -20,6 +21,7 @@ const navItems = [
   { to: "/admin/staff", label: "Staff", icon: Users, end: false },
   { to: "/admin/settings", label: "Settings", icon: Settings, end: false },
   { to: "/admin/reports", label: "Reports", icon: BarChart3, end: false },
+  { to: "/admin/z-report", label: "Z-Report", icon: FileText, end: false },
   { to: "/admin/quickbooks", label: "QuickBooks", icon: BookOpen, end: false },
 ];
 

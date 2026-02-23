@@ -58,20 +58,21 @@ TestingSessionLocal = async_sessionmaker(
     bind=engine, class_=AsyncSession, expire_on_commit=False
 )
 
-# All tables EXCEPT QuickBooks (which use Postgres JSONB / JSON).
-_QB_TABLE_NAMES = {
+# Tables that use Postgres-specific types (JSONB) — skip for SQLite tests.
+_SKIP_TABLE_NAMES = {
     "qb_connections",
     "qb_account_mappings",
     "qb_entity_mappings",
     "qb_sync_queue",
     "qb_sync_log",
     "qb_coa_snapshots",
+    "audit_logs",
 }
 
 _TABLES_NEEDED = [
     tbl
     for tbl in Base.metadata.sorted_tables
-    if tbl.name not in _QB_TABLE_NAMES
+    if tbl.name not in _SKIP_TABLE_NAMES
 ]
 
 

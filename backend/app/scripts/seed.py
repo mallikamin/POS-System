@@ -19,6 +19,7 @@ from app.models.restaurant_config import RestaurantConfig
 from app.models.menu import Category, MenuItem, ModifierGroup, Modifier, MenuItemModifierGroup
 from app.models.floor import Floor, Table
 from app.models.order import Order, OrderItem, OrderItemModifier, OrderStatusLog
+from app.models.payment import CashDrawerSession, Payment, PaymentMethod
 from app.utils.security import hash_password
 
 
@@ -999,43 +1000,191 @@ async def seed_orders(db: AsyncSession, tenant: Tenant) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Phase 9: Seed payments + cash drawer for demo
+# ---------------------------------------------------------------------------
+
+async def seed_payments(db: AsyncSession, tenant: Tenant) -> None:
+    """Create payment methods, payments for completed orders, and a cash drawer session."""
+    from datetime import datetime, timedelta, timezone
+
+    # Check if payments already exist
+    existing = await db.execute(
+        select(Payment).where(Payment.tenant_id == tenant.id).limit(1)
+    )
+    if existing.scalar_one_or_none():
+        print("  Payments already seeded, skipping.")
+        return
+
+    # Ensure payment methods exist
+    methods_result = await db.execute(
+        select(PaymentMethod).where(PaymentMethod.tenant_id == tenant.id)
+    )
+    existing_methods = {m.code: m for m in methods_result.scalars().all()}
+
+    default_methods = [
+        ("cash", "Cash", False, 1),
+        ("card", "Card", True, 2),
+        ("mobile_wallet", "Mobile Wallet", True, 3),
+        ("bank_transfer", "Bank Transfer", True, 4),
+    ]
+
+    for code, display_name, requires_ref, sort_order in default_methods:
+        if code not in existing_methods:
+            method = PaymentMethod(
+                tenant_id=tenant.id,
+                code=code,
+                display_name=display_name,
+                is_active=True,
+                requires_reference=requires_ref,
+                sort_order=sort_order,
+            )
+            db.add(method)
+            existing_methods[code] = method
+
+    await db.flush()
+
+    # Re-fetch methods to get IDs
+    methods_result = await db.execute(
+        select(PaymentMethod).where(PaymentMethod.tenant_id == tenant.id)
+    )
+    methods = {m.code: m for m in methods_result.scalars().all()}
+
+    cash_method = methods.get("cash")
+    card_method = methods.get("card")
+    if not cash_method or not card_method:
+        print("  Payment methods not found, skipping payments.")
+        return
+
+    # Get admin user
+    admin_result = await db.execute(
+        select(User).where(User.tenant_id == tenant.id, User.email == "admin@demo.com")
+    )
+    admin = admin_result.scalar_one_or_none()
+    if not admin:
+        print("  Admin user not found, skipping payments.")
+        return
+
+    # Get completed orders
+    completed_result = await db.execute(
+        select(Order).where(
+            Order.tenant_id == tenant.id,
+            Order.status == "completed",
+        )
+    )
+    completed_orders = list(completed_result.scalars().all())
+
+    # Create payments for completed orders (alternate cash/card)
+    payments_created = 0
+    for i, order in enumerate(completed_orders):
+        method = cash_method if i % 2 == 0 else card_method
+        tendered = None
+        change = 0
+        ref = None
+
+        if method.code == "cash":
+            # Round up to nearest 100 PKR for cash
+            tendered_rupees = ((order.total // 100) // 100 + 1) * 100
+            tendered = tendered_rupees * 100  # back to paisa
+            change = tendered - order.total
+        else:
+            ref = f"TXN-{240223000 + i}"
+
+        payment = Payment(
+            tenant_id=tenant.id,
+            order_id=order.id,
+            method_id=method.id,
+            kind="payment",
+            status="completed",
+            amount=order.total,
+            tendered_amount=tendered,
+            change_amount=change,
+            reference=ref,
+            processed_by=admin.id,
+        )
+        db.add(payment)
+        payments_created += 1
+
+    await db.flush()
+
+    # Create a cash drawer session
+    now = datetime.now(timezone.utc)
+    session_open = now - timedelta(hours=8)
+
+    # Calculate expected cash balance
+    cash_in = sum(
+        o.total for i, o in enumerate(completed_orders)
+        if i % 2 == 0  # cash payments
+    )
+    cash_change = sum(
+        (((o.total // 100) // 100 + 1) * 100 * 100 - o.total)
+        for i, o in enumerate(completed_orders)
+        if i % 2 == 0
+    )
+    opening_float = 500000  # Rs. 5,000
+    expected_balance = opening_float + cash_in - cash_change
+
+    # Small variance for demo realism
+    counted = expected_balance - 5000  # Rs. 50 short
+
+    drawer = CashDrawerSession(
+        tenant_id=tenant.id,
+        status="closed",
+        opened_by=admin.id,
+        opened_at=session_open,
+        opening_float=opening_float,
+        closed_by=admin.id,
+        closed_at=now - timedelta(minutes=30),
+        closing_balance_expected=expected_balance,
+        closing_balance_counted=counted,
+        note="End of shift — slight cash variance",
+    )
+    db.add(drawer)
+    await db.flush()
+
+    print(f"  Created {payments_created} payments + 1 cash drawer session.")
+
+
+# ---------------------------------------------------------------------------
 # Main entry point
 # ---------------------------------------------------------------------------
 
 async def main() -> None:
     """Run the full seed process inside a single transaction."""
     print("=" * 60)
-    print("POS System -- Seed Script (Phase 2 + 3 + 4 + 5)")
+    print("POS System -- Seed Script (Phase 2 + 3 + 4 + 5 + 7)")
     print("=" * 60)
 
     async with async_session_factory() as db:
         try:
-            print("\n[1/9] Seeding tenant...")
+            print("\n[1/10] Seeding tenant...")
             tenant = await seed_tenant(db)
 
-            print("\n[2/9] Seeding restaurant config...")
+            print("\n[2/10] Seeding restaurant config...")
             await seed_config(db, tenant)
 
-            print("\n[3/9] Seeding permissions...")
+            print("\n[3/10] Seeding permissions...")
             perm_map = await seed_permissions(db, tenant)
 
-            print("\n[4/9] Seeding roles...")
+            print("\n[4/10] Seeding roles...")
             role_map = await seed_roles(db, tenant, perm_map)
 
-            print("\n[5/9] Seeding users...")
+            print("\n[5/10] Seeding users...")
             await seed_users(db, tenant, role_map)
 
-            print("\n[6/9] Seeding modifier groups...")
+            print("\n[6/10] Seeding modifier groups...")
             modifier_group_map = await seed_modifier_groups(db, tenant)
 
-            print("\n[7/9] Seeding menu (categories + items)...")
+            print("\n[7/10] Seeding menu (categories + items)...")
             await seed_menu(db, tenant, modifier_group_map)
 
-            print("\n[8/9] Seeding floors & tables...")
+            print("\n[8/10] Seeding floors & tables...")
             await seed_floors(db, tenant)
 
-            print("\n[9/9] Seeding sample orders...")
+            print("\n[9/10] Seeding sample orders...")
             await seed_orders(db, tenant)
+
+            print("\n[10/10] Seeding payments & cash drawer...")
+            await seed_payments(db, tenant)
 
             await db.commit()
             print("\nSeed completed successfully!")

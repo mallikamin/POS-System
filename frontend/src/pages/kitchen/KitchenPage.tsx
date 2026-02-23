@@ -324,7 +324,7 @@ function KitchenPage() {
                           variant="ghost"
                           className="h-7 text-[10px] text-secondary-300 hover:bg-secondary-700"
                           disabled={statusButtonDisabled(ticket.raw_status, "in_kitchen")}
-                          onClick={() => void updateTicketStatus(ticket.id, "in_kitchen")}
+                          onClick={() => void updateTicketStatus(ticket.ticket_id!, "preparing")}
                         >
                           Prep
                         </Button>
@@ -333,7 +333,7 @@ function KitchenPage() {
                           variant="ghost"
                           className="h-7 text-[10px] text-secondary-300 hover:bg-secondary-700"
                           disabled={statusButtonDisabled(ticket.raw_status, "ready")}
-                          onClick={() => void updateTicketStatus(ticket.id, "ready")}
+                          onClick={() => void updateTicketStatus(ticket.ticket_id!, "ready")}
                         >
                           Ready
                         </Button>
@@ -342,7 +342,7 @@ function KitchenPage() {
                           variant="ghost"
                           className="h-7 text-[10px] text-secondary-300 hover:bg-secondary-700"
                           disabled={statusButtonDisabled(ticket.raw_status, "served")}
-                          onClick={() => void updateTicketStatus(ticket.id, "served")}
+                          onClick={() => void updateTicketStatus(ticket.ticket_id!, "served")}
                         >
                           Served
                         </Button>

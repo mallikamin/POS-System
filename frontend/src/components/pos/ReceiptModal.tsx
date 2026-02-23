@@ -1,0 +1,284 @@
+import { useEffect, useState, useRef } from "react";
+import { Printer, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import api from "@/lib/axios";
+
+interface ReceiptItem {
+  name: string;
+  quantity: number;
+  unit_price: number;
+  total: number;
+  modifiers: string[];
+}
+
+interface ReceiptPayment {
+  method: string;
+  amount: number;
+  tendered: number | null;
+  change: number | null;
+}
+
+interface ReceiptData {
+  restaurant_name: string;
+  receipt_header: string | null;
+  receipt_footer: string | null;
+  order_number: string;
+  order_type: string;
+  date: string;
+  table_label: string | null;
+  customer_name: string | null;
+  customer_phone: string | null;
+  cashier_name: string;
+  items: ReceiptItem[];
+  subtotal: number;
+  tax_label: string;
+  tax_rate_display: string;
+  tax_amount: number;
+  discount_amount: number;
+  total: number;
+  payments: ReceiptPayment[];
+  payment_status: string;
+  currency: string;
+}
+
+function formatAmount(paisa: number): string {
+  return `Rs. ${(paisa / 100).toLocaleString("en-PK", { minimumFractionDigits: 0 })}`;
+}
+
+interface Props {
+  orderId: string;
+  open: boolean;
+  onClose: () => void;
+}
+
+export function ReceiptModal({ orderId, open, onClose }: Props) {
+  const [receipt, setReceipt] = useState<ReceiptData | null>(null);
+  const [loading, setLoading] = useState(false);
+  const printRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (open && orderId) {
+      fetchReceipt();
+    }
+  }, [open, orderId]);
+
+  async function fetchReceipt() {
+    try {
+      setLoading(true);
+      const { data } = await api.get<ReceiptData>(
+        `/receipts/orders/${orderId}`
+      );
+      setReceipt(data);
+    } catch {
+      setReceipt(null);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function handlePrint() {
+    if (!printRef.current) return;
+    const printWindow = window.open("", "_blank", "width=320,height=600");
+    if (!printWindow) return;
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Receipt - ${receipt?.order_number ?? ""}</title>
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body {
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            width: 80mm;
+            padding: 4mm;
+            color: #000;
+          }
+          .center { text-align: center; }
+          .right { text-align: right; }
+          .bold { font-weight: bold; }
+          .divider { border-top: 1px dashed #000; margin: 4px 0; }
+          .row { display: flex; justify-content: space-between; }
+          .modifier { padding-left: 8px; font-size: 10px; color: #666; }
+          .total-row { font-size: 14px; font-weight: bold; }
+          @media print {
+            body { width: 80mm; }
+          }
+        </style>
+      </head>
+      <body>
+        ${printRef.current.innerHTML}
+      </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+    printWindow.close();
+  }
+
+  const orderTypeLabel: Record<string, string> = {
+    dine_in: "Dine-In",
+    takeaway: "Takeaway",
+    call_center: "Call Center",
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center justify-between">
+            <span>Receipt Preview</span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handlePrint}
+              disabled={!receipt}
+              className="gap-2"
+            >
+              <Printer className="h-4 w-4" />
+              Print
+            </Button>
+          </DialogTitle>
+        </DialogHeader>
+
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-6 w-6 animate-spin text-primary-600" />
+          </div>
+        ) : !receipt ? (
+          <div className="py-8 text-center text-secondary-500">
+            Failed to load receipt.
+          </div>
+        ) : (
+          <div
+            ref={printRef}
+            className="mx-auto max-w-[300px] rounded border bg-white p-4 font-mono text-xs leading-relaxed text-secondary-900"
+          >
+            {/* Header */}
+            <div className="center text-center">
+              <div className="bold text-sm font-bold">
+                {receipt.restaurant_name}
+              </div>
+              {receipt.receipt_header && (
+                <div className="mt-1 whitespace-pre-wrap text-[10px]">
+                  {receipt.receipt_header}
+                </div>
+              )}
+            </div>
+
+            <div className="divider my-2 border-t border-dashed border-secondary-400" />
+
+            {/* Order info */}
+            <div className="row flex justify-between">
+              <span>Order: {receipt.order_number}</span>
+              <span>{orderTypeLabel[receipt.order_type] ?? receipt.order_type}</span>
+            </div>
+            <div>
+              {new Date(receipt.date).toLocaleString("en-PK", {
+                dateStyle: "short",
+                timeStyle: "short",
+              })}
+            </div>
+            {receipt.table_label && <div>{receipt.table_label}</div>}
+            {receipt.customer_name && (
+              <div>Customer: {receipt.customer_name}</div>
+            )}
+            {receipt.customer_phone && <div>Phone: {receipt.customer_phone}</div>}
+            <div>Cashier: {receipt.cashier_name}</div>
+
+            <div className="divider my-2 border-t border-dashed border-secondary-400" />
+
+            {/* Items */}
+            {receipt.items.map((item, i) => (
+              <div key={i} className="mb-1">
+                <div className="row flex justify-between">
+                  <span>
+                    {item.quantity}x {item.name}
+                  </span>
+                  <span>{formatAmount(item.total)}</span>
+                </div>
+                {item.modifiers.map((mod, j) => (
+                  <div key={j} className="modifier pl-2 text-[10px] text-secondary-500">
+                    + {mod}
+                  </div>
+                ))}
+              </div>
+            ))}
+
+            <div className="divider my-2 border-t border-dashed border-secondary-400" />
+
+            {/* Totals */}
+            <div className="row flex justify-between">
+              <span>Subtotal</span>
+              <span>{formatAmount(receipt.subtotal)}</span>
+            </div>
+            <div className="row flex justify-between">
+              <span>
+                {receipt.tax_label} ({receipt.tax_rate_display})
+              </span>
+              <span>{formatAmount(receipt.tax_amount)}</span>
+            </div>
+            {receipt.discount_amount > 0 && (
+              <div className="row flex justify-between">
+                <span>Discount</span>
+                <span>-{formatAmount(receipt.discount_amount)}</span>
+              </div>
+            )}
+
+            <div className="divider my-2 border-t border-dashed border-secondary-400" />
+
+            <div className="total-row row flex justify-between text-sm font-bold">
+              <span>TOTAL</span>
+              <span>{formatAmount(receipt.total)}</span>
+            </div>
+
+            {/* Payments */}
+            {receipt.payments.length > 0 && (
+              <>
+                <div className="divider my-2 border-t border-dashed border-secondary-400" />
+                {receipt.payments.map((p, i) => (
+                  <div key={i}>
+                    <div className="row flex justify-between">
+                      <span>{p.method}</span>
+                      <span>{formatAmount(p.amount)}</span>
+                    </div>
+                    {p.tendered != null && p.tendered > p.amount && (
+                      <>
+                        <div className="row flex justify-between text-[10px]">
+                          <span>Tendered</span>
+                          <span>{formatAmount(p.tendered)}</span>
+                        </div>
+                        <div className="row flex justify-between text-[10px]">
+                          <span>Change</span>
+                          <span>{formatAmount(p.change ?? 0)}</span>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ))}
+              </>
+            )}
+
+            {/* Footer */}
+            <div className="divider my-2 border-t border-dashed border-secondary-400" />
+            <div className="center text-center">
+              {receipt.receipt_footer && (
+                <div className="whitespace-pre-wrap">
+                  {receipt.receipt_footer}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}

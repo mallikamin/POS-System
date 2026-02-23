@@ -12,6 +12,8 @@ from app.api.v1.quickbooks import router as quickbooks_router
 from app.api.v1.payments import router as payments_router
 from app.api.v1.customers import router as customers_router
 from app.api.v1.kitchen import router as kitchen_router
+from app.api.v1.staff import router as staff_router
+from app.api.v1.receipts import router as receipts_router
 
 api_v1_router = APIRouter()
 
@@ -27,3 +29,5 @@ api_v1_router.include_router(quickbooks_router)
 api_v1_router.include_router(payments_router)
 api_v1_router.include_router(customers_router)
 api_v1_router.include_router(kitchen_router)
+api_v1_router.include_router(staff_router)
+api_v1_router.include_router(receipts_router)

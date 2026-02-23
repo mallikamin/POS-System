@@ -49,6 +49,9 @@ export interface RestaurantConfig extends BaseEntity {
   currency: string;
   timezone: string;
   tax_inclusive: boolean;
+  default_tax_rate: number;
+  receipt_header: string | null;
+  receipt_footer: string | null;
 }
 
 // ---------------------------------------------------------------------------

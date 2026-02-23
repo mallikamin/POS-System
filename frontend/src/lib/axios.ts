@@ -1,4 +1,5 @@
 import axios from "axios";
+import { toast } from "@/hooks/use-toast";
 
 const envBase = import.meta.env.VITE_API_URL || "/api";
 // Ensure the base always ends with /v1 regardless of what the env var contains
@@ -116,6 +117,37 @@ api.interceptors.response.use(
       } finally {
         isRefreshing = false;
       }
+    }
+
+    // Show toast for non-401 server errors (401 handled by refresh logic above)
+    if (error.response && error.response.status !== 401) {
+      const status = error.response.status as number;
+      const detail =
+        (error.response.data as { detail?: string })?.detail ??
+        error.response.statusText ??
+        "Something went wrong";
+
+      if (status >= 500) {
+        toast({
+          variant: "destructive",
+          title: "Server Error",
+          description: detail,
+        });
+      } else if (status === 403) {
+        toast({
+          variant: "destructive",
+          title: "Access Denied",
+          description: "You don't have permission for this action.",
+        });
+      }
+      // 400/404/409 etc. — let individual pages handle with specific messages
+    } else if (!error.response && error.message !== "canceled") {
+      // Network error
+      toast({
+        variant: "destructive",
+        title: "Network Error",
+        description: "Unable to reach the server. Check your connection.",
+      });
     }
 
     return Promise.reject(error);

@@ -5,7 +5,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, require_role
 from app.database import get_db
 from app.models.user import User
 from app.schemas.kitchen import (
@@ -54,6 +54,7 @@ async def get_station(
     "/stations",
     response_model=StationResponse,
     status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_role("admin"))],
 )
 async def create_station(
     body: StationCreate,
@@ -76,7 +77,11 @@ async def create_station(
     return StationResponse.model_validate(station)
 
 
-@router.patch("/stations/{station_id}", response_model=StationResponse)
+@router.patch(
+    "/stations/{station_id}",
+    response_model=StationResponse,
+    dependencies=[Depends(require_role("admin"))],
+)
 async def update_station(
     station_id: uuid.UUID,
     body: StationUpdate,

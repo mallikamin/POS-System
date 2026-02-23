@@ -1,6 +1,4 @@
 import api from "@/lib/axios";
-import { transitionOrder } from "@/services/ordersApi";
-import type { OrderResponse } from "@/types/order";
 import type {
   KitchenOrderStatus,
   KitchenStation,
@@ -92,28 +90,33 @@ export async function fetchKitchenTickets(
   );
 }
 
-export async function bumpKitchenTicket(ticket: KitchenTicket): Promise<OrderResponse> {
-  const nextStatusByCurrent: Record<KitchenOrderStatus, string | null> = {
-    draft: "confirmed",
-    confirmed: "in_kitchen",
-    in_kitchen: "ready",
-    ready: "served",
-    served: "completed",
-    completed: null,
-    voided: null,
-  };
+/**
+ * Map kitchen ticket column to the kitchen ticket API status values.
+ * Kitchen ticket statuses: new → preparing → ready → served
+ */
+const TICKET_BUMP_MAP: Record<string, string | null> = {
+  new: "preparing",
+  preparing: "ready",
+  ready: "served",
+  served: null,
+};
 
-  const next = nextStatusByCurrent[ticket.raw_status];
+export async function bumpKitchenTicket(ticket: KitchenTicket): Promise<void> {
+  const next = TICKET_BUMP_MAP[ticket.column];
   if (!next) {
     throw new Error("Ticket is already at terminal state.");
   }
 
-  return transitionOrder(ticket.id, next);
+  await api.patch(`/kitchen/tickets/${ticket.ticket_id}/status`, {
+    status: next,
+  });
 }
 
 export async function setKitchenTicketStatus(
-  orderId: string,
-  status: "confirmed" | "in_kitchen" | "ready" | "served" | "completed"
-): Promise<OrderResponse> {
-  return transitionOrder(orderId, status);
+  ticketId: string,
+  status: "new" | "preparing" | "ready" | "served"
+): Promise<void> {
+  await api.patch(`/kitchen/tickets/${ticketId}/status`, {
+    status,
+  });
 }
