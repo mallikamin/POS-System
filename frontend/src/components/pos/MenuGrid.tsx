@@ -112,23 +112,27 @@ export function MenuGrid({ onAddToCart }: MenuGridProps) {
                 onClick={() => handleItemClick(item)}
                 className="flex flex-col rounded-xl border border-secondary-200 bg-white overflow-hidden text-center transition-all hover:border-primary-300 hover:shadow-md active:scale-[0.97]"
               >
-                {item.image_url ? (
-                  <div className="relative w-full h-24 bg-secondary-100">
+                <div className="relative w-full h-24 bg-secondary-100">
+                  {item.image_url ? (
                     <img
                       src={item.image_url}
                       alt={item.name}
                       className="h-full w-full object-cover"
                       loading="lazy"
                       onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = "none";
+                        const img = e.target as HTMLImageElement;
+                        img.style.display = "none";
+                        img.parentElement!.classList.add("flex", "items-center", "justify-center");
+                        const span = document.createElement("span");
+                        span.className = "text-3xl";
+                        span.textContent = "\uD83C\uDF7D\uFE0F";
+                        img.parentElement!.appendChild(span);
                       }}
                     />
-                  </div>
-                ) : (
-                  <div className="flex h-16 w-full items-center justify-center bg-secondary-50 text-2xl">
-                    🍽️
-                  </div>
-                )}
+                  ) : (
+                    <span className="flex h-full w-full items-center justify-center text-3xl">🍽️</span>
+                  )}
+                </div>
                 <div className="flex flex-col items-center gap-1 p-2.5">
                   <span className="text-sm font-medium text-secondary-900 line-clamp-2 leading-tight">
                     {item.name}

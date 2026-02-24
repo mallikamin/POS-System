@@ -57,7 +57,7 @@ function POSLayout() {
       <header className="flex h-14 shrink-0 items-center justify-between border-b border-secondary-200 bg-white px-4 shadow-sm">
         {/* Left: Restaurant name + channel */}
         <div className="flex items-center gap-3">
-          <h1 className="text-pos-lg font-bold text-secondary-800">POS System</h1>
+          <Link to="/" className="text-pos-lg font-bold text-secondary-800 hover:text-primary-600 transition-colors">POS System</Link>
           {channel && (
             <span
               className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold text-white ${channel.color}`}

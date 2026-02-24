@@ -73,36 +73,8 @@ function LoginPage() {
           </CardHeader>
 
           <CardContent>
-            {/* Error message */}
-            {error && (
-              <div
-                className="mb-4 rounded-lg bg-danger-500/10 p-3 text-center text-pos-sm text-danger-400"
-                role="alert"
-              >
-                {error}
-              </div>
-            )}
-
             {mode === "pin" ? (
               <>
-                {/* Staff grid placeholder */}
-                <div className="mb-6 grid grid-cols-3 gap-2">
-                  {["Staff 1", "Staff 2", "Staff 3", "Staff 4", "Staff 5", "Staff 6"].map(
-                    (name) => (
-                      <button
-                        key={name}
-                        className="touch-feedback rounded-lg bg-secondary-700 p-3 text-center text-pos-xs text-secondary-300 hover:bg-secondary-600"
-                        disabled
-                      >
-                        <div className="mx-auto mb-1 flex h-10 w-10 items-center justify-center rounded-full bg-secondary-600 text-pos-sm font-bold text-secondary-300">
-                          {name.charAt(0)}
-                        </div>
-                        {name}
-                      </button>
-                    )
-                  )}
-                </div>
-
                 {/* PIN NumberPad */}
                 <NumberPad
                   onSubmit={handlePinSubmit}
@@ -110,8 +82,18 @@ function LoginPage() {
                   masked
                 />
 
+                {/* Error message */}
+                {error && (
+                  <div
+                    className="mt-3 rounded-lg bg-danger-500/10 p-3 text-center text-pos-sm text-danger-400"
+                    role="alert"
+                  >
+                    {error}
+                  </div>
+                )}
+
                 {/* Password login fallback */}
-                <div className="mt-6 text-center">
+                <div className="mt-4 text-center">
                   <button
                     onClick={() => setMode("password")}
                     className="text-pos-xs text-primary-400 underline-offset-4 hover:text-primary-300 hover:underline"
@@ -170,7 +152,17 @@ function LoginPage() {
                   </Button>
                 </form>
 
-                <div className="mt-6 text-center">
+                {/* Error message */}
+                {error && (
+                  <div
+                    className="mt-3 rounded-lg bg-danger-500/10 p-3 text-center text-pos-sm text-danger-400"
+                    role="alert"
+                  >
+                    {error}
+                  </div>
+                )}
+
+                <div className="mt-4 text-center">
                   <button
                     onClick={() => setMode("pin")}
                     className="text-pos-xs text-primary-400 underline-offset-4 hover:text-primary-300 hover:underline"
