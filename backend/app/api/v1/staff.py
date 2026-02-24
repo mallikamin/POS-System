@@ -3,6 +3,7 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, require_role
@@ -98,7 +99,11 @@ async def create_staff(
         action="create",
         detail=f"Staff created: {data.email}",
     )
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status.HTTP_409_CONFLICT, "Email or PIN already in use (concurrent create)")
     await db.refresh(user)
     return StaffResponse.model_validate(user)
 
@@ -120,6 +125,16 @@ async def update_staff(
         )
     except ValueError as e:
         raise HTTPException(status.HTTP_409_CONFLICT, str(e))
+    await audit_service.log_action(
+        db,
+        tenant_id=current_user.tenant_id,
+        user_id=current_user.id,
+        user_name=current_user.full_name,
+        entity_type="user",
+        entity_id=user_id,
+        action="update",
+        detail=f"Staff updated: {data.model_dump(exclude_unset=True)}",
+    )
     await db.commit()
     await db.refresh(user)
     return StaffResponse.model_validate(user)
@@ -142,6 +157,16 @@ async def reset_password(
         )
     except ValueError as e:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(e))
+    await audit_service.log_action(
+        db,
+        tenant_id=current_user.tenant_id,
+        user_id=current_user.id,
+        user_name=current_user.full_name,
+        entity_type="user",
+        entity_id=user_id,
+        action="reset_password",
+        detail=f"Password reset for user {user_id}",
+    )
     await db.commit()
     await db.refresh(user)
     return StaffResponse.model_validate(user)
@@ -164,6 +189,16 @@ async def reset_pin(
         )
     except ValueError as e:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(e))
+    await audit_service.log_action(
+        db,
+        tenant_id=current_user.tenant_id,
+        user_id=current_user.id,
+        user_name=current_user.full_name,
+        entity_type="user",
+        entity_id=user_id,
+        action="reset_pin",
+        detail=f"PIN reset for user {user_id}",
+    )
     await db.commit()
     await db.refresh(user)
     return StaffResponse.model_validate(user)

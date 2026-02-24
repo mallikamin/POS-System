@@ -19,6 +19,7 @@ class RestaurantConfigResponse(BaseModel):
 
     id: uuid.UUID
     tenant_id: uuid.UUID
+    restaurant_name: str | None = None
     payment_flow: str
     currency: str
     timezone: str

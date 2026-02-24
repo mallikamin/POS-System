@@ -98,6 +98,10 @@ class CashDrawerSession(BaseMixin, Base):
     __table_args__ = (
         Index("ix_cash_drawer_tenant_status", "tenant_id", "status"),
         Index("ix_cash_drawer_tenant_opened", "tenant_id", "opened_at"),
+        # NOTE: Partial unique index (uix_one_open_drawer_per_tenant) is created
+        # in migration f2a3b4c5d6e7 via raw SQL. Not in model __table_args__
+        # because SQLAlchemy's postgresql_where degrades to a plain unique index
+        # on SQLite, breaking tests that create multiple sessions per tenant.
     )
 
     status: Mapped[str] = mapped_column(

@@ -13,6 +13,7 @@ import api from "@/lib/axios";
 interface ConfigData {
   id: string;
   tenant_id: string;
+  restaurant_name: string | null;
   payment_flow: string;
   currency: string;
   timezone: string;
@@ -51,8 +52,7 @@ function SettingsPage() {
       setReceiptHeader(data.receipt_header ?? "");
       setReceiptFooter(data.receipt_footer ?? "");
 
-      // Use restaurant name from config header or default
-      setRestaurantName(data.receipt_header?.split("\n")[0] ?? "Demo Restaurant");
+      setRestaurantName(data.restaurant_name ?? "Demo Restaurant");
     } catch {
       toast({ title: "Failed to load settings", variant: "destructive" });
     } finally {

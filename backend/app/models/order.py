@@ -33,6 +33,8 @@ class Order(BaseMixin, Base):
         UniqueConstraint("tenant_id", "order_number", name="uq_order_tenant_number"),
         Index("ix_orders_tenant_status", "tenant_id", "status"),
         Index("ix_orders_tenant_created", "tenant_id", "created_at"),
+        Index("ix_orders_created_by", "created_by"),
+        Index("ix_orders_customer_phone", "customer_phone"),
     )
 
     order_number: Mapped[str] = mapped_column(String(20), nullable=False)

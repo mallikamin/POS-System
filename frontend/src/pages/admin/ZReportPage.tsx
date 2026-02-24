@@ -47,11 +47,13 @@ const channelLabels: Record<string, string> = {
   call_center: "Call Center",
 };
 
-const today = new Date().toISOString().split("T")[0] ?? "";
+function getToday(): string {
+  return new Date().toISOString().split("T")[0] ?? "";
+}
 
 function ZReportPage() {
   const { toast } = useToast();
-  const [selectedDate, setSelectedDate] = useState(today);
+  const [selectedDate, setSelectedDate] = useState(getToday);
   const [report, setReport] = useState<ZReport | null>(null);
   const [loading, setLoading] = useState(false);
 

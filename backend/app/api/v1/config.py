@@ -47,7 +47,15 @@ async def get_restaurant_config(
             detail="Restaurant configuration not found for this tenant",
         )
 
-    return RestaurantConfigResponse.model_validate(config)
+    # Include tenant name in response
+    tenant_result = await db.execute(
+        select(Tenant.name).where(Tenant.id == current_user.tenant_id)
+    )
+    tenant_name = tenant_result.scalar_one_or_none()
+
+    resp = RestaurantConfigResponse.model_validate(config)
+    resp.restaurant_name = tenant_name
+    return resp
 
 
 @router.patch(

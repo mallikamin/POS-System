@@ -9,6 +9,7 @@ import uuid
 from datetime import datetime, timezone
 
 from sqlalchemy import Date, func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -84,7 +85,6 @@ async def create_order(
     Creates the order with status 'confirmed' and auto-transitions
     to 'in_kitchen'. For dine-in orders, marks the table as occupied.
     """
-    order_number = await generate_order_number(db, tenant_id)
     tax_rate_bps = await _get_tax_rate(db, tenant_id)
 
     # Normalize customer_phone to digits-only
@@ -93,59 +93,92 @@ async def create_order(
         customer_phone = "".join(c for c in customer_phone if c.isdigit()) or None
 
     # Build order items and compute subtotal server-side
-    order_items: list[OrderItem] = []
+    order_items_data: list[dict] = []
     subtotal = 0
 
     for item_data in data.items:
         item_total = item_data.unit_price * item_data.quantity
         subtotal += item_total
 
-        order_item = OrderItem(
-            tenant_id=tenant_id,
-            menu_item_id=item_data.menu_item_id,
-            name=item_data.name,
-            quantity=item_data.quantity,
-            unit_price=item_data.unit_price,
-            total=item_total,
-            notes=item_data.notes,
-            status="pending",
-        )
-
-        # Build item modifiers
-        for mod_data in item_data.modifiers:
-            modifier = OrderItemModifier(
-                tenant_id=tenant_id,
-                modifier_id=mod_data.modifier_id,
-                name=mod_data.name,
-                price_adjustment=mod_data.price_adjustment,
-            )
-            order_item.modifiers.append(modifier)
-
-        order_items.append(order_item)
+        item_dict: dict = {
+            "menu_item_id": item_data.menu_item_id,
+            "name": item_data.name,
+            "quantity": item_data.quantity,
+            "unit_price": item_data.unit_price,
+            "total": item_total,
+            "notes": item_data.notes,
+            "modifiers": [
+                {
+                    "modifier_id": mod_data.modifier_id,
+                    "name": mod_data.name,
+                    "price_adjustment": mod_data.price_adjustment,
+                }
+                for mod_data in item_data.modifiers
+            ],
+        }
+        order_items_data.append(item_dict)
 
     tax_amount = round(subtotal * tax_rate_bps / 10_000)
     total = subtotal + tax_amount
 
-    # Create order with status confirmed (skip draft for POS workflow)
-    order = Order(
-        tenant_id=tenant_id,
-        order_number=order_number,
-        order_type=data.order_type,
-        status="confirmed",
-        payment_status="unpaid",
-        table_id=data.table_id,
-        customer_name=data.customer_name,
-        customer_phone=customer_phone,
-        subtotal=subtotal,
-        tax_amount=tax_amount,
-        discount_amount=0,
-        total=total,
-        notes=data.notes,
-        created_by=user_id,
-        items=order_items,
-    )
-    db.add(order)
-    await db.flush()  # Persist order + items so order.id is available for FK refs
+    # Retry loop to handle order number race condition under concurrency.
+    # The uq_order_tenant_number constraint catches collisions; we regenerate
+    # the number and retry within a SAVEPOINT so the outer transaction survives.
+    max_retries = 3
+    for attempt in range(max_retries):
+        order_number = await generate_order_number(db, tenant_id)
+
+        order_items: list[OrderItem] = []
+        for item_dict in order_items_data:
+            order_item = OrderItem(
+                tenant_id=tenant_id,
+                menu_item_id=item_dict["menu_item_id"],
+                name=item_dict["name"],
+                quantity=item_dict["quantity"],
+                unit_price=item_dict["unit_price"],
+                total=item_dict["total"],
+                notes=item_dict["notes"],
+                status="pending",
+            )
+            for mod in item_dict["modifiers"]:
+                modifier = OrderItemModifier(
+                    tenant_id=tenant_id,
+                    modifier_id=mod["modifier_id"],
+                    name=mod["name"],
+                    price_adjustment=mod["price_adjustment"],
+                )
+                order_item.modifiers.append(modifier)
+            order_items.append(order_item)
+
+        order = Order(
+            tenant_id=tenant_id,
+            order_number=order_number,
+            order_type=data.order_type,
+            status="confirmed",
+            payment_status="unpaid",
+            table_id=data.table_id,
+            customer_name=data.customer_name,
+            customer_phone=customer_phone,
+            subtotal=subtotal,
+            tax_amount=tax_amount,
+            discount_amount=0,
+            total=total,
+            notes=data.notes,
+            created_by=user_id,
+            items=order_items,
+        )
+
+        try:
+            async with db.begin_nested():
+                db.add(order)
+                await db.flush()
+            break  # Success — exit retry loop
+        except IntegrityError:
+            if attempt == max_retries - 1:
+                raise ValueError("Failed to generate unique order number after retries")
+            logger.warning("Order number collision on '%s', retrying (%d/%d)",
+                           order_number, attempt + 1, max_retries)
+            continue
 
     # Status log: creation
     log_entry = OrderStatusLog(

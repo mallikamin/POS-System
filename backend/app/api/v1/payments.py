@@ -3,6 +3,7 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, require_role
@@ -128,6 +129,9 @@ async def open_drawer(
         )
         await db.commit()
         return CashDrawerSessionResponse.model_validate(session)
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status.HTTP_409_CONFLICT, "A cash drawer is already open for this tenant")
     except ValueError as e:
         await db.rollback()
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e))

@@ -87,38 +87,29 @@ export function ReceiptModal({ orderId, open, onClose }: Props) {
     const printWindow = window.open("", "_blank", "width=320,height=600");
     if (!printWindow) return;
 
-    printWindow.document.write(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Receipt - ${receipt?.order_number ?? ""}</title>
-        <style>
-          * { margin: 0; padding: 0; box-sizing: border-box; }
-          body {
-            font-family: 'Courier New', monospace;
-            font-size: 12px;
-            width: 80mm;
-            padding: 4mm;
-            color: #000;
-          }
-          .center { text-align: center; }
-          .right { text-align: right; }
-          .bold { font-weight: bold; }
-          .divider { border-top: 1px dashed #000; margin: 4px 0; }
-          .row { display: flex; justify-content: space-between; }
-          .modifier { padding-left: 8px; font-size: 10px; color: #666; }
-          .total-row { font-size: 14px; font-weight: bold; }
-          @media print {
-            body { width: 80mm; }
-          }
-        </style>
-      </head>
-      <body>
-        ${printRef.current.innerHTML}
-      </body>
-      </html>
-    `);
-    printWindow.document.close();
+    // Set title safely via DOM API (no string interpolation into HTML)
+    printWindow.document.title = `Receipt - ${receipt?.order_number ?? ""}`;
+
+    // Inject styles via DOM (no document.write)
+    const style = printWindow.document.createElement("style");
+    style.textContent = [
+      "* { margin: 0; padding: 0; box-sizing: border-box; }",
+      "body { font-family: 'Courier New', monospace; font-size: 12px; width: 80mm; padding: 4mm; color: #000; }",
+      ".center { text-align: center; }",
+      ".right { text-align: right; }",
+      ".bold { font-weight: bold; }",
+      ".divider { border-top: 1px dashed #000; margin: 4px 0; }",
+      ".row { display: flex; justify-content: space-between; }",
+      ".modifier { padding-left: 8px; font-size: 10px; color: #666; }",
+      ".total-row { font-size: 14px; font-weight: bold; }",
+      "@media print { body { width: 80mm; } }",
+    ].join("\n");
+    printWindow.document.head.appendChild(style);
+
+    // Clone content into print window (safe — no innerHTML injection)
+    const clone = printRef.current.cloneNode(true);
+    printWindow.document.body.appendChild(clone);
+
     printWindow.focus();
     printWindow.print();
     printWindow.close();
