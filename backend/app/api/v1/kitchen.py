@@ -3,10 +3,13 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.api.deps import get_current_user, require_role
 from app.database import get_db
+from app.models.order import Order, OrderItem
 from app.models.user import User
 from app.schemas.kitchen import (
     StationCreate,
@@ -199,3 +202,60 @@ async def transition_ticket(
     await emit_ticket_updated(current_user.tenant_id, ticket, previous_status or "new")
 
     return _ticket_to_response(ticket)
+
+
+# ---------------------------------------------------------------------------
+# Backfill: create tickets for existing in_kitchen orders that have no ticket
+# ---------------------------------------------------------------------------
+
+@router.post(
+    "/backfill-tickets",
+    response_model=list[TicketResponse],
+    dependencies=[Depends(require_role("admin"))],
+)
+async def backfill_tickets(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[TicketResponse]:
+    """Create kitchen tickets for in_kitchen orders that don't already have one."""
+    tenant_id = current_user.tenant_id
+    stations = await kitchen_service.list_stations(db, tenant_id, active_only=True)
+    if not stations:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "No active kitchen stations")
+
+    station = stations[0]
+
+    # Find in_kitchen orders without tickets
+    from app.models.kitchen import KitchenTicket
+    result = await db.execute(
+        select(Order)
+        .options(selectinload(Order.items))
+        .outerjoin(KitchenTicket, KitchenTicket.order_id == Order.id)
+        .where(
+            Order.tenant_id == tenant_id,
+            Order.status == "in_kitchen",
+            KitchenTicket.id.is_(None),
+        )
+    )
+    orders = list(result.scalars().unique().all())
+
+    created = []
+    for order in orders:
+        item_quantities = [(item.id, item.quantity) for item in order.items]
+        if not item_quantities:
+            continue
+        ticket = await kitchen_service.create_ticket_for_order(
+            db, tenant_id, order.id, station.id, item_quantities,
+        )
+        created.append(ticket)
+
+    await db.commit()
+
+    # Re-fetch with relationships
+    tickets = []
+    for t in created:
+        full = await kitchen_service.get_ticket(db, t.id, tenant_id)
+        if full:
+            tickets.append(_ticket_to_response(full))
+
+    return tickets

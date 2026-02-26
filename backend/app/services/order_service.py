@@ -14,9 +14,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.floor import Table
+from app.models.kitchen import KitchenStation
 from app.models.order import Order, OrderItem, OrderItemModifier, OrderStatusLog
 from app.models.restaurant_config import RestaurantConfig
 from app.schemas.order import OrderCreate
+from app.services import kitchen_service
 
 logger = logging.getLogger(__name__)
 
@@ -211,6 +213,10 @@ async def create_order(
             table.status = "occupied"
 
     await db.flush()
+
+    # Auto-create kitchen ticket: route all items to the first active station
+    await _auto_create_kitchen_ticket(db, tenant_id, order)
+
     return await get_order(db, order.id, tenant_id)  # type: ignore[return-value]
 
 
@@ -373,6 +379,25 @@ async def void_order(
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+async def _auto_create_kitchen_ticket(
+    db: AsyncSession, tenant_id: uuid.UUID, order: Order,
+) -> None:
+    """Create a kitchen ticket for an order, routing all items to the first active station."""
+    stations = await kitchen_service.list_stations(db, tenant_id, active_only=True)
+    if not stations:
+        logger.warning("No active kitchen stations — skipping ticket creation for order %s", order.id)
+        return
+
+    station = stations[0]  # Route to first active station (Main Kitchen)
+    item_quantities = [(item.id, item.quantity) for item in order.items]
+    if not item_quantities:
+        return
+
+    await kitchen_service.create_ticket_for_order(
+        db, tenant_id, order.id, station.id, item_quantities,
+    )
+
 
 async def _get_table(
     db: AsyncSession, table_id: uuid.UUID, tenant_id: uuid.UUID
