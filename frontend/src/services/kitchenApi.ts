@@ -74,7 +74,7 @@ export async function fetchKitchenStations(): Promise<KitchenStation[]> {
 async function fetchStationQueue(stationId: string): Promise<KitchenQueueTicketResponse[]> {
   const { data } = await api.get<KitchenQueueTicketResponse[]>(
     `/kitchen/stations/${stationId}/queue`,
-    { params: { active_only: true } }
+    { params: { active_only: false } }
   );
   return data;
 }
