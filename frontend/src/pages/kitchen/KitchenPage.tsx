@@ -292,8 +292,21 @@ function KitchenPage() {
                         </div>
                       </div>
 
+                      <ul className="mb-2 space-y-0.5 text-xs text-secondary-200">
+                        {ticket.items.map((item, idx) => (
+                          <li key={idx} className="flex justify-between">
+                            <span className="truncate">
+                              {item.quantity > 1 && (
+                                <span className="font-semibold text-white">{item.quantity}x </span>
+                              )}
+                              {item.item_name || "Unknown item"}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+
                       <div className="mb-2 text-xs text-secondary-300">
-                        <p>{formatPKR(ticket.total)}</p>
+                        <p className="font-medium text-secondary-100">{formatPKR(ticket.total)}</p>
                         {ticket.customer_name && (
                           <p className="truncate">{ticket.customer_name}</p>
                         )}

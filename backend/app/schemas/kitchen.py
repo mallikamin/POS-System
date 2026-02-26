@@ -73,9 +73,12 @@ class TicketResponse(BaseModel):
     served_at: datetime | None = None
     created_at: datetime
     updated_at: datetime | None = None
-    # Nested
+    # Denormalized from order
     order_number: str | None = None
     order_type: str | None = None
+    order_total: int | None = None
+    customer_name: str | None = None
+    table_id: uuid.UUID | None = None
     items: list[TicketItemResponse] = []
 
     model_config = {"from_attributes": True}

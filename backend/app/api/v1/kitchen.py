@@ -123,6 +123,7 @@ def _ticket_to_response(ticket) -> TicketResponse:
             item_name=oi.name if oi else None,
             item_notes=oi.notes if oi else None,
         ))
+    order = ticket.order
     return TicketResponse(
         id=ticket.id,
         order_id=ticket.order_id,
@@ -135,8 +136,11 @@ def _ticket_to_response(ticket) -> TicketResponse:
         served_at=ticket.served_at,
         created_at=ticket.created_at,
         updated_at=ticket.updated_at,
-        order_number=ticket.order.order_number if ticket.order else None,
-        order_type=ticket.order.order_type if ticket.order else None,
+        order_number=order.order_number if order else None,
+        order_type=order.order_type if order else None,
+        order_total=order.total if order else None,
+        customer_name=order.customer_name if order else None,
+        table_id=order.table_id if order else None,
         items=items,
     )
 

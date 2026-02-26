@@ -91,6 +91,12 @@ function toTicketFromEvent(
     customer_name: existing?.customer_name,
     customer_phone: existing?.customer_phone,
     table_id: existing?.table_id,
+    items: evt.data.items?.map((item) => ({
+      id: item.order_item_id,
+      order_item_id: item.order_item_id,
+      quantity: item.quantity,
+      item_name: item.name,
+    })) ?? existing?.items ?? [],
   };
 }
 

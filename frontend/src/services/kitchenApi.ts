@@ -7,7 +7,7 @@ import type {
 } from "@/types/kitchen";
 
 type KitchenQueueItemResponse = {
-  id: string;
+  id?: string;
   order_item_id: string;
   quantity: number;
   item_name?: string;
@@ -22,6 +22,9 @@ type KitchenQueueTicketResponse = {
   created_at: string;
   order_number?: string;
   order_type?: "dine_in" | "takeaway" | "call_center";
+  order_total?: number;
+  customer_name?: string;
+  table_id?: string;
   items: KitchenQueueItemResponse[];
 };
 
@@ -45,12 +48,19 @@ function toTicket(
     raw_status: raw,
     column: ticket.status,
     item_count: ticket.items.reduce((sum, item) => sum + item.quantity, 0),
-    total: 0,
+    total: ticket.order_total ?? 0,
     created_at: ticket.created_at,
     station_id: ticket.station_id,
     station_name: station.name,
-    customer_name: undefined,
-    customer_phone: undefined,
+    customer_name: ticket.customer_name,
+    table_id: ticket.table_id,
+    items: ticket.items.map((item) => ({
+      id: item.id ?? item.order_item_id,
+      order_item_id: item.order_item_id,
+      quantity: item.quantity,
+      item_name: item.item_name,
+      item_notes: item.item_notes,
+    })),
   };
 }
 

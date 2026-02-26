@@ -11,6 +11,14 @@ export type KitchenOrderStatus =
   | "completed"
   | "voided";
 
+export interface KitchenTicketItem {
+  id: string;
+  order_item_id: string;
+  quantity: number;
+  item_name?: string;
+  item_notes?: string;
+}
+
 export interface KitchenTicket {
   id: string;
   ticket_id?: string;
@@ -26,6 +34,7 @@ export interface KitchenTicket {
   customer_name?: string;
   customer_phone?: string;
   table_id?: string;
+  items: KitchenTicketItem[];
 }
 
 export interface KitchenStation {
