@@ -20,6 +20,7 @@ from app.models.menu import Category, MenuItem, ModifierGroup, Modifier, MenuIte
 from app.models.floor import Floor, Table
 from app.models.order import Order, OrderItem, OrderItemModifier, OrderStatusLog
 from app.models.payment import CashDrawerSession, Payment, PaymentMethod
+from app.models.customer import Customer
 from app.utils.security import hash_password
 
 
@@ -1145,46 +1146,454 @@ async def seed_payments(db: AsyncSession, tenant: Tenant) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Phase 11: Seed customers with rich order history
+# ---------------------------------------------------------------------------
+
+SEED_CUSTOMERS = [
+    {
+        "name": "Ahmed Khan",
+        "phone": "03001234567",
+        "email": "ahmed.khan@gmail.com",
+        "alt_contact": "03001234999",
+        "default_address": "House 42, Street 7, DHA Phase 5",
+        "city": "Lahore",
+        "alt_address": "Office #12, 1st Floor, Mall of Lahore",
+        "alt_city": "Lahore",
+        "notes": "Regular customer, prefers mild spice. Always orders extra raita.",
+    },
+    {
+        "name": "Sara Ali",
+        "phone": "03219876543",
+        "email": "sara.ali@hotmail.com",
+        "alt_contact": None,
+        "default_address": "Flat 3B, Askari Towers, Gulberg III",
+        "city": "Lahore",
+        "alt_address": None,
+        "alt_city": None,
+        "notes": "Vegetarian options preferred. Allergic to nuts.",
+    },
+    {
+        "name": "Bilal Hussain",
+        "phone": "03331122334",
+        "email": "bilal.h@yahoo.com",
+        "alt_contact": "03339988776",
+        "default_address": "House 15, F-8/3",
+        "city": "Islamabad",
+        "alt_address": "Blue Area Office Complex, Suite 401",
+        "alt_city": "Islamabad",
+        "notes": "Frequently cancels. Verify order before sending to kitchen.",
+    },
+    {
+        "name": "Fatima Zahra",
+        "phone": "03451234567",
+        "email": None,
+        "alt_contact": None,
+        "default_address": "Block 14, Clifton",
+        "city": "Karachi",
+        "alt_address": None,
+        "alt_city": None,
+        "notes": "New customer, first-time caller.",
+    },
+    {
+        "name": "Usman Malik",
+        "phone": "03111234567",
+        "email": "usman.malik@company.pk",
+        "alt_contact": "03117654321",
+        "default_address": "House 88, Model Town Extension",
+        "city": "Lahore",
+        "alt_address": "Factory Area, Kot Lakhpat Industrial Estate",
+        "alt_city": "Lahore",
+        "notes": "VIP customer. Large corporate orders on weekends. Always tips delivery.",
+    },
+]
+
+# Orders for each customer — (customer_phone, order_number, status, items)
+# Spread over last 30 days for realistic history
+SEED_CUSTOMER_ORDERS = [
+    # Ahmed Khan — 8 orders, all completed (loyal customer)
+    ("03001234567", "260127-011", "completed", [
+        ("Chicken Biryani", 2, ["Medium"]),
+        ("Chicken Pakora", 1, ["Mild"]),
+        ("Lassi (Sweet)", 2, ["Regular"]),
+    ]),
+    ("03001234567", "260128-012", "completed", [
+        ("Mutton Karahi", 1, ["Hot", "Full"]),
+        ("Garlic Naan", 4, []),
+        ("Doodh Patti Chai", 2, ["Regular"]),
+    ]),
+    ("03001234567", "260130-013", "completed", [
+        ("Nihari", 1, ["Medium", "Full"]),
+        ("Roghni Naan", 6, []),
+        ("Kashmiri Chai", 3, ["Large"]),
+    ]),
+    ("03001234567", "260202-014", "completed", [
+        ("Seekh Kebab", 4, ["Hot"]),
+        ("Butter Naan", 4, []),
+        ("Cold Drink (Can)", 4, ["Regular"]),
+    ]),
+    ("03001234567", "260205-015", "completed", [
+        ("Chicken Handi", 1, ["Mild", "Full"]),
+        ("Plain Naan", 6, []),
+        ("Fresh Lime Water", 2, ["Regular"]),
+    ]),
+    ("03001234567", "260210-016", "completed", [
+        ("Mixed Grill Platter", 1, ["Medium"]),
+        ("Cheese Naan", 2, []),
+        ("Gulab Jamun (2 pcs)", 2, []),
+    ]),
+    ("03001234567", "260218-017", "completed", [
+        ("Chicken Karahi", 1, ["Medium", "Full"]),
+        ("Tandoori Roti", 8, []),
+        ("Kheer", 2, []),
+    ]),
+    ("03001234567", "260224-018", "completed", [
+        ("Daal Makhani", 1, ["Mild", "Full"]),
+        ("Mutton Biryani", 2, ["Medium"]),
+        ("Garlic Naan", 4, []),
+    ]),
+    # Sara Ali — 4 orders, 1 voided (mostly good)
+    ("03219876543", "260129-019", "completed", [
+        ("Palak Paneer", 1, ["Mild", "Full"]),
+        ("Butter Naan", 4, []),
+        ("Lassi (Sweet)", 2, ["Large"]),
+    ]),
+    ("03219876543", "260203-020", "completed", [
+        ("Daal Makhani", 1, ["Medium", "Full"]),
+        ("Cheese Naan", 2, []),
+        ("Doodh Patti Chai", 2, ["Regular"]),
+    ]),
+    ("03219876543", "260212-021", "voided", [
+        ("Chicken Biryani", 1, ["Mild"]),
+        ("Samosa (2 pcs)", 2, ["Mild"]),
+    ]),
+    ("03219876543", "260220-022", "completed", [
+        ("Chana Chaat", 2, ["Mild"]),
+        ("Dahi Bhalla", 2, ["Mild"]),
+        ("Fresh Lime Water", 2, ["Regular"]),
+    ]),
+    # Bilal Hussain — 5 orders, 2 voided (HIGH RISK: 40% void rate)
+    ("03331122334", "260128-023", "completed", [
+        ("Chicken Biryani", 3, ["Hot"]),
+        ("Chicken Pakora", 2, ["Hot"]),
+        ("Cold Drink (Can)", 3, ["Regular"]),
+    ]),
+    ("03331122334", "260201-024", "voided", [
+        ("Mutton Karahi", 1, ["Hot", "Full"]),
+        ("Garlic Naan", 6, []),
+    ]),
+    ("03331122334", "260208-025", "completed", [
+        ("Seekh Kebab", 6, ["Hot"]),
+        ("Tandoori Roti", 6, []),
+        ("Lassi (Salt)", 2, ["Regular"]),
+    ]),
+    ("03331122334", "260215-026", "voided", [
+        ("Nihari", 2, ["Hot", "Full"]),
+        ("Roghni Naan", 8, []),
+        ("Kashmiri Chai", 4, ["Large"]),
+    ]),
+    ("03331122334", "260222-027", "in_kitchen", [
+        ("Chicken Handi", 1, ["Hot", "Full"]),
+        ("Haleem", 1, ["Hot", "Full"]),
+        ("Plain Naan", 8, []),
+    ]),
+    # Fatima Zahra — 1 order only (new customer)
+    ("03451234567", "260225-028", "confirmed", [
+        ("Chicken Biryani", 1, ["Mild"]),
+        ("Samosa (2 pcs)", 1, ["Mild"]),
+        ("Mineral Water", 1, []),
+    ]),
+    # Usman Malik — 10 orders, all completed (VIP, large orders)
+    ("03111234567", "260126-029", "completed", [
+        ("Mixed Grill Platter", 3, ["Medium"]),
+        ("Chicken Karahi", 2, ["Medium", "Full"]),
+        ("Garlic Naan", 10, []),
+        ("Cold Drink (Can)", 10, ["Regular"]),
+    ]),
+    ("03111234567", "260128-030", "completed", [
+        ("Mutton Biryani", 5, ["Medium"]),
+        ("Chicken Pakora", 3, ["Mild"]),
+        ("Lassi (Sweet)", 5, ["Large"]),
+    ]),
+    ("03111234567", "260131-031", "completed", [
+        ("Lamb Chops", 4, ["Medium"]),
+        ("Seekh Kebab", 6, ["Medium"]),
+        ("Butter Naan", 10, []),
+        ("Gulab Jamun (2 pcs)", 5, []),
+    ]),
+    ("03111234567", "260203-032", "completed", [
+        ("Nihari", 3, ["Medium", "Full"]),
+        ("Haleem", 2, ["Medium", "Full"]),
+        ("Roghni Naan", 10, []),
+        ("Doodh Patti Chai", 6, ["Large"]),
+    ]),
+    ("03111234567", "260206-033", "completed", [
+        ("Chicken Handi", 2, ["Mild", "Full"]),
+        ("Prawn Karahi", 1, ["Medium", "Full"]),
+        ("Cheese Naan", 6, []),
+        ("Kheer", 4, []),
+    ]),
+    ("03111234567", "260209-034", "completed", [
+        ("Sindhi Biryani", 4, ["Hot"]),
+        ("Fish Pakora", 3, ["Medium"]),
+        ("Chana Chaat", 3, ["Mild"]),
+        ("Fresh Lime Water", 6, ["Regular"]),
+    ]),
+    ("03111234567", "260212-035", "completed", [
+        ("Namkeen Gosht", 2, ["Hot", "Full"]),
+        ("Mutton Karahi", 1, ["Hot", "Full"]),
+        ("Tandoori Roti", 12, []),
+        ("Kashmiri Chai", 6, ["Large"]),
+    ]),
+    ("03111234567", "260216-036", "completed", [
+        ("Chicken Tikka", 6, ["Medium"]),
+        ("Malai Boti", 4, ["Mild"]),
+        ("Garlic Naan", 8, []),
+        ("Gajar Ka Halwa", 4, []),
+    ]),
+    ("03111234567", "260220-037", "completed", [
+        ("Pulao", 5, ["Mild"]),
+        ("Daal Makhani", 2, ["Mild", "Full"]),
+        ("Plain Naan", 10, []),
+        ("Firni", 5, []),
+    ]),
+    ("03111234567", "260224-038", "completed", [
+        ("Chicken Biryani", 6, ["Medium"]),
+        ("Samosa (2 pcs)", 4, ["Mild"]),
+        ("Lassi (Sweet)", 6, ["Large"]),
+        ("Gulab Jamun (2 pcs)", 3, []),
+    ]),
+]
+
+# Voided orders need a different status path
+VOIDED_STATUS_PATH = ["confirmed", "in_kitchen", "voided"]
+
+
+async def seed_customers(db: AsyncSession, tenant: Tenant) -> None:
+    """Create customer records and their call-center order history."""
+    from datetime import datetime, timedelta, timezone
+
+    # Check if customers already exist
+    result = await db.execute(
+        select(Customer).where(Customer.tenant_id == tenant.id).limit(1)
+    )
+    if result.scalar_one_or_none() is not None:
+        print("  Customers already exist, skipping.")
+        return
+
+    # Get admin user for created_by
+    result = await db.execute(
+        select(User).where(User.email == "admin@demo.com", User.tenant_id == tenant.id)
+    )
+    admin = result.scalar_one_or_none()
+    if admin is None:
+        print("  Admin user not found, skipping customers.")
+        return
+
+    # Get restaurant config for tax rate
+    result = await db.execute(
+        select(RestaurantConfig).where(RestaurantConfig.tenant_id == tenant.id)
+    )
+    config = result.scalar_one_or_none()
+    tax_rate_bps = config.default_tax_rate if config else 1600
+
+    # Build lookup maps
+    result = await db.execute(
+        select(MenuItem).where(MenuItem.tenant_id == tenant.id)
+    )
+    menu_items_map = {mi.name: mi for mi in result.scalars().all()}
+
+    result = await db.execute(
+        select(Modifier).where(Modifier.tenant_id == tenant.id)
+    )
+    modifiers_map = {m.name: m for m in result.scalars().all()}
+
+    # Create customer records
+    customer_map: dict[str, Customer] = {}
+    for cdef in SEED_CUSTOMERS:
+        customer = Customer(
+            tenant_id=tenant.id,
+            name=cdef["name"],
+            phone=cdef["phone"],
+            email=cdef.get("email"),
+            alt_contact=cdef.get("alt_contact"),
+            default_address=cdef.get("default_address"),
+            city=cdef.get("city"),
+            alt_address=cdef.get("alt_address"),
+            alt_city=cdef.get("alt_city"),
+            notes=cdef.get("notes"),
+        )
+        db.add(customer)
+        customer_map[cdef["phone"]] = customer
+
+    await db.flush()
+    print(f"  Created {len(SEED_CUSTOMERS)} customers.")
+
+    # Create orders for each customer
+    orders_created = 0
+    now = datetime.now(timezone.utc)
+
+    for phone, order_number, target_status, items_def in SEED_CUSTOMER_ORDERS:
+        customer = customer_map.get(phone)
+        if not customer:
+            continue
+
+        # Parse date from order_number (YYMMDD-NNN)
+        date_part = order_number.split("-")[0]
+        day_offset = int(date_part[4:6])
+        month_offset = int(date_part[2:4])
+        # Create a realistic timestamp
+        order_date = datetime(2026, month_offset, day_offset, 12, 30, 0,
+                              tzinfo=timezone.utc)
+
+        # Build order items
+        order_items: list[OrderItem] = []
+        subtotal = 0
+
+        for item_name, qty, mod_names in items_def:
+            mi = menu_items_map.get(item_name)
+            if mi is None:
+                continue
+
+            base_price = mi.price
+            item_modifiers: list[OrderItemModifier] = []
+            for mname in mod_names:
+                mod = modifiers_map.get(mname)
+                if mod:
+                    base_price += mod.price_adjustment
+                    item_modifiers.append(OrderItemModifier(
+                        tenant_id=tenant.id,
+                        modifier_id=mod.id,
+                        name=mod.name,
+                        price_adjustment=mod.price_adjustment,
+                    ))
+
+            unit_price = max(0, base_price)
+            line_total = unit_price * qty
+            subtotal += line_total
+
+            oi = OrderItem(
+                tenant_id=tenant.id,
+                menu_item_id=mi.id,
+                name=mi.name,
+                quantity=qty,
+                unit_price=unit_price,
+                total=line_total,
+                status="pending",
+                modifiers=item_modifiers,
+            )
+            order_items.append(oi)
+
+        if not order_items:
+            continue
+
+        tax_amount = round(subtotal * tax_rate_bps / 10_000)
+        total = subtotal + tax_amount
+
+        # Determine payment status
+        if target_status == "completed":
+            payment_status = "paid"
+        elif target_status == "voided":
+            payment_status = "unpaid"
+        else:
+            payment_status = "unpaid"
+
+        order = Order(
+            tenant_id=tenant.id,
+            order_number=order_number,
+            order_type="call_center",
+            status=target_status,
+            payment_status=payment_status,
+            table_id=None,
+            customer_name=customer.name,
+            customer_phone=customer.phone,
+            subtotal=subtotal,
+            tax_amount=tax_amount,
+            discount_amount=0,
+            total=total,
+            created_by=admin.id,
+            items=order_items,
+        )
+        # Backdate the order
+        order.created_at = order_date
+        db.add(order)
+        await db.flush()
+
+        # Status log
+        if target_status == "voided":
+            status_path = VOIDED_STATUS_PATH
+        else:
+            status_path = STATUS_PATH.get(target_status, ["confirmed"])
+
+        prev_status = None
+        for step_status in status_path:
+            log = OrderStatusLog(
+                tenant_id=tenant.id,
+                order_id=order.id,
+                from_status=prev_status,
+                to_status=step_status,
+                changed_by=admin.id,
+            )
+            db.add(log)
+            prev_status = step_status
+
+        await db.flush()
+        orders_created += 1
+
+    print(f"  Created {orders_created} customer orders.")
+
+    # Update customer stats (order_count, total_spent, last_order_at, risk_flag)
+    from app.services.customer_service import update_customer_stats
+    for customer in customer_map.values():
+        await update_customer_stats(db, tenant.id, customer)
+    await db.flush()
+
+    print("  Updated customer stats (order_count, total_spent, risk_flag).")
+
+
+# ---------------------------------------------------------------------------
 # Main entry point
 # ---------------------------------------------------------------------------
 
 async def main() -> None:
     """Run the full seed process inside a single transaction."""
     print("=" * 60)
-    print("POS System -- Seed Script (Phase 2 + 3 + 4 + 5 + 7)")
+    print("POS System -- Seed Script (Phase 2 + 3 + 4 + 5 + 7 + 11)")
     print("=" * 60)
 
     async with async_session_factory() as db:
         try:
-            print("\n[1/10] Seeding tenant...")
+            print("\n[1/11] Seeding tenant...")
             tenant = await seed_tenant(db)
 
-            print("\n[2/10] Seeding restaurant config...")
+            print("\n[2/11] Seeding restaurant config...")
             await seed_config(db, tenant)
 
-            print("\n[3/10] Seeding permissions...")
+            print("\n[3/11] Seeding permissions...")
             perm_map = await seed_permissions(db, tenant)
 
-            print("\n[4/10] Seeding roles...")
+            print("\n[4/11] Seeding roles...")
             role_map = await seed_roles(db, tenant, perm_map)
 
-            print("\n[5/10] Seeding users...")
+            print("\n[5/11] Seeding users...")
             await seed_users(db, tenant, role_map)
 
-            print("\n[6/10] Seeding modifier groups...")
+            print("\n[6/11] Seeding modifier groups...")
             modifier_group_map = await seed_modifier_groups(db, tenant)
 
-            print("\n[7/10] Seeding menu (categories + items)...")
+            print("\n[7/11] Seeding menu (categories + items)...")
             await seed_menu(db, tenant, modifier_group_map)
 
-            print("\n[8/10] Seeding floors & tables...")
+            print("\n[8/11] Seeding floors & tables...")
             await seed_floors(db, tenant)
 
-            print("\n[9/10] Seeding sample orders...")
+            print("\n[9/11] Seeding sample orders...")
             await seed_orders(db, tenant)
 
-            print("\n[10/10] Seeding payments & cash drawer...")
+            print("\n[10/11] Seeding payments & cash drawer...")
             await seed_payments(db, tenant)
+
+            print("\n[11/11] Seeding customers & order history...")
+            await seed_customers(db, tenant)
 
             await db.commit()
             print("\nSeed completed successfully!")

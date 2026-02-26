@@ -29,7 +29,11 @@ def customer_data() -> dict:
         "name": "Ahmad Khan",
         "phone": "03001234567",
         "email": "ahmad@example.com",
-        "default_address": "House 42, Street 7, F-8/3, Islamabad",
+        "alt_contact": "03009999888",
+        "default_address": "House 42, Street 7, F-8/3",
+        "city": "Islamabad",
+        "alt_address": "Office #5, Blue Area",
+        "alt_city": "Islamabad",
         "notes": "Prefers extra raita",
     }
 
@@ -51,8 +55,15 @@ class TestCreateCustomer:
         assert body["name"] == "Ahmad Khan"
         assert body["phone"] == "03001234567"
         assert body["email"] == "ahmad@example.com"
-        assert body["default_address"] == "House 42, Street 7, F-8/3, Islamabad"
+        assert body["alt_contact"] == "03009999888"
+        assert body["default_address"] == "House 42, Street 7, F-8/3"
+        assert body["city"] == "Islamabad"
+        assert body["alt_address"] == "Office #5, Blue Area"
+        assert body["alt_city"] == "Islamabad"
         assert body["order_count"] == 0
+        assert body["total_spent"] == 0
+        assert body["risk_flag"] == "normal"
+        assert body["last_order_at"] is None
         assert body["id"] is not None
 
     async def test_create_minimal(self, client: AsyncClient, cashier_token: str):
@@ -365,6 +376,7 @@ class TestOrderHistory:
         orders = resp.json()
         assert len(orders) == 2
         assert orders[0]["order_type"] == "call_center"
+        assert "items_count" in orders[0]
 
     async def test_order_history_empty(
         self, client: AsyncClient, cashier_token: str
@@ -443,3 +455,104 @@ class TestTenantIsolation:
             headers=_auth(other_tenant_token),
         )
         assert resp.status_code == 404
+
+
+# =========================================================================
+# 7. Enhanced Customer Fields
+# =========================================================================
+class TestEnhancedFields:
+    """Tests for new customer fields: alt_contact, city, alt_address, alt_city,
+    total_spent, last_order_at, risk_flag."""
+
+    async def test_create_with_all_new_fields(
+        self, client: AsyncClient, cashier_token: str
+    ):
+        resp = await client.post(
+            "/api/v1/customers",
+            json={
+                "name": "Full Fields",
+                "phone": "03004445556",
+                "alt_contact": "03119998887",
+                "default_address": "House 1, Street 2",
+                "city": "Lahore",
+                "alt_address": "Office #3",
+                "alt_city": "Karachi",
+            },
+            headers=_auth(cashier_token),
+        )
+        assert resp.status_code == 201
+        body = resp.json()
+        assert body["alt_contact"] == "03119998887"
+        assert body["city"] == "Lahore"
+        assert body["alt_address"] == "Office #3"
+        assert body["alt_city"] == "Karachi"
+        assert body["risk_flag"] == "normal"
+        assert body["total_spent"] == 0
+
+    async def test_update_alt_contact(
+        self, client: AsyncClient, cashier_token: str
+    ):
+        create_resp = await client.post(
+            "/api/v1/customers",
+            json={"name": "Alt Test", "phone": "03006667778"},
+            headers=_auth(cashier_token),
+        )
+        cid = create_resp.json()["id"]
+        resp = await client.patch(
+            f"/api/v1/customers/{cid}",
+            json={"alt_contact": "03117776665"},
+            headers=_auth(cashier_token),
+        )
+        assert resp.status_code == 200
+        assert resp.json()["alt_contact"] == "03117776665"
+
+    async def test_update_risk_flag(
+        self, client: AsyncClient, cashier_token: str
+    ):
+        create_resp = await client.post(
+            "/api/v1/customers",
+            json={"name": "Risk Test", "phone": "03008889990"},
+            headers=_auth(cashier_token),
+        )
+        cid = create_resp.json()["id"]
+        resp = await client.patch(
+            f"/api/v1/customers/{cid}",
+            json={"risk_flag": "high"},
+            headers=_auth(cashier_token),
+        )
+        assert resp.status_code == 200
+        assert resp.json()["risk_flag"] == "high"
+
+    async def test_invalid_risk_flag_422(
+        self, client: AsyncClient, cashier_token: str
+    ):
+        create_resp = await client.post(
+            "/api/v1/customers",
+            json={"name": "Risk Invalid", "phone": "03001112223"},
+            headers=_auth(cashier_token),
+        )
+        cid = create_resp.json()["id"]
+        resp = await client.patch(
+            f"/api/v1/customers/{cid}",
+            json={"risk_flag": "invalid_value"},
+            headers=_auth(cashier_token),
+        )
+        assert resp.status_code == 422
+
+    async def test_response_includes_new_fields(
+        self, client: AsyncClient, cashier_token: str
+    ):
+        create_resp = await client.post(
+            "/api/v1/customers",
+            json={"name": "Fields Check", "phone": "03002223334"},
+            headers=_auth(cashier_token),
+        )
+        body = create_resp.json()
+        # All new fields should be present in response
+        assert "alt_contact" in body
+        assert "city" in body
+        assert "alt_address" in body
+        assert "alt_city" in body
+        assert "total_spent" in body
+        assert "last_order_at" in body
+        assert "risk_flag" in body

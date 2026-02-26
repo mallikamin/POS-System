@@ -5,8 +5,10 @@ Phone numbers are stored in a normalized format for search (digits only).
 """
 
 import uuid
+from datetime import datetime
 
 from sqlalchemy import (
+    DateTime,
     ForeignKey,
     Index,
     Integer,
@@ -41,9 +43,25 @@ class Customer(BaseMixin, Base):
         comment="Normalized phone (digits only, e.g. 03001234567)",
     )
     email: Mapped[str | None] = mapped_column(String(320), nullable=True)
+    alt_contact: Mapped[str | None] = mapped_column(
+        String(50), nullable=True,
+        comment="Alternative contact phone for delivery rider",
+    )
     default_address: Mapped[str | None] = mapped_column(
         Text, nullable=True,
         comment="Primary delivery address (free-text)",
+    )
+    city: Mapped[str | None] = mapped_column(
+        String(100), nullable=True,
+        comment="City for primary address (delivery zone routing)",
+    )
+    alt_address: Mapped[str | None] = mapped_column(
+        Text, nullable=True,
+        comment="Alternative delivery address (e.g. office)",
+    )
+    alt_city: Mapped[str | None] = mapped_column(
+        String(100), nullable=True,
+        comment="City for alternative address",
     )
     notes: Mapped[str | None] = mapped_column(
         Text, nullable=True,
@@ -52,6 +70,18 @@ class Customer(BaseMixin, Base):
     order_count: Mapped[int] = mapped_column(
         Integer, default=0, nullable=False,
         comment="Denormalized order count for quick display",
+    )
+    total_spent: Mapped[int] = mapped_column(
+        Integer, default=0, nullable=False,
+        comment="Denormalized total spent in paisa (completed orders only)",
+    )
+    last_order_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True,
+        comment="Timestamp of most recent order",
+    )
+    risk_flag: Mapped[str] = mapped_column(
+        String(20), default="normal", nullable=False,
+        comment="Risk level: normal, high, blocked",
     )
 
     tenant_id: Mapped[uuid.UUID] = mapped_column(

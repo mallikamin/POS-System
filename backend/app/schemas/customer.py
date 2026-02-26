@@ -13,7 +13,11 @@ class CustomerCreate(BaseModel):
         description="Digits only, e.g. 03001234567",
     )
     email: str | None = Field(None, max_length=320)
+    alt_contact: str | None = Field(None, max_length=50)
     default_address: str | None = Field(None, max_length=2000)
+    city: str | None = Field(None, max_length=100)
+    alt_address: str | None = Field(None, max_length=2000)
+    alt_city: str | None = Field(None, max_length=100)
     notes: str | None = Field(None, max_length=2000)
 
 
@@ -23,8 +27,13 @@ class CustomerUpdate(BaseModel):
         None, min_length=7, max_length=20, pattern=r"^\d{7,20}$",
     )
     email: str | None = None
+    alt_contact: str | None = None
     default_address: str | None = None
+    city: str | None = None
+    alt_address: str | None = None
+    alt_city: str | None = None
     notes: str | None = None
+    risk_flag: str | None = Field(None, pattern=r"^(normal|high|blocked)$")
 
 
 class CustomerResponse(BaseModel):
@@ -32,9 +41,16 @@ class CustomerResponse(BaseModel):
     name: str
     phone: str
     email: str | None = None
+    alt_contact: str | None = None
     default_address: str | None = None
+    city: str | None = None
+    alt_address: str | None = None
+    alt_city: str | None = None
     notes: str | None = None
     order_count: int
+    total_spent: int = 0
+    last_order_at: datetime | None = None
+    risk_flag: str = "normal"
     created_at: datetime
     updated_at: datetime | None = None
 
@@ -49,6 +65,7 @@ class CustomerOrderHistoryItem(BaseModel):
     status: str
     payment_status: str
     total: int
+    items_count: int = 0
     created_at: datetime
 
     model_config = {"from_attributes": True}
