@@ -118,6 +118,7 @@ function CallCenterPage() {
     clearError,
   } = useCustomerStore();
   const { categories, loadMenu } = useMenuStore();
+  const resetCustomerStore = useCustomerStore((s) => s.reset);
 
   const [phoneInput, setPhoneInput] = useState("");
   const [showCustomerDialog, setShowCustomerDialog] = useState(false);
@@ -139,7 +140,10 @@ function CallCenterPage() {
 
   useEffect(() => {
     setCurrentChannel("call_center");
-  }, [setCurrentChannel]);
+    return () => {
+      resetCustomerStore();
+    };
+  }, [setCurrentChannel, resetCustomerStore]);
 
   useLayoutEffect(() => {
     setActiveCart("call-center");
@@ -320,10 +324,23 @@ function CallCenterPage() {
                 placeholder="Enter phone number"
                 value={phoneInput}
                 onChange={(e) => handlePhoneChange(e.target.value)}
-                className="pl-8"
+                className="pl-8 pr-8"
               />
               {isSearching && (
                 <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-secondary-400" />
+              )}
+              {!isSearching && phoneInput && (
+                <button
+                  onClick={() => {
+                    setPhoneInput("");
+                    selectCustomer(null);
+                    useCustomerStore.setState({ searchResults: [] });
+                  }}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-secondary-100 text-secondary-400"
+                  aria-label="Clear search"
+                >
+                  <X className="h-4 w-4" />
+                </button>
               )}
             </div>
 
