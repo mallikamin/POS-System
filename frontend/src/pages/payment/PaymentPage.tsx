@@ -92,7 +92,14 @@ function PaymentPage() {
         tendered_amount: parseRupees(cashTendered) || undefined,
       });
       setSummary(next);
-      setSuccess("Cash payment recorded.");
+      // Show change in success message if tendered > amount
+      const tenderedPaisa = parseRupees(cashTendered);
+      const amountPaisa = parseRupees(cashAmount);
+      if (tenderedPaisa > amountPaisa) {
+        setSuccess(`Cash payment recorded. Change due: ${formatPKR(tenderedPaisa - amountPaisa)}`);
+      } else {
+        setSuccess("Cash payment recorded.");
+      }
       setCashAmount("");
       setCashTendered("");
     } catch (err: unknown) {
@@ -371,11 +378,19 @@ function PaymentPage() {
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-secondary-500">Transactions</p>
               <div className="space-y-1.5">
                 {summary.payments.map((payment) => (
-                  <div key={payment.id} className="flex items-center justify-between text-xs">
-                    <span className="text-secondary-600">
-                      {(payment.method?.display_name ?? payment.method_id)} ({payment.kind})
-                    </span>
-                    <span className="font-medium text-secondary-900">{formatPKR(payment.amount)}</span>
+                  <div key={payment.id} className="space-y-0.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-secondary-600">
+                        {(payment.method?.display_name ?? payment.method_id)} ({payment.kind})
+                      </span>
+                      <span className="font-medium text-secondary-900">{formatPKR(payment.amount)}</span>
+                    </div>
+                    {payment.tendered_amount != null && payment.tendered_amount > payment.amount && (
+                      <div className="flex items-center justify-between text-[11px] text-secondary-400 pl-2">
+                        <span>Tendered: {formatPKR(payment.tendered_amount)}</span>
+                        <span className="text-success-600 font-medium">Change: {formatPKR(payment.tendered_amount - payment.amount)}</span>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
