@@ -370,7 +370,6 @@ function PaymentPage() {
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
           <div className="flex justify-between"><span className="text-secondary-500">Order Total</span><span>{summary ? formatPKR(summary.order_total) : "--"}</span></div>
-          <div className="flex justify-between"><span className="text-secondary-500">Settled</span><span>{summary ? formatPKR(summary.paid_amount) : "--"}</span></div>
           {(() => {
             const totalTendered = summary?.payments.reduce((sum, p) => sum + (p.tendered_amount ?? p.amount), 0) ?? 0;
             const totalChange = summary ? totalTendered - summary.paid_amount : 0;
@@ -382,7 +381,7 @@ function PaymentPage() {
             ) : null;
           })()}
           {!!summary && summary.refunded_amount > 0 && (
-            <div className="flex justify-between"><span className="text-secondary-500">Refunded</span><span>{summary ? formatPKR(summary.refunded_amount) : "--"}</span></div>
+            <div className="flex justify-between"><span className="text-secondary-500">Refunded</span><span>{formatPKR(summary.refunded_amount)}</span></div>
           )}
           <div className="flex justify-between border-t border-secondary-200 pt-2 font-semibold"><span>Due</span><span>{summary ? formatPKR(summary.due_amount) : "--"}</span></div>
           {!!summary && summary.payments.length > 0 && (
