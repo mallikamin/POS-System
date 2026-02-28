@@ -366,30 +366,30 @@ function PaymentPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Payment Summary</CardTitle>
+          <CardTitle className="text-lg">Payment Summary</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-2 text-sm">
-          <div className="flex justify-between"><span className="text-secondary-500">Order Total</span><span>{summary ? formatPKR(summary.order_total) : "--"}</span></div>
+        <CardContent className="space-y-3 text-base">
+          <div className="flex justify-between"><span className="text-secondary-500">Order Total</span><span className="font-medium">{summary ? formatPKR(summary.order_total) : "--"}</span></div>
           {(() => {
             const totalTendered = summary?.payments.reduce((sum, p) => sum + (p.tendered_amount ?? p.amount), 0) ?? 0;
             const totalChange = summary ? totalTendered - summary.paid_amount : 0;
             return totalTendered > (summary?.paid_amount ?? 0) ? (
               <>
-                <div className="flex justify-between"><span className="text-secondary-500">Received</span><span>{formatPKR(totalTendered)}</span></div>
-                <div className="flex justify-between"><span className="text-secondary-500">Change</span><span className="text-success-600 font-medium">{formatPKR(totalChange)}</span></div>
+                <div className="flex justify-between"><span className="text-secondary-500">Received</span><span className="font-medium">{formatPKR(totalTendered)}</span></div>
+                <div className="flex justify-between"><span className="text-secondary-500">Change</span><span className="text-success-600 font-semibold">{formatPKR(totalChange)}</span></div>
               </>
             ) : null;
           })()}
           {!!summary && summary.refunded_amount > 0 && (
-            <div className="flex justify-between"><span className="text-secondary-500">Refunded</span><span>{formatPKR(summary.refunded_amount)}</span></div>
+            <div className="flex justify-between"><span className="text-secondary-500">Refunded</span><span className="font-medium">{formatPKR(summary.refunded_amount)}</span></div>
           )}
-          <div className="flex justify-between border-t border-secondary-200 pt-2 font-semibold"><span>Due</span><span>{summary ? formatPKR(summary.due_amount) : "--"}</span></div>
+          <div className="flex justify-between border-t border-secondary-200 pt-3 text-lg font-bold"><span>Due</span><span>{summary ? formatPKR(summary.due_amount) : "--"}</span></div>
           {!!summary && summary.payments.length > 0 && (
-            <div className="mt-3 border-t border-secondary-200 pt-3">
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-secondary-500">Transactions</p>
-              <div className="space-y-1.5">
+            <div className="mt-4 border-t border-secondary-200 pt-3">
+              <p className="mb-2 text-sm font-semibold uppercase tracking-wide text-secondary-500">Transactions</p>
+              <div className="space-y-2">
                 {summary.payments.map((payment) => (
-                  <div key={payment.id} className="flex items-center justify-between text-xs">
+                  <div key={payment.id} className="flex items-center justify-between text-sm">
                     <span className="text-secondary-600">
                       {(payment.method?.display_name ?? payment.method_id)} ({payment.kind})
                     </span>
