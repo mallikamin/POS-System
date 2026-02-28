@@ -41,7 +41,7 @@ function TakeawayPage() {
       </div>
 
       {/* Bottom: Live order ticker */}
-      <OrderTicker />
+      <OrderTicker orderType="takeaway" />
     </div>
   );
 }

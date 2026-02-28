@@ -75,6 +75,7 @@ class RefundCreate(BaseModel):
 
 class PaymentSummary(BaseModel):
     order_id: uuid.UUID
+    order_number: str
     order_total: int
     paid_amount: int
     refunded_amount: int

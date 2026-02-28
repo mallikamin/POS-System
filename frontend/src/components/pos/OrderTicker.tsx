@@ -23,7 +23,11 @@ function elapsed(createdAt: string): string {
   return `${Math.floor(diff / 60)}h${diff % 60}m`;
 }
 
-export function OrderTicker() {
+interface OrderTickerProps {
+  orderType?: "dine_in" | "takeaway" | "call_center";
+}
+
+export function OrderTicker({ orderType }: OrderTickerProps) {
   const orders = useOrderStore((s) => s.orders);
   const loadOrders = useOrderStore((s) => s.loadOrders);
 
@@ -37,8 +41,11 @@ export function OrderTicker() {
   }, [loadOrders]);
 
   const activeOrders = useMemo(
-    () => orders.filter((o) => !["completed", "voided"].includes(o.status)),
-    [orders]
+    () => orders.filter((o) =>
+      !["completed", "voided"].includes(o.status) &&
+      (!orderType || o.order_type === orderType)
+    ),
+    [orders, orderType]
   );
 
   if (activeOrders.length === 0) return null;

@@ -209,6 +209,7 @@ async def get_order_payment_summary(
     due_amount = max(order.total - paid_amount + refunded_amount, 0)
     return PaymentSummary(
         order_id=order.id,
+        order_number=order.order_number,
         order_total=order.total,
         paid_amount=paid_amount,
         refunded_amount=refunded_amount,

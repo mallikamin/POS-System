@@ -28,6 +28,7 @@ export interface PaymentResponse {
 
 export interface PaymentSummary {
   order_id: string;
+  order_number: string;
   order_total: number;
   paid_amount: number;
   refunded_amount: number;

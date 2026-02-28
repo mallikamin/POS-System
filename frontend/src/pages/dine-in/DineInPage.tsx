@@ -72,7 +72,7 @@ function DineInPage() {
       </div>
 
       {/* Bottom: Live order ticker */}
-      <OrderTicker />
+      <OrderTicker orderType="dine_in" />
     </div>
   );
 }

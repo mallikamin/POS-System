@@ -10,7 +10,7 @@ import {
   Package,
   Phone,
   CreditCard,
-  Receipt,
+  FileText,
   Send,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -256,7 +256,8 @@ export function OrderCard({ order, onTransition, onVoid }: OrderCardProps) {
                 className="gap-1"
                 onClick={() => setReceiptOpen(true)}
               >
-                <Receipt className="h-3.5 w-3.5" />
+                <FileText className="h-3.5 w-3.5" />
+                Receipt
               </Button>
             )}
             {canVoid && (

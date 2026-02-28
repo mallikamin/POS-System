@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { formatPKR, rupeesToPaisa } from "@/utils/currency";
+import { formatPKR, rupeesToPaisa, paisaToRupees } from "@/utils/currency";
 import * as paymentsApi from "@/services/paymentsApi";
 import type {
   CashDrawerSessionResponse,
@@ -66,6 +66,12 @@ function PaymentPage() {
       ]);
       setSummary(nextSummary);
       setDrawerSession(nextDrawer);
+      // Auto-fill amount fields with due amount
+      if (nextSummary.due_amount > 0) {
+        const dueRupees = String(paisaToRupees(nextSummary.due_amount));
+        setCashAmount(dueRupees);
+        setCardAmount(dueRupees);
+      }
     } catch (err: unknown) {
       setError(getErrorMessage(err, "Failed to load payment data"));
     } finally {
@@ -204,7 +210,7 @@ function PaymentPage() {
           <CreditCard className="h-5 w-5 text-primary-600" />
           <div>
             <h2 className="text-lg font-semibold text-secondary-900">Payment</h2>
-            <p className="text-xs text-secondary-500">Order {orderId}</p>
+            <p className="text-xs text-secondary-500">Order #{summary?.order_number ?? orderId}</p>
           </div>
         </div>
         <div className="text-right">
@@ -276,6 +282,7 @@ function PaymentPage() {
               <div>
                 <Label>Tendered (PKR)</Label>
                 <Input value={cashTendered} onChange={(e) => setCashTendered(e.target.value)} placeholder="0" type="number" min="0" />
+                <p className="mt-1 text-xs text-secondary-400">Cash received from customer. Change will be calculated automatically.</p>
               </div>
               <div className="md:col-span-2">
                 <Button onClick={handleCashPayment} disabled={submitting}>Post Cash Payment</Button>

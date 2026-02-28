@@ -601,7 +601,7 @@ function CallCenterPage() {
       </div>
 
       {/* Bottom: Live order ticker */}
-      <OrderTicker />
+      <OrderTicker orderType="call_center" />
 
       {/* Customer create/edit dialog */}
       <Dialog open={showCustomerDialog} onOpenChange={setShowCustomerDialog}>
