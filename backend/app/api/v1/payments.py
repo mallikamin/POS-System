@@ -18,6 +18,7 @@ from app.schemas.payment import (
     PaymentSummary,
     RefundCreate,
     SessionPaymentCreate,
+    SessionPaymentPreview,
     SessionPaymentSummary,
     SessionSplitPaymentCreate,
     SplitPaymentCreate,
@@ -120,6 +121,23 @@ async def get_session_payment_summary(
 ) -> SessionPaymentSummary:
     try:
         return await payment_service.get_session_payment_summary(
+            db, session_id, current_user.tenant_id
+        )
+    except ValueError as e:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(e))
+
+
+@router.get(
+    "/table-sessions/{session_id}/payment-preview",
+    response_model=SessionPaymentPreview,
+)
+async def get_session_payment_preview(
+    session_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> SessionPaymentPreview:
+    try:
+        return await payment_service.get_session_payment_preview(
             db, session_id, current_user.tenant_id
         )
     except ValueError as e:

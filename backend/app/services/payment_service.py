@@ -17,6 +17,7 @@ from app.schemas.payment import (
     RefundCreate,
     SessionPaymentCreate,
     SessionPaymentOrderDue,
+    SessionPaymentPreview,
     SessionPaymentSummary,
     SessionSplitPaymentCreate,
     SplitPaymentCreate,
@@ -401,6 +402,51 @@ async def get_session_payment_summary(
         due_amount=session_due,
         payment_status=payment_status,
         orders=order_dues,
+    )
+
+
+async def get_session_payment_preview(
+    db: AsyncSession, session_id: uuid.UUID, tenant_id: uuid.UUID
+) -> SessionPaymentPreview:
+    """Compute cash and card totals for a table session using method-specific tax rates."""
+    from app.models.table_session import TableSession
+    from app.models.restaurant_config import RestaurantConfig
+
+    result = await db.execute(
+        select(TableSession)
+        .options(selectinload(TableSession.orders))
+        .where(TableSession.id == session_id, TableSession.tenant_id == tenant_id)
+    )
+    session = result.scalar_one_or_none()
+    if session is None:
+        raise ValueError("Table session not found")
+
+    billable_orders = [o for o in session.orders if o.status != "voided"]
+    subtotal = sum(o.subtotal for o in billable_orders)
+
+    # Fetch per-method tax rates from config
+    cfg_result = await db.execute(
+        select(
+            RestaurantConfig.cash_tax_rate_bps,
+            RestaurantConfig.card_tax_rate_bps,
+        ).where(RestaurantConfig.tenant_id == tenant_id)
+    )
+    row = cfg_result.one_or_none()
+    cash_rate = row.cash_tax_rate_bps if row else 1600
+    card_rate = row.card_tax_rate_bps if row else 500
+
+    cash_tax = round(subtotal * cash_rate / 10_000)
+    card_tax = round(subtotal * card_rate / 10_000)
+
+    return SessionPaymentPreview(
+        session_id=session.id,
+        subtotal=subtotal,
+        cash_tax_rate_bps=cash_rate,
+        cash_tax_amount=cash_tax,
+        cash_total=subtotal + cash_tax,
+        card_tax_rate_bps=card_rate,
+        card_tax_amount=card_tax,
+        card_total=subtotal + card_tax,
     )
 
 

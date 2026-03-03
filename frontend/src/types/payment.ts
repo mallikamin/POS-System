@@ -114,6 +114,17 @@ export interface SessionPaymentSummary {
   orders: SessionPaymentOrderDue[];
 }
 
+export interface SessionPaymentPreview {
+  session_id: string;
+  subtotal: number;
+  cash_tax_rate_bps: number;
+  cash_tax_amount: number;
+  cash_total: number;
+  card_tax_rate_bps: number;
+  card_tax_amount: number;
+  card_total: number;
+}
+
 export interface SessionPaymentCreateRequest {
   method_code: PaymentMethodCode;
   amount: number;

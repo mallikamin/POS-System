@@ -10,6 +10,7 @@ import { formatPKR, rupeesToPaisa, paisaToRupees } from "@/utils/currency";
 import * as paymentsApi from "@/services/paymentsApi";
 import type {
   PaymentMethodCode,
+  SessionPaymentPreview,
   SessionPaymentSummary,
   SplitPaymentAllocation,
 } from "@/types/payment";
@@ -34,6 +35,7 @@ function SessionPaymentPage() {
   const navigate = useNavigate();
   const [mode, setMode] = useState<Mode>("cash");
   const [summary, setSummary] = useState<SessionPaymentSummary | null>(null);
+  const [preview, setPreview] = useState<SessionPaymentPreview | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -59,8 +61,12 @@ function SessionPaymentPage() {
     setLoading(true);
     setError(null);
     try {
-      const s = await paymentsApi.fetchSessionPaymentSummary(id);
+      const [s, p] = await Promise.all([
+        paymentsApi.fetchSessionPaymentSummary(id),
+        paymentsApi.fetchSessionPaymentPreview(id),
+      ]);
       setSummary(s);
+      setPreview(p);
       if (s.due_amount > 0) {
         const dueRupees = String(paisaToRupees(s.due_amount));
         setCashAmount(dueRupees);
@@ -238,6 +244,30 @@ function SessionPaymentPage() {
         </Card>
       )}
 
+      {/* Bill totals by payment method */}
+      {preview && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Bill Totals by Payment Method</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="rounded-lg border-2 border-green-200 bg-green-50 p-3 text-center">
+                <p className="text-xs font-medium text-green-700">Cash ({preview.cash_tax_rate_bps / 100}% tax)</p>
+                <p className="text-lg font-bold text-green-800">{formatPKR(preview.cash_total)}</p>
+                <p className="text-xs text-green-600">Tax: {formatPKR(preview.cash_tax_amount)}</p>
+              </div>
+              <div className="rounded-lg border-2 border-blue-200 bg-blue-50 p-3 text-center">
+                <p className="text-xs font-medium text-blue-700">Card ({preview.card_tax_rate_bps / 100}% tax)</p>
+                <p className="text-lg font-bold text-blue-800">{formatPKR(preview.card_total)}</p>
+                <p className="text-xs text-blue-600">Tax: {formatPKR(preview.card_tax_amount)}</p>
+              </div>
+            </div>
+            <p className="mt-2 text-center text-xs text-secondary-400">Subtotal: {formatPKR(preview.subtotal)}</p>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Session summary totals */}
       <Card>
         <CardHeader>
@@ -245,11 +275,17 @@ function SessionPaymentPage() {
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
           <div className="flex justify-between"><span className="text-secondary-500">Subtotal</span><span>{summary ? formatPKR(summary.subtotal) : "--"}</span></div>
-          <div className="flex justify-between"><span className="text-secondary-500">Tax</span><span>{summary ? formatPKR(summary.tax_amount) : "--"}</span></div>
+          {preview ? (
+            <>
+              <div className="flex justify-between"><span className="text-secondary-500">Cash Tax ({preview.cash_tax_rate_bps / 100}%)</span><span>{formatPKR(preview.cash_tax_amount)}</span></div>
+              <div className="flex justify-between"><span className="text-secondary-500">Card Tax ({preview.card_tax_rate_bps / 100}%)</span><span>{formatPKR(preview.card_tax_amount)}</span></div>
+            </>
+          ) : (
+            <div className="flex justify-between"><span className="text-secondary-500">Tax</span><span>{summary ? formatPKR(summary.tax_amount) : "--"}</span></div>
+          )}
           {!!summary && summary.discount_amount > 0 && (
             <div className="flex justify-between"><span className="text-amber-600">Discount</span><span className="text-amber-700">-{formatPKR(summary.discount_amount)}</span></div>
           )}
-          <div className="flex justify-between"><span className="text-secondary-500">Total</span><span className="font-semibold">{summary ? formatPKR(summary.total) : "--"}</span></div>
           <div className="flex justify-between"><span className="text-secondary-500">Paid</span><span>{summary ? formatPKR(summary.paid_amount) : "--"}</span></div>
           <div className="flex justify-between border-t border-secondary-200 pt-2 text-base font-bold">
             <span>Due</span>

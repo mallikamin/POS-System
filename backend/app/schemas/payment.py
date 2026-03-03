@@ -142,6 +142,17 @@ class SessionSplitPaymentCreate(BaseModel):
     note: str | None = Field(None, max_length=500)
 
 
+class SessionPaymentPreview(BaseModel):
+    session_id: uuid.UUID
+    subtotal: int
+    cash_tax_rate_bps: int
+    cash_tax_amount: int
+    cash_total: int
+    card_tax_rate_bps: int
+    card_tax_amount: int
+    card_total: int
+
+
 class CashDrawerSessionResponse(BaseModel):
     id: uuid.UUID
     status: str

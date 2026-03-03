@@ -8,6 +8,7 @@ import type {
   PaymentSummary,
   RefundCreateRequest,
   SessionPaymentCreateRequest,
+  SessionPaymentPreview,
   SessionPaymentSummary,
   SessionSplitPaymentCreateRequest,
   SplitPaymentCreateRequest,
@@ -54,6 +55,11 @@ export async function closeDrawer(body: CashDrawerCloseRequest): Promise<CashDra
 }
 
 // Session Payment APIs (P2)
+
+export async function fetchSessionPaymentPreview(sessionId: string): Promise<SessionPaymentPreview> {
+  const { data } = await api.get<SessionPaymentPreview>(`/payments/table-sessions/${sessionId}/payment-preview`);
+  return data;
+}
 
 export async function fetchSessionPaymentSummary(sessionId: string): Promise<SessionPaymentSummary> {
   const { data } = await api.get<SessionPaymentSummary>(`/payments/table-sessions/${sessionId}/summary`);
