@@ -632,7 +632,13 @@ function PaymentPage() {
           <CardTitle className="text-lg">Payment Summary</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 text-base">
-          <div className="flex justify-between"><span className="text-secondary-500">Order Total</span><span className="font-medium">{summary ? formatPKR(summary.order_total) : "--"}</span></div>
+          {orderDetail && (
+            <>
+              <div className="flex justify-between"><span className="text-secondary-500">Subtotal</span><span className="font-medium">{formatPKR(orderDetail.subtotal)}</span></div>
+              <div className="flex justify-between"><span className="text-secondary-500">Tax ({orderDetail.tax_amount > 0 ? `${((orderDetail.tax_amount / orderDetail.subtotal) * 100).toFixed(0)}%` : "0%"})</span><span className="font-medium">{formatPKR(orderDetail.tax_amount)}</span></div>
+            </>
+          )}
+          <div className="flex justify-between font-semibold"><span className="text-secondary-700">Order Total</span><span>{summary ? formatPKR(summary.order_total) : "--"}</span></div>
           {discountBreakdown && discountBreakdown.total_discount > 0 && (
             <div className="flex justify-between"><span className="text-amber-600">Discount</span><span className="font-medium text-amber-700">-{formatPKR(discountBreakdown.total_discount)}</span></div>
           )}
