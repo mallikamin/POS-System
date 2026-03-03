@@ -532,7 +532,14 @@ async def create_session_payment(
     for order, _ in order_dues:
         await _sync_order_payment_status(db, order, tenant_id)
 
-    return await get_session_payment_summary(db, session_id, tenant_id)
+    summary = await get_session_payment_summary(db, session_id, tenant_id)
+
+    # Auto-close session and release table when fully paid
+    if summary.due_amount <= 0:
+        from app.services import table_session_service
+        await table_session_service.close_session(db, session_id, tenant_id, user_id)
+
+    return summary
 
 
 async def split_session_payment(
@@ -627,7 +634,14 @@ async def split_session_payment(
     for order, _ in order_dues:
         await _sync_order_payment_status(db, order, tenant_id)
 
-    return await get_session_payment_summary(db, session_id, tenant_id)
+    summary = await get_session_payment_summary(db, session_id, tenant_id)
+
+    # Auto-close session and release table when fully paid
+    if summary.due_amount <= 0:
+        from app.services import table_session_service
+        await table_session_service.close_session(db, session_id, tenant_id, user_id)
+
+    return summary
 
 
 async def _sync_order_payment_status(
