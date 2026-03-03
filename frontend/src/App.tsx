@@ -16,6 +16,7 @@ const DineInPage = lazy(() => import("@/pages/dine-in/DineInPage"));
 const TakeawayPage = lazy(() => import("@/pages/takeaway/TakeawayPage"));
 const CallCenterPage = lazy(() => import("@/pages/call-center/CallCenterPage"));
 const PaymentPage = lazy(() => import("@/pages/payment/PaymentPage"));
+const SessionPaymentPage = lazy(() => import("@/pages/payment/SessionPaymentPage"));
 const FloorEditorPage = lazy(() => import("@/pages/floor-editor/FloorEditorPage"));
 const OrdersPage = lazy(() => import("@/pages/orders/OrdersPage"));
 
@@ -60,6 +61,7 @@ export function App() {
             <Route path="takeaway" element={<TakeawayPage />} />
             <Route path="call-center" element={<CallCenterPage />} />
             <Route path="orders" element={<OrdersPage />} />
+            <Route path="payment/session/:sessionId" element={<SessionPaymentPage />} />
             <Route path="payment/:orderId" element={<PaymentPage />} />
             <Route path="floor-editor" element={<FloorEditorPage />} />
           </Route>

@@ -17,6 +17,9 @@ from app.schemas.payment import (
     PaymentMethodResponse,
     PaymentSummary,
     RefundCreate,
+    SessionPaymentCreate,
+    SessionPaymentSummary,
+    SessionSplitPaymentCreate,
     SplitPaymentCreate,
 )
 from app.services import payment_service
@@ -96,6 +99,69 @@ async def refund_payment(
     try:
         summary = await payment_service.create_refund(
             db, current_user.tenant_id, current_user.id, body
+        )
+        await db.commit()
+        return summary
+    except ValueError as e:
+        await db.rollback()
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e))
+
+
+# ---------------------------------------------------------------------------
+# Session Payment (P2)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/table-sessions/{session_id}/summary", response_model=SessionPaymentSummary)
+async def get_session_payment_summary(
+    session_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> SessionPaymentSummary:
+    try:
+        return await payment_service.get_session_payment_summary(
+            db, session_id, current_user.tenant_id
+        )
+    except ValueError as e:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(e))
+
+
+@router.post(
+    "/table-sessions/{session_id}/pay",
+    response_model=SessionPaymentSummary,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_session_payment(
+    session_id: uuid.UUID,
+    body: SessionPaymentCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> SessionPaymentSummary:
+    try:
+        summary = await payment_service.create_session_payment(
+            db, current_user.tenant_id, current_user.id, session_id, body
+        )
+        await db.commit()
+        return summary
+    except ValueError as e:
+        await db.rollback()
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e))
+
+
+@router.post(
+    "/table-sessions/{session_id}/split",
+    response_model=SessionPaymentSummary,
+    status_code=status.HTTP_201_CREATED,
+)
+async def split_session_payment(
+    session_id: uuid.UUID,
+    body: SessionSplitPaymentCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> SessionPaymentSummary:
+    try:
+        summary = await payment_service.split_session_payment(
+            db, current_user.tenant_id, current_user.id, session_id, body
         )
         await db.commit()
         return summary

@@ -15,6 +15,10 @@ from app.schemas.payment import (
     PaymentCreate,
     PaymentSummary,
     RefundCreate,
+    SessionPaymentCreate,
+    SessionPaymentOrderDue,
+    SessionPaymentSummary,
+    SessionSplitPaymentCreate,
     SplitPaymentCreate,
 )
 
@@ -301,6 +305,275 @@ async def _calculate_expected_drawer_balance(
     outgoing_change = sum(p.change_amount for p in payments if p.kind == "payment")
     outgoing_refund = sum(p.amount for p in payments if p.kind == "refund")
     return opening_float + incoming - outgoing_change - outgoing_refund
+
+
+# ---------------------------------------------------------------------------
+# Session Payment (P2)
+# ---------------------------------------------------------------------------
+
+
+async def get_session_payment_summary(
+    db: AsyncSession, session_id: uuid.UUID, tenant_id: uuid.UUID
+) -> SessionPaymentSummary:
+    """Get consolidated payment summary for a table session."""
+    from app.models.table_session import TableSession
+    from app.models.discount import OrderDiscount
+
+    result = await db.execute(
+        select(TableSession)
+        .options(
+            selectinload(TableSession.table),
+            selectinload(TableSession.orders),
+        )
+        .where(TableSession.id == session_id, TableSession.tenant_id == tenant_id)
+    )
+    session = result.scalar_one_or_none()
+    if session is None:
+        raise ValueError("Table session not found")
+
+    billable_orders = sorted(
+        [o for o in session.orders if o.status != "voided"],
+        key=lambda o: o.created_at,
+    )
+
+    subtotal = sum(o.subtotal for o in billable_orders)
+    tax_amount = sum(o.tax_amount for o in billable_orders)
+    discount_amount = sum(o.discount_amount for o in billable_orders)
+    total = sum(o.total for o in billable_orders)
+
+    # Per-order payment breakdown
+    order_dues: list[SessionPaymentOrderDue] = []
+    total_paid = 0
+    for o in billable_orders:
+        paid, refunded = await _get_order_payment_totals(db, tenant_id, o.id)
+        net_paid = paid - refunded
+        due = max(o.total - net_paid, 0)
+        total_paid += net_paid
+        order_dues.append(SessionPaymentOrderDue(
+            order_id=o.id,
+            order_number=o.order_number,
+            order_total=o.total,
+            paid_amount=net_paid,
+            due_amount=due,
+            payment_status=o.payment_status,
+        ))
+
+    # Session-level discounts
+    session_disc_result = await db.execute(
+        select(OrderDiscount.amount).where(
+            OrderDiscount.tenant_id == tenant_id,
+            OrderDiscount.table_session_id == session_id,
+        )
+    )
+    session_discount = sum(row[0] for row in session_disc_result.all())
+    discount_amount += session_discount
+
+    session_due = max(total - session_discount - total_paid, 0)
+
+    if total_paid <= 0:
+        payment_status = "unpaid"
+    elif session_due > 0:
+        payment_status = "partial"
+    else:
+        payment_status = "paid"
+
+    return SessionPaymentSummary(
+        session_id=session.id,
+        table_id=session.table_id,
+        table_label=(
+            (session.table.label or str(session.table.number))
+            if session.table else None
+        ),
+        order_count=len(billable_orders),
+        subtotal=subtotal,
+        tax_amount=tax_amount,
+        discount_amount=discount_amount,
+        total=total,
+        paid_amount=total_paid,
+        due_amount=session_due,
+        payment_status=payment_status,
+        orders=order_dues,
+    )
+
+
+async def create_session_payment(
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    user_id: uuid.UUID,
+    session_id: uuid.UUID,
+    data: SessionPaymentCreate,
+) -> SessionPaymentSummary:
+    """Pay a table session bill with a single method.
+
+    Allocates payment across unpaid orders deterministically (oldest first).
+    """
+    from app.models.table_session import TableSession
+
+    result = await db.execute(
+        select(TableSession)
+        .options(selectinload(TableSession.orders))
+        .where(TableSession.id == session_id, TableSession.tenant_id == tenant_id)
+    )
+    session = result.scalar_one_or_none()
+    if session is None:
+        raise ValueError("Table session not found")
+    if session.status == "closed":
+        raise ValueError("Session is already closed")
+
+    method = await _get_method_or_raise(db, tenant_id, data.method_code)
+
+    billable_orders = sorted(
+        [o for o in session.orders if o.status != "voided"],
+        key=lambda o: o.created_at,
+    )
+
+    # Build per-order due list
+    order_dues: list[tuple[Order, int]] = []
+    total_session_due = 0
+    for o in billable_orders:
+        paid, refunded = await _get_order_payment_totals(db, tenant_id, o.id)
+        due = max(o.total - (paid - refunded), 0)
+        total_session_due += due
+        if due > 0:
+            order_dues.append((o, due))
+
+    if total_session_due <= 0:
+        raise ValueError("Session is already fully paid")
+    if data.amount > total_session_due:
+        raise ValueError("Payment amount exceeds session due amount")
+
+    # Allocate across orders (oldest first)
+    remaining = data.amount
+    is_first = True
+    for order, order_due in order_dues:
+        if remaining <= 0:
+            break
+        alloc = min(remaining, order_due)
+
+        tendered = None
+        change = 0
+        if data.method_code == "cash" and is_first:
+            tendered = data.tendered_amount
+            change = max((data.tendered_amount or data.amount) - data.amount, 0)
+            is_first = False
+
+        db.add(Payment(
+            tenant_id=tenant_id,
+            order_id=order.id,
+            method_id=method.id,
+            kind="payment",
+            status="completed",
+            amount=alloc,
+            tendered_amount=tendered,
+            change_amount=change,
+            reference=data.reference,
+            note=data.note,
+            processed_by=user_id,
+        ))
+        remaining -= alloc
+
+    await db.flush()
+
+    # Sync payment status for all affected orders
+    for order, _ in order_dues:
+        await _sync_order_payment_status(db, order, tenant_id)
+
+    return await get_session_payment_summary(db, session_id, tenant_id)
+
+
+async def split_session_payment(
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    user_id: uuid.UUID,
+    session_id: uuid.UUID,
+    data: SessionSplitPaymentCreate,
+) -> SessionPaymentSummary:
+    """Split-pay a table session bill across multiple methods.
+
+    Allocates method amounts across unpaid orders deterministically (oldest first).
+    """
+    from app.models.table_session import TableSession
+
+    result = await db.execute(
+        select(TableSession)
+        .options(selectinload(TableSession.orders))
+        .where(TableSession.id == session_id, TableSession.tenant_id == tenant_id)
+    )
+    session = result.scalar_one_or_none()
+    if session is None:
+        raise ValueError("Table session not found")
+    if session.status == "closed":
+        raise ValueError("Session is already closed")
+
+    methods = {m.code: m for m in await list_payment_methods(db, tenant_id)}
+
+    for alloc in data.allocations:
+        if alloc.method_code not in methods:
+            raise ValueError(f"Payment method '{alloc.method_code}' is not available")
+
+    billable_orders = sorted(
+        [o for o in session.orders if o.status != "voided"],
+        key=lambda o: o.created_at,
+    )
+
+    order_dues: list[tuple[Order, int]] = []
+    total_session_due = 0
+    for o in billable_orders:
+        paid, refunded = await _get_order_payment_totals(db, tenant_id, o.id)
+        due = max(o.total - (paid - refunded), 0)
+        total_session_due += due
+        if due > 0:
+            order_dues.append((o, due))
+
+    split_total = sum(a.amount for a in data.allocations)
+    if split_total <= 0:
+        raise ValueError("Split payment total must be > 0")
+    if split_total > total_session_due:
+        raise ValueError("Split payment total exceeds session due amount")
+
+    # Track remaining per allocation
+    alloc_remaining = [[a, a.amount] for a in data.allocations]
+
+    for order, order_due in order_dues:
+        order_remaining = order_due
+        for entry in alloc_remaining:
+            alloc, alloc_rem = entry[0], entry[1]
+            if order_remaining <= 0 or alloc_rem <= 0:
+                continue
+
+            method = methods[alloc.method_code]
+            pay_amount = min(order_remaining, alloc_rem)
+
+            tendered = None
+            change = 0
+            if alloc.method_code == "cash" and alloc_rem == alloc.amount:
+                tendered = alloc.tendered_amount
+                if tendered is not None:
+                    change = max(tendered - alloc.amount, 0)
+
+            db.add(Payment(
+                tenant_id=tenant_id,
+                order_id=order.id,
+                method_id=method.id,
+                kind="payment",
+                status="completed",
+                amount=pay_amount,
+                tendered_amount=tendered,
+                change_amount=change,
+                reference=alloc.reference,
+                note=data.note,
+                processed_by=user_id,
+            ))
+
+            order_remaining -= pay_amount
+            entry[1] = alloc_rem - pay_amount
+
+    await db.flush()
+
+    for order, _ in order_dues:
+        await _sync_order_payment_status(db, order, tenant_id)
+
+    return await get_session_payment_summary(db, session_id, tenant_id)
 
 
 async def _sync_order_payment_status(

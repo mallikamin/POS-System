@@ -7,6 +7,9 @@ import type {
   PaymentMethodResponse,
   PaymentSummary,
   RefundCreateRequest,
+  SessionPaymentCreateRequest,
+  SessionPaymentSummary,
+  SessionSplitPaymentCreateRequest,
   SplitPaymentCreateRequest,
 } from "@/types/payment";
 
@@ -47,5 +50,22 @@ export async function openDrawer(body: CashDrawerOpenRequest): Promise<CashDrawe
 
 export async function closeDrawer(body: CashDrawerCloseRequest): Promise<CashDrawerSessionResponse> {
   const { data } = await api.post<CashDrawerSessionResponse>("/payments/drawer/close", body);
+  return data;
+}
+
+// Session Payment APIs (P2)
+
+export async function fetchSessionPaymentSummary(sessionId: string): Promise<SessionPaymentSummary> {
+  const { data } = await api.get<SessionPaymentSummary>(`/payments/table-sessions/${sessionId}/summary`);
+  return data;
+}
+
+export async function createSessionPayment(sessionId: string, body: SessionPaymentCreateRequest): Promise<SessionPaymentSummary> {
+  const { data } = await api.post<SessionPaymentSummary>(`/payments/table-sessions/${sessionId}/pay`, body);
+  return data;
+}
+
+export async function splitSessionPayment(sessionId: string, body: SessionSplitPaymentCreateRequest): Promise<SessionPaymentSummary> {
+  const { data } = await api.post<SessionPaymentSummary>(`/payments/table-sessions/${sessionId}/split`, body);
   return data;
 }

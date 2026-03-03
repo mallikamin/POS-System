@@ -87,3 +87,42 @@ export interface CashDrawerCloseRequest {
   closing_balance_counted: number;
   note?: string;
 }
+
+// Session Payment types (P2)
+
+export interface SessionPaymentOrderDue {
+  order_id: string;
+  order_number: string;
+  order_total: number;
+  paid_amount: number;
+  due_amount: number;
+  payment_status: string;
+}
+
+export interface SessionPaymentSummary {
+  session_id: string;
+  table_id: string;
+  table_label?: string;
+  order_count: number;
+  subtotal: number;
+  tax_amount: number;
+  discount_amount: number;
+  total: number;
+  paid_amount: number;
+  due_amount: number;
+  payment_status: string;
+  orders: SessionPaymentOrderDue[];
+}
+
+export interface SessionPaymentCreateRequest {
+  method_code: PaymentMethodCode;
+  amount: number;
+  tendered_amount?: number;
+  reference?: string;
+  note?: string;
+}
+
+export interface SessionSplitPaymentCreateRequest {
+  allocations: SplitPaymentAllocation[];
+  note?: string;
+}

@@ -94,6 +94,54 @@ class CashDrawerCloseRequest(BaseModel):
     note: str | None = Field(None, max_length=500)
 
 
+# ---------------------------------------------------------------------------
+# Session Payment schemas (P2)
+# ---------------------------------------------------------------------------
+
+class SessionPaymentOrderDue(BaseModel):
+    order_id: uuid.UUID
+    order_number: str
+    order_total: int
+    paid_amount: int
+    due_amount: int
+    payment_status: str
+
+
+class SessionPaymentSummary(BaseModel):
+    session_id: uuid.UUID
+    table_id: uuid.UUID
+    table_label: str | None = None
+    order_count: int
+    subtotal: int
+    tax_amount: int
+    discount_amount: int
+    total: int
+    paid_amount: int
+    due_amount: int
+    payment_status: str  # unpaid | partial | paid
+    orders: list[SessionPaymentOrderDue]
+
+
+class SessionPaymentCreate(BaseModel):
+    method_code: str = Field(..., pattern=r"^(cash|card|mobile_wallet|bank_transfer)$")
+    amount: int = Field(..., gt=0, description="Amount in paisa to apply against session due")
+    tendered_amount: int | None = Field(None, ge=0)
+    reference: str | None = Field(None, max_length=120)
+    note: str | None = Field(None, max_length=500)
+
+    @model_validator(mode="after")
+    def validate_cash_tender(self) -> "SessionPaymentCreate":
+        if self.method_code == "cash":
+            if self.tendered_amount is not None and self.tendered_amount < self.amount:
+                raise ValueError("tendered_amount must be >= amount for cash payments")
+        return self
+
+
+class SessionSplitPaymentCreate(BaseModel):
+    allocations: list[SplitPaymentAllocation] = Field(..., min_length=2)
+    note: str | None = Field(None, max_length=500)
+
+
 class CashDrawerSessionResponse(BaseModel):
     id: uuid.UUID
     status: str

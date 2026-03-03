@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { MenuGrid } from "@/components/pos/MenuGrid";
 import { CartPanel } from "@/components/pos/CartPanel";
 import { FloorGrid } from "@/components/pos/FloorGrid";
@@ -6,6 +7,7 @@ import { useCartStore } from "@/stores/cartStore";
 import { useFloorStore } from "@/stores/floorStore";
 import { useUIStore } from "@/stores/uiStore";
 import { OrderTicker } from "@/components/pos/OrderTicker";
+import { Button } from "@/components/ui/button";
 import { formatPKR } from "@/utils/currency";
 import {
   getActiveSessionForTable,
@@ -19,7 +21,9 @@ function DineInPage() {
   const setActiveCart = useCartStore((s) => s.setActiveCart);
   const selectedTableId = useFloorStore((s) => s.selectedTableId);
   const setCurrentChannel = useUIStore((s) => s.setCurrentChannel);
+  const navigate = useNavigate();
   const [sessionBill, setSessionBill] = useState<TableSessionBillSummary | null>(null);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
 
   useEffect(() => {
     setCurrentChannel("dine_in");
@@ -45,6 +49,7 @@ function DineInPage() {
   useEffect(() => {
     if (!selectedTableId) {
       setSessionBill(null);
+      setActiveSessionId(null);
       return;
     }
     let cancelled = false;
@@ -52,14 +57,23 @@ function DineInPage() {
       try {
         const session = await getActiveSessionForTable(selectedTableId);
         if (cancelled) return;
-        if (session && session.order_count > 0) {
-          const bill = await getSessionBillSummary(session.id);
-          if (!cancelled) setSessionBill(bill);
+        if (session) {
+          setActiveSessionId(session.id);
+          if (session.order_count > 0) {
+            const bill = await getSessionBillSummary(session.id);
+            if (!cancelled) setSessionBill(bill);
+          } else {
+            setSessionBill(null);
+          }
         } else {
+          setActiveSessionId(null);
           setSessionBill(null);
         }
       } catch {
-        if (!cancelled) setSessionBill(null);
+        if (!cancelled) {
+          setSessionBill(null);
+          setActiveSessionId(null);
+        }
       }
     })();
     return () => { cancelled = true; };
@@ -117,6 +131,15 @@ function DineInPage() {
                 <span className="text-amber-700">Due</span>
                 <span className="text-amber-900">{formatPKR(sessionBill.due_amount)}</span>
               </div>
+              {sessionBill.due_amount > 0 && activeSessionId && (
+                <Button
+                  size="sm"
+                  className="mt-2 w-full"
+                  onClick={() => navigate(`/payment/session/${activeSessionId}`)}
+                >
+                  Settle Table
+                </Button>
+              )}
             </div>
           )}
           <div className="flex-1 min-h-0">
