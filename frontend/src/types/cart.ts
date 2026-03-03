@@ -5,6 +5,7 @@ export interface SelectedModifier {
   name: string;
   price_adjustment: number;
   group_id: string;
+  quantity: number;
 }
 
 export interface CartItem {

@@ -284,6 +284,7 @@ function CallCenterPage() {
           name: m.name,
           price_adjustment: m.price_adjustment,
           group_id: "",
+          quantity: 1,
         }));
 
         // Add item to cart with same quantity

@@ -151,6 +151,7 @@ export interface SelectedModifier {
   modifier_option_id: string;
   name: string;
   price_adjustment: number;
+  quantity: number;
 }
 
 // ---------------------------------------------------------------------------

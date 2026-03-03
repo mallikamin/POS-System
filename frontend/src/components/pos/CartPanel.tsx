@@ -255,12 +255,12 @@ function CartLineItem({ line, onUpdateQty, onRemove }: CartLineItemProps) {
                   key={mod.modifier_option_id}
                   className="text-[11px] text-secondary-500 bg-secondary-50 rounded px-1.5 py-0.5"
                 >
-                  {mod.name}
+                  {(mod.quantity || 1) > 1 ? `${mod.quantity}x ` : ""}{mod.name}
                   {mod.price_adjustment !== 0 && (
                     <span className={mod.price_adjustment > 0 ? "text-secondary-400" : "text-success-600"}>
                       {" "}
                       {mod.price_adjustment > 0 ? "+" : "-"}
-                      {formatPKR(Math.abs(mod.price_adjustment))}
+                      {formatPKR(Math.abs(mod.price_adjustment * (mod.quantity || 1)))}
                     </span>
                   )}
                 </span>

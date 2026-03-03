@@ -56,16 +56,16 @@ function generateLineId(): string {
 
 function calcUnitPrice(menuItem: MenuItem, modifiers: SelectedModifier[]): number {
   const base = menuItem.price;
-  const adj = modifiers.reduce((sum, m) => sum + m.price_adjustment, 0);
+  const adj = modifiers.reduce((sum, m) => sum + m.price_adjustment * (m.quantity || 1), 0);
   return Math.max(0, base + adj);
 }
 
-/** Check if two modifier arrays are identical (same options selected) */
+/** Check if two modifier arrays are identical (same options and quantities) */
 function modifiersMatch(a: SelectedModifier[], b: SelectedModifier[]): boolean {
   if (a.length !== b.length) return false;
-  const aIds = a.map((m) => m.modifier_option_id).sort();
-  const bIds = b.map((m) => m.modifier_option_id).sort();
-  return aIds.every((id, i) => id === bIds[i]);
+  const aKey = a.map((m) => `${m.modifier_option_id}:${m.quantity || 1}`).sort();
+  const bKey = b.map((m) => `${m.modifier_option_id}:${m.quantity || 1}`).sort();
+  return aKey.every((k, i) => k === bKey[i]);
 }
 
 /** Stable empty cart sentinel — prevents new object allocation on every selector call */

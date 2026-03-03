@@ -197,21 +197,38 @@ export function ReceiptModal({ orderId, open, onClose }: Props) {
             <div className="divider my-2 border-t border-dashed border-secondary-400" />
 
             {/* Items */}
-            {receipt.items.map((item, i) => (
-              <div key={i} className="mb-1">
-                <div className="row flex justify-between">
-                  <span>
-                    {item.quantity}x {item.name}
-                  </span>
-                  <span>{formatAmount(item.total)}</span>
-                </div>
-                {item.modifiers.map((mod, j) => (
-                  <div key={j} className="modifier pl-2 text-[10px] text-secondary-500">
-                    + {mod.name}{mod.price_adjustment !== 0 ? ` (${formatSignedAmount(mod.price_adjustment)})` : ""}
+            {receipt.items.map((item, i) => {
+              const hasModifiers = item.modifiers.length > 0;
+              const baseTotal = item.unit_price * item.quantity;
+              // Group duplicate modifiers by name
+              const groupedMods: Array<{ name: string; price_adjustment: number; qty: number }> = [];
+              for (const mod of item.modifiers) {
+                const existing = groupedMods.find((g) => g.name === mod.name && g.price_adjustment === mod.price_adjustment);
+                if (existing) { existing.qty += 1; } else { groupedMods.push({ name: mod.name, price_adjustment: mod.price_adjustment, qty: 1 }); }
+              }
+              return (
+                <div key={i} className="mb-1">
+                  <div className="row flex justify-between">
+                    <span>
+                      {item.quantity}x {item.name}
+                    </span>
+                    <span>{formatAmount(baseTotal)}</span>
                   </div>
-                ))}
-              </div>
-            ))}
+                  {groupedMods.map((mod, j) => (
+                    <div key={j} className="modifier pl-2 text-[10px] text-secondary-500">
+                      + {mod.qty > 1 ? `${mod.qty}x ` : ""}{mod.name}
+                      {mod.price_adjustment !== 0 ? ` (${formatSignedAmount(mod.price_adjustment * mod.qty)})` : ""}
+                    </div>
+                  ))}
+                  {hasModifiers && baseTotal !== item.total && (
+                    <div className="row flex justify-between pl-2 text-[10px] font-medium text-secondary-700">
+                      <span>Line Total</span>
+                      <span>{formatAmount(item.total)}</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
 
             <div className="divider my-2 border-t border-dashed border-secondary-400" />
 

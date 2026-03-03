@@ -91,12 +91,15 @@ export const useOrderStore = create<OrderStore>()((set, get) => ({
         name: line.menuItem.name,
         quantity: line.quantity,
         unit_price: line.unitPrice,
-        modifiers: line.modifiers.map(
-          (m): OrderItemModifierCreate => ({
-            modifier_id: m.modifier_option_id,
-            name: m.name,
-            price_adjustment: m.price_adjustment,
-          })
+        modifiers: line.modifiers.flatMap(
+          (m): OrderItemModifierCreate[] => {
+            const qty = m.quantity || 1;
+            return Array.from({ length: qty }, () => ({
+              modifier_id: m.modifier_option_id,
+              name: m.name,
+              price_adjustment: m.price_adjustment,
+            }));
+          }
         ),
         notes: line.notes || undefined,
       }));
