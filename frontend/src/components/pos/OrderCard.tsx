@@ -12,6 +12,7 @@ import {
   CreditCard,
   FileText,
   Send,
+  MapPin,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -161,6 +162,11 @@ export function OrderCard({ order, onTransition, onVoid }: OrderCardProps) {
     () => formatElapsed(order.created_at),
     [order.created_at]
   );
+  const tableText = order.table_label
+    ? order.table_label
+    : order.table_number
+      ? `Table ${order.table_number}`
+      : null;
 
   return (
     <Card
@@ -224,6 +230,13 @@ export function OrderCard({ order, onTransition, onVoid }: OrderCardProps) {
             {formatPKR(order.total)}
           </span>
         </div>
+
+        {tableText && (
+          <div className="flex items-center gap-1 text-xs text-secondary-500">
+            <MapPin className="h-3 w-3" />
+            <span>{tableText}</span>
+          </div>
+        )}
 
         {/* Row 3: Actions */}
         {(transition || canVoid || canPay || canReceipt) && (

@@ -8,12 +8,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatPKR, rupeesToPaisa, paisaToRupees } from "@/utils/currency";
 import * as paymentsApi from "@/services/paymentsApi";
+import { fetchOrder } from "@/services/ordersApi";
 import type {
   CashDrawerSessionResponse,
   PaymentMethodCode,
   PaymentSummary,
   SplitPaymentAllocation,
 } from "@/types/payment";
+import type { OrderResponse } from "@/types/order";
 
 type Mode = "cash" | "card" | "split";
 
@@ -34,6 +36,7 @@ function PaymentPage() {
   const { orderId } = useParams<{ orderId: string }>();
   const [mode, setMode] = useState<Mode>("cash");
   const [summary, setSummary] = useState<PaymentSummary | null>(null);
+  const [orderDetail, setOrderDetail] = useState<OrderResponse | null>(null);
   const [drawerSession, setDrawerSession] = useState<CashDrawerSessionResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -60,12 +63,14 @@ function PaymentPage() {
     setLoading(true);
     setError(null);
     try {
-      const [nextSummary, nextDrawer] = await Promise.all([
+      const [nextSummary, nextDrawer, nextOrder] = await Promise.all([
         paymentsApi.fetchOrderPaymentSummary(currentOrderId),
         paymentsApi.fetchDrawerSession(),
+        fetchOrder(currentOrderId),
       ]);
       setSummary(nextSummary);
       setDrawerSession(nextDrawer);
+      setOrderDetail(nextOrder);
       // Auto-fill amount fields with due amount
       if (nextSummary.due_amount > 0) {
         const dueRupees = String(paisaToRupees(nextSummary.due_amount));
@@ -218,6 +223,11 @@ function PaymentPage() {
           <div>
             <h2 className="text-lg font-semibold text-secondary-900">Payment</h2>
             <p className="text-xs text-secondary-500">Order #{summary?.order_number ?? orderId}</p>
+            {(orderDetail?.table_label || orderDetail?.table_number) && (
+              <p className="text-xs text-secondary-500">
+                {orderDetail.table_label ?? `Table ${orderDetail.table_number}`}
+              </p>
+            )}
           </div>
         </div>
         <div className="text-right">

@@ -255,7 +255,10 @@ async def list_orders(
     # Fetch with items for item_count
     stmt = (
         base
-        .options(selectinload(Order.items))
+        .options(
+            selectinload(Order.items),
+            selectinload(Order.table),
+        )
         .order_by(Order.created_at.desc())
         .offset(offset)
         .limit(limit)

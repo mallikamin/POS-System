@@ -10,11 +10,14 @@ import {
 import api from "@/lib/axios";
 
 interface ReceiptItem {
+  modifiers: Array<{
+    name: string;
+    price_adjustment: number;
+  }>;
   name: string;
   quantity: number;
   unit_price: number;
   total: number;
-  modifiers: string[];
 }
 
 interface ReceiptPayment {
@@ -49,6 +52,12 @@ interface ReceiptData {
 
 function formatAmount(paisa: number): string {
   return `Rs. ${(paisa / 100).toLocaleString("en-PK", { minimumFractionDigits: 0 })}`;
+}
+
+function formatSignedAmount(paisa: number): string {
+  const abs = Math.abs(paisa);
+  const sign = paisa >= 0 ? "+" : "-";
+  return `${sign}${formatAmount(abs)}`;
 }
 
 interface Props {
@@ -198,7 +207,7 @@ export function ReceiptModal({ orderId, open, onClose }: Props) {
                 </div>
                 {item.modifiers.map((mod, j) => (
                   <div key={j} className="modifier pl-2 text-[10px] text-secondary-500">
-                    + {mod}
+                    + {mod.name}{mod.price_adjustment !== 0 ? ` (${formatSignedAmount(mod.price_adjustment)})` : ""}
                   </div>
                 ))}
               </div>

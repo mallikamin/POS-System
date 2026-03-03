@@ -6,8 +6,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.order import Order, OrderItem, OrderItemModifier
-from app.models.payment import Payment, PaymentMethod
+from app.models.order import Order, OrderItem
+from app.models.payment import Payment
 from app.models.restaurant_config import RestaurantConfig
 from app.models.tenant import Tenant
 from app.schemas.receipt import ReceiptData, ReceiptItem, ReceiptPayment
@@ -62,14 +62,20 @@ async def get_receipt_data(
     # Build items
     receipt_items: list[ReceiptItem] = []
     for item in order.items:
-        modifier_names = [m.name for m in (item.modifiers or [])]
+        modifier_lines = [
+            {
+                "name": m.name,
+                "price_adjustment": m.price_adjustment,
+            }
+            for m in (item.modifiers or [])
+        ]
         receipt_items.append(
             ReceiptItem(
                 name=item.name,
                 quantity=item.quantity,
                 unit_price=item.unit_price,
                 total=item.total,
-                modifiers=modifier_names,
+                modifiers=modifier_lines,
             )
         )
 

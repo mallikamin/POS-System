@@ -22,6 +22,14 @@ from app.services import audit_service
 router = APIRouter(prefix="/orders", tags=["orders"])
 
 
+def _to_order_response(order) -> OrderResponse:
+    resp = OrderResponse.model_validate(order)
+    if getattr(order, "table", None):
+        resp.table_number = order.table.number
+        resp.table_label = order.table.label
+    return resp
+
+
 # ---------------------------------------------------------------------------
 # Create Order
 # ---------------------------------------------------------------------------
@@ -48,7 +56,7 @@ async def create_order(
     )
     await db.commit()
     await db.refresh(order)
-    return OrderResponse.model_validate(order)
+    return _to_order_response(order)
 
 
 # ---------------------------------------------------------------------------
@@ -84,6 +92,8 @@ async def list_orders(
             status=o.status,
             payment_status=o.payment_status,
             table_id=o.table_id,
+            table_number=o.table.number if o.table else None,
+            table_label=o.table.label if o.table else None,
             item_count=len(o.items),
             total=o.total,
             created_at=o.created_at,
@@ -108,7 +118,7 @@ async def get_order(
     order = await order_service.get_order(db, order_id, current_user.tenant_id)
     if order is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Order not found")
-    return OrderResponse.model_validate(order)
+    return _to_order_response(order)
 
 
 # ---------------------------------------------------------------------------
@@ -141,7 +151,7 @@ async def transition_order(
     )
     await db.commit()
     await db.refresh(order)
-    return OrderResponse.model_validate(order)
+    return _to_order_response(order)
 
 
 # ---------------------------------------------------------------------------
@@ -174,4 +184,4 @@ async def void_order(
     )
     await db.commit()
     await db.refresh(order)
-    return OrderResponse.model_validate(order)
+    return _to_order_response(order)

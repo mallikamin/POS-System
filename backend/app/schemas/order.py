@@ -90,6 +90,8 @@ class OrderResponse(BaseModel):
     status: str
     payment_status: str
     table_id: uuid.UUID | None = None
+    table_number: int | None = None
+    table_label: str | None = None
     customer_name: str | None = None
     customer_phone: str | None = None
     subtotal: int
@@ -114,6 +116,8 @@ class OrderListResponse(BaseModel):
     status: str
     payment_status: str
     table_id: uuid.UUID | None = None
+    table_number: int | None = None
+    table_label: str | None = None
     item_count: int = 0
     total: int
     created_at: datetime

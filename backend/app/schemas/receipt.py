@@ -6,11 +6,15 @@ from pydantic import BaseModel
 
 
 class ReceiptItem(BaseModel):
+    class ModifierLine(BaseModel):
+        name: str
+        price_adjustment: int  # paisa
+
     name: str
     quantity: int
     unit_price: int  # paisa
     total: int  # paisa
-    modifiers: list[str] = []
+    modifiers: list[ModifierLine] = []
 
 
 class ReceiptPayment(BaseModel):

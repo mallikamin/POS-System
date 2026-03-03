@@ -50,6 +50,8 @@ export interface OrderResponse {
   status: string;
   payment_status: string;
   table_id?: string;
+  table_number?: number;
+  table_label?: string;
   customer_name?: string;
   customer_phone?: string;
   subtotal: number;
@@ -70,6 +72,8 @@ export interface OrderListItem {
   status: string;
   payment_status: string;
   table_id?: string;
+  table_number?: number;
+  table_label?: string;
   item_count: number;
   total: number;
   created_at: string;
