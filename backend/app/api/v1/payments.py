@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user, require_role
+from app.api.deps import get_current_user, require_permission, require_role
 from app.database import get_db
 from app.models.user import User
 from app.schemas.payment import (
@@ -89,7 +89,7 @@ async def split_payment(
     "/refund",
     response_model=PaymentSummary,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_role("admin"))],
+    dependencies=[Depends(require_permission("payment.refund"))],
 )
 async def refund_payment(
     body: RefundCreate,

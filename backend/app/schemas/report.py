@@ -17,6 +17,9 @@ class SalesSummary(BaseModel):
     total_tax: int  # paisa
     total_discount: int  # paisa
     net_revenue: int  # total_revenue - total_discount
+    cash_revenue: int = 0  # paisa — paid via cash
+    card_revenue: int = 0  # paisa — paid via card
+    other_revenue: int = 0  # paisa — mobile wallet, bank transfer, etc.
     dine_in_revenue: int
     dine_in_orders: int
     takeaway_revenue: int
@@ -54,3 +57,45 @@ class HourlyBucket(BaseModel):
 class HourlyBreakdown(BaseModel):
     date: str
     buckets: list[HourlyBucket]
+
+
+# ---------------------------------------------------------------------------
+# Void Report (#13)
+# ---------------------------------------------------------------------------
+
+
+class VoidReasonEntry(BaseModel):
+    reason: str
+    count: int
+    total_value: int  # paisa
+
+
+class VoidUserEntry(BaseModel):
+    user_id: str
+    user_name: str
+    count: int
+    total_value: int  # paisa
+
+
+class VoidReport(BaseModel):
+    total_voids: int
+    total_voided_value: int  # paisa
+    by_reason: list[VoidReasonEntry]
+    by_user: list[VoidUserEntry]
+
+
+# ---------------------------------------------------------------------------
+# Payment-Method Report (#19)
+# ---------------------------------------------------------------------------
+
+
+class PaymentMethodReportEntry(BaseModel):
+    method: str
+    method_code: str
+    count: int
+    total: int  # paisa
+
+
+class PaymentMethodReport(BaseModel):
+    entries: list[PaymentMethodReportEntry]
+    total_collected: int  # paisa

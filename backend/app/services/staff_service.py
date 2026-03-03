@@ -6,8 +6,8 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.user import Role, User
-from app.schemas.staff import StaffCreate, StaffUpdate
+from app.models.user import Permission, Role, RolePermission, User
+from app.schemas.staff import RoleCreate, RoleUpdate, StaffCreate, StaffUpdate
 from app.utils.security import hash_password
 
 
@@ -186,3 +186,109 @@ async def list_roles(db: AsyncSession, tenant_id: uuid.UUID) -> list[Role]:
         .order_by(Role.name)
     )
     return list(result.scalars().all())
+
+
+async def get_role(
+    db: AsyncSession, tenant_id: uuid.UUID, role_id: uuid.UUID
+) -> Role | None:
+    """Get a single role with permissions."""
+    result = await db.execute(
+        select(Role)
+        .execution_options(populate_existing=True)
+        .options(selectinload(Role.permissions))
+        .where(Role.id == role_id, Role.tenant_id == tenant_id)
+    )
+    return result.scalar_one_or_none()
+
+
+async def create_role(
+    db: AsyncSession, tenant_id: uuid.UUID, data: RoleCreate
+) -> Role:
+    """Create a new role with optional permission assignments."""
+    existing = await db.execute(
+        select(Role).where(Role.tenant_id == tenant_id, Role.name == data.name)
+    )
+    if existing.scalar_one_or_none():
+        raise ValueError(f"Role '{data.name}' already exists")
+
+    role = Role(
+        tenant_id=tenant_id,
+        name=data.name,
+        description=data.description,
+        is_active=True,
+    )
+    db.add(role)
+    await db.flush()
+
+    for perm_id in data.permission_ids:
+        db.add(RolePermission(
+            tenant_id=tenant_id, role_id=role.id, permission_id=perm_id,
+        ))
+    await db.flush()
+
+    return await get_role(db, tenant_id, role.id)  # type: ignore[return-value]
+
+
+async def update_role(
+    db: AsyncSession, tenant_id: uuid.UUID, role_id: uuid.UUID, data: RoleUpdate
+) -> Role:
+    """Update a role's name/description/permissions."""
+    role = await get_role(db, tenant_id, role_id)
+    if role is None:
+        raise ValueError("Role not found")
+
+    if data.name is not None and data.name != role.name:
+        existing = await db.execute(
+            select(Role).where(
+                Role.tenant_id == tenant_id,
+                Role.name == data.name,
+                Role.id != role_id,
+            )
+        )
+        if existing.scalar_one_or_none():
+            raise ValueError(f"Role '{data.name}' already exists")
+        role.name = data.name
+
+    if data.description is not None:
+        role.description = data.description
+
+    if data.permission_ids is not None:
+        # Replace permissions: delete existing assignments and add the new set.
+        from sqlalchemy import delete
+
+        await db.execute(
+            delete(RolePermission).where(
+                RolePermission.role_id == role_id,
+                RolePermission.tenant_id == tenant_id,
+            )
+        )
+        for perm_id in data.permission_ids:
+            db.add(RolePermission(
+                tenant_id=tenant_id, role_id=role_id, permission_id=perm_id,
+            ))
+
+    await db.flush()
+    return await get_role(db, tenant_id, role_id)  # type: ignore[return-value]
+
+
+async def list_permissions(db: AsyncSession) -> list[Permission]:
+    """List all available permissions."""
+    result = await db.execute(
+        select(Permission).order_by(Permission.code)
+    )
+    return list(result.scalars().all())
+
+
+async def list_eligible_waiters(db: AsyncSession, tenant_id: uuid.UUID) -> list[User]:
+    """List active staff eligible for waiter assignment (non-kitchen roles)."""
+    result = await db.execute(
+        select(User)
+        .options(selectinload(User.role))
+        .where(
+            User.tenant_id == tenant_id,
+            User.is_active == True,  # noqa: E712
+        )
+        .order_by(User.full_name)
+    )
+    users = list(result.scalars().all())
+    return [u for u in users if u.role.name not in ("kitchen",)]

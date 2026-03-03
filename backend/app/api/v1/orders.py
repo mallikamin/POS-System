@@ -5,7 +5,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user, require_role
+from app.api.deps import get_current_user, require_permission, require_role
 from app.database import get_db
 from app.models.user import User
 from app.schemas.common import PaginatedResponse
@@ -29,6 +29,8 @@ def _to_order_response(order) -> OrderResponse:
     if getattr(order, "table", None):
         resp.table_number = order.table.number
         resp.table_label = order.table.label
+    if getattr(order, "waiter", None):
+        resp.waiter_name = order.waiter.full_name
     return resp
 
 
@@ -96,6 +98,8 @@ async def list_orders(
             table_id=o.table_id,
             table_number=o.table.number if o.table else None,
             table_label=o.table.label if o.table else None,
+            waiter_id=o.waiter_id,
+            waiter_name=o.waiter.full_name if getattr(o, "waiter", None) else None,
             item_count=len(o.items),
             total=o.total,
             created_at=o.created_at,
@@ -183,10 +187,10 @@ async def get_payment_preview(
 async def void_order(
     order_id: uuid.UUID,
     body: OrderVoidRequest,
-    current_user: User = Depends(require_role("admin")),
+    current_user: User = Depends(require_permission("order.void")),
     db: AsyncSession = Depends(get_db),
 ) -> OrderResponse:
-    """Void an order. Admin only. Requires password re-auth token."""
+    """Void an order. Requires order.void permission + password re-auth token."""
     # Validate re-auth token if provided
     if body.auth_token:
         verified_user_id = validate_verify_token(body.auth_token)

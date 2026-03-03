@@ -12,6 +12,7 @@ import { formatPKR } from "@/utils/currency";
 import {
   getActiveSessionForTable,
   getSessionBillSummary,
+  fetchWaiters,
   type TableSessionBillSummary,
 } from "@/services/tableSessionApi";
 import type { CartItem } from "@/types/cart";
@@ -24,9 +25,13 @@ function DineInPage() {
   const navigate = useNavigate();
   const [sessionBill, setSessionBill] = useState<TableSessionBillSummary | null>(null);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [waiters, setWaiters] = useState<{ id: string; name: string; role: string }[]>([]);
+  const [selectedWaiterId, setSelectedWaiterId] = useState<string>("");
+  const [sessionWaiterName, setSessionWaiterName] = useState<string | null>(null);
 
   useEffect(() => {
     setCurrentChannel("dine_in");
+    fetchWaiters().then(setWaiters).catch(() => {});
   }, [setCurrentChannel]);
 
   const tableSelected = Boolean(selectedTableId);
@@ -59,6 +64,7 @@ function DineInPage() {
         if (cancelled) return;
         if (session) {
           setActiveSessionId(session.id);
+          setSessionWaiterName(session.assigned_waiter_name ?? null);
           if (session.order_count > 0) {
             const bill = await getSessionBillSummary(session.id);
             if (!cancelled) setSessionBill(bill);
@@ -68,6 +74,7 @@ function DineInPage() {
         } else {
           setActiveSessionId(null);
           setSessionBill(null);
+          setSessionWaiterName(null);
         }
       } catch {
         if (!cancelled) {
@@ -85,6 +92,24 @@ function DineInPage() {
     },
     [addItem]
   );
+
+  // Refresh session data after an order is created (to show waiter name, update bill)
+  const handleOrderCreated = useCallback(() => {
+    if (!selectedTableId) return;
+    void (async () => {
+      try {
+        const session = await getActiveSessionForTable(selectedTableId);
+        if (session) {
+          setActiveSessionId(session.id);
+          setSessionWaiterName(session.assigned_waiter_name ?? null);
+          if (session.order_count > 0) {
+            const bill = await getSessionBillSummary(session.id);
+            setSessionBill(bill);
+          }
+        }
+      } catch { /* ignore */ }
+    })();
+  }, [selectedTableId]);
 
   return (
     <div className="flex h-full flex-col">
@@ -112,6 +137,30 @@ function DineInPage() {
 
         {/* Right: Cart panel + session bill */}
         <div className="w-80 shrink-0 border-l border-secondary-200 flex flex-col">
+          {/* Waiter selector / display */}
+          {tableSelected && (
+            <div className="border-b border-secondary-200 bg-blue-50 px-4 py-2">
+              {sessionWaiterName ? (
+                <p className="text-xs text-blue-700">
+                  <span className="font-semibold">Waiter:</span> {sessionWaiterName}
+                </p>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <label className="text-xs font-semibold text-blue-700 whitespace-nowrap">Waiter:</label>
+                  <select
+                    className="flex-1 rounded border border-blue-200 bg-white px-2 py-1 text-xs"
+                    value={selectedWaiterId}
+                    onChange={(e) => setSelectedWaiterId(e.target.value)}
+                  >
+                    <option value="">No waiter</option>
+                    {waiters.map((w) => (
+                      <option key={w.id} value={w.id}>{w.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+          )}
           {sessionBill && sessionBill.order_count > 0 && (
             <div className="border-b border-secondary-200 bg-amber-50 px-4 py-3 space-y-1">
               <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">
@@ -143,7 +192,7 @@ function DineInPage() {
             </div>
           )}
           <div className="flex-1 min-h-0">
-            <CartPanel />
+            <CartPanel waiterId={selectedWaiterId || undefined} onOrderCreated={handleOrderCreated} />
           </div>
         </div>
       </div>

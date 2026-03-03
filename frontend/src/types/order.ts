@@ -18,6 +18,7 @@ export interface OrderItemCreate {
 export interface OrderCreateRequest {
   order_type: "dine_in" | "takeaway" | "call_center";
   table_id?: string;
+  waiter_id?: string;
   customer_name?: string;
   customer_phone?: string;
   items: OrderItemCreate[];
@@ -137,6 +138,9 @@ export interface SalesSummary {
   total_tax: number;
   total_discount: number;
   net_revenue: number;
+  cash_revenue: number;
+  card_revenue: number;
+  other_revenue: number;
   dine_in_revenue: number;
   dine_in_orders: number;
   takeaway_revenue: number;
@@ -174,4 +178,40 @@ export interface HourlyBucket {
 export interface HourlyBreakdown {
   date: string;
   buckets: HourlyBucket[];
+}
+
+/* Void Report types */
+
+export interface VoidReasonEntry {
+  reason: string;
+  count: number;
+  total_value: number;
+}
+
+export interface VoidUserEntry {
+  user_id: string;
+  user_name: string;
+  count: number;
+  total_value: number;
+}
+
+export interface VoidReport {
+  total_voids: number;
+  total_voided_value: number;
+  by_reason: VoidReasonEntry[];
+  by_user: VoidUserEntry[];
+}
+
+/* Payment-Method Report types */
+
+export interface PaymentMethodReportEntry {
+  method: string;
+  method_code: string;
+  count: number;
+  total: number;
+}
+
+export interface PaymentMethodReport {
+  entries: PaymentMethodReportEntry[];
+  total_collected: number;
 }

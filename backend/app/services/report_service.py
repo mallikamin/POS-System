@@ -7,7 +7,9 @@ from sqlalchemy import Date, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.discount import OrderDiscount
-from app.models.order import Order, OrderItem
+from app.models.order import Order, OrderItem, OrderStatusLog
+from app.models.payment import Payment, PaymentMethod
+from app.models.user import User
 
 
 async def get_sales_summary(
@@ -73,6 +75,27 @@ async def get_sales_summary(
         for r in disc_result.all()
     ]
 
+    # Payment method revenue breakdown (cash vs card vs other)
+    pm_revenue = await db.execute(
+        select(
+            PaymentMethod.code,
+            func.coalesce(func.sum(Payment.amount), 0).label("total"),
+        )
+        .join(PaymentMethod, Payment.method_id == PaymentMethod.id)
+        .where(
+            Payment.tenant_id == tenant_id,
+            Payment.kind == "payment",
+            Payment.status == "completed",
+            func.cast(Payment.created_at, Date) >= date_from,
+            func.cast(Payment.created_at, Date) <= date_to,
+        )
+        .group_by(PaymentMethod.code)
+    )
+    pm_map = {r.code: r.total for r in pm_revenue.all()}
+    cash_revenue = pm_map.get("cash", 0)
+    card_revenue = pm_map.get("card", 0)
+    other_revenue = sum(v for k, v in pm_map.items() if k not in ("cash", "card"))
+
     total_orders = total_row.orders
     total_revenue = total_row.revenue
     total_discount = total_row.discount
@@ -83,6 +106,9 @@ async def get_sales_summary(
         "total_tax": total_row.tax,
         "total_discount": total_discount,
         "net_revenue": total_revenue - total_discount,
+        "cash_revenue": cash_revenue,
+        "card_revenue": card_revenue,
+        "other_revenue": other_revenue,
         "dine_in_revenue": channels.get("dine_in", {}).get("revenue", 0),
         "dine_in_orders": channels.get("dine_in", {}).get("orders", 0),
         "takeaway_revenue": channels.get("takeaway", {}).get("revenue", 0),
@@ -201,3 +227,132 @@ async def get_hourly_breakdown(
     ]
 
     return {"date": target_date.isoformat(), "buckets": buckets}
+
+
+async def get_void_report(
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    date_from: date,
+    date_to: date,
+) -> dict:
+    """Aggregate void data: counts, values, breakdown by reason and user."""
+    # Base: all voided orders in date range
+    voided_orders = (
+        select(
+            Order.id,
+            Order.total,
+        )
+        .where(
+            Order.tenant_id == tenant_id,
+            Order.status == "voided",
+            func.cast(Order.created_at, Date) >= date_from,
+            func.cast(Order.created_at, Date) <= date_to,
+        )
+    ).subquery()
+
+    # Totals
+    totals_result = await db.execute(
+        select(
+            func.count(voided_orders.c.id).label("count"),
+            func.coalesce(func.sum(voided_orders.c.total), 0).label("value"),
+        )
+    )
+    totals = totals_result.one()
+
+    # By reason (from status log)
+    reason_result = await db.execute(
+        select(
+            func.coalesce(OrderStatusLog.note, "No reason provided").label("reason"),
+            func.count(OrderStatusLog.id).label("count"),
+            func.coalesce(func.sum(Order.total), 0).label("total_value"),
+        )
+        .join(Order, OrderStatusLog.order_id == Order.id)
+        .where(
+            OrderStatusLog.tenant_id == tenant_id,
+            OrderStatusLog.to_status == "voided",
+            func.cast(Order.created_at, Date) >= date_from,
+            func.cast(Order.created_at, Date) <= date_to,
+        )
+        .group_by(func.coalesce(OrderStatusLog.note, "No reason provided"))
+        .order_by(func.count(OrderStatusLog.id).desc())
+    )
+    by_reason = [
+        {"reason": r.reason, "count": r.count, "total_value": r.total_value}
+        for r in reason_result.all()
+    ]
+
+    # By user who voided
+    user_result = await db.execute(
+        select(
+            User.id.label("user_id"),
+            User.full_name.label("user_name"),
+            func.count(OrderStatusLog.id).label("count"),
+            func.coalesce(func.sum(Order.total), 0).label("total_value"),
+        )
+        .join(Order, OrderStatusLog.order_id == Order.id)
+        .join(User, OrderStatusLog.changed_by == User.id)
+        .where(
+            OrderStatusLog.tenant_id == tenant_id,
+            OrderStatusLog.to_status == "voided",
+            func.cast(Order.created_at, Date) >= date_from,
+            func.cast(Order.created_at, Date) <= date_to,
+        )
+        .group_by(User.id, User.full_name)
+        .order_by(func.count(OrderStatusLog.id).desc())
+    )
+    by_user = [
+        {
+            "user_id": str(r.user_id),
+            "user_name": r.user_name,
+            "count": r.count,
+            "total_value": r.total_value,
+        }
+        for r in user_result.all()
+    ]
+
+    return {
+        "total_voids": totals.count,
+        "total_voided_value": totals.value,
+        "by_reason": by_reason,
+        "by_user": by_user,
+    }
+
+
+async def get_payment_method_report(
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    date_from: date,
+    date_to: date,
+) -> dict:
+    """Payment-mode daily sales: breakdown by payment method for a date range."""
+    result = await db.execute(
+        select(
+            PaymentMethod.display_name.label("method"),
+            PaymentMethod.code.label("method_code"),
+            func.count(Payment.id).label("count"),
+            func.coalesce(func.sum(Payment.amount), 0).label("total"),
+        )
+        .join(PaymentMethod, Payment.method_id == PaymentMethod.id)
+        .where(
+            Payment.tenant_id == tenant_id,
+            Payment.kind == "payment",
+            Payment.status == "completed",
+            func.cast(Payment.created_at, Date) >= date_from,
+            func.cast(Payment.created_at, Date) <= date_to,
+        )
+        .group_by(PaymentMethod.display_name, PaymentMethod.code)
+        .order_by(func.sum(Payment.amount).desc())
+    )
+    rows = result.all()
+    entries = [
+        {
+            "method": r.method,
+            "method_code": r.method_code,
+            "count": r.count,
+            "total": r.total,
+        }
+        for r in rows
+    ]
+    total_collected = sum(e["total"] for e in entries)
+
+    return {"entries": entries, "total_collected": total_collected}

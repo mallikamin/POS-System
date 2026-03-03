@@ -3,15 +3,41 @@
 import uuid
 
 import pytest
+import pytest_asyncio
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.order import Order
 from app.models.restaurant_config import RestaurantConfig
+from app.models.tenant import Tenant
+from app.models.user import Permission, Role, RolePermission
 
 
 def _auth(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
+
+
+@pytest_asyncio.fixture(autouse=True)
+async def grant_admin_void_permission(
+    db: AsyncSession,
+    tenant: Tenant,
+    admin_role: Role,
+) -> None:
+    """Grant admin role order.void permission for void hardening tests."""
+    perm = Permission(
+        tenant_id=tenant.id,
+        code="order.void",
+        description="Void orders",
+    )
+    db.add(perm)
+    await db.flush()
+    db.add(RolePermission(
+        tenant_id=tenant.id,
+        role_id=admin_role.id,
+        permission_id=perm.id,
+    ))
+    await db.flush()
+    await db.commit()
 
 
 # =========================================================================

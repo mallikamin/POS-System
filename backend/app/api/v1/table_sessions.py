@@ -26,6 +26,8 @@ def _to_response(session) -> TableSessionResponse:
     if getattr(session, "table", None):
         resp.table_number = session.table.number
         resp.table_label = session.table.label
+    if getattr(session, "assigned_waiter", None):
+        resp.assigned_waiter_name = session.assigned_waiter.full_name
     resp.order_count = len(session.orders) if session.orders else 0
     return resp
 
@@ -57,7 +59,7 @@ async def open_session(
     try:
         session = await table_session_service.open_session(
             db, current_user.tenant_id, current_user.id,
-            body.table_id, body.notes,
+            body.table_id, body.notes, body.waiter_id,
         )
     except ValueError as e:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e))

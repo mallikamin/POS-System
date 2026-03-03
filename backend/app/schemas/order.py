@@ -31,6 +31,7 @@ class OrderItemCreate(BaseModel):
 class OrderCreate(BaseModel):
     order_type: str = Field(..., pattern=r"^(dine_in|takeaway|call_center)$")
     table_id: uuid.UUID | None = None
+    waiter_id: uuid.UUID | None = None
     customer_name: str | None = Field(None, max_length=255)
     customer_phone: str | None = Field(None, max_length=20)
     items: list[OrderItemCreate] = Field(..., min_length=1)
@@ -96,6 +97,9 @@ class OrderResponse(BaseModel):
     table_label: str | None = None
     customer_name: str | None = None
     customer_phone: str | None = None
+    customer_id: uuid.UUID | None = None
+    waiter_id: uuid.UUID | None = None
+    waiter_name: str | None = None
     subtotal: int
     tax_amount: int
     discount_amount: int
@@ -133,6 +137,8 @@ class OrderListResponse(BaseModel):
     table_id: uuid.UUID | None = None
     table_number: int | None = None
     table_label: str | None = None
+    waiter_id: uuid.UUID | None = None
+    waiter_name: str | None = None
     item_count: int = 0
     total: int
     created_at: datetime

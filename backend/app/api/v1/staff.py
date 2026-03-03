@@ -12,7 +12,11 @@ from app.models.user import User
 from app.schemas.common import PaginatedResponse
 from app.schemas.staff import (
     PasswordReset,
+    PermissionResponse,
     PinReset,
+    RoleCreate,
+    RoleDetailResponse,
+    RoleUpdate,
     StaffCreate,
     StaffResponse,
     StaffUpdate,
@@ -48,14 +52,93 @@ async def list_staff(
 
 @router.get(
     "/roles",
+    response_model=list[RoleDetailResponse],
     dependencies=[Depends(require_role("admin"))],
 )
 async def list_roles(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-) -> list[dict[str, str]]:
+) -> list[RoleDetailResponse]:
     roles = await staff_service.list_roles(db, current_user.tenant_id)
-    return [{"id": str(r.id), "name": r.name} for r in roles]
+    return [RoleDetailResponse.model_validate(r) for r in roles]
+
+
+@router.get(
+    "/roles/{role_id}",
+    response_model=RoleDetailResponse,
+    dependencies=[Depends(require_role("admin"))],
+)
+async def get_role(
+    role_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> RoleDetailResponse:
+    role = await staff_service.get_role(db, current_user.tenant_id, role_id)
+    if role is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Role not found")
+    return RoleDetailResponse.model_validate(role)
+
+
+@router.post(
+    "/roles",
+    response_model=RoleDetailResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_role("admin"))],
+)
+async def create_role(
+    data: RoleCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> RoleDetailResponse:
+    try:
+        role = await staff_service.create_role(db, current_user.tenant_id, data)
+    except ValueError as e:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(e))
+    await db.commit()
+    return RoleDetailResponse.model_validate(role)
+
+
+@router.patch(
+    "/roles/{role_id}",
+    response_model=RoleDetailResponse,
+    dependencies=[Depends(require_role("admin"))],
+)
+async def update_role(
+    role_id: uuid.UUID,
+    data: RoleUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> RoleDetailResponse:
+    try:
+        role = await staff_service.update_role(
+            db, current_user.tenant_id, role_id, data
+        )
+    except ValueError as e:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e))
+    await db.commit()
+    return RoleDetailResponse.model_validate(role)
+
+
+@router.get(
+    "/permissions",
+    response_model=list[PermissionResponse],
+    dependencies=[Depends(require_role("admin"))],
+)
+async def list_permissions(
+    db: AsyncSession = Depends(get_db),
+) -> list[PermissionResponse]:
+    perms = await staff_service.list_permissions(db)
+    return [PermissionResponse.model_validate(p) for p in perms]
+
+
+@router.get("/waiters")
+async def list_waiters(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[dict]:
+    """List active staff eligible for waiter assignment (excludes kitchen-only)."""
+    users = await staff_service.list_eligible_waiters(db, current_user.tenant_id)
+    return [{"id": str(u.id), "name": u.full_name, "role": u.role.name} for u in users]
 
 
 @router.get(

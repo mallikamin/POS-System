@@ -8,6 +8,7 @@ import {
   BookOpen,
   FileText,
   Tag,
+  Shield,
   ArrowLeft,
   LogOut,
 } from "lucide-react";
@@ -23,6 +24,7 @@ const navItems = [
   { to: "/admin/settings", label: "Settings", icon: Settings, end: false },
   { to: "/admin/reports", label: "Reports", icon: BarChart3, end: false },
   { to: "/admin/z-report", label: "Z-Report", icon: FileText, end: false },
+  { to: "/admin/roles", label: "Roles", icon: Shield, end: false },
   { to: "/admin/discounts", label: "Discounts", icon: Tag, end: false },
   { to: "/admin/quickbooks", label: "QuickBooks", icon: BookOpen, end: false },
 ];

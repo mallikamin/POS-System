@@ -3,14 +3,55 @@
 import uuid
 
 import pytest
+import pytest_asyncio
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.order import Order
+from app.models.tenant import Tenant
+from app.models.user import Permission, Role, RolePermission
 
 
 def _auth(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
+
+
+@pytest_asyncio.fixture(autouse=True)
+async def grant_admin_discount_permissions(
+    db: AsyncSession,
+    tenant: Tenant,
+    admin_role: Role,
+) -> None:
+    """Grant admin role discount permissions required by hardened endpoints."""
+    perm_apply = Permission(
+        tenant_id=tenant.id,
+        code="discount.apply",
+        description="Apply discounts",
+    )
+    perm_manage = Permission(
+        tenant_id=tenant.id,
+        code="discount.manage",
+        description="Manage discount types",
+    )
+    db.add_all([perm_apply, perm_manage])
+    await db.flush()
+
+    db.add_all(
+        [
+            RolePermission(
+                tenant_id=tenant.id,
+                role_id=admin_role.id,
+                permission_id=perm_apply.id,
+            ),
+            RolePermission(
+                tenant_id=tenant.id,
+                role_id=admin_role.id,
+                permission_id=perm_manage.id,
+            ),
+        ]
+    )
+    await db.flush()
+    await db.commit()
 
 
 # =========================================================================

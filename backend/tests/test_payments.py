@@ -8,15 +8,41 @@ tenant isolation, and validation errors.
 import uuid
 
 import pytest
+import pytest_asyncio
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.order import Order
 from app.models.payment import Payment
+from app.models.tenant import Tenant
+from app.models.user import Permission, Role, RolePermission
 
 
 def _auth(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
+
+
+@pytest_asyncio.fixture(autouse=True)
+async def grant_admin_refund_permission(
+    db: AsyncSession,
+    tenant: Tenant,
+    admin_role: Role,
+) -> None:
+    """Grant admin role payment.refund permission for refund tests."""
+    perm = Permission(
+        tenant_id=tenant.id,
+        code="payment.refund",
+        description="Issue refunds",
+    )
+    db.add(perm)
+    await db.flush()
+    db.add(RolePermission(
+        tenant_id=tenant.id,
+        role_id=admin_role.id,
+        permission_id=perm.id,
+    ))
+    await db.flush()
+    await db.commit()
 
 
 # =========================================================================

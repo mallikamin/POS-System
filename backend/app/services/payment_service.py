@@ -96,6 +96,10 @@ async def create_payment(
     await db.flush()
 
     await _sync_order_payment_status(db, order, tenant_id)
+
+    # Pay-first auto-send: after payment, send confirmed order to kitchen
+    await _maybe_send_to_kitchen_after_payment(db, tenant_id, order, user_id)
+
     return await get_order_payment_summary(db, order.id, tenant_id)
 
 
@@ -147,6 +151,10 @@ async def split_payment(
 
     await db.flush()
     await _sync_order_payment_status(db, order, tenant_id)
+
+    # Pay-first auto-send: after payment, send confirmed order to kitchen
+    await _maybe_send_to_kitchen_after_payment(db, tenant_id, order, user_id)
+
     return await get_order_payment_summary(db, order.id, tenant_id)
 
 
@@ -635,6 +643,47 @@ async def _get_method_or_raise(
     if method is None:
         raise ValueError(f"Payment method '{method_code}' is not available")
     return method
+
+
+async def _maybe_send_to_kitchen_after_payment(
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    order: Order,
+    user_id: uuid.UUID,
+) -> None:
+    """In pay_first mode, auto-send a confirmed order to kitchen after payment."""
+    from app.services.order_service import (
+        _auto_create_kitchen_ticket,
+        _get_payment_flow,
+    )
+    from app.models.order import OrderStatusLog
+
+    if order.status != "confirmed":
+        return
+
+    payment_flow = await _get_payment_flow(db, tenant_id)
+    if payment_flow != "pay_first":
+        return
+
+    # Transition to in_kitchen
+    order.status = "in_kitchen"
+    for item in order.items:
+        item.status = "sent"
+
+    db.add(OrderStatusLog(
+        tenant_id=tenant_id,
+        order_id=order.id,
+        from_status="confirmed",
+        to_status="in_kitchen",
+        changed_by=user_id,
+    ))
+    await db.flush()
+
+    # Reload order with items for kitchen ticket creation
+    from app.services.order_service import get_order as _get_order_full
+    full_order = await _get_order_full(db, order.id, tenant_id)
+    if full_order:
+        await _auto_create_kitchen_ticket(db, tenant_id, full_order)
 
 
 async def _get_payment_or_raise(

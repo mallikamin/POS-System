@@ -32,6 +32,7 @@ const ReportsPage = lazy(() => import("@/pages/admin/ReportsPage"));
 const QuickBooksPage = lazy(() => import("@/pages/admin/QuickBooksPage"));
 const ZReportPage = lazy(() => import("@/pages/admin/ZReportPage"));
 const DiscountTypesPage = lazy(() => import("@/pages/admin/DiscountTypesPage"));
+const RoleManagementPage = lazy(() => import("@/pages/admin/RoleManagementPage"));
 
 function LoadingFallback() {
   return (
@@ -78,6 +79,7 @@ export function App() {
             <Route path="reports" element={<ReportsPage />} />
             <Route path="z-report" element={<ZReportPage />} />
             <Route path="quickbooks" element={<QuickBooksPage />} />
+            <Route path="roles" element={<RoleManagementPage />} />
             <Route path="discounts" element={<DiscountTypesPage />} />
           </Route>
         </Routes>

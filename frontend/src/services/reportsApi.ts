@@ -3,6 +3,8 @@ import type {
   SalesSummary,
   ItemPerformance,
   HourlyBreakdown,
+  VoidReport,
+  PaymentMethodReport,
 } from "@/types/order";
 
 export async function fetchSalesSummary(
@@ -30,6 +32,26 @@ export async function fetchHourlyBreakdown(
 ): Promise<HourlyBreakdown> {
   const { data } = await api.get<HourlyBreakdown>("/reports/hourly-breakdown", {
     params: { date },
+  });
+  return data;
+}
+
+export async function fetchVoidReport(
+  dateFrom: string,
+  dateTo: string
+): Promise<VoidReport> {
+  const { data } = await api.get<VoidReport>("/reports/void-report", {
+    params: { date_from: dateFrom, date_to: dateTo },
+  });
+  return data;
+}
+
+export async function fetchPaymentMethodReport(
+  dateFrom: string,
+  dateTo: string
+): Promise<PaymentMethodReport> {
+  const { data } = await api.get<PaymentMethodReport>("/reports/payment-method", {
+    params: { date_from: dateFrom, date_to: dateTo },
   });
   return data;
 }

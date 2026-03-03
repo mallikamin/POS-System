@@ -45,6 +45,44 @@ class PinReset(BaseModel):
 # Response schemas
 # ---------------------------------------------------------------------------
 
+class PermissionResponse(BaseModel):
+    """Permission detail."""
+
+    id: uuid.UUID
+    code: str
+    description: str | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class RoleCreate(BaseModel):
+    """Create a new role."""
+
+    name: str = Field(..., min_length=1, max_length=100)
+    description: str | None = Field(None, max_length=500)
+    permission_ids: list[uuid.UUID] = Field(default_factory=list)
+
+
+class RoleUpdate(BaseModel):
+    """Update a role (all fields optional)."""
+
+    name: str | None = Field(None, min_length=1, max_length=100)
+    description: str | None = Field(None, max_length=500)
+    permission_ids: list[uuid.UUID] | None = None
+
+
+class RoleDetailResponse(BaseModel):
+    """Full role with permissions."""
+
+    id: uuid.UUID
+    name: str
+    description: str | None = None
+    is_active: bool
+    permissions: list[PermissionResponse] = []
+
+    model_config = {"from_attributes": True}
+
+
 class StaffRoleResponse(BaseModel):
     """Minimal role info embedded in staff response."""
 

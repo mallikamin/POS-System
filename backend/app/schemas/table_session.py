@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 
 class TableSessionOpenRequest(BaseModel):
     table_id: uuid.UUID
+    waiter_id: uuid.UUID | None = None
     notes: str | None = Field(None, max_length=500)
 
 
@@ -49,6 +50,8 @@ class TableSessionResponse(BaseModel):
     opened_at: datetime
     closed_by: uuid.UUID | None = None
     closed_at: datetime | None = None
+    assigned_waiter_id: uuid.UUID | None = None
+    assigned_waiter_name: str | None = None
     notes: str | None = None
     order_count: int = 0
     created_at: datetime

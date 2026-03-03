@@ -5,7 +5,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user, require_role
+from app.api.deps import get_current_user, require_permission, require_role
 from app.database import get_db
 from app.models.user import User
 from app.schemas.discount import (
@@ -21,6 +21,8 @@ from app.services import discount_service
 router = APIRouter(prefix="/discounts", tags=["discounts"])
 
 _admin_dep = require_role("admin")
+_discount_manage_dep = require_permission("discount.manage")
+_discount_apply_dep = require_permission("discount.apply")
 
 
 # ---------------------------------------------------------------------------
@@ -46,7 +48,7 @@ async def list_discount_types(
 )
 async def create_discount_type(
     body: DiscountTypeCreate,
-    current_user: User = Depends(_admin_dep),
+    current_user: User = Depends(_discount_manage_dep),
     db: AsyncSession = Depends(get_db),
 ) -> DiscountTypeResponse:
     dt = await discount_service.create_discount_type(
@@ -60,7 +62,7 @@ async def create_discount_type(
 async def update_discount_type(
     type_id: uuid.UUID,
     body: DiscountTypeUpdate,
-    current_user: User = Depends(_admin_dep),
+    current_user: User = Depends(_discount_manage_dep),
     db: AsyncSession = Depends(get_db),
 ) -> DiscountTypeResponse:
     dt = await discount_service.get_discount_type(db, type_id, current_user.tenant_id)
@@ -74,7 +76,7 @@ async def update_discount_type(
 @router.delete("/types/{type_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_discount_type(
     type_id: uuid.UUID,
-    current_user: User = Depends(_admin_dep),
+    current_user: User = Depends(_discount_manage_dep),
     db: AsyncSession = Depends(get_db),
 ) -> None:
     dt = await discount_service.get_discount_type(db, type_id, current_user.tenant_id)
@@ -91,7 +93,7 @@ async def delete_discount_type(
 @router.post("/apply", response_model=OrderDiscountResponse, status_code=status.HTTP_201_CREATED)
 async def apply_discount(
     body: ApplyDiscountRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(_discount_apply_dep),
     db: AsyncSession = Depends(get_db),
 ) -> OrderDiscountResponse:
     try:

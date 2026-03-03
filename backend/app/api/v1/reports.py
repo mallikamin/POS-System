@@ -11,7 +11,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user, require_role
 from app.database import get_db
 from app.models.user import User
-from app.schemas.report import HourlyBreakdown, ItemPerformance, SalesSummary
+from app.schemas.report import (
+    HourlyBreakdown,
+    ItemPerformance,
+    PaymentMethodReport,
+    SalesSummary,
+    VoidReport,
+)
 from app.schemas.zreport import ZReport
 from app.services import report_service
 from app.services import zreport_service
@@ -83,6 +89,9 @@ async def export_sales_csv(
     writer.writerow(["Total Orders", data["total_orders"]])
     writer.writerow(["Avg Order Value (PKR)", data["avg_order_value"] / 100])
     writer.writerow(["Total Tax (PKR)", data["total_tax"] / 100])
+    writer.writerow(["Cash Revenue (PKR)", data["cash_revenue"] / 100])
+    writer.writerow(["Card Revenue (PKR)", data["card_revenue"] / 100])
+    writer.writerow(["Other Revenue (PKR)", data["other_revenue"] / 100])
     writer.writerow(["Dine-In Revenue (PKR)", data["dine_in_revenue"] / 100])
     writer.writerow(["Dine-In Orders", data["dine_in_orders"]])
     writer.writerow(["Takeaway Revenue (PKR)", data["takeaway_revenue"] / 100])
@@ -100,6 +109,34 @@ async def export_sales_csv(
         media_type="text/csv",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
+
+
+@router.get("/void-report", response_model=VoidReport)
+async def get_void_report(
+    date_from: date = Query(...),
+    date_to: date = Query(...),
+    current_user: User = Depends(_admin),
+    db: AsyncSession = Depends(get_db),
+) -> VoidReport:
+    """Get void report with reason and user analytics for a date range."""
+    data = await report_service.get_void_report(
+        db, current_user.tenant_id, date_from, date_to
+    )
+    return VoidReport(**data)
+
+
+@router.get("/payment-method", response_model=PaymentMethodReport)
+async def get_payment_method_report(
+    date_from: date = Query(...),
+    date_to: date = Query(...),
+    current_user: User = Depends(_admin),
+    db: AsyncSession = Depends(get_db),
+) -> PaymentMethodReport:
+    """Get payment-method breakdown for a date range."""
+    data = await report_service.get_payment_method_report(
+        db, current_user.tenant_id, date_from, date_to
+    )
+    return PaymentMethodReport(**data)
 
 
 @router.get("/z-report", response_model=ZReport)

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { Minus, Plus, ShoppingCart, ChefHat, X, Loader2 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Minus, Plus, ShoppingCart, ChefHat, X, Loader2, CreditCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -19,7 +20,13 @@ import { useConfigStore } from "@/stores/configStore";
 
 const DEFAULT_TAX_BPS = 1600; // 16.00% in basis points (integer math)
 
-export function CartPanel() {
+interface CartPanelProps {
+  waiterId?: string;
+  onOrderCreated?: () => void;
+}
+
+export function CartPanel({ waiterId, onOrderCreated }: CartPanelProps = {}) {
+  const navigate = useNavigate();
   // Direct property selectors — stable references, no method calls
   const cart: Cart = useCartStore((s) => s.carts[s.activeCartId]) ?? EMPTY_CART;
   const activeCartId = useCartStore((s) => s.activeCartId);
@@ -29,9 +36,11 @@ export function CartPanel() {
   const isSending = useOrderStore((s) => s.isSending);
   const orderError = useOrderStore((s) => s.error);
   const currentChannel = useUIStore((s) => s.currentChannel);
+  const paymentFlow = useConfigStore((s) => s.config?.payment_flow);
   const configTaxRate = useConfigStore((s) => s.config?.default_tax_rate);
   const TAX_BPS = configTaxRate ?? DEFAULT_TAX_BPS;
   const selectedCustomer = useCustomerStore((s) => s.selectedCustomer);
+  const isPayFirst = paymentFlow === "pay_first";
 
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
   const [sentSuccess, setSentSuccess] = useState(false);
@@ -68,14 +77,21 @@ export function CartPanel() {
         orderType,
         tableId,
         customerName,
-        customerPhone
+        customerPhone,
+        waiterId
       );
-      setOrderNumber(order.order_number);
-      setSentSuccess(true);
-      setTimeout(() => {
-        setSentSuccess(false);
-        setOrderNumber(null);
-      }, 4000);
+      onOrderCreated?.();
+      if (isPayFirst) {
+        // Pay-first: redirect to payment page
+        navigate(`/payment/${order.id}`);
+      } else {
+        setOrderNumber(order.order_number);
+        setSentSuccess(true);
+        setTimeout(() => {
+          setSentSuccess(false);
+          setOrderNumber(null);
+        }, 4000);
+      }
     } catch {
       // Error is stored in orderStore.error and will be displayed via useEffect
     }
@@ -170,10 +186,12 @@ export function CartPanel() {
             >
               {isSending ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
+              ) : isPayFirst ? (
+                <CreditCard className="h-5 w-5" />
               ) : (
                 <ChefHat className="h-5 w-5" />
               )}
-              {isSending ? "Sending..." : "Send to Kitchen"}
+              {isSending ? "Sending..." : isPayFirst ? "Pay & Send" : "Send to Kitchen"}
             </Button>
             <Button
               variant="ghost"

@@ -26,7 +26,8 @@ interface OrderActions {
     orderType?: string,
     tableId?: string,
     customerName?: string,
-    customerPhone?: string
+    customerPhone?: string,
+    waiterId?: string
   ) => Promise<OrderResponse>;
   transitionOrder: (id: string, status: string) => Promise<void>;
   voidOrder: (id: string, reason: string, authToken?: string) => Promise<void>;
@@ -72,7 +73,8 @@ export const useOrderStore = create<OrderStore>()((set, get) => ({
     orderType?: string,
     tableId?: string,
     customerName?: string,
-    customerPhone?: string
+    customerPhone?: string,
+    waiterId?: string
   ) => {
     set({ isSending: true, error: null });
     try {
@@ -102,6 +104,7 @@ export const useOrderStore = create<OrderStore>()((set, get) => ({
       const payload: OrderCreateRequest = {
         order_type: channel as OrderCreateRequest["order_type"],
         table_id: tableId || undefined,
+        waiter_id: waiterId || undefined,
         customer_name: customerName || undefined,
         customer_phone: customerPhone || undefined,
         items,

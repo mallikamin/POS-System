@@ -3,12 +3,16 @@ import {
   fetchSalesSummary,
   fetchItemPerformance,
   fetchHourlyBreakdown,
+  fetchVoidReport,
+  fetchPaymentMethodReport,
   downloadSalesCsv,
 } from "@/services/reportsApi";
 import type {
   SalesSummary,
   ItemPerformance,
   HourlyBreakdown,
+  VoidReport,
+  PaymentMethodReport,
 } from "@/types/order";
 import { formatPKR } from "@/utils/currency";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,6 +29,11 @@ import {
   TrendingDown,
   Percent,
   Tag,
+  Ban,
+  CreditCard,
+  Banknote,
+  Wallet,
+  UserCircle,
 } from "lucide-react";
 
 /* ---------- date helpers ---------- */
@@ -96,6 +105,8 @@ function ReportsPage() {
   const [summary, setSummary] = useState<SalesSummary | null>(null);
   const [itemPerf, setItemPerf] = useState<ItemPerformance | null>(null);
   const [hourly, setHourly] = useState<HourlyBreakdown | null>(null);
+  const [voidReport, setVoidReport] = useState<VoidReport | null>(null);
+  const [pmReport, setPmReport] = useState<PaymentMethodReport | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -106,14 +117,18 @@ function ReportsPage() {
     setLoading(true);
     setError(null);
     try {
-      const [summaryData, itemData, hourlyData] = await Promise.all([
+      const [summaryData, itemData, hourlyData, voidData, pmData] = await Promise.all([
         fetchSalesSummary(dateFrom, dateTo),
         fetchItemPerformance(dateFrom, dateTo),
         fetchHourlyBreakdown(dateFrom),
+        fetchVoidReport(dateFrom, dateTo),
+        fetchPaymentMethodReport(dateFrom, dateTo),
       ]);
       setSummary(summaryData);
       setItemPerf(itemData);
       setHourly(hourlyData);
+      setVoidReport(voidData);
+      setPmReport(pmData);
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Failed to load report data";
@@ -395,6 +410,206 @@ function ReportsPage() {
                       </div>
                     ))}
                   </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+
+          {/* cash / card / other revenue split */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-secondary-600">
+                  Cash Revenue
+                </CardTitle>
+                <Banknote className="h-5 w-5 text-success-500" />
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold text-secondary-900">
+                  {formatPKR(summary.cash_revenue)}
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-secondary-600">
+                  Card Revenue
+                </CardTitle>
+                <CreditCard className="h-5 w-5 text-primary-500" />
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold text-secondary-900">
+                  {formatPKR(summary.card_revenue)}
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-secondary-600">
+                  Other Revenue
+                </CardTitle>
+                <Wallet className="h-5 w-5 text-accent-500" />
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold text-secondary-900">
+                  {formatPKR(summary.other_revenue)}
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* payment-method breakdown + void report */}
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            {/* payment-method breakdown */}
+            {pmReport && pmReport.entries.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-2">
+                    <CreditCard className="h-4 w-4 text-primary-500" />
+                    <CardTitle className="text-base text-secondary-800">
+                      Payment Method Breakdown
+                    </CardTitle>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="overflow-hidden rounded-lg border border-secondary-200">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-secondary-200 bg-secondary-50">
+                          <th className="px-4 py-2.5 text-left font-medium text-secondary-600">
+                            Method
+                          </th>
+                          <th className="px-4 py-2.5 text-right font-medium text-secondary-600">
+                            Payments
+                          </th>
+                          <th className="px-4 py-2.5 text-right font-medium text-secondary-600">
+                            Total
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-secondary-100">
+                        {pmReport.entries.map((entry) => (
+                          <tr key={entry.method_code} className="hover:bg-secondary-50">
+                            <td className="px-4 py-2.5 text-secondary-700">
+                              {entry.method}
+                            </td>
+                            <td className="px-4 py-2.5 text-right text-secondary-800">
+                              {entry.count}
+                            </td>
+                            <td className="px-4 py-2.5 text-right font-medium text-secondary-900">
+                              {formatPKR(entry.total)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr className="border-t border-secondary-200 bg-secondary-50">
+                          <td className="px-4 py-2.5 font-medium text-secondary-700">
+                            Total Collected
+                          </td>
+                          <td />
+                          <td className="px-4 py-2.5 text-right font-bold text-secondary-900">
+                            {formatPKR(pmReport.total_collected)}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* void report */}
+            {voidReport && (
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-2">
+                    <Ban className="h-4 w-4 text-danger-500" />
+                    <CardTitle className="text-base text-secondary-800">
+                      Void Report
+                    </CardTitle>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="mb-4 grid grid-cols-2 gap-4">
+                    <div className="rounded-lg bg-danger-50 p-3">
+                      <p className="text-xs font-medium text-danger-600">
+                        Total Voids
+                      </p>
+                      <p className="text-xl font-bold text-danger-700">
+                        {voidReport.total_voids}
+                      </p>
+                    </div>
+                    <div className="rounded-lg bg-danger-50 p-3">
+                      <p className="text-xs font-medium text-danger-600">
+                        Voided Value
+                      </p>
+                      <p className="text-xl font-bold text-danger-700">
+                        {formatPKR(voidReport.total_voided_value)}
+                      </p>
+                    </div>
+                  </div>
+
+                  {voidReport.by_reason.length > 0 && (
+                    <div className="mb-4">
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-secondary-500">
+                        By Reason
+                      </p>
+                      <div className="flex flex-col gap-1.5">
+                        {voidReport.by_reason.map((entry) => (
+                          <div
+                            key={entry.reason}
+                            className="flex items-center justify-between text-sm"
+                          >
+                            <span className="text-secondary-600">
+                              {entry.reason}{" "}
+                              <span className="text-xs text-secondary-400">
+                                ({entry.count}x)
+                              </span>
+                            </span>
+                            <span className="font-medium text-secondary-800">
+                              {formatPKR(entry.total_value)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {voidReport.by_user.length > 0 && (
+                    <div>
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-secondary-500">
+                        By User
+                      </p>
+                      <div className="flex flex-col gap-1.5">
+                        {voidReport.by_user.map((entry) => (
+                          <div
+                            key={entry.user_id}
+                            className="flex items-center justify-between text-sm"
+                          >
+                            <span className="flex items-center gap-1.5 text-secondary-600">
+                              <UserCircle className="h-3.5 w-3.5" />
+                              {entry.user_name}{" "}
+                              <span className="text-xs text-secondary-400">
+                                ({entry.count}x)
+                              </span>
+                            </span>
+                            <span className="font-medium text-secondary-800">
+                              {formatPKR(entry.total_value)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {voidReport.total_voids === 0 && (
+                    <p className="py-4 text-center text-sm text-secondary-400">
+                      No voided orders in this period
+                    </p>
+                  )}
                 </CardContent>
               </Card>
             )}

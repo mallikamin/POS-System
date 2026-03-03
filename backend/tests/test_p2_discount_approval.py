@@ -15,7 +15,7 @@ from app.models.discount import DiscountType
 from app.models.order import Order
 from app.models.restaurant_config import RestaurantConfig
 from app.models.tenant import Tenant
-from app.models.user import User
+from app.models.user import Permission, Role, RolePermission, User
 from app.services.auth_service import create_verify_token
 
 
@@ -35,6 +35,31 @@ async def config(db: AsyncSession, tenant: Tenant) -> RestaurantConfig:
     db.add(cfg)
     await db.flush()
     return cfg
+
+
+@pytest_asyncio.fixture(autouse=True)
+async def grant_admin_discount_apply_permission(
+    db: AsyncSession,
+    tenant: Tenant,
+    admin_role: Role,
+) -> None:
+    """Grant admin role discount.apply permission for this test module."""
+    perm_apply = Permission(
+        tenant_id=tenant.id,
+        code="discount.apply",
+        description="Apply discounts",
+    )
+    db.add(perm_apply)
+    await db.flush()
+    db.add(
+        RolePermission(
+            tenant_id=tenant.id,
+            role_id=admin_role.id,
+            permission_id=perm_apply.id,
+        )
+    )
+    await db.flush()
+    await db.commit()
 
 
 @pytest_asyncio.fixture

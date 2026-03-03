@@ -24,6 +24,7 @@ async def open_session(
     user_id: uuid.UUID,
     table_id: uuid.UUID,
     notes: str | None = None,
+    waiter_id: uuid.UUID | None = None,
 ) -> TableSession:
     """Open a new table session or return the existing open one."""
     existing = await get_active_session_by_table(db, tenant_id, table_id)
@@ -38,6 +39,7 @@ async def open_session(
         table_id=table_id,
         status="open",
         opened_by=user_id,
+        assigned_waiter_id=waiter_id,
         notes=notes,
     )
     db.add(session)

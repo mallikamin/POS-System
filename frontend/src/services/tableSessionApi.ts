@@ -23,6 +23,8 @@ export interface TableSessionResponse {
   opened_at: string;
   closed_by?: string;
   closed_at?: string;
+  assigned_waiter_id?: string;
+  assigned_waiter_name?: string;
   notes?: string;
   order_count: number;
   created_at: string;
@@ -48,8 +50,21 @@ export interface TableSessionBillSummary {
   orders: TableSessionOrderSummary[];
 }
 
-export async function openTableSession(table_id: string, notes?: string): Promise<TableSessionResponse> {
-  const { data } = await api.post<TableSessionResponse>("/table-sessions/open", { table_id, notes });
+export async function openTableSession(
+  table_id: string,
+  notes?: string,
+  waiter_id?: string,
+): Promise<TableSessionResponse> {
+  const { data } = await api.post<TableSessionResponse>("/table-sessions/open", {
+    table_id,
+    notes,
+    waiter_id,
+  });
+  return data;
+}
+
+export async function fetchWaiters(): Promise<{ id: string; name: string; role: string }[]> {
+  const { data } = await api.get<{ id: string; name: string; role: string }[]>("/staff/waiters");
   return data;
 }
 

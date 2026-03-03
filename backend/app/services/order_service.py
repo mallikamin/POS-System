@@ -13,6 +13,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.models.customer import Customer
 from app.models.floor import Table
 from app.models.kitchen import KitchenStation
 from app.models.order import Order, OrderItem, OrderItemModifier, OrderStatusLog
@@ -155,10 +156,44 @@ async def create_order(
 
         # For dine-in: find or create table session
         table_session_id = None
+        waiter_id = None
         if data.order_type == "dine_in" and data.table_id:
             table_session_id = await _resolve_table_session(
-                db, tenant_id, user_id, data.table_id
+                db, tenant_id, user_id, data.table_id,
+                waiter_id=data.waiter_id,
             )
+            # Inherit waiter from session
+            if table_session_id:
+                session_result = await db.execute(
+                    select(TableSession.assigned_waiter_id)
+                    .where(TableSession.id == table_session_id)
+                )
+                waiter_id = session_result.scalar_one_or_none()
+
+        # Resolve customer_id: walk-in default for dine-in/takeaway, lookup for call-center
+        customer_id = None
+        customer_name = data.customer_name
+        if data.order_type in ("dine_in", "takeaway") and not data.customer_name:
+            walkin = await db.execute(
+                select(Customer).where(
+                    Customer.tenant_id == tenant_id,
+                    Customer.phone == "0000000000",
+                )
+            )
+            walkin_cust = walkin.scalar_one_or_none()
+            if walkin_cust:
+                customer_id = walkin_cust.id
+                customer_name = "Walk-in Customer"
+        elif customer_phone:
+            cust_result = await db.execute(
+                select(Customer).where(
+                    Customer.tenant_id == tenant_id,
+                    Customer.phone == customer_phone,
+                )
+            )
+            found_cust = cust_result.scalar_one_or_none()
+            if found_cust:
+                customer_id = found_cust.id
 
         order = Order(
             tenant_id=tenant_id,
@@ -168,8 +203,10 @@ async def create_order(
             payment_status="unpaid",
             table_id=data.table_id,
             table_session_id=table_session_id,
-            customer_name=data.customer_name,
+            customer_name=customer_name,
             customer_phone=customer_phone,
+            customer_id=customer_id,
+            waiter_id=waiter_id,
             subtotal=subtotal,
             tax_amount=tax_amount,
             discount_amount=0,
@@ -201,19 +238,27 @@ async def create_order(
     )
     db.add(log_entry)
 
-    # Auto-transition to in_kitchen
-    order.status = "in_kitchen"
-    for item in order.items:
-        item.status = "sent"
+    # Check payment_flow config
+    payment_flow = await _get_payment_flow(db, tenant_id)
 
-    kitchen_log = OrderStatusLog(
-        tenant_id=tenant_id,
-        order_id=order.id,
-        from_status="confirmed",
-        to_status="in_kitchen",
-        changed_by=user_id,
-    )
-    db.add(kitchen_log)
+    if payment_flow == "pay_first":
+        # Pay-before-eat: keep order as confirmed, do NOT send to kitchen
+        # Kitchen tickets created after payment in payment_service
+        pass
+    else:
+        # Order-first (default): auto-transition to in_kitchen
+        order.status = "in_kitchen"
+        for item in order.items:
+            item.status = "sent"
+
+        kitchen_log = OrderStatusLog(
+            tenant_id=tenant_id,
+            order_id=order.id,
+            from_status="confirmed",
+            to_status="in_kitchen",
+            changed_by=user_id,
+        )
+        db.add(kitchen_log)
 
     # For dine-in: mark table as occupied
     if data.order_type == "dine_in" and data.table_id:
@@ -223,8 +268,9 @@ async def create_order(
 
     await db.flush()
 
-    # Auto-create kitchen ticket: route all items to the first active station
-    await _auto_create_kitchen_ticket(db, tenant_id, order)
+    if payment_flow != "pay_first":
+        # Auto-create kitchen ticket: route all items to the first active station
+        await _auto_create_kitchen_ticket(db, tenant_id, order)
 
     return await get_order(db, order.id, tenant_id)  # type: ignore[return-value]
 
@@ -321,6 +367,24 @@ async def transition_order(
             f"Allowed: {allowed}"
         )
 
+    # Pay-first guard: block confirmed→in_kitchen without payment
+    if current == "confirmed" and new_status == "in_kitchen":
+        payment_flow = await _get_payment_flow(db, tenant_id)
+        if payment_flow == "pay_first":
+            from app.models.payment import Payment
+            paid_result = await db.execute(
+                select(func.count(Payment.id)).where(
+                    Payment.order_id == order_id,
+                    Payment.tenant_id == tenant_id,
+                    Payment.kind == "payment",
+                    Payment.status == "completed",
+                )
+            )
+            if paid_result.scalar_one() == 0:
+                raise ValueError(
+                    "Payment required before sending to kitchen (pay-first mode)"
+                )
+
     order.status = new_status
 
     log_entry = OrderStatusLog(
@@ -411,6 +475,17 @@ async def _auto_create_kitchen_ticket(
     )
 
 
+async def _get_payment_flow(db: AsyncSession, tenant_id: uuid.UUID) -> str:
+    """Get the payment_flow setting from restaurant config."""
+    result = await db.execute(
+        select(RestaurantConfig.payment_flow).where(
+            RestaurantConfig.tenant_id == tenant_id
+        )
+    )
+    flow = result.scalar_one_or_none()
+    return flow if flow else "order_first"
+
+
 async def _get_table(
     db: AsyncSession, table_id: uuid.UUID, tenant_id: uuid.UUID
 ) -> Table | None:
@@ -421,7 +496,11 @@ async def _get_table(
 
 
 async def _resolve_table_session(
-    db: AsyncSession, tenant_id: uuid.UUID, user_id: uuid.UUID, table_id: uuid.UUID
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    user_id: uuid.UUID,
+    table_id: uuid.UUID,
+    waiter_id: uuid.UUID | None = None,
 ) -> uuid.UUID:
     """Find an open session for this table, or create one. Returns session id."""
     result = await db.execute(
@@ -440,6 +519,7 @@ async def _resolve_table_session(
         table_id=table_id,
         status="open",
         opened_by=user_id,
+        assigned_waiter_id=waiter_id,
     )
     db.add(session)
     await db.flush()
