@@ -10,9 +10,9 @@ WORKDIR /app
 COPY package.json ./
 
 # Install dependencies
-RUN npm install
+RUN npm install --force
 
 EXPOSE 5173
 
 # On container start: ensure deps are fresh, then start dev server
-CMD ["sh", "-c", "npm install --prefer-offline && npm run dev"]
+CMD ["sh", "-c", "npm install --force --prefer-offline && npm run dev"]
