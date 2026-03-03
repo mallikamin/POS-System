@@ -6,6 +6,7 @@ from datetime import date
 from sqlalchemy import Date, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.discount import OrderDiscount
 from app.models.order import Order, OrderItem
 
 
@@ -20,6 +21,7 @@ async def get_sales_summary(
         func.coalesce(func.sum(Order.total), 0).label("revenue"),
         func.count(Order.id).label("orders"),
         func.coalesce(func.sum(Order.tax_amount), 0).label("tax"),
+        func.coalesce(func.sum(Order.discount_amount), 0).label("discount"),
     ).where(
         Order.tenant_id == tenant_id,
         func.cast(Order.created_at, Date) >= date_from,
@@ -44,18 +46,50 @@ async def get_sales_summary(
     )
     channels = {r.order_type: {"revenue": r.revenue, "orders": r.orders} for r in channel_result.all()}
 
+    # Discount breakdown by source_type
+    disc_result = await db.execute(
+        select(
+            OrderDiscount.source_type,
+            func.count(OrderDiscount.id).label("count"),
+            func.coalesce(func.sum(OrderDiscount.amount), 0).label("total"),
+        )
+        .join(Order, OrderDiscount.order_id == Order.id)
+        .where(
+            OrderDiscount.tenant_id == tenant_id,
+            func.cast(Order.created_at, Date) >= date_from,
+            func.cast(Order.created_at, Date) <= date_to,
+            Order.status != "voided",
+        )
+        .group_by(OrderDiscount.source_type)
+        .order_by(func.sum(OrderDiscount.amount).desc())
+    )
+    discount_breakdown = [
+        {
+            "source_type": r.source_type,
+            "label": r.source_type.replace("_", " ").title(),
+            "count": r.count,
+            "total": r.total,
+        }
+        for r in disc_result.all()
+    ]
+
     total_orders = total_row.orders
+    total_revenue = total_row.revenue
+    total_discount = total_row.discount
     return {
-        "total_revenue": total_row.revenue,
+        "total_revenue": total_revenue,
         "total_orders": total_orders,
-        "avg_order_value": total_row.revenue // total_orders if total_orders > 0 else 0,
+        "avg_order_value": total_revenue // total_orders if total_orders > 0 else 0,
         "total_tax": total_row.tax,
+        "total_discount": total_discount,
+        "net_revenue": total_revenue - total_discount,
         "dine_in_revenue": channels.get("dine_in", {}).get("revenue", 0),
         "dine_in_orders": channels.get("dine_in", {}).get("orders", 0),
         "takeaway_revenue": channels.get("takeaway", {}).get("revenue", 0),
         "takeaway_orders": channels.get("takeaway", {}).get("orders", 0),
         "call_center_revenue": channels.get("call_center", {}).get("revenue", 0),
         "call_center_orders": channels.get("call_center", {}).get("orders", 0),
+        "discount_breakdown": discount_breakdown,
     }
 
 

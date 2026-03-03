@@ -7,6 +7,7 @@ from sqlalchemy import Date, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.models.discount import OrderDiscount
 from app.models.order import Order, OrderItem
 from app.models.payment import CashDrawerSession, Payment, PaymentMethod
 
@@ -153,6 +154,25 @@ async def generate_zreport(
             "session_status": drawer_session.status,
         }
 
+    # --- Discount breakdown by source_type ---
+    disc_rows = (
+        await db.execute(
+            select(
+                OrderDiscount.source_type,
+                func.count(OrderDiscount.id).label("count"),
+                func.coalesce(func.sum(OrderDiscount.amount), 0).label("total"),
+            )
+            .join(Order, OrderDiscount.order_id == Order.id)
+            .where(
+                OrderDiscount.tenant_id == tenant_id,
+                date_filter,
+                Order.status.notin_(["draft", "voided"]),
+            )
+            .group_by(OrderDiscount.source_type)
+            .order_by(func.sum(OrderDiscount.amount).desc())
+        )
+    ).all()
+
     return {
         "date": target_date,
         "generated_at": datetime.now(timezone.utc),
@@ -162,6 +182,7 @@ async def generate_zreport(
         "total_revenue": totals.revenue,
         "total_tax": totals.tax,
         "total_discount": totals.discount,
+        "net_revenue": totals.revenue - totals.discount,
         "by_channel": [
             {"channel": r.order_type, "orders": r.orders, "revenue": r.revenue}
             for r in channel_rows
@@ -177,5 +198,14 @@ async def generate_zreport(
         "top_items": [
             {"name": r.name, "quantity": r.qty, "revenue": r.revenue}
             for r in item_rows
+        ],
+        "discount_breakdown": [
+            {
+                "source_type": r.source_type,
+                "label": r.source_type.replace("_", " ").title(),
+                "count": r.count,
+                "total": r.total,
+            }
+            for r in disc_rows
         ],
     }

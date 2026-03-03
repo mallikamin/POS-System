@@ -123,17 +123,27 @@ export interface LiveOperations {
 
 /* Report types */
 
+export interface DiscountBreakdownEntry {
+  source_type: string;
+  label: string;
+  count: number;
+  total: number;
+}
+
 export interface SalesSummary {
   total_revenue: number;
   total_orders: number;
   avg_order_value: number;
   total_tax: number;
+  total_discount: number;
+  net_revenue: number;
   dine_in_revenue: number;
   dine_in_orders: number;
   takeaway_revenue: number;
   takeaway_orders: number;
   call_center_revenue: number;
   call_center_orders: number;
+  discount_breakdown: DiscountBreakdownEntry[];
 }
 
 export interface ItemPerformanceEntry {

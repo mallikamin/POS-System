@@ -78,6 +78,8 @@ async def export_sales_csv(
     writer = csv.writer(output)
     writer.writerow(["Metric", "Value"])
     writer.writerow(["Total Revenue (PKR)", data["total_revenue"] / 100])
+    writer.writerow(["Total Discount (PKR)", data["total_discount"] / 100])
+    writer.writerow(["Net Revenue (PKR)", data["net_revenue"] / 100])
     writer.writerow(["Total Orders", data["total_orders"]])
     writer.writerow(["Avg Order Value (PKR)", data["avg_order_value"] / 100])
     writer.writerow(["Total Tax (PKR)", data["total_tax"] / 100])
@@ -87,6 +89,9 @@ async def export_sales_csv(
     writer.writerow(["Takeaway Orders", data["takeaway_orders"]])
     writer.writerow(["Call Center Revenue (PKR)", data["call_center_revenue"] / 100])
     writer.writerow(["Call Center Orders", data["call_center_orders"]])
+    # Discount breakdown
+    for entry in data.get("discount_breakdown", []):
+        writer.writerow([f"Discount: {entry['label']} (PKR)", entry["total"] / 100])
 
     output.seek(0)
     filename = f"sales_summary_{date_from}_{date_to}.csv"

@@ -3,17 +3,27 @@
 from pydantic import BaseModel
 
 
+class DiscountBreakdownEntry(BaseModel):
+    source_type: str
+    label: str
+    count: int
+    total: int  # paisa
+
+
 class SalesSummary(BaseModel):
     total_revenue: int  # paisa
     total_orders: int
     avg_order_value: int  # paisa
     total_tax: int  # paisa
+    total_discount: int  # paisa
+    net_revenue: int  # total_revenue - total_discount
     dine_in_revenue: int
     dine_in_orders: int
     takeaway_revenue: int
     takeaway_orders: int
     call_center_revenue: int
     call_center_orders: int
+    discount_breakdown: list[DiscountBreakdownEntry] = []
 
 
 class ItemPerformanceEntry(BaseModel):

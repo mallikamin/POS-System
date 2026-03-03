@@ -23,6 +23,8 @@ import {
   Loader2,
   AlertCircle,
   TrendingDown,
+  Percent,
+  Tag,
 } from "lucide-react";
 
 /* ---------- date helpers ---------- */
@@ -333,6 +335,69 @@ function ReportsPage() {
                 </p>
               </CardContent>
             </Card>
+          </div>
+
+          {/* discount & net revenue row */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-secondary-600">
+                  Total Discount
+                </CardTitle>
+                <Tag className="h-5 w-5 text-danger-500" />
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold text-danger-600">
+                  {formatPKR(summary.total_discount)}
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-secondary-600">
+                  Net Revenue
+                </CardTitle>
+                <DollarSign className="h-5 w-5 text-success-600" />
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold text-success-700">
+                  {formatPKR(summary.net_revenue)}
+                </p>
+              </CardContent>
+            </Card>
+
+            {/* discount breakdown by type */}
+            {summary.discount_breakdown.length > 0 && (
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium text-secondary-600">
+                    Discount Breakdown
+                  </CardTitle>
+                  <Percent className="h-5 w-5 text-accent-500" />
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-col gap-2">
+                    {summary.discount_breakdown.map((entry) => (
+                      <div
+                        key={entry.source_type}
+                        className="flex items-center justify-between text-sm"
+                      >
+                        <span className="text-secondary-600">
+                          {entry.label}{" "}
+                          <span className="text-xs text-secondary-400">
+                            ({entry.count}x)
+                          </span>
+                        </span>
+                        <span className="font-medium text-secondary-800">
+                          {formatPKR(entry.total)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
 
           {/* channel breakdown + hourly chart */}

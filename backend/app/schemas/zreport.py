@@ -39,6 +39,13 @@ class TopItem(BaseModel):
     revenue: int
 
 
+class DiscountTypeBreakdown(BaseModel):
+    source_type: str
+    label: str
+    count: int
+    total: int  # paisa
+
+
 class ZReport(BaseModel):
     date: date
     generated_at: datetime
@@ -52,8 +59,10 @@ class ZReport(BaseModel):
     total_revenue: int
     total_tax: int
     total_discount: int
+    net_revenue: int = 0  # total_revenue - total_discount
 
     by_channel: list[ChannelBreakdown]
     by_payment_method: list[PaymentMethodBreakdown]
     by_status: list[StatusBreakdown]
     top_items: list[TopItem]
+    discount_breakdown: list[DiscountTypeBreakdown] = []
