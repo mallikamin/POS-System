@@ -17,7 +17,7 @@ from app.models.floor import Table
 from app.models.kitchen import KitchenStation
 from app.models.order import Order, OrderItem, OrderItemModifier, OrderStatusLog
 from app.models.restaurant_config import RestaurantConfig
-from app.schemas.order import OrderCreate
+from app.schemas.order import OrderCreate, PaymentPreviewResponse
 from app.services import kitchen_service
 
 logger = logging.getLogger(__name__)
@@ -409,3 +409,42 @@ async def _get_table(
         select(Table).where(Table.id == table_id, Table.tenant_id == tenant_id)
     )
     return result.scalar_one_or_none()
+
+
+# ---------------------------------------------------------------------------
+# Payment Preview (dual totals by method-specific tax)
+# ---------------------------------------------------------------------------
+
+async def get_payment_preview(
+    db: AsyncSession, order_id: uuid.UUID, tenant_id: uuid.UUID
+) -> PaymentPreviewResponse | None:
+    """Compute cash and card totals for an order using method-specific tax rates."""
+    order = await get_order(db, order_id, tenant_id)
+    if order is None:
+        return None
+
+    # Fetch per-method tax rates from config
+    result = await db.execute(
+        select(
+            RestaurantConfig.cash_tax_rate_bps,
+            RestaurantConfig.card_tax_rate_bps,
+        ).where(RestaurantConfig.tenant_id == tenant_id)
+    )
+    row = result.one_or_none()
+    cash_rate = row.cash_tax_rate_bps if row else 1600
+    card_rate = row.card_tax_rate_bps if row else 500
+
+    subtotal = order.subtotal
+    cash_tax = round(subtotal * cash_rate / 10_000)
+    card_tax = round(subtotal * card_rate / 10_000)
+
+    return PaymentPreviewResponse(
+        order_id=order.id,
+        subtotal=subtotal,
+        cash_tax_rate_bps=cash_rate,
+        cash_tax_amount=cash_tax,
+        cash_total=subtotal + cash_tax,
+        card_tax_rate_bps=card_rate,
+        card_tax_amount=card_tax,
+        card_total=subtotal + card_tax,
+    )

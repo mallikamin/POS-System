@@ -19,6 +19,8 @@ interface ConfigData {
   timezone: string;
   tax_inclusive: boolean;
   default_tax_rate: number;
+  cash_tax_rate_bps: number;
+  card_tax_rate_bps: number;
   receipt_header: string | null;
   receipt_footer: string | null;
 }
@@ -33,6 +35,8 @@ function SettingsPage() {
   const [timezone, setTimezone] = useState("Asia/Karachi");
   const [taxInclusive, setTaxInclusive] = useState(true);
   const [taxRate, setTaxRate] = useState(16);
+  const [cashTaxRate, setCashTaxRate] = useState(16);
+  const [cardTaxRate, setCardTaxRate] = useState(5);
   const [receiptHeader, setReceiptHeader] = useState("");
   const [receiptFooter, setReceiptFooter] = useState("");
 
@@ -49,6 +53,8 @@ function SettingsPage() {
       setTimezone(data.timezone);
       setTaxInclusive(data.tax_inclusive);
       setTaxRate(data.default_tax_rate / 100);
+      setCashTaxRate(data.cash_tax_rate_bps / 100);
+      setCardTaxRate(data.card_tax_rate_bps / 100);
       setReceiptHeader(data.receipt_header ?? "");
       setReceiptFooter(data.receipt_footer ?? "");
 
@@ -70,6 +76,8 @@ function SettingsPage() {
         timezone,
         tax_inclusive: taxInclusive,
         default_tax_rate: Math.round(taxRate * 100),
+        cash_tax_rate_bps: Math.round(cashTaxRate * 100),
+        card_tax_rate_bps: Math.round(cardTaxRate * 100),
         receipt_header: receiptHeader || null,
         receipt_footer: receiptFooter || null,
       });
@@ -171,6 +179,36 @@ function SettingsPage() {
               <p className="text-pos-sm text-secondary-500">
                 Currently: {taxRate}% ({Math.round(taxRate * 100)} basis points)
               </p>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="cashTaxRate">Cash Tax Rate (%)</Label>
+                <Input
+                  id="cashTaxRate"
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={0.5}
+                  value={cashTaxRate}
+                  onChange={(e) => setCashTaxRate(parseFloat(e.target.value) || 0)}
+                  className="min-h-[48px]"
+                />
+                <p className="text-pos-sm text-secondary-500">{cashTaxRate}%</p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="cardTaxRate">Card Tax Rate (%)</Label>
+                <Input
+                  id="cardTaxRate"
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={0.5}
+                  value={cardTaxRate}
+                  onChange={(e) => setCardTaxRate(parseFloat(e.target.value) || 0)}
+                  className="min-h-[48px]"
+                />
+                <p className="text-pos-sm text-secondary-500">{cardTaxRate}%</p>
+              </div>
             </div>
             <div className="flex items-center justify-between rounded-lg border p-4">
               <div>

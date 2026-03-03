@@ -22,6 +22,19 @@ class PasswordLoginRequest(BaseModel):
     tenant_id: uuid.UUID | None = Field(None, description="Tenant to authenticate against (auto-detected if omitted)")
 
 
+class VerifyPasswordRequest(BaseModel):
+    """Re-authenticate with password for sensitive actions (void, refund)."""
+
+    password: str = Field(..., min_length=1)
+
+
+class VerifyPasswordResponse(BaseModel):
+    """Short-lived token confirming re-authentication."""
+
+    auth_token: str
+    expires_in: int = 300  # seconds
+
+
 class RefreshRequest(BaseModel):
     """Exchange a refresh token for a new token pair."""
 

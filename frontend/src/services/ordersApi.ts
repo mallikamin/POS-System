@@ -38,10 +38,33 @@ export async function transitionOrder(
 
 export async function voidOrder(
   id: string,
-  reason?: string
+  reason: string,
+  auth_token?: string
 ): Promise<OrderResponse> {
   const { data } = await api.post<OrderResponse>(`/orders/${id}/void`, {
     reason,
+    auth_token,
   });
+  return data;
+}
+
+export interface PaymentPreview {
+  order_id: string;
+  subtotal: number;
+  cash_tax_rate_bps: number;
+  cash_tax_amount: number;
+  cash_total: number;
+  card_tax_rate_bps: number;
+  card_tax_amount: number;
+  card_total: number;
+}
+
+export async function fetchPaymentPreview(orderId: string): Promise<PaymentPreview> {
+  const { data } = await api.get<PaymentPreview>(`/orders/${orderId}/payment-preview`);
+  return data;
+}
+
+export async function verifyPassword(password: string): Promise<{ auth_token: string }> {
+  const { data } = await api.post<{ auth_token: string }>("/auth/verify-password", { password });
   return data;
 }

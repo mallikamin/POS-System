@@ -382,6 +382,8 @@ async def seed_config(db: AsyncSession, tenant: Tenant) -> RestaurantConfig:
         timezone="Asia/Karachi",
         tax_inclusive=True,
         default_tax_rate=1600,
+        cash_tax_rate_bps=1600,
+        card_tax_rate_bps=500,
         receipt_header="Demo Restaurant",
         receipt_footer="Thank you for dining with us!",
     )

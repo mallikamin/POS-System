@@ -1,5 +1,4 @@
-import { useMemo } from "react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Clock,
@@ -17,9 +16,20 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { formatPKR } from "@/utils/currency";
 import { ReceiptModal } from "@/components/pos/ReceiptModal";
+import { verifyPassword } from "@/services/ordersApi";
 import type { OrderListItem } from "@/types/order";
 
 /* -------------------------------------------------------------------------- */
@@ -29,7 +39,7 @@ import type { OrderListItem } from "@/types/order";
 interface OrderCardProps {
   order: OrderListItem;
   onTransition: (id: string, status: string) => void;
-  onVoid: (id: string) => void;
+  onVoid: (id: string, reason: string, authToken?: string) => void;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -149,6 +159,11 @@ function formatElapsed(createdAt: string): string {
 export function OrderCard({ order, onTransition, onVoid }: OrderCardProps) {
   const navigate = useNavigate();
   const [receiptOpen, setReceiptOpen] = useState(false);
+  const [voidOpen, setVoidOpen] = useState(false);
+  const [voidReason, setVoidReason] = useState("");
+  const [voidPassword, setVoidPassword] = useState("");
+  const [voidError, setVoidError] = useState("");
+  const [voidSubmitting, setVoidSubmitting] = useState(false);
   const typeConfig = ORDER_TYPE_CONFIG[order.order_type] ?? { label: "Order", bg: "bg-secondary-100", text: "text-secondary-700", icon: Package };
   const statusConfig = STATUS_CONFIG[order.status] ?? { label: "Unknown", bg: "bg-secondary-100", text: "text-secondary-600", dot: "bg-secondary-400" };
   const transition = TRANSITION_ACTIONS[order.status];
@@ -167,6 +182,33 @@ export function OrderCard({ order, onTransition, onVoid }: OrderCardProps) {
     : order.table_number
       ? `Table ${order.table_number}`
       : null;
+
+  async function handleVoidSubmit() {
+    if (!voidReason.trim()) {
+      setVoidError("Reason is required.");
+      return;
+    }
+    if (!voidPassword.trim()) {
+      setVoidError("Password is required for authorization.");
+      return;
+    }
+    setVoidSubmitting(true);
+    setVoidError("");
+    try {
+      const { auth_token } = await verifyPassword(voidPassword);
+      await onVoid(order.id, voidReason.trim(), auth_token);
+      setVoidOpen(false);
+      setVoidReason("");
+      setVoidPassword("");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Verification failed";
+      // Check for axios error shape
+      const axiosDetail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setVoidError(axiosDetail ?? msg);
+    } finally {
+      setVoidSubmitting(false);
+    }
+  }
 
   return (
     <Card
@@ -278,7 +320,7 @@ export function OrderCard({ order, onTransition, onVoid }: OrderCardProps) {
                 variant="ghost"
                 size="sm"
                 className="gap-1 text-danger-500 hover:text-danger-700 hover:bg-danger-50"
-                onClick={() => onVoid(order.id)}
+                onClick={() => { setVoidOpen(true); setVoidError(""); setVoidReason(""); setVoidPassword(""); }}
                 aria-label={`Void order ${order.order_number}`}
               >
                 <XCircle className="h-3.5 w-3.5" />
@@ -295,6 +337,56 @@ export function OrderCard({ order, onTransition, onVoid }: OrderCardProps) {
         open={receiptOpen}
         onClose={() => setReceiptOpen(false)}
       />
+
+      {/* Void Modal */}
+      <Dialog open={voidOpen} onOpenChange={setVoidOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Void Order #{order.order_number}</DialogTitle>
+            <DialogDescription>
+              This action cannot be undone. Enter a reason and your password to authorize.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="space-y-1">
+              <Label htmlFor={`void-reason-${order.id}`}>Reason *</Label>
+              <Input
+                id={`void-reason-${order.id}`}
+                value={voidReason}
+                onChange={(e) => setVoidReason(e.target.value)}
+                placeholder="e.g. Customer changed mind, duplicate order..."
+                autoFocus
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor={`void-password-${order.id}`}>Password *</Label>
+              <Input
+                id={`void-password-${order.id}`}
+                type="password"
+                value={voidPassword}
+                onChange={(e) => setVoidPassword(e.target.value)}
+                placeholder="Enter your password to authorize"
+                onKeyDown={(e) => { if (e.key === "Enter") void handleVoidSubmit(); }}
+              />
+            </div>
+            {voidError && (
+              <p className="text-sm text-danger-600">{voidError}</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setVoidOpen(false)} disabled={voidSubmitting}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => void handleVoidSubmit()}
+              disabled={voidSubmitting}
+            >
+              {voidSubmitting ? "Voiding..." : "Void Order"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

@@ -94,14 +94,9 @@ function OrdersPage() {
   );
 
   const handleVoid = useCallback(
-    async (id: string) => {
-      const confirmed = window.confirm(
-        "Are you sure you want to void this order? This action cannot be undone."
-      );
-      if (!confirmed) return;
-
+    async (id: string, reason: string, authToken?: string) => {
       try {
-        await voidOrder(id, "Voided from Orders page");
+        await voidOrder(id, reason, authToken);
       } catch {
         // Error is surfaced via orderStore.error
       }

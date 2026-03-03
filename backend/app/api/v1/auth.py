@@ -18,12 +18,16 @@ from app.schemas.auth import (
     RefreshRequest,
     TokenResponse,
     UserResponse,
+    VerifyPasswordRequest,
+    VerifyPasswordResponse,
 )
 from app.schemas.common import MessageResponse
+from app.utils.security import verify_password
 from app.services.auth_service import (
     authenticate_by_password,
     authenticate_by_pin,
     create_tokens,
+    create_verify_token,
     refresh_tokens,
     revoke_refresh_token,
 )
@@ -133,3 +137,21 @@ async def get_me(
 ) -> UserResponse:
     """Return the profile of the currently authenticated user."""
     return UserResponse.model_validate(current_user)
+
+
+@router.post("/verify-password", response_model=VerifyPasswordResponse)
+async def verify_password_endpoint(
+    body: VerifyPasswordRequest,
+    current_user: User = Depends(get_current_user),
+) -> VerifyPasswordResponse:
+    """Re-authenticate with password for sensitive actions (void, refund).
+
+    Returns a short-lived auth_token that must be passed to the sensitive endpoint.
+    """
+    if not verify_password(body.password, current_user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid password",
+        )
+    token = create_verify_token(str(current_user.id))
+    return VerifyPasswordResponse(auth_token=token)

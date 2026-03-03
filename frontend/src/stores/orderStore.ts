@@ -29,7 +29,7 @@ interface OrderActions {
     customerPhone?: string
   ) => Promise<OrderResponse>;
   transitionOrder: (id: string, status: string) => Promise<void>;
-  voidOrder: (id: string, reason?: string) => Promise<void>;
+  voidOrder: (id: string, reason: string, authToken?: string) => Promise<void>;
   clearOrders: () => void;
 }
 
@@ -145,9 +145,9 @@ export const useOrderStore = create<OrderStore>()((set, get) => ({
     }
   },
 
-  voidOrder: async (id, reason) => {
+  voidOrder: async (id, reason, authToken) => {
     try {
-      await voidOrder(id, reason);
+      await voidOrder(id, reason, authToken);
       set({ lastFetched: null });
       await get().loadOrders();
     } catch (err) {

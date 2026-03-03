@@ -22,6 +22,8 @@ class RestaurantConfigUpdate(BaseModel):
     receipt_header: str | None = None
     receipt_footer: str | None = None
     default_tax_rate: int | None = Field(None, ge=0, le=10000)
+    cash_tax_rate_bps: int | None = Field(None, ge=0, le=10000)
+    card_tax_rate_bps: int | None = Field(None, ge=0, le=10000)
     payment_flow: str | None = Field(None, pattern=r"^(order_first|pay_first)$")
     timezone: str | None = None
     currency: str | None = Field(None, min_length=2, max_length=10)
@@ -97,6 +99,10 @@ async def update_restaurant_config(
         config.receipt_footer = data.receipt_footer
     if data.default_tax_rate is not None:
         config.default_tax_rate = data.default_tax_rate
+    if data.cash_tax_rate_bps is not None:
+        config.cash_tax_rate_bps = data.cash_tax_rate_bps
+    if data.card_tax_rate_bps is not None:
+        config.card_tax_rate_bps = data.card_tax_rate_bps
     if data.payment_flow is not None:
         config.payment_flow = data.payment_flow
     if data.timezone is not None:

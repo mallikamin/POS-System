@@ -51,7 +51,8 @@ class OrderStatusUpdate(BaseModel):
 
 
 class OrderVoidRequest(BaseModel):
-    reason: str | None = Field(None, max_length=500)
+    reason: str = Field(..., min_length=1, max_length=500, description="Mandatory reason for voiding")
+    auth_token: str | None = Field(None, description="Token from POST /auth/verify-password")
 
 
 # ---------------------------------------------------------------------------
@@ -105,6 +106,19 @@ class OrderResponse(BaseModel):
     items: list[OrderItemResponse] = []
 
     model_config = {"from_attributes": True}
+
+
+class PaymentPreviewResponse(BaseModel):
+    """Shows what the order total would be under each payment method's tax rate."""
+
+    order_id: uuid.UUID
+    subtotal: int
+    cash_tax_rate_bps: int
+    cash_tax_amount: int
+    cash_total: int
+    card_tax_rate_bps: int
+    card_tax_amount: int
+    card_total: int
 
 
 class OrderListResponse(BaseModel):

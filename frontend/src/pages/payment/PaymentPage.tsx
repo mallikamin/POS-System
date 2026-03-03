@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatPKR, rupeesToPaisa, paisaToRupees } from "@/utils/currency";
 import * as paymentsApi from "@/services/paymentsApi";
-import { fetchOrder } from "@/services/ordersApi";
+import { fetchOrder, fetchPaymentPreview } from "@/services/ordersApi";
+import type { PaymentPreview } from "@/services/ordersApi";
 import type {
   CashDrawerSessionResponse,
   PaymentMethodCode,
@@ -37,6 +38,7 @@ function PaymentPage() {
   const [mode, setMode] = useState<Mode>("cash");
   const [summary, setSummary] = useState<PaymentSummary | null>(null);
   const [orderDetail, setOrderDetail] = useState<OrderResponse | null>(null);
+  const [preview, setPreview] = useState<PaymentPreview | null>(null);
   const [drawerSession, setDrawerSession] = useState<CashDrawerSessionResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -63,14 +65,16 @@ function PaymentPage() {
     setLoading(true);
     setError(null);
     try {
-      const [nextSummary, nextDrawer, nextOrder] = await Promise.all([
+      const [nextSummary, nextDrawer, nextOrder, nextPreview] = await Promise.all([
         paymentsApi.fetchOrderPaymentSummary(currentOrderId),
         paymentsApi.fetchDrawerSession(),
         fetchOrder(currentOrderId),
+        fetchPaymentPreview(currentOrderId),
       ]);
       setSummary(nextSummary);
       setDrawerSession(nextDrawer);
       setOrderDetail(nextOrder);
+      setPreview(nextPreview);
       // Auto-fill amount fields with due amount
       if (nextSummary.due_amount > 0) {
         const dueRupees = String(paisaToRupees(nextSummary.due_amount));
@@ -259,6 +263,29 @@ function PaymentPage() {
 
       {error && <div className="rounded-lg bg-danger-50 px-3 py-2 text-sm text-danger-700">{error}</div>}
       {success && <div className="rounded-lg bg-success-50 px-3 py-2 text-sm text-success-700">{success}</div>}
+
+      {preview && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Bill Totals by Payment Method</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="rounded-lg border-2 border-green-200 bg-green-50 p-3 text-center">
+                <p className="text-xs font-medium text-green-700">Cash ({preview.cash_tax_rate_bps / 100}% tax)</p>
+                <p className="text-lg font-bold text-green-800">{formatPKR(preview.cash_total)}</p>
+                <p className="text-xs text-green-600">Tax: {formatPKR(preview.cash_tax_amount)}</p>
+              </div>
+              <div className="rounded-lg border-2 border-blue-200 bg-blue-50 p-3 text-center">
+                <p className="text-xs font-medium text-blue-700">Card ({preview.card_tax_rate_bps / 100}% tax)</p>
+                <p className="text-lg font-bold text-blue-800">{formatPKR(preview.card_total)}</p>
+                <p className="text-xs text-blue-600">Tax: {formatPKR(preview.card_tax_amount)}</p>
+              </div>
+            </div>
+            <p className="mt-2 text-center text-xs text-secondary-400">Subtotal: {formatPKR(preview.subtotal)}</p>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

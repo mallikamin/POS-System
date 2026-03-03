@@ -25,6 +25,8 @@ class RestaurantConfigResponse(BaseModel):
     timezone: str
     tax_inclusive: bool
     default_tax_rate: int
+    cash_tax_rate_bps: int = 1600
+    card_tax_rate_bps: int = 500
     receipt_header: str | None = None
     receipt_footer: str | None = None
 

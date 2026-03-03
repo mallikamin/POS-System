@@ -40,6 +40,12 @@ class RestaurantConfig(BaseMixin, Base):
     default_tax_rate: Mapped[int] = mapped_column(
         Integer, default=1600, nullable=False, comment="Tax rate in basis points (1600 = 16.00%)"
     )
+    cash_tax_rate_bps: Mapped[int] = mapped_column(
+        Integer, default=1600, nullable=False, comment="Tax rate for cash payments in basis points (1600 = 16%)"
+    )
+    card_tax_rate_bps: Mapped[int] = mapped_column(
+        Integer, default=500, nullable=False, comment="Tax rate for card payments in basis points (500 = 5%)"
+    )
     receipt_header: Mapped[str | None] = mapped_column(
         String(1000), nullable=True
     )

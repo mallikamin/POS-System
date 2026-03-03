@@ -189,3 +189,33 @@ async def revoke_refresh_token(
     if db_token is not None:
         db_token.is_revoked = True
         await db.flush()
+
+
+def create_verify_token(user_id: str) -> str:
+    """Create a short-lived token (5 min) confirming password re-authentication.
+
+    Used for sensitive actions like void and refund.
+    """
+    import jwt as pyjwt
+    from app.config import settings as cfg
+
+    payload = {
+        "sub": user_id,
+        "type": "verify",
+        "exp": datetime.now(timezone.utc) + timedelta(minutes=5),
+    }
+    return pyjwt.encode(payload, cfg.SECRET_KEY, algorithm="HS256")
+
+
+def validate_verify_token(token: str) -> str | None:
+    """Validate a verify token and return the user_id, or None if invalid."""
+    import jwt as pyjwt
+    from app.config import settings as cfg
+
+    try:
+        payload = pyjwt.decode(token, cfg.SECRET_KEY, algorithms=["HS256"])
+        if payload.get("type") != "verify":
+            return None
+        return payload.get("sub")
+    except pyjwt.PyJWTError:
+        return None
