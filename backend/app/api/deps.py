@@ -98,3 +98,26 @@ def require_role(*roles: str) -> Callable:
         return current_user
 
     return role_checker
+
+
+def require_permission(*permissions: str) -> Callable:
+    """Dependency factory that restricts access to users whose role has ALL
+    specified permission codes.
+
+    Usage:
+        @router.post("/apply", dependencies=[Depends(require_permission("discount.apply"))])
+    """
+
+    async def permission_checker(
+        current_user: User = Depends(get_current_user),
+    ) -> User:
+        user_perms = {p.code for p in current_user.role.permissions}
+        missing = set(permissions) - user_perms
+        if missing:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Missing required permission(s): {', '.join(sorted(missing))}",
+            )
+        return current_user
+
+    return permission_checker

@@ -47,12 +47,31 @@ ALL_PERMISSIONS = [
     ("staff.manage", "Manage staff accounts"),
     ("settings.manage", "Manage restaurant settings"),
     ("floor.edit", "Edit floor plan / table layout"),
+    ("discount.apply", "Apply discounts to orders"),
+    ("discount.manage", "Manage discount types and settings"),
 ]
 
 ROLE_DEFINITIONS: dict[str, dict] = {
     "admin": {
         "description": "Full access to all features",
         "permissions": [code for code, _ in ALL_PERMISSIONS],
+    },
+    "manager": {
+        "description": "Shift manager with discount, void, and reporting access",
+        "permissions": [
+            "order.create",
+            "order.view",
+            "order.edit",
+            "order.void",
+            "payment.collect",
+            "payment.refund",
+            "menu.view",
+            "kitchen.view",
+            "report.view",
+            "report.export",
+            "discount.apply",
+            "discount.manage",
+        ],
     },
     "cashier": {
         "description": "Front-of-house staff handling orders and payments",
@@ -104,6 +123,13 @@ SEED_USERS = [
         "password": "yk123",
         "pin": "1111",
         "role_name": "admin",
+    },
+    {
+        "email": "manager@demo.com",
+        "full_name": "Manager User",
+        "password": "manager123",
+        "pin": "3456",
+        "role_name": "manager",
     },
 ]
 
@@ -1409,6 +1435,22 @@ async def seed_customers(db: AsyncSession, tenant: Tenant) -> None:
         select(Modifier).where(Modifier.tenant_id == tenant.id)
     )
     modifiers_map = {m.name: m for m in result.scalars().all()}
+
+    # Seed walk-in customer sentinel
+    walkin_result = await db.execute(
+        select(Customer).where(
+            Customer.tenant_id == tenant.id, Customer.phone == "0000000000",
+        )
+    )
+    if walkin_result.scalar_one_or_none() is None:
+        db.add(Customer(
+            tenant_id=tenant.id,
+            name="Walk-in Customer",
+            phone="0000000000",
+            notes="Default walk-in customer record (do not delete)",
+        ))
+        await db.flush()
+        print("  Created Walk-in Customer sentinel.")
 
     # Create customer records
     customer_map: dict[str, Customer] = {}

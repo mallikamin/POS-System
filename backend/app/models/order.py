@@ -77,6 +77,14 @@ class Order(BaseMixin, Base):
     created_by: Mapped[uuid.UUID] = mapped_column(
         Uuid, ForeignKey("users.id"), nullable=False,
     )
+    waiter_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True,
+        comment="Waiter/server assigned to this order",
+    )
+    customer_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("customers.id", ondelete="SET NULL"), nullable=True, index=True,
+        comment="Linked customer record",
+    )
 
     tenant_id: Mapped[uuid.UUID] = mapped_column(
         Uuid, ForeignKey("tenants.id"), nullable=False, index=True,
@@ -96,7 +104,13 @@ class Order(BaseMixin, Base):
     table_session: Mapped["TableSession | None"] = relationship(
         "TableSession", back_populates="orders", lazy="selectin",
     )
-    creator: Mapped["User"] = relationship("User", lazy="selectin")
+    creator: Mapped["User"] = relationship(
+        "User", foreign_keys=[created_by], lazy="selectin",
+    )
+    waiter: Mapped["User | None"] = relationship(
+        "User", foreign_keys=[waiter_id], lazy="selectin",
+    )
+    customer: Mapped["Customer | None"] = relationship("Customer", lazy="selectin")
 
 
 class OrderItem(BaseMixin, Base):
@@ -198,3 +212,4 @@ from app.models.floor import Table  # noqa: E402, F401
 from app.models.menu import MenuItem  # noqa: E402, F401
 from app.models.user import User  # noqa: E402, F401
 from app.models.table_session import TableSession  # noqa: E402, F401
+from app.models.customer import Customer  # noqa: E402, F401

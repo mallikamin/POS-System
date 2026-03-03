@@ -55,6 +55,10 @@ class TableSession(BaseMixin, Base):
         DateTime(timezone=True), nullable=True,
     )
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    assigned_waiter_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True,
+        comment="Staff member assigned as waiter for this session",
+    )
 
     tenant_id: Mapped[uuid.UUID] = mapped_column(
         Uuid, ForeignKey("tenants.id"), nullable=False, index=True,
@@ -64,6 +68,9 @@ class TableSession(BaseMixin, Base):
     table: Mapped["Table"] = relationship("Table", lazy="selectin")
     opener: Mapped["User"] = relationship("User", foreign_keys=[opened_by], lazy="selectin")
     closer: Mapped["User | None"] = relationship("User", foreign_keys=[closed_by], lazy="selectin")
+    assigned_waiter: Mapped["User | None"] = relationship(
+        "User", foreign_keys=[assigned_waiter_id], lazy="selectin",
+    )
     orders: Mapped[list["Order"]] = relationship(
         "Order", back_populates="table_session", lazy="selectin",
     )

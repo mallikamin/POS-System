@@ -187,6 +187,31 @@ async def kitchen_user(db: AsyncSession, tenant: Tenant, kitchen_role: Role) -> 
     return user
 
 
+# ── Manager role + user (for permission tests) ───────────────────────
+@pytest_asyncio.fixture
+async def manager_role(db: AsyncSession, tenant: Tenant) -> Role:
+    role = Role(tenant_id=tenant.id, name="manager", description="Manager role")
+    db.add(role)
+    await db.flush()
+    return role
+
+
+@pytest_asyncio.fixture
+async def manager_user(db: AsyncSession, tenant: Tenant, manager_role: Role) -> User:
+    user = User(
+        tenant_id=tenant.id, email="manager@test.com", full_name="Manager User",
+        hashed_password=hash_password("manager123"), role_id=manager_role.id, is_active=True,
+    )
+    db.add(user)
+    await db.flush()
+    return user
+
+
+@pytest_asyncio.fixture
+async def manager_token(manager_user: User) -> str:
+    return make_token(manager_user)
+
+
 # ── Floor + Table ──────────────────────────────────────────────────────
 @pytest_asyncio.fixture
 async def floor(db: AsyncSession, tenant: Tenant) -> Floor:
