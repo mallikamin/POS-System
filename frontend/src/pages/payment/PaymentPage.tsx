@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import { CreditCard, Loader2, Printer, RefreshCw, Tag, X } from "lucide-react";
+import { CreditCard, Loader2, Printer, RefreshCw, ShieldCheck, Tag, X } from "lucide-react";
 import { isAxiosError } from "axios";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatPKR, rupeesToPaisa, paisaToRupees } from "@/utils/currency";
 import * as paymentsApi from "@/services/paymentsApi";
-import { fetchOrder, fetchPaymentPreview } from "@/services/ordersApi";
+import { fetchOrder, fetchPaymentPreview, verifyPassword } from "@/services/ordersApi";
 import {
   fetchDiscountTypes,
   fetchOrderDiscounts,
@@ -53,6 +53,9 @@ function PaymentPage() {
   const [selectedDiscountTypeId, setSelectedDiscountTypeId] = useState("");
   const [manualDiscountAmount, setManualDiscountAmount] = useState("");
   const [manualDiscountNote, setManualDiscountNote] = useState("");
+  const [showManagerApproval, setShowManagerApproval] = useState(false);
+  const [managerPassword, setManagerPassword] = useState("");
+  const [managerApprovalError, setManagerApprovalError] = useState("");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -410,7 +413,14 @@ function PaymentPage() {
                   await loadData(orderId);
                   setSuccess("Discount applied.");
                 } catch (err: unknown) {
-                  setError(getErrorMessage(err, "Failed to apply discount"));
+                  const msg = getErrorMessage(err, "Failed to apply discount");
+                  if (msg === "approval_required") {
+                    setShowManagerApproval(true);
+                    setManagerApprovalError("");
+                    setManagerPassword("");
+                  } else {
+                    setError(msg);
+                  }
                 } finally {
                   setSubmitting(false);
                 }
@@ -418,6 +428,87 @@ function PaymentPage() {
             >
               Apply Discount
             </Button>
+
+            {/* Manager approval dialog */}
+            {showManagerApproval && (
+              <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <ShieldCheck className="h-5 w-5 text-amber-600" />
+                  <span className="text-sm font-semibold text-amber-800">
+                    Manager Approval Required
+                  </span>
+                </div>
+                <p className="text-xs text-amber-700 mb-3">
+                  This discount exceeds the approval threshold. Enter manager password to authorize.
+                </p>
+                <div className="flex gap-2">
+                  <Input
+                    type="password"
+                    placeholder="Manager password"
+                    value={managerPassword}
+                    onChange={(e) => setManagerPassword(e.target.value)}
+                    onKeyDown={async (e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        (e.target as HTMLInputElement).closest("div")?.querySelector<HTMLButtonElement>("button")?.click();
+                      }
+                    }}
+                    className="flex-1"
+                  />
+                  <Button
+                    size="sm"
+                    disabled={submitting || !managerPassword}
+                    onClick={async () => {
+                      if (!orderId) return;
+                      setSubmitting(true);
+                      setManagerApprovalError("");
+                      try {
+                        const { auth_token } = await verifyPassword(managerPassword);
+                        await applyDiscount({
+                          order_id: orderId,
+                          discount_type_id: selectedDiscountTypeId || undefined,
+                          amount: !selectedDiscountTypeId && manualDiscountAmount
+                            ? rupeesToPaisa(Number(manualDiscountAmount))
+                            : undefined,
+                          label: !selectedDiscountTypeId ? "Manual Discount" : undefined,
+                          source_type: !selectedDiscountTypeId ? "manual" : undefined,
+                          note: manualDiscountNote || undefined,
+                          manager_verify_token: auth_token,
+                        });
+                        setShowManagerApproval(false);
+                        setManagerPassword("");
+                        setManualDiscountAmount("");
+                        setManualDiscountNote("");
+                        setSelectedDiscountTypeId("");
+                        await loadData(orderId);
+                        setSuccess("Discount approved and applied.");
+                      } catch (err: unknown) {
+                        setManagerApprovalError(
+                          getErrorMessage(err, "Approval failed")
+                        );
+                      } finally {
+                        setSubmitting(false);
+                      }
+                    }}
+                  >
+                    Approve
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setShowManagerApproval(false);
+                      setManagerPassword("");
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+                {managerApprovalError && (
+                  <p className="mt-2 text-xs text-danger-600">{managerApprovalError}</p>
+                )}
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

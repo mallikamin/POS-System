@@ -71,6 +71,7 @@ export async function applyDiscount(body: {
   source_type?: string;
   amount?: number;
   note?: string;
+  manager_verify_token?: string;
 }): Promise<OrderDiscount> {
   const { data } = await api.post<OrderDiscount>("/discounts/apply", body);
   return data;

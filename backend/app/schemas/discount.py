@@ -50,6 +50,7 @@ class ApplyDiscountRequest(BaseModel):
     source_type: str | None = Field(None, max_length=50, description="Override source_type (auto-derived if using type)")
     amount: int | None = Field(None, ge=0, description="Override amount in paisa (auto-calculated if percent type)")
     note: str | None = Field(None, max_length=500)
+    manager_verify_token: str | None = Field(None, description="Required if discount exceeds approval threshold")
 
 
 class OrderDiscountResponse(BaseModel):

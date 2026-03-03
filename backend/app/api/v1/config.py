@@ -28,6 +28,8 @@ class RestaurantConfigUpdate(BaseModel):
     timezone: str | None = None
     currency: str | None = Field(None, min_length=2, max_length=10)
     tax_inclusive: bool | None = None
+    discount_approval_threshold_bps: int | None = Field(None, ge=0, le=10000)
+    discount_approval_threshold_fixed: int | None = Field(None, ge=0)
 
 
 @router.get("/restaurant", response_model=RestaurantConfigResponse)
@@ -111,6 +113,10 @@ async def update_restaurant_config(
         config.currency = data.currency
     if data.tax_inclusive is not None:
         config.tax_inclusive = data.tax_inclusive
+    if data.discount_approval_threshold_bps is not None:
+        config.discount_approval_threshold_bps = data.discount_approval_threshold_bps
+    if data.discount_approval_threshold_fixed is not None:
+        config.discount_approval_threshold_fixed = data.discount_approval_threshold_fixed
 
     await db.commit()
     await db.refresh(config)

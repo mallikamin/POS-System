@@ -106,6 +106,7 @@ async def apply_discount(
             source_type=body.source_type,
             amount=body.amount,
             note=body.note,
+            manager_verify_token=body.manager_verify_token,
         )
     except ValueError as e:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e))

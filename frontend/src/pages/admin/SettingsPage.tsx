@@ -23,6 +23,8 @@ interface ConfigData {
   card_tax_rate_bps: number;
   receipt_header: string | null;
   receipt_footer: string | null;
+  discount_approval_threshold_bps: number;
+  discount_approval_threshold_fixed: number;
 }
 
 function SettingsPage() {
@@ -39,6 +41,8 @@ function SettingsPage() {
   const [cardTaxRate, setCardTaxRate] = useState(5);
   const [receiptHeader, setReceiptHeader] = useState("");
   const [receiptFooter, setReceiptFooter] = useState("");
+  const [discountThresholdPct, setDiscountThresholdPct] = useState(0);
+  const [discountThresholdFixed, setDiscountThresholdFixed] = useState(0);
 
   useEffect(() => {
     fetchConfig();
@@ -58,6 +62,8 @@ function SettingsPage() {
       setReceiptHeader(data.receipt_header ?? "");
       setReceiptFooter(data.receipt_footer ?? "");
 
+      setDiscountThresholdPct((data.discount_approval_threshold_bps ?? 0) / 100);
+      setDiscountThresholdFixed((data.discount_approval_threshold_fixed ?? 0) / 100);
       setRestaurantName(data.restaurant_name ?? "Demo Restaurant");
     } catch {
       toast({ title: "Failed to load settings", variant: "destructive" });
@@ -80,6 +86,8 @@ function SettingsPage() {
         card_tax_rate_bps: Math.round(cardTaxRate * 100),
         receipt_header: receiptHeader || null,
         receipt_footer: receiptFooter || null,
+        discount_approval_threshold_bps: Math.round(discountThresholdPct * 100),
+        discount_approval_threshold_fixed: Math.round(discountThresholdFixed * 100),
       });
       toast({ title: "Settings saved", variant: "success" });
     } catch {
@@ -268,6 +276,55 @@ function SettingsPage() {
                   <Badge className="mt-2" variant="default">Active</Badge>
                 )}
               </button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Discount Approval Thresholds */}
+        <Card>
+          <CardContent className="space-y-4 pt-6">
+            <h2 className="text-pos-lg font-semibold text-secondary-800">
+              Discount Approval
+            </h2>
+            <p className="text-pos-sm text-secondary-500">
+              Set thresholds for manager approval on discounts. Set to 0 to disable.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="discPct">Percent Threshold (%)</Label>
+                <Input
+                  id="discPct"
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={0.5}
+                  value={discountThresholdPct}
+                  onChange={(e) => setDiscountThresholdPct(parseFloat(e.target.value) || 0)}
+                  className="min-h-[48px]"
+                />
+                <p className="text-pos-sm text-secondary-500">
+                  {discountThresholdPct > 0
+                    ? `Discounts > ${discountThresholdPct}% need approval`
+                    : "Disabled"}
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="discFixed">Fixed Threshold (PKR)</Label>
+                <Input
+                  id="discFixed"
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={discountThresholdFixed}
+                  onChange={(e) => setDiscountThresholdFixed(parseFloat(e.target.value) || 0)}
+                  className="min-h-[48px]"
+                />
+                <p className="text-pos-sm text-secondary-500">
+                  {discountThresholdFixed > 0
+                    ? `Discounts > Rs ${discountThresholdFixed} need approval`
+                    : "Disabled"}
+                </p>
+              </div>
             </div>
           </CardContent>
         </Card>

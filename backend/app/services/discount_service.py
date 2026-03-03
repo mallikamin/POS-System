@@ -84,6 +84,7 @@ async def apply_discount(
     source_type: str | None,
     amount: int | None,
     note: str | None,
+    manager_verify_token: str | None = None,
 ) -> OrderDiscount:
     """Apply a discount to an order or session.
 
@@ -132,6 +133,12 @@ async def apply_discount(
         raise ValueError(
             f"Discount ({resolved_amount}) exceeds available amount ({max_discount})"
         )
+
+    # --- Threshold check: require manager approval if exceeded ---
+    await _check_approval_threshold(
+        db, tenant_id, resolved_amount, percent_bps, target_subtotal,
+        manager_verify_token,
+    )
 
     od = OrderDiscount(
         tenant_id=tenant_id,
@@ -264,6 +271,58 @@ async def _get_existing_discount_total(
 
     result = await db.execute(stmt)
     return sum(row[0] for row in result.all())
+
+
+async def _check_approval_threshold(
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    discount_amount: int,
+    percent_bps: int,
+    target_subtotal: int,
+    manager_verify_token: str | None,
+) -> None:
+    """Raise ValueError if discount exceeds threshold and no valid manager token."""
+    from app.models.restaurant_config import RestaurantConfig
+    from app.services.auth_service import validate_verify_token
+
+    result = await db.execute(
+        select(RestaurantConfig).where(RestaurantConfig.tenant_id == tenant_id)
+    )
+    config = result.scalar_one_or_none()
+    if config is None:
+        return  # no config = no threshold enforcement
+
+    threshold_bps = config.discount_approval_threshold_bps
+    threshold_fixed = config.discount_approval_threshold_fixed
+
+    # Both 0 = disabled
+    if threshold_bps == 0 and threshold_fixed == 0:
+        return
+
+    # Compute effective percent of this discount
+    if percent_bps > 0:
+        effective_bps = percent_bps
+    elif target_subtotal > 0:
+        effective_bps = round(discount_amount * 10_000 / target_subtotal)
+    else:
+        effective_bps = 0
+
+    exceeds = False
+    if threshold_bps > 0 and effective_bps > threshold_bps:
+        exceeds = True
+    if threshold_fixed > 0 and discount_amount > threshold_fixed:
+        exceeds = True
+
+    if not exceeds:
+        return
+
+    # Threshold exceeded — require valid manager token
+    if not manager_verify_token:
+        raise ValueError("approval_required")
+
+    user_id = validate_verify_token(manager_verify_token)
+    if user_id is None:
+        raise ValueError("Invalid or expired manager approval token")
 
 
 async def _sync_order_discount(

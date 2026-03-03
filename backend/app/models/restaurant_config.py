@@ -53,6 +53,18 @@ class RestaurantConfig(BaseMixin, Base):
         String(1000), nullable=True
     )
 
+    # Discount approval thresholds — if either is exceeded, manager verify required
+    discount_approval_threshold_bps: Mapped[int] = mapped_column(
+        Integer, default=0, nullable=False,
+        comment="Percent threshold in basis points (0 = disabled). "
+                "E.g. 1500 means discounts > 15% need manager approval.",
+    )
+    discount_approval_threshold_fixed: Mapped[int] = mapped_column(
+        Integer, default=0, nullable=False,
+        comment="Fixed amount threshold in paisa (0 = disabled). "
+                "E.g. 50000 means discounts > Rs 500 need manager approval.",
+    )
+
     # Relationships
     tenant: Mapped["Tenant"] = relationship("Tenant", back_populates="config")
 

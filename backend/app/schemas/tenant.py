@@ -29,5 +29,7 @@ class RestaurantConfigResponse(BaseModel):
     card_tax_rate_bps: int = 500
     receipt_header: str | None = None
     receipt_footer: str | None = None
+    discount_approval_threshold_bps: int = 0
+    discount_approval_threshold_fixed: int = 0
 
     model_config = {"from_attributes": True}
