@@ -16,7 +16,7 @@ ENV VITE_WS_URL=${VITE_WS_URL}
 
 # Install dependencies first (leverage Docker layer caching)
 COPY package.json package-lock.json* ./
-RUN npm ci --ignore-scripts
+RUN npm ci --force --ignore-scripts
 
 # Copy source and build
 COPY . .
