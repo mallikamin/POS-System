@@ -91,6 +91,7 @@ class OrderResponse(BaseModel):
     status: str
     payment_status: str
     table_id: uuid.UUID | None = None
+    table_session_id: uuid.UUID | None = None
     table_number: int | None = None
     table_label: str | None = None
     customer_name: str | None = None

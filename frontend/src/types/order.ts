@@ -50,6 +50,7 @@ export interface OrderResponse {
   status: string;
   payment_status: string;
   table_id?: string;
+  table_session_id?: string;
   table_number?: number;
   table_label?: string;
   customer_name?: string;

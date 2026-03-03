@@ -17,6 +17,7 @@ from app.models.floor import Table
 from app.models.kitchen import KitchenStation
 from app.models.order import Order, OrderItem, OrderItemModifier, OrderStatusLog
 from app.models.restaurant_config import RestaurantConfig
+from app.models.table_session import TableSession
 from app.schemas.order import OrderCreate, PaymentPreviewResponse
 from app.services import kitchen_service
 
@@ -152,6 +153,13 @@ async def create_order(
                 order_item.modifiers.append(modifier)
             order_items.append(order_item)
 
+        # For dine-in: find or create table session
+        table_session_id = None
+        if data.order_type == "dine_in" and data.table_id:
+            table_session_id = await _resolve_table_session(
+                db, tenant_id, user_id, data.table_id
+            )
+
         order = Order(
             tenant_id=tenant_id,
             order_number=order_number,
@@ -159,6 +167,7 @@ async def create_order(
             status="confirmed",
             payment_status="unpaid",
             table_id=data.table_id,
+            table_session_id=table_session_id,
             customer_name=data.customer_name,
             customer_phone=customer_phone,
             subtotal=subtotal,
@@ -409,6 +418,32 @@ async def _get_table(
         select(Table).where(Table.id == table_id, Table.tenant_id == tenant_id)
     )
     return result.scalar_one_or_none()
+
+
+async def _resolve_table_session(
+    db: AsyncSession, tenant_id: uuid.UUID, user_id: uuid.UUID, table_id: uuid.UUID
+) -> uuid.UUID:
+    """Find an open session for this table, or create one. Returns session id."""
+    result = await db.execute(
+        select(TableSession).where(
+            TableSession.tenant_id == tenant_id,
+            TableSession.table_id == table_id,
+            TableSession.status == "open",
+        ).limit(1)
+    )
+    session = result.scalar_one_or_none()
+    if session is not None:
+        return session.id
+
+    session = TableSession(
+        tenant_id=tenant_id,
+        table_id=table_id,
+        status="open",
+        opened_by=user_id,
+    )
+    db.add(session)
+    await db.flush()
+    return session.id
 
 
 # ---------------------------------------------------------------------------

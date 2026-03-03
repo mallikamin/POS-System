@@ -17,6 +17,12 @@ class ReceiptItem(BaseModel):
     modifiers: list[ModifierLine] = []
 
 
+class ReceiptDiscountLine(BaseModel):
+    label: str
+    source_type: str
+    amount: int  # paisa
+
+
 class ReceiptPayment(BaseModel):
     method: str
     amount: int  # paisa
@@ -41,6 +47,7 @@ class ReceiptData(BaseModel):
     tax_label: str
     tax_rate_display: str  # e.g. "16%"
     tax_amount: int  # paisa
+    discount_lines: list[ReceiptDiscountLine] = []
     discount_amount: int  # paisa
     total: int  # paisa
 

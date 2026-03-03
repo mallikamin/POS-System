@@ -54,6 +54,9 @@ class Order(BaseMixin, Base):
     table_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid, ForeignKey("tables.id", ondelete="SET NULL"), nullable=True, index=True,
     )
+    table_session_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("table_sessions.id", ondelete="SET NULL"), nullable=True, index=True,
+    )
     customer_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     customer_phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
 
@@ -90,6 +93,9 @@ class Order(BaseMixin, Base):
         order_by="OrderStatusLog.created_at",
     )
     table: Mapped["Table | None"] = relationship("Table", lazy="selectin")
+    table_session: Mapped["TableSession | None"] = relationship(
+        "TableSession", back_populates="orders", lazy="selectin",
+    )
     creator: Mapped["User"] = relationship("User", lazy="selectin")
 
 
@@ -191,3 +197,4 @@ class OrderStatusLog(BaseMixin, Base):
 from app.models.floor import Table  # noqa: E402, F401
 from app.models.menu import MenuItem  # noqa: E402, F401
 from app.models.user import User  # noqa: E402, F401
+from app.models.table_session import TableSession  # noqa: E402, F401

@@ -6,11 +6,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.models.discount import OrderDiscount
 from app.models.order import Order, OrderItem
 from app.models.payment import Payment
 from app.models.restaurant_config import RestaurantConfig
 from app.models.tenant import Tenant
-from app.schemas.receipt import ReceiptData, ReceiptItem, ReceiptPayment
+from app.schemas.receipt import ReceiptData, ReceiptDiscountLine, ReceiptItem, ReceiptPayment
 
 
 async def get_receipt_data(
@@ -91,6 +92,23 @@ async def get_receipt_data(
             )
         )
 
+    # Fetch applied discounts
+    disc_result = await db.execute(
+        select(OrderDiscount).where(
+            OrderDiscount.tenant_id == tenant_id,
+            OrderDiscount.order_id == order_id,
+        ).order_by(OrderDiscount.created_at.asc())
+    )
+    discount_records = list(disc_result.scalars().all())
+    receipt_discounts = [
+        ReceiptDiscountLine(
+            label=d.label,
+            source_type=d.source_type,
+            amount=d.amount,
+        )
+        for d in discount_records
+    ]
+
     tax_rate_bps = config.default_tax_rate if config else 1600
     tax_pct = tax_rate_bps / 100  # e.g., 1600 -> 16.00
 
@@ -114,6 +132,7 @@ async def get_receipt_data(
         tax_label="GST" if tax_rate_bps > 0 else "Tax",
         tax_rate_display=f"{tax_pct:.0f}%" if tax_pct == int(tax_pct) else f"{tax_pct:.2f}%",
         tax_amount=order.tax_amount,
+        discount_lines=receipt_discounts,
         discount_amount=order.discount_amount,
         total=order.total,
         payments=receipt_payments,

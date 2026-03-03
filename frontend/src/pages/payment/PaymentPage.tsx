@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import { CreditCard, Loader2, Printer, RefreshCw } from "lucide-react";
+import { CreditCard, Loader2, Printer, RefreshCw, Tag, X } from "lucide-react";
 import { isAxiosError } from "axios";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,6 +9,14 @@ import { Label } from "@/components/ui/label";
 import { formatPKR, rupeesToPaisa, paisaToRupees } from "@/utils/currency";
 import * as paymentsApi from "@/services/paymentsApi";
 import { fetchOrder, fetchPaymentPreview } from "@/services/ordersApi";
+import {
+  fetchDiscountTypes,
+  fetchOrderDiscounts,
+  applyDiscount,
+  removeDiscount,
+  type DiscountType,
+  type DiscountBreakdown,
+} from "@/services/discountsApi";
 import type { PaymentPreview } from "@/services/ordersApi";
 import type {
   CashDrawerSessionResponse,
@@ -40,6 +48,11 @@ function PaymentPage() {
   const [orderDetail, setOrderDetail] = useState<OrderResponse | null>(null);
   const [preview, setPreview] = useState<PaymentPreview | null>(null);
   const [drawerSession, setDrawerSession] = useState<CashDrawerSessionResponse | null>(null);
+  const [discountTypes, setDiscountTypes] = useState<DiscountType[]>([]);
+  const [discountBreakdown, setDiscountBreakdown] = useState<DiscountBreakdown | null>(null);
+  const [selectedDiscountTypeId, setSelectedDiscountTypeId] = useState("");
+  const [manualDiscountAmount, setManualDiscountAmount] = useState("");
+  const [manualDiscountNote, setManualDiscountNote] = useState("");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -65,16 +78,20 @@ function PaymentPage() {
     setLoading(true);
     setError(null);
     try {
-      const [nextSummary, nextDrawer, nextOrder, nextPreview] = await Promise.all([
+      const [nextSummary, nextDrawer, nextOrder, nextPreview, nextDiscTypes, nextDiscBreakdown] = await Promise.all([
         paymentsApi.fetchOrderPaymentSummary(currentOrderId),
         paymentsApi.fetchDrawerSession(),
         fetchOrder(currentOrderId),
         fetchPaymentPreview(currentOrderId),
+        fetchDiscountTypes(true),
+        fetchOrderDiscounts(currentOrderId),
       ]);
       setSummary(nextSummary);
       setDrawerSession(nextDrawer);
       setOrderDetail(nextOrder);
       setPreview(nextPreview);
+      setDiscountTypes(nextDiscTypes);
+      setDiscountBreakdown(nextDiscBreakdown);
       // Auto-fill amount fields with due amount
       if (nextSummary.due_amount > 0) {
         const dueRupees = String(paisaToRupees(nextSummary.due_amount));
@@ -287,6 +304,124 @@ function PaymentPage() {
         </Card>
       )}
 
+      {/* Discounts */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Tag className="h-4 w-4" />
+            Discounts
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {/* Applied discounts */}
+          {discountBreakdown && discountBreakdown.discounts.length > 0 && (
+            <div className="space-y-2">
+              {discountBreakdown.discounts.map((d) => (
+                <div key={d.id} className="flex items-center justify-between rounded-lg bg-amber-50 px-3 py-2">
+                  <div>
+                    <p className="text-sm font-medium text-amber-800">{d.label}</p>
+                    {d.note && <p className="text-xs text-amber-600">{d.note}</p>}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold text-amber-900">-{formatPKR(d.amount)}</span>
+                    <button
+                      onClick={async () => {
+                        try {
+                          await removeDiscount(d.id);
+                          if (orderId) await loadData(orderId);
+                        } catch (err: unknown) {
+                          setError(getErrorMessage(err, "Failed to remove discount"));
+                        }
+                      }}
+                      className="rounded p-1 text-amber-500 hover:bg-amber-100"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+              <div className="flex justify-between text-sm font-semibold border-t border-secondary-100 pt-2">
+                <span>Total Discount</span>
+                <span className="text-amber-700">-{formatPKR(discountBreakdown.total_discount)}</span>
+              </div>
+            </div>
+          )}
+          {/* Apply new discount */}
+          <div className="space-y-2">
+            <div className="grid gap-2 md:grid-cols-3">
+              <div>
+                <Label className="text-xs">Discount Type</Label>
+                <select
+                  value={selectedDiscountTypeId}
+                  onChange={(e) => setSelectedDiscountTypeId(e.target.value)}
+                  className="h-10 w-full rounded-lg border border-secondary-300 px-3 text-sm"
+                >
+                  <option value="">Manual</option>
+                  {discountTypes.map((dt) => (
+                    <option key={dt.id} value={dt.id}>
+                      {dt.name} ({dt.kind === "percent" ? `${dt.value / 100}%` : formatPKR(dt.value)})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {!selectedDiscountTypeId && (
+                <div>
+                  <Label className="text-xs">Amount (PKR)</Label>
+                  <Input
+                    value={manualDiscountAmount}
+                    onChange={(e) => setManualDiscountAmount(e.target.value)}
+                    placeholder="0"
+                    type="number"
+                    min="0"
+                  />
+                </div>
+              )}
+              <div>
+                <Label className="text-xs">Note</Label>
+                <Input
+                  value={manualDiscountNote}
+                  onChange={(e) => setManualDiscountNote(e.target.value)}
+                  placeholder="Optional"
+                />
+              </div>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={submitting}
+              onClick={async () => {
+                if (!orderId) return;
+                setSubmitting(true);
+                setError(null);
+                try {
+                  await applyDiscount({
+                    order_id: orderId,
+                    discount_type_id: selectedDiscountTypeId || undefined,
+                    amount: !selectedDiscountTypeId && manualDiscountAmount
+                      ? rupeesToPaisa(Number(manualDiscountAmount))
+                      : undefined,
+                    label: !selectedDiscountTypeId ? "Manual Discount" : undefined,
+                    source_type: !selectedDiscountTypeId ? "manual" : undefined,
+                    note: manualDiscountNote || undefined,
+                  });
+                  setManualDiscountAmount("");
+                  setManualDiscountNote("");
+                  setSelectedDiscountTypeId("");
+                  await loadData(orderId);
+                  setSuccess("Discount applied.");
+                } catch (err: unknown) {
+                  setError(getErrorMessage(err, "Failed to apply discount"));
+                } finally {
+                  setSubmitting(false);
+                }
+              }}
+            >
+              Apply Discount
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Cash Drawer</CardTitle>
@@ -407,6 +542,9 @@ function PaymentPage() {
         </CardHeader>
         <CardContent className="space-y-3 text-base">
           <div className="flex justify-between"><span className="text-secondary-500">Order Total</span><span className="font-medium">{summary ? formatPKR(summary.order_total) : "--"}</span></div>
+          {discountBreakdown && discountBreakdown.total_discount > 0 && (
+            <div className="flex justify-between"><span className="text-amber-600">Discount</span><span className="font-medium text-amber-700">-{formatPKR(discountBreakdown.total_discount)}</span></div>
+          )}
           {(() => {
             const totalTendered = summary?.payments.reduce((sum, p) => sum + (p.tendered_amount ?? p.amount), 0) ?? 0;
             const totalChange = summary ? totalTendered - summary.paid_amount : 0;

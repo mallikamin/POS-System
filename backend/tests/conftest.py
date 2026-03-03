@@ -43,6 +43,8 @@ from app.models.order import Order, OrderItem, OrderItemModifier, OrderStatusLog
 from app.models.payment import PaymentMethod, Payment, CashDrawerSession
 from app.models.customer import Customer
 from app.models.kitchen import KitchenStation, KitchenTicket, KitchenTicketItem
+from app.models.table_session import TableSession
+from app.models.discount import DiscountType, OrderDiscount
 from app.utils.security import create_access_token, hash_password
 
 # ── In-memory async SQLite engine ──────────────────────────────────────

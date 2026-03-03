@@ -21,6 +21,7 @@ from app.models.floor import Floor, Table
 from app.models.order import Order, OrderItem, OrderItemModifier, OrderStatusLog
 from app.models.payment import CashDrawerSession, Payment, PaymentMethod
 from app.models.customer import Customer
+from app.models.discount import DiscountType
 from app.utils.security import hash_password
 
 
@@ -1553,13 +1554,47 @@ async def seed_customers(db: AsyncSession, tenant: Tenant) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Phase P1-B: Seed discount types
+# ---------------------------------------------------------------------------
+
+SEED_DISCOUNT_TYPES = [
+    ("bank_promo", "Bank Promotion", "percent", 1000),   # 10%
+    ("esr", "ESR Discount", "percent", 500),              # 5%
+    ("customer", "Customer Loyalty", "percent", 800),     # 8%
+    ("manual", "Manual Discount", "fixed", 0),            # ad-hoc
+]
+
+
+async def seed_discount_types(db: AsyncSession, tenant: Tenant) -> None:
+    """Seed default discount types (idempotent)."""
+    result = await db.execute(
+        select(DiscountType).where(DiscountType.tenant_id == tenant.id)
+    )
+    existing_codes = {dt.code for dt in result.scalars().all()}
+
+    for code, name, kind, value in SEED_DISCOUNT_TYPES:
+        if code in existing_codes:
+            continue
+        db.add(DiscountType(
+            tenant_id=tenant.id,
+            code=code,
+            name=name,
+            kind=kind,
+            value=value,
+            is_active=True,
+        ))
+    await db.flush()
+    print(f"  Discount types: {len(SEED_DISCOUNT_TYPES)} checked/created")
+
+
+# ---------------------------------------------------------------------------
 # Main entry point
 # ---------------------------------------------------------------------------
 
 async def main() -> None:
     """Run the full seed process inside a single transaction."""
     print("=" * 60)
-    print("POS System -- Seed Script (Phase 2 + 3 + 4 + 5 + 7 + 11)")
+    print("POS System -- Seed Script (Phase 2 + 3 + 4 + 5 + 7 + 11 + P1B)")
     print("=" * 60)
 
     async with async_session_factory() as db:
@@ -1594,8 +1629,11 @@ async def main() -> None:
             print("\n[10/11] Seeding payments & cash drawer...")
             await seed_payments(db, tenant)
 
-            print("\n[11/11] Seeding customers & order history...")
+            print("\n[11/12] Seeding customers & order history...")
             await seed_customers(db, tenant)
+
+            print("\n[12/12] Seeding discount types...")
+            await seed_discount_types(db, tenant)
 
             await db.commit()
             print("\nSeed completed successfully!")
