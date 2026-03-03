@@ -199,20 +199,23 @@ export function ReceiptModal({ orderId, open, onClose }: Props) {
             {/* Items */}
             {receipt.items.map((item, i) => {
               const hasModifiers = item.modifiers.length > 0;
-              const baseTotal = item.unit_price * item.quantity;
               // Group duplicate modifiers by name
               const groupedMods: Array<{ name: string; price_adjustment: number; qty: number }> = [];
               for (const mod of item.modifiers) {
                 const existing = groupedMods.find((g) => g.name === mod.name && g.price_adjustment === mod.price_adjustment);
                 if (existing) { existing.qty += 1; } else { groupedMods.push({ name: mod.name, price_adjustment: mod.price_adjustment, qty: 1 }); }
               }
+              // Derive base price by subtracting all modifier adjustments from unit_price
+              const modTotal = item.modifiers.reduce((s, m) => s + m.price_adjustment, 0);
+              const basePrice = item.unit_price - modTotal;
+              const basePriceTotal = basePrice * item.quantity;
               return (
                 <div key={i} className="mb-1">
                   <div className="row flex justify-between">
                     <span>
                       {item.quantity}x {item.name}
                     </span>
-                    <span>{formatAmount(baseTotal)}</span>
+                    <span>{formatAmount(basePriceTotal)}</span>
                   </div>
                   {groupedMods.map((mod, j) => (
                     <div key={j} className="modifier pl-2 text-[10px] text-secondary-500">
@@ -220,7 +223,7 @@ export function ReceiptModal({ orderId, open, onClose }: Props) {
                       {mod.price_adjustment !== 0 ? ` (${formatSignedAmount(mod.price_adjustment * mod.qty)})` : ""}
                     </div>
                   ))}
-                  {hasModifiers && baseTotal !== item.total && (
+                  {hasModifiers && modTotal !== 0 && (
                     <div className="row flex justify-between pl-2 text-[10px] font-medium text-secondary-700">
                       <span>Line Total</span>
                       <span>{formatAmount(item.total)}</span>
