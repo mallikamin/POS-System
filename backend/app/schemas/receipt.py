@@ -54,4 +54,7 @@ class ReceiptData(BaseModel):
     payments: list[ReceiptPayment]
     payment_status: str
 
+    cash_tax_rate_bps: int = 0
+    card_tax_rate_bps: int = 0
+
     currency: str

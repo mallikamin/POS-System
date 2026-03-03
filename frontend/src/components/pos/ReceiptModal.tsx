@@ -47,6 +47,8 @@ interface ReceiptData {
   total: number;
   payments: ReceiptPayment[];
   payment_status: string;
+  cash_tax_rate_bps: number;
+  card_tax_rate_bps: number;
   currency: string;
 }
 
@@ -240,12 +242,44 @@ export function ReceiptModal({ orderId, open, onClose }: Props) {
               <span>Subtotal</span>
               <span>{formatAmount(receipt.subtotal)}</span>
             </div>
-            <div className="row flex justify-between">
-              <span>
-                {receipt.tax_label} ({receipt.tax_rate_display})
-              </span>
-              <span>{formatAmount(receipt.tax_amount)}</span>
-            </div>
+            {(() => {
+              const isSplit = receipt.payments.length > 1;
+              const cashRate = receipt.cash_tax_rate_bps || 0;
+              const cardRate = receipt.card_tax_rate_bps || 0;
+              const hasDiffRates = isSplit && cashRate !== cardRate && cashRate > 0 && cardRate > 0;
+              if (hasDiffRates) {
+                // Split payment with different tax rates — show per-method breakdown
+                let effectiveTax = 0;
+                const lines = receipt.payments.map((p) => {
+                  const isCash = p.method.toLowerCase().includes("cash");
+                  const rateBps = isCash ? cashRate : cardRate;
+                  const ratePct = rateBps / 100;
+                  const tax = Math.round(p.amount * rateBps / 10000);
+                  effectiveTax += tax;
+                  return { method: p.method, amount: p.amount, ratePct, tax };
+                });
+                return (
+                  <>
+                    {lines.map((ln, idx) => (
+                      <div key={idx} className="row flex justify-between text-[10px] text-secondary-500">
+                        <span>{ln.method} tax @ {ln.ratePct}%</span>
+                        <span>{formatAmount(ln.tax)}</span>
+                      </div>
+                    ))}
+                    <div className="row flex justify-between">
+                      <span>Total Tax</span>
+                      <span>{formatAmount(effectiveTax)}</span>
+                    </div>
+                  </>
+                );
+              }
+              return (
+                <div className="row flex justify-between">
+                  <span>{receipt.tax_label} ({receipt.tax_rate_display})</span>
+                  <span>{formatAmount(receipt.tax_amount)}</span>
+                </div>
+              );
+            })()}
             {receipt.discount_amount > 0 && (
               <div className="row flex justify-between">
                 <span>Discount</span>
@@ -264,26 +298,37 @@ export function ReceiptModal({ orderId, open, onClose }: Props) {
             {receipt.payments.length > 0 && (
               <>
                 <div className="divider my-2 border-t border-dashed border-secondary-400" />
-                {receipt.payments.map((p, i) => (
-                  <div key={i}>
-                    <div className="row flex justify-between">
-                      <span>{p.method}</span>
-                      <span>{formatAmount(p.amount)}</span>
+                {receipt.payments.map((p, i) => {
+                  const isCash = p.method.toLowerCase().includes("cash");
+                  const rateBps = isCash ? receipt.cash_tax_rate_bps : receipt.card_tax_rate_bps;
+                  const ratePct = rateBps / 100;
+                  return (
+                    <div key={i}>
+                      <div className="row flex justify-between">
+                        <span>{p.method}</span>
+                        <span>{formatAmount(p.amount)}</span>
+                      </div>
+                      {receipt.payments.length > 1 && rateBps > 0 && (
+                        <div className="row flex justify-between text-[10px] text-secondary-500">
+                          <span>Tax @ {ratePct}%</span>
+                          <span>{formatAmount(Math.round(p.amount * rateBps / 10000))}</span>
+                        </div>
+                      )}
+                      {p.tendered != null && p.tendered > p.amount && (
+                        <>
+                          <div className="row flex justify-between text-[10px]">
+                            <span>Tendered</span>
+                            <span>{formatAmount(p.tendered)}</span>
+                          </div>
+                          <div className="row flex justify-between text-[10px]">
+                            <span>Change</span>
+                            <span>{formatAmount(p.change ?? 0)}</span>
+                          </div>
+                        </>
+                      )}
                     </div>
-                    {p.tendered != null && p.tendered > p.amount && (
-                      <>
-                        <div className="row flex justify-between text-[10px]">
-                          <span>Tendered</span>
-                          <span>{formatAmount(p.tendered)}</span>
-                        </div>
-                        <div className="row flex justify-between text-[10px]">
-                          <span>Change</span>
-                          <span>{formatAmount(p.change ?? 0)}</span>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </>
             )}
 

@@ -659,15 +659,30 @@ function PaymentPage() {
           {!!summary && summary.payments.length > 0 && (
             <div className="mt-4 border-t border-secondary-200 pt-3">
               <p className="mb-2 text-sm font-semibold uppercase tracking-wide text-secondary-500">Transactions</p>
-              <div className="space-y-2">
-                {summary.payments.map((payment) => (
-                  <div key={payment.id} className="flex items-center justify-between text-sm">
-                    <span className="text-secondary-600">
-                      {(payment.method?.display_name ?? payment.method_id)} ({payment.kind})
-                    </span>
-                    <span className="font-medium text-secondary-900">{formatPKR(payment.tendered_amount ?? payment.amount)}</span>
-                  </div>
-                ))}
+              <div className="space-y-3">
+                {summary.payments.map((payment) => {
+                  const methodName = payment.method?.display_name ?? payment.method_id;
+                  const isCash = methodName.toLowerCase().includes("cash");
+                  const taxRateBps = preview ? (isCash ? preview.cash_tax_rate_bps : preview.card_tax_rate_bps) : 0;
+                  const taxPct = taxRateBps / 100;
+                  const paymentTax = Math.round(payment.amount * taxRateBps / 10000);
+                  return (
+                    <div key={payment.id}>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-secondary-600">
+                          {methodName} ({payment.kind})
+                        </span>
+                        <span className="font-medium text-secondary-900">{formatPKR(payment.amount)}</span>
+                      </div>
+                      {taxRateBps > 0 && (
+                        <div className="flex items-center justify-between text-xs text-secondary-400 pl-2">
+                          <span>Tax @ {taxPct}%</span>
+                          <span>{formatPKR(paymentTax)}</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}

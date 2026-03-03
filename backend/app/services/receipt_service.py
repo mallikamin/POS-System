@@ -137,5 +137,7 @@ async def get_receipt_data(
         total=order.total,
         payments=receipt_payments,
         payment_status=order.payment_status,
+        cash_tax_rate_bps=getattr(config, "cash_tax_rate_bps", 0) or tax_rate_bps,
+        card_tax_rate_bps=getattr(config, "card_tax_rate_bps", 0) or tax_rate_bps,
         currency=config.currency if config else "PKR",
     )
