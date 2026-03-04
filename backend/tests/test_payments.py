@@ -250,6 +250,42 @@ class TestSplitPayment:
         assert body["payment_status"] == "paid"
         assert len(body["payments"]) == 2
 
+    async def test_split_mixed_tax_base_settles_to_zero_due(
+        self, client: AsyncClient, order: Order, cashier_token: str
+    ):
+        """Split computed from pre-tax base (cash+card) should fully settle order."""
+        preview = await client.get(
+            f"/api/v1/orders/{order.id}/payment-preview",
+            headers=_auth(cashier_token),
+        )
+        assert preview.status_code == 200
+        p = preview.json()
+        subtotal = p["subtotal"]
+        cash_rate = p["cash_tax_rate_bps"]
+        card_rate = p["card_tax_rate_bps"]
+
+        cash_base = subtotal // 2
+        card_base = subtotal - cash_base
+        cash_payable = cash_base + round(cash_base * cash_rate / 10_000)
+        card_payable = card_base + round(card_base * card_rate / 10_000)
+
+        resp = await client.post(
+            "/api/v1/payments/split",
+            json={
+                "order_id": str(order.id),
+                "allocations": [
+                    {"method_code": "cash", "amount": cash_payable, "tendered_amount": cash_payable},
+                    {"method_code": "card", "amount": card_payable, "reference": "SPLIT-MIX"},
+                ],
+            },
+            headers=_auth(cashier_token),
+        )
+        assert resp.status_code == 201
+        body = resp.json()
+        assert body["due_amount"] == 0
+        assert body["payment_status"] == "paid"
+        assert body["paid_amount"] == cash_payable + card_payable
+
     async def test_split_exceeds_due_rejected(
         self, client: AsyncClient, order: Order, cashier_token: str
     ):

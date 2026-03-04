@@ -73,3 +73,24 @@ Each entry follows:
 - **Root Cause**: `update_customer` passed raw phone input without normalizing, so phones like "0300-111-2233" were stored with dashes while order phones were digit-only
 - **Fix**: Added `"".join(c for c in new_phone if c.isdigit())` normalization in `update_customer`
 - **Rule**: Phone normalization must be applied on BOTH create AND update paths. Any field that participates in cross-table joins must be normalized consistently at all write points
+
+### 2026-03-04 — Tables stuck red/occupied after full payment
+- **Error**: Tables T1-T7 showing as "occupied" (red) despite all orders being fully paid or tables having no active orders
+- **Context**: Multi-order table session testing (client checklist Test #4)
+- **Root Cause**: `reconcile_table_occupancy` in `floor_service.py` used OR logic: `(status != "completed") | (payment_status NOT IN paid/refunded)`. A served+paid or in_kitchen+paid order would keep the table red because `status != "completed"` is True, making the OR true. Additionally, stale seed/test orders from weeks earlier were on tables in non-terminal unpaid states.
+- **Fix**: Changed to payment-centric logic: table occupied only if orders are `NOT voided/completed AND NOT paid/refunded`. Also added auto-complete for served+paid dine-in orders in `_sync_order_payment_status`. Cleaned up 6 stale orders via script.
+- **Rule**: Table occupancy should be driven by payment status, not kitchen pipeline status. Once paid, the table should be freed. Also: seed/test data can accumulate and cause phantom occupancy — always reconcile against actual payment state, not just order status.
+
+### 2026-03-04 — Receipt tax formula wrong for split payments
+- **Error**: Receipt showed "GST (16%)" with a blended tax amount for split cash/card payment, instead of showing per-method tax breakdown
+- **Context**: Receipt preview for session with split Cash (16% tax) + Card (5% tax) payment
+- **Root Cause**: (1) Session receipt builder did not send `cash_tax_rate_bps`/`card_tax_rate_bps` fields (defaulted to 0). (2) Frontend tax extraction formula used `amount * rate / 10000` which applies the rate to the tax-inclusive amount instead of extracting tax from it.
+- **Fix**: Added tax rate fields to session receipt return. Fixed formula to `base = round(amount * 10000 / (10000 + rate))`, `tax = amount - base`. This correctly extracts tax from inclusive amounts.
+- **Rule**: When extracting tax from a tax-inclusive amount, use `base = amount * 10000 / (10000 + rate_bps)`, NOT `tax = amount * rate / 10000`. The latter applies the rate to the gross amount, double-counting.
+
+### 2026-03-04 — Receipt payments fragmented across orders
+- **Error**: Receipt showed 3 separate payment lines (Cash 774, Cash 726, Card 1320) instead of consolidated by method (Cash 1500, Card 1320)
+- **Context**: Session payment allocates across orders oldest-first, creating separate Payment records per order. Receipt showed each record individually.
+- **Root Cause**: `_get_session_receipt_data` passed raw payment records to receipt without consolidation
+- **Fix**: Added consolidation in receipt service — aggregate payments by method name before building `ReceiptPayment` list
+- **Rule**: Session receipts should always consolidate payments by method. The per-order allocation is an internal detail, not customer-facing.

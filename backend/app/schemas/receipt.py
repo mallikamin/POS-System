@@ -15,6 +15,7 @@ class ReceiptItem(BaseModel):
     unit_price: int  # paisa
     total: int  # paisa
     modifiers: list[ModifierLine] = []
+    order_label: str | None = None  # e.g. "260304-001" — set for session receipts
 
 
 class ReceiptDiscountLine(BaseModel):

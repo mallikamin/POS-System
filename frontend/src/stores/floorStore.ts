@@ -12,7 +12,7 @@ interface FloorState {
 }
 
 interface FloorActions {
-  loadFloors: () => Promise<void>;
+  loadFloors: (force?: boolean) => Promise<void>;
   setSelectedFloor: (id: string | null) => void;
   setSelectedTable: (id: string | null) => void;
   setTableStatus: (
@@ -34,10 +34,10 @@ export const useFloorStore = create<FloorStore>()((set, get) => ({
   error: null,
   lastFetched: null,
 
-  loadFloors: async () => {
+  loadFloors: async (force = false) => {
     const { isLoading, lastFetched } = get();
     if (isLoading) return;
-    if (lastFetched && Date.now() - lastFetched < 15_000) return;
+    if (!force && lastFetched && Date.now() - lastFetched < 15_000) return;
 
     set({ isLoading: true, error: null });
     try {

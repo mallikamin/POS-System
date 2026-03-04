@@ -112,6 +112,10 @@ async def split_payment(
 ) -> PaymentSummary:
     order = await _get_order_or_raise(db, data.order_id, tenant_id)
     paid_amount, refunded_amount = await _get_order_payment_totals(db, tenant_id, order.id)
+    await _retax_unpaid_order_for_split_allocations(
+        db, tenant_id, order, data.allocations, paid_amount, refunded_amount
+    )
+    paid_amount, refunded_amount = await _get_order_payment_totals(db, tenant_id, order.id)
     due_amount = max(order.total - paid_amount + refunded_amount, 0)
     split_total = sum(a.amount for a in data.allocations)
     if split_total <= 0:
@@ -481,6 +485,13 @@ async def create_session_payment(
         key=lambda o: o.created_at,
     )
 
+    # Align taxable totals with selected settlement mode (cash/card) before
+    # computing dues so card settlement can close at card-total preview.
+    if data.method_code in {"cash", "card"}:
+        await _retax_unpaid_session_orders_for_method(
+            db, tenant_id, billable_orders, data.method_code
+        )
+
     # Build per-order due list
     order_dues: list[tuple[Order, int]] = []
     total_session_due = 0
@@ -542,6 +553,57 @@ async def create_session_payment(
     return summary
 
 
+async def _retax_unpaid_session_orders_for_method(
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    billable_orders: list[Order],
+    method_code: str,
+) -> None:
+    """Recalculate tax/total for fully-unpaid session orders by payment mode.
+
+    This keeps preview totals and settlement totals consistent for cash/card.
+    If any order has net paid > 0, we skip retaxing to avoid mutating totals
+    after payment has started.
+    """
+    if method_code not in {"cash", "card"} or not billable_orders:
+        return
+
+    # Do not retax once any payment is already posted on the session orders.
+    for order in billable_orders:
+        paid, refunded = await _get_order_payment_totals(db, tenant_id, order.id)
+        if (paid - refunded) > 0:
+            return
+
+    from app.models.restaurant_config import RestaurantConfig
+
+    cfg_result = await db.execute(
+        select(
+            RestaurantConfig.cash_tax_rate_bps,
+            RestaurantConfig.card_tax_rate_bps,
+        ).where(RestaurantConfig.tenant_id == tenant_id)
+    )
+    row = cfg_result.one_or_none()
+    cash_rate = row.cash_tax_rate_bps if row else 1600
+    card_rate = row.card_tax_rate_bps if row else 500
+    rate_bps = cash_rate if method_code == "cash" else card_rate
+
+    subtotal = sum(o.subtotal for o in billable_orders)
+    target_tax = round(subtotal * rate_bps / 10_000)
+    remaining_tax = target_tax
+
+    for idx, order in enumerate(billable_orders):
+        if idx == len(billable_orders) - 1:
+            tax_amount = remaining_tax
+        else:
+            tax_amount = round(order.subtotal * rate_bps / 10_000)
+            remaining_tax -= tax_amount
+
+        order.tax_amount = tax_amount
+        order.total = order.subtotal + order.tax_amount - order.discount_amount
+
+    await db.flush()
+
+
 async def split_session_payment(
     db: AsyncSession,
     tenant_id: uuid.UUID,
@@ -575,6 +637,9 @@ async def split_session_payment(
     billable_orders = sorted(
         [o for o in session.orders if o.status != "voided"],
         key=lambda o: o.created_at,
+    )
+    await _retax_unpaid_session_orders_for_split_allocations(
+        db, tenant_id, billable_orders, data.allocations
     )
 
     order_dues: list[tuple[Order, int]] = []
@@ -644,6 +709,111 @@ async def split_session_payment(
     return summary
 
 
+async def _retax_unpaid_order_for_split_allocations(
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    order: Order,
+    allocations,
+    paid_amount: int,
+    refunded_amount: int,
+) -> None:
+    """Retax an unpaid order for cash/card mixed split allocations."""
+    if (paid_amount - refunded_amount) > 0:
+        return
+
+    inferred = await _infer_split_subtotal_and_tax(db, tenant_id, allocations)
+    if inferred is None:
+        return
+    inferred_subtotal, inferred_tax = inferred
+    if abs(inferred_subtotal - order.subtotal) > 1:
+        return
+
+    order.tax_amount = inferred_tax
+    order.total = order.subtotal + order.tax_amount - order.discount_amount
+    await db.flush()
+
+
+async def _retax_unpaid_session_orders_for_split_allocations(
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    billable_orders: list[Order],
+    allocations,
+) -> None:
+    """Retax fully-unpaid session orders for cash/card mixed split allocations."""
+    if not billable_orders:
+        return
+
+    for order in billable_orders:
+        paid, refunded = await _get_order_payment_totals(db, tenant_id, order.id)
+        if (paid - refunded) > 0:
+            return
+
+    inferred = await _infer_split_subtotal_and_tax(db, tenant_id, allocations)
+    if inferred is None:
+        return
+    inferred_subtotal, inferred_tax = inferred
+
+    subtotal = sum(o.subtotal for o in billable_orders)
+    if abs(inferred_subtotal - subtotal) > max(1, len(billable_orders)):
+        return
+
+    remaining_tax = inferred_tax
+    for idx, order in enumerate(billable_orders):
+        if idx == len(billable_orders) - 1:
+            tax_amount = remaining_tax
+        else:
+            tax_amount = round(order.subtotal * inferred_tax / subtotal) if subtotal > 0 else 0
+            remaining_tax -= tax_amount
+
+        order.tax_amount = tax_amount
+        order.total = order.subtotal + order.tax_amount - order.discount_amount
+
+    await db.flush()
+
+
+async def _infer_split_subtotal_and_tax(
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    allocations,
+) -> tuple[int, int] | None:
+    """Infer pre-tax subtotal and tax from mixed cash/card tax-inclusive allocations.
+
+    Returns None if any allocation method is outside cash/card.
+    """
+    if not allocations:
+        return None
+
+    from app.models.restaurant_config import RestaurantConfig
+
+    cfg_result = await db.execute(
+        select(
+            RestaurantConfig.cash_tax_rate_bps,
+            RestaurantConfig.card_tax_rate_bps,
+        ).where(RestaurantConfig.tenant_id == tenant_id)
+    )
+    row = cfg_result.one_or_none()
+    cash_rate = row.cash_tax_rate_bps if row else 1600
+    card_rate = row.card_tax_rate_bps if row else 500
+
+    inferred_subtotal = 0
+    inferred_tax = 0
+    for alloc in allocations:
+        if alloc.method_code == "cash":
+            rate = cash_rate
+        elif alloc.method_code == "card":
+            rate = card_rate
+        else:
+            return None
+
+        divisor = 10_000 + rate
+        base = round(alloc.amount * 10_000 / divisor) if divisor > 0 else alloc.amount
+        tax = alloc.amount - base
+        inferred_subtotal += base
+        inferred_tax += tax
+
+    return inferred_subtotal, inferred_tax
+
+
 async def _sync_order_payment_status(
     db: AsyncSession, order: Order, tenant_id: uuid.UUID
 ) -> None:
@@ -657,6 +827,16 @@ async def _sync_order_payment_status(
         order.payment_status = "partial"
     else:
         order.payment_status = "paid"
+
+    # Auto-complete: a dine-in order that is "served" and fully paid is done.
+    # This ensures the table is released without waiting for a manual transition.
+    if (
+        order.payment_status == "paid"
+        and order.status == "served"
+        and order.order_type == "dine_in"
+    ):
+        order.status = "completed"
+
     await db.flush()
 
 

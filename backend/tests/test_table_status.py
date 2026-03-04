@@ -11,6 +11,8 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.floor import Table
+from app.models.order import Order
+from app.models.table_session import TableSession
 
 URL = "/api/v1/floors/tables/{table_id}/status"
 
@@ -189,6 +191,75 @@ class TestPersistence:
             )
             assert resp.status_code == 200
             assert resp.json()["status"] == new_status
+
+    async def test_status_board_releases_table_for_paid_completed_open_session(
+        self,
+        client: AsyncClient,
+        db: AsyncSession,
+        table: Table,
+        admin_user,
+        admin_token: str,
+        tenant,
+    ):
+        """Paid+completed dine-in activity must not keep table occupied."""
+        table.status = "occupied"
+        session = TableSession(
+            tenant_id=tenant.id,
+            table_id=table.id,
+            status="open",
+            opened_by=admin_user.id,
+        )
+        db.add(session)
+        await db.flush()
+
+        db.add(Order(
+            tenant_id=tenant.id,
+            order_number="D260304-001",
+            order_type="dine_in",
+            status="completed",
+            payment_status="paid",
+            table_id=table.id,
+            table_session_id=session.id,
+            subtotal=1000,
+            tax_amount=160,
+            discount_amount=0,
+            total=1160,
+            created_by=admin_user.id,
+        ))
+        await db.flush()
+        await db.commit()
+
+        board = await client.get("/api/v1/floors/status-board", headers=_auth(admin_token))
+        assert board.status_code == 200
+        tables = [t for f in board.json()["floors"] for t in f["tables"]]
+        current = next(t for t in tables if t["id"] == str(table.id))
+        assert current["status"] == "available"
+
+    async def test_status_board_releases_table_for_empty_open_session(
+        self,
+        client: AsyncClient,
+        db: AsyncSession,
+        table: Table,
+        admin_user,
+        admin_token: str,
+        tenant,
+    ):
+        """Empty stale open sessions must not keep table occupied."""
+        table.status = "occupied"
+        db.add(TableSession(
+            tenant_id=tenant.id,
+            table_id=table.id,
+            status="open",
+            opened_by=admin_user.id,
+        ))
+        await db.flush()
+        await db.commit()
+
+        board = await client.get("/api/v1/floors/status-board", headers=_auth(admin_token))
+        assert board.status_code == 200
+        tables = [t for f in board.json()["floors"] for t in f["tables"]]
+        current = next(t for t in tables if t["id"] == str(table.id))
+        assert current["status"] == "available"
 
 
 # ---------------------------------------------------------------------------

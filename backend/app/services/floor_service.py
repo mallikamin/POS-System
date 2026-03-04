@@ -7,6 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.floor import Floor, Table
+from app.models.order import Order
+from app.models.table_session import TableSession
 from app.schemas.floor import (
     FloorCreate,
     FloorUpdate,
@@ -174,3 +176,73 @@ async def bulk_update_positions(
 
     await db.flush()
     return updated
+
+
+async def reconcile_table_occupancy(
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+) -> None:
+    """Normalize occupied/available table states from live operational data.
+
+    Keeps manual states (`reserved`, `cleaning`) untouched.
+    A table should be occupied if it has:
+    - an open table session, or
+    - non-voided dine-in orders still not fully settled.
+    """
+    tables_result = await db.execute(
+        select(Table).where(Table.tenant_id == tenant_id, Table.is_active == True)  # noqa: E712
+    )
+    tables = list(tables_result.scalars().all())
+    if not tables:
+        return
+
+    # A table is occupied when it has unsettled orders: non-voided,
+    # non-completed orders that are NOT fully paid/refunded.
+    # Once payment is settled the table turns available regardless of
+    # the order's kitchen pipeline status.
+
+    open_session_result = await db.execute(
+        select(TableSession.table_id)
+        .join(
+            Order,
+            (Order.table_session_id == TableSession.id)
+            & (Order.tenant_id == tenant_id),
+        )
+        .where(
+            TableSession.tenant_id == tenant_id,
+            TableSession.status == "open",
+            Order.status.notin_(["voided", "completed"]),
+            Order.payment_status.notin_(["paid", "refunded"]),
+            TableSession.table_id.is_not(None),
+        )
+        .distinct()
+    )
+    open_session_tables = {row[0] for row in open_session_result.all() if row[0] is not None}
+
+    active_order_result = await db.execute(
+        select(Order.table_id).where(
+            Order.tenant_id == tenant_id,
+            Order.order_type == "dine_in",
+            Order.status.notin_(["voided", "completed"]),
+            Order.payment_status.notin_(["paid", "refunded"]),
+            Order.table_id.is_not(None),
+        )
+    )
+    active_order_tables = {row[0] for row in active_order_result.all() if row[0] is not None}
+
+    should_be_occupied = open_session_tables | active_order_tables
+
+    changed = False
+    for table in tables:
+        if table.status in {"reserved", "cleaning"}:
+            continue
+        if table.id in should_be_occupied:
+            if table.status != "occupied":
+                table.status = "occupied"
+                changed = True
+        elif table.status == "occupied":
+            table.status = "available"
+            changed = True
+
+    if changed:
+        await db.flush()

@@ -22,6 +22,7 @@ function DineInPage() {
   const setActiveCart = useCartStore((s) => s.setActiveCart);
   const selectedTableId = useFloorStore((s) => s.selectedTableId);
   const setCurrentChannel = useUIStore((s) => s.setCurrentChannel);
+  const loadFloors = useFloorStore((s) => s.loadFloors);
   const navigate = useNavigate();
   const [sessionBill, setSessionBill] = useState<TableSessionBillSummary | null>(null);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
@@ -32,7 +33,17 @@ function DineInPage() {
   useEffect(() => {
     setCurrentChannel("dine_in");
     fetchWaiters().then(setWaiters).catch(() => {});
+    void loadFloors(true);
   }, [setCurrentChannel]);
+
+  // Keep table statuses fresh after settlement navigation so occupied tables
+  // flip back to available without waiting for cached refresh windows.
+  useEffect(() => {
+    const interval = setInterval(() => {
+      void loadFloors(true);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [loadFloors]);
 
   const tableSelected = Boolean(selectedTableId);
 

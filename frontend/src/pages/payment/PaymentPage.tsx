@@ -33,6 +33,10 @@ function parseRupees(value: string): number {
   return Number.isFinite(numeric) && numeric > 0 ? rupeesToPaisa(numeric) : 0;
 }
 
+function taxInclusive(basePaisa: number, rateBps: number): number {
+  return basePaisa + Math.round(basePaisa * rateBps / 10_000);
+}
+
 function getErrorMessage(err: unknown, fallback: string): string {
   if (isAxiosError(err)) {
     const detail = err.response?.data?.detail;
@@ -65,12 +69,44 @@ function PaymentPage() {
   const [cashTendered, setCashTendered] = useState("");
   const [cardAmount, setCardAmount] = useState("");
   const [cardReference, setCardReference] = useState("");
+  const [splitCashBase, setSplitCashBase] = useState("");
+  const [splitCardReference, setSplitCardReference] = useState("");
   const [splitRows, setSplitRows] = useState<Array<{ method: PaymentMethodCode; amount: string; reference: string }>>([
     { method: "cash", amount: "", reference: "" },
     { method: "card", amount: "", reference: "" },
   ]);
 
-  const dueDisplay = useMemo(() => (summary ? formatPKR(summary.due_amount) : "--"), [summary]);
+  const splitCalcEnabled = useMemo(
+    () => !!preview && !!summary && summary.paid_amount === 0,
+    [preview, summary]
+  );
+  const splitSubtotal = preview?.subtotal ?? 0;
+  const splitCashBasePaisa = useMemo(() => {
+    if (!splitCalcEnabled) return 0;
+    return Math.min(parseRupees(splitCashBase), splitSubtotal);
+  }, [splitCalcEnabled, splitCashBase, splitSubtotal]);
+  const splitCardBasePaisa = useMemo(() => {
+    if (!splitCalcEnabled) return 0;
+    return Math.max(splitSubtotal - splitCashBasePaisa, 0);
+  }, [splitCalcEnabled, splitSubtotal, splitCashBasePaisa]);
+  const splitCashPayable = useMemo(() => {
+    if (!splitCalcEnabled || !preview) return 0;
+    return taxInclusive(splitCashBasePaisa, preview.cash_tax_rate_bps);
+  }, [splitCalcEnabled, preview, splitCashBasePaisa]);
+  const splitCardPayable = useMemo(() => {
+    if (!splitCalcEnabled || !preview) return 0;
+    return taxInclusive(splitCardBasePaisa, preview.card_tax_rate_bps);
+  }, [splitCalcEnabled, preview, splitCardBasePaisa]);
+  const splitTotalPayable = useMemo(
+    () => splitCashPayable + splitCardPayable,
+    [splitCashPayable, splitCardPayable]
+  );
+
+  const dueDisplay = useMemo(() => {
+    if (!summary) return "--";
+    if (mode === "split" && splitCalcEnabled) return formatPKR(splitTotalPayable);
+    return formatPKR(summary.due_amount);
+  }, [summary, mode, splitCalcEnabled, splitTotalPayable]);
 
   useEffect(() => {
     if (!orderId) return;
@@ -100,6 +136,8 @@ function PaymentPage() {
         const dueRupees = String(paisaToRupees(nextSummary.due_amount));
         setCashAmount(dueRupees);
         setCardAmount(dueRupees);
+        const halfSubtotal = Math.round(nextPreview.subtotal / 2);
+        setSplitCashBase(String(paisaToRupees(halfSubtotal)));
       }
     } catch (err: unknown) {
       setError(getErrorMessage(err, "Failed to load payment data"));
@@ -167,13 +205,26 @@ function PaymentPage() {
     setError(null);
     setSuccess(null);
     try {
-      const allocations: SplitPaymentAllocation[] = splitRows
-        .map((row) => ({
-          method_code: row.method,
-          amount: parseRupees(row.amount),
-          reference: row.reference || undefined,
-        }))
-        .filter((row) => row.amount > 0);
+      const allocations: SplitPaymentAllocation[] = splitCalcEnabled
+        ? [
+            ...(splitCashPayable > 0
+              ? [{ method_code: "cash" as const, amount: splitCashPayable }]
+              : []),
+            ...(splitCardPayable > 0
+              ? [{
+                  method_code: "card" as const,
+                  amount: splitCardPayable,
+                  reference: splitCardReference || undefined,
+                }]
+              : []),
+          ]
+        : splitRows
+            .map((row) => ({
+              method_code: row.method,
+              amount: parseRupees(row.amount),
+              reference: row.reference || undefined,
+            }))
+            .filter((row) => row.amount > 0);
 
       const next = await paymentsApi.splitPayment({
         order_id: orderId,
@@ -185,6 +236,7 @@ function PaymentPage() {
         { method: "cash", amount: "", reference: "" },
         { method: "card", amount: "", reference: "" },
       ]);
+      setSplitCardReference("");
     } catch (err: unknown) {
       setError(getErrorMessage(err, "Failed to record split payment"));
     } finally {
@@ -578,47 +630,96 @@ function PaymentPage() {
 
           {mode === "split" && (
             <div className="space-y-2">
-              {splitRows.map((row, idx) => (
-                <div key={idx} className="grid gap-2 md:grid-cols-3">
-                  <select
-                    value={row.method}
-                    onChange={(e) =>
-                      setSplitRows((prev) =>
-                        prev.map((item, i) => (i === idx ? { ...item, method: e.target.value as PaymentMethodCode } : item))
-                      )
-                    }
-                    className="h-10 rounded-lg border border-secondary-300 px-3 text-sm"
-                  >
-                    <option value="cash">Cash</option>
-                    <option value="card">Card</option>
-                    <option value="mobile_wallet">Mobile Wallet</option>
-                    <option value="bank_transfer">Bank Transfer</option>
-                  </select>
-                  <Input
-                    value={row.amount}
-                    onChange={(e) =>
-                      setSplitRows((prev) =>
-                        prev.map((item, i) => (i === idx ? { ...item, amount: e.target.value } : item))
-                      )
-                    }
-                    placeholder="Amount (PKR)"
-                    type="number"
-                    min="0"
-                  />
-                  <Input
-                    value={row.reference}
-                    onChange={(e) =>
-                      setSplitRows((prev) =>
-                        prev.map((item, i) => (i === idx ? { ...item, reference: e.target.value } : item))
-                      )
-                    }
-                    placeholder="Reference (optional)"
-                  />
-                </div>
-              ))}
-              <Button variant="outline" onClick={() => setSplitRows((prev) => [...prev, { method: "card", amount: "", reference: "" }])}>
-                Add Split Row
-              </Button>
+              {splitCalcEnabled ? (
+                <>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div>
+                      <Label>Cash Base (PKR, pre-tax)</Label>
+                      <Input
+                        value={splitCashBase}
+                        onChange={(e) => setSplitCashBase(e.target.value)}
+                        placeholder="0"
+                        type="number"
+                        min="0"
+                        max={String(paisaToRupees(splitSubtotal))}
+                      />
+                    </div>
+                    <div>
+                      <Label>Card Base (PKR, pre-tax)</Label>
+                      <Input value={String(paisaToRupees(splitCardBasePaisa))} readOnly />
+                    </div>
+                  </div>
+                  <div className="grid gap-2 rounded-lg border border-secondary-200 p-3 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-secondary-600">Cash Payable ({(preview?.cash_tax_rate_bps ?? 0) / 100}%)</span>
+                      <span className="font-medium">{formatPKR(splitCashPayable)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-secondary-600">Card Payable ({(preview?.card_tax_rate_bps ?? 0) / 100}%)</span>
+                      <span className="font-medium">{formatPKR(splitCardPayable)}</span>
+                    </div>
+                    <div className="flex justify-between border-t border-secondary-200 pt-2 font-semibold">
+                      <span>Split Total Due</span>
+                      <span>{formatPKR(splitTotalPayable)}</span>
+                    </div>
+                  </div>
+                  <div>
+                    <Label>Card Reference</Label>
+                    <Input
+                      value={splitCardReference}
+                      onChange={(e) => setSplitCardReference(e.target.value)}
+                      placeholder="Last 4 / txn id"
+                    />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-xs text-amber-700">
+                    Smart split calculator is available before first payment only. Use manual split below.
+                  </p>
+                  {splitRows.map((row, idx) => (
+                    <div key={idx} className="grid gap-2 md:grid-cols-3">
+                      <select
+                        value={row.method}
+                        onChange={(e) =>
+                          setSplitRows((prev) =>
+                            prev.map((item, i) => (i === idx ? { ...item, method: e.target.value as PaymentMethodCode } : item))
+                          )
+                        }
+                        className="h-10 rounded-lg border border-secondary-300 px-3 text-sm"
+                      >
+                        <option value="cash">Cash</option>
+                        <option value="card">Card</option>
+                        <option value="mobile_wallet">Mobile Wallet</option>
+                        <option value="bank_transfer">Bank Transfer</option>
+                      </select>
+                      <Input
+                        value={row.amount}
+                        onChange={(e) =>
+                          setSplitRows((prev) =>
+                            prev.map((item, i) => (i === idx ? { ...item, amount: e.target.value } : item))
+                          )
+                        }
+                        placeholder="Amount (PKR)"
+                        type="number"
+                        min="0"
+                      />
+                      <Input
+                        value={row.reference}
+                        onChange={(e) =>
+                          setSplitRows((prev) =>
+                            prev.map((item, i) => (i === idx ? { ...item, reference: e.target.value } : item))
+                          )
+                        }
+                        placeholder="Reference (optional)"
+                      />
+                    </div>
+                  ))}
+                  <Button variant="outline" onClick={() => setSplitRows((prev) => [...prev, { method: "card", amount: "", reference: "" }])}>
+                    Add Split Row
+                  </Button>
+                </>
+              )}
               <div>
                 <Button onClick={handleSplitPayment} disabled={submitting}>Post Split Payment</Button>
               </div>

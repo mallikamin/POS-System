@@ -38,6 +38,8 @@ async def get_status_board(
     db: AsyncSession = Depends(get_db),
 ) -> FloorStatusBoard:
     """Return all active floors with their tables for the POS dine-in view."""
+    await floor_service.reconcile_table_occupancy(db, current_user.tenant_id)
+    await db.commit()
     floors = await floor_service.list_floors(db, current_user.tenant_id, active_only=True)
     return FloorStatusBoard(floors=floors)
 

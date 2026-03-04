@@ -165,20 +165,52 @@ class TestSessionFullPay:
         table_session, session_order_a, session_order_b,
         cash_method,
     ):
+        preview = await client.get(
+            f"/api/v1/payments/table-sessions/{table_session.id}/payment-preview",
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+        assert preview.status_code == 200
+        cash_total = preview.json()["cash_total"]
+
         resp = await client.post(
             f"/api/v1/payments/table-sessions/{table_session.id}/pay",
             headers={"Authorization": f"Bearer {admin_token}"},
-            json={"method_code": "cash", "amount": 8000, "tendered_amount": 10000},
+            json={"method_code": "cash", "amount": cash_total, "tendered_amount": 10000},
         )
         assert resp.status_code == 201
         data = resp.json()
         assert data["due_amount"] == 0
         assert data["payment_status"] == "paid"
-        assert data["paid_amount"] == 8000
+        assert data["paid_amount"] == cash_total
         # Both orders should be paid
         for order in data["orders"]:
             assert order["due_amount"] == 0
             assert order["payment_status"] == "paid"
+
+    @pytest.mark.asyncio
+    async def test_full_pay_card_uses_card_tax_total(
+        self, client: AsyncClient, admin_token: str,
+        table_session, session_order_a, session_order_b,
+        card_method,
+    ):
+        """Card settlement should close session at card-tax total, not cash/default total."""
+        preview = await client.get(
+            f"/api/v1/payments/table-sessions/{table_session.id}/payment-preview",
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+        assert preview.status_code == 200
+        card_total = preview.json()["card_total"]
+
+        resp = await client.post(
+            f"/api/v1/payments/table-sessions/{table_session.id}/pay",
+            headers={"Authorization": f"Bearer {admin_token}"},
+            json={"method_code": "card", "amount": card_total, "reference": "UAT-CARD"},
+        )
+        assert resp.status_code == 201
+        data = resp.json()
+        assert data["due_amount"] == 0
+        assert data["payment_status"] == "paid"
+        assert data["paid_amount"] == card_total
 
     @pytest.mark.asyncio
     async def test_partial_pay(
@@ -187,6 +219,13 @@ class TestSessionFullPay:
         cash_method,
     ):
         """Pay Rs 50 (5000 paisa) of Rs 80 session."""
+        preview = await client.get(
+            f"/api/v1/payments/table-sessions/{table_session.id}/payment-preview",
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+        assert preview.status_code == 200
+        cash_total = preview.json()["cash_total"]
+
         resp = await client.post(
             f"/api/v1/payments/table-sessions/{table_session.id}/pay",
             headers={"Authorization": f"Bearer {admin_token}"},
@@ -195,13 +234,13 @@ class TestSessionFullPay:
         assert resp.status_code == 201
         data = resp.json()
         assert data["payment_status"] == "partial"
-        assert data["due_amount"] == 3000
+        assert data["due_amount"] == cash_total - 5000
         assert data["paid_amount"] == 5000
-        # First order (5000) should be fully paid, second (3000) unpaid
-        order_a = next(o for o in data["orders"] if o["order_total"] == 5000)
-        order_b = next(o for o in data["orders"] if o["order_total"] == 3000)
+        # First order should be fully paid, second remains due
+        order_a = next(o for o in data["orders"] if o["order_number"] == "D260301-001")
+        order_b = next(o for o in data["orders"] if o["order_number"] == "D260301-002")
         assert order_a["due_amount"] == 0
-        assert order_b["due_amount"] == 3000
+        assert order_b["due_amount"] == cash_total - 5000
 
     @pytest.mark.asyncio
     async def test_overpay_rejected(
@@ -259,6 +298,43 @@ class TestSessionSplitPay:
         data = resp.json()
         assert data["due_amount"] == 0
         assert data["payment_status"] == "paid"
+
+    @pytest.mark.asyncio
+    async def test_split_mixed_tax_base_settles_to_zero_due(
+        self, client: AsyncClient, admin_token: str,
+        table_session, session_order_a, session_order_b,
+        cash_method, card_method,
+    ):
+        preview = await client.get(
+            f"/api/v1/payments/table-sessions/{table_session.id}/payment-preview",
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+        assert preview.status_code == 200
+        p = preview.json()
+        subtotal = p["subtotal"]
+        cash_rate = p["cash_tax_rate_bps"]
+        card_rate = p["card_tax_rate_bps"]
+
+        cash_base = subtotal // 2
+        card_base = subtotal - cash_base
+        cash_payable = cash_base + round(cash_base * cash_rate / 10_000)
+        card_payable = card_base + round(card_base * card_rate / 10_000)
+
+        resp = await client.post(
+            f"/api/v1/payments/table-sessions/{table_session.id}/split",
+            headers={"Authorization": f"Bearer {admin_token}"},
+            json={
+                "allocations": [
+                    {"method_code": "cash", "amount": cash_payable, "tendered_amount": cash_payable},
+                    {"method_code": "card", "amount": card_payable, "reference": "SPLIT-MIX"},
+                ],
+            },
+        )
+        assert resp.status_code == 201
+        data = resp.json()
+        assert data["due_amount"] == 0
+        assert data["payment_status"] == "paid"
+        assert data["paid_amount"] == cash_payable + card_payable
 
     @pytest.mark.asyncio
     async def test_split_overpay_rejected(

@@ -18,6 +18,7 @@ interface ReceiptItem {
   quantity: number;
   unit_price: number;
   total: number;
+  order_label?: string | null;
 }
 
 interface ReceiptPayment {
@@ -198,42 +199,64 @@ export function ReceiptModal({ orderId, open, onClose }: Props) {
 
             <div className="divider my-2 border-t border-dashed border-secondary-400" />
 
-            {/* Items */}
-            {receipt.items.map((item, i) => {
-              const hasModifiers = item.modifiers.length > 0;
-              // Group duplicate modifiers by name
-              const groupedMods: Array<{ name: string; price_adjustment: number; qty: number }> = [];
-              for (const mod of item.modifiers) {
-                const existing = groupedMods.find((g) => g.name === mod.name && g.price_adjustment === mod.price_adjustment);
-                if (existing) { existing.qty += 1; } else { groupedMods.push({ name: mod.name, price_adjustment: mod.price_adjustment, qty: 1 }); }
+            {/* Items — grouped by order when session receipt */}
+            {(() => {
+              const hasOrderLabels = receipt.items.some((it) => it.order_label);
+              // Group items by order_label (preserving order)
+              const groups: Array<{ label: string | null; items: typeof receipt.items }> = [];
+              for (const item of receipt.items) {
+                const label = item.order_label ?? null;
+                const last = groups[groups.length - 1];
+                if (last && last.label === label) {
+                  last.items.push(item);
+                } else {
+                  groups.push({ label, items: [item] });
+                }
               }
-              // Derive base price by subtracting all modifier adjustments from unit_price
-              const modTotal = item.modifiers.reduce((s, m) => s + m.price_adjustment, 0);
-              const basePrice = item.unit_price - modTotal;
-              const basePriceTotal = basePrice * item.quantity;
-              return (
-                <div key={i} className="mb-1">
-                  <div className="row flex justify-between">
-                    <span>
-                      {item.quantity}x {item.name}
-                    </span>
-                    <span>{formatAmount(basePriceTotal)}</span>
-                  </div>
-                  {groupedMods.map((mod, j) => (
-                    <div key={j} className="modifier pl-2 text-[10px] text-secondary-500">
-                      + {mod.qty > 1 ? `${mod.qty}x ` : ""}{mod.name}
-                      {mod.price_adjustment !== 0 ? ` (${formatSignedAmount(mod.price_adjustment * mod.qty)})` : ""}
-                    </div>
-                  ))}
-                  {hasModifiers && modTotal !== 0 && (
-                    <div className="row flex justify-between pl-2 text-[10px] font-medium text-secondary-700">
-                      <span>Line Total</span>
-                      <span>{formatAmount(item.total)}</span>
+
+              return groups.map((group, gi) => (
+                <div key={gi}>
+                  {hasOrderLabels && group.label && (
+                    <div className="mb-1 mt-1 text-center text-[10px] font-bold text-secondary-600">
+                      — Order #{group.label} —
                     </div>
                   )}
+                  {group.items.map((item, i) => {
+                    const hasModifiers = item.modifiers.length > 0;
+                    const groupedMods: Array<{ name: string; price_adjustment: number; qty: number }> = [];
+                    for (const mod of item.modifiers) {
+                      const existing = groupedMods.find((g) => g.name === mod.name && g.price_adjustment === mod.price_adjustment);
+                      if (existing) { existing.qty += 1; } else { groupedMods.push({ name: mod.name, price_adjustment: mod.price_adjustment, qty: 1 }); }
+                    }
+                    const modTotal = item.modifiers.reduce((s, m) => s + m.price_adjustment, 0);
+                    const basePrice = item.unit_price - modTotal;
+                    const basePriceTotal = basePrice * item.quantity;
+                    return (
+                      <div key={i} className="mb-1">
+                        <div className="row flex justify-between">
+                          <span>
+                            {item.quantity}x {item.name}
+                          </span>
+                          <span>{formatAmount(basePriceTotal)}</span>
+                        </div>
+                        {groupedMods.map((mod, j) => (
+                          <div key={j} className="modifier pl-2 text-[10px] text-secondary-500">
+                            + {mod.qty > 1 ? `${mod.qty}x ` : ""}{mod.name}
+                            {mod.price_adjustment !== 0 ? ` (${formatSignedAmount(mod.price_adjustment * mod.qty)})` : ""}
+                          </div>
+                        ))}
+                        {hasModifiers && modTotal !== 0 && (
+                          <div className="row flex justify-between pl-2 text-[10px] font-medium text-secondary-700">
+                            <span>Line Total</span>
+                            <span>{formatAmount(item.total)}</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
-              );
-            })}
+              ));
+            })()}
 
             <div className="divider my-2 border-t border-dashed border-secondary-400" />
 
@@ -243,36 +266,53 @@ export function ReceiptModal({ orderId, open, onClose }: Props) {
               <span>{formatAmount(receipt.subtotal)}</span>
             </div>
             {(() => {
-              const isSplit = receipt.payments.length > 1;
               const cashRate = receipt.cash_tax_rate_bps || 0;
               const cardRate = receipt.card_tax_rate_bps || 0;
-              const hasDiffRates = isSplit && cashRate !== cardRate && cashRate > 0 && cardRate > 0;
-              if (hasDiffRates) {
-                // Split payment with different tax rates — show per-method breakdown
-                let effectiveTax = 0;
+              const hasDiffRates = cashRate !== cardRate && cashRate > 0 && cardRate > 0;
+              const isSplit = receipt.payments.length > 1;
+
+              if (isSplit && hasDiffRates) {
+                // Split payment with different tax rates — extract tax from
+                // tax-inclusive payment amounts: base = amount * 10000 / (10000 + rate)
                 const lines = receipt.payments.map((p) => {
                   const isCash = p.method.toLowerCase().includes("cash");
                   const rateBps = isCash ? cashRate : cardRate;
                   const ratePct = rateBps / 100;
-                  const tax = Math.round(p.amount * rateBps / 10000);
-                  effectiveTax += tax;
-                  return { method: p.method, amount: p.amount, ratePct, tax };
+                  const base = Math.round(p.amount * 10000 / (10000 + rateBps));
+                  const tax = p.amount - base;
+                  return { method: p.method, ratePct, base, tax };
                 });
+                const totalTax = lines.reduce((s, ln) => s + ln.tax, 0);
                 return (
                   <>
                     {lines.map((ln, idx) => (
-                      <div key={idx} className="row flex justify-between text-[10px] text-secondary-500">
-                        <span>{ln.method} tax @ {ln.ratePct}%</span>
+                      <div key={idx} className="row flex justify-between">
+                        <span>{ln.method} Tax ({ln.ratePct}%)</span>
                         <span>{formatAmount(ln.tax)}</span>
                       </div>
                     ))}
-                    <div className="row flex justify-between">
+                    <div className="row flex justify-between font-medium">
                       <span>Total Tax</span>
-                      <span>{formatAmount(effectiveTax)}</span>
+                      <span>{formatAmount(totalTax)}</span>
                     </div>
                   </>
                 );
               }
+
+              // Single payment — show rate for the method used
+              if (receipt.payments.length === 1 && hasDiffRates) {
+                const p = receipt.payments[0]!;
+                const isCash = p.method.toLowerCase().includes("cash");
+                const rateBps = isCash ? cashRate : cardRate;
+                const ratePct = rateBps / 100;
+                return (
+                  <div className="row flex justify-between">
+                    <span>{p.method} Tax ({ratePct}%)</span>
+                    <span>{formatAmount(receipt.tax_amount)}</span>
+                  </div>
+                );
+              }
+
               return (
                 <div className="row flex justify-between">
                   <span>{receipt.tax_label} ({receipt.tax_rate_display})</span>
@@ -295,42 +335,57 @@ export function ReceiptModal({ orderId, open, onClose }: Props) {
             </div>
 
             {/* Payments */}
-            {receipt.payments.length > 0 && (
-              <>
-                <div className="divider my-2 border-t border-dashed border-secondary-400" />
-                {receipt.payments.map((p, i) => {
-                  const isCash = p.method.toLowerCase().includes("cash");
-                  const rateBps = isCash ? receipt.cash_tax_rate_bps : receipt.card_tax_rate_bps;
-                  const ratePct = rateBps / 100;
-                  return (
-                    <div key={i}>
-                      <div className="row flex justify-between">
-                        <span>{p.method}</span>
-                        <span>{formatAmount(p.amount)}</span>
-                      </div>
-                      {receipt.payments.length > 1 && rateBps > 0 && (
-                        <div className="row flex justify-between text-[10px] text-secondary-500">
-                          <span>Tax @ {ratePct}%</span>
-                          <span>{formatAmount(Math.round(p.amount * rateBps / 10000))}</span>
+            {receipt.payments.length > 0 && (() => {
+              const cashRate = receipt.cash_tax_rate_bps || 0;
+              const cardRate = receipt.card_tax_rate_bps || 0;
+              const hasDiffRates = cashRate !== cardRate && cashRate > 0 && cardRate > 0;
+              return (
+                <>
+                  <div className="divider my-2 border-t border-dashed border-secondary-400" />
+                  {receipt.payments.map((p, i) => {
+                    const isCash = p.method.toLowerCase().includes("cash");
+                    const rateBps = isCash ? cashRate : cardRate;
+                    const ratePct = rateBps / 100;
+                    const base = hasDiffRates
+                      ? Math.round(p.amount * 10000 / (10000 + rateBps))
+                      : 0;
+                    const tax = hasDiffRates ? p.amount - base : 0;
+                    return (
+                      <div key={i} className="mb-1">
+                        <div className="row flex justify-between font-medium">
+                          <span>{p.method}</span>
+                          <span>{formatAmount(p.amount)}</span>
                         </div>
-                      )}
-                      {p.tendered != null && p.tendered > p.amount && (
-                        <>
-                          <div className="row flex justify-between text-[10px]">
-                            <span>Tendered</span>
-                            <span>{formatAmount(p.tendered)}</span>
-                          </div>
-                          <div className="row flex justify-between text-[10px]">
-                            <span>Change</span>
-                            <span>{formatAmount(p.change ?? 0)}</span>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  );
-                })}
-              </>
-            )}
+                        {hasDiffRates && (
+                          <>
+                            <div className="row flex justify-between text-[10px] text-secondary-500">
+                              <span>Pre-tax</span>
+                              <span>{formatAmount(base)}</span>
+                            </div>
+                            <div className="row flex justify-between text-[10px] text-secondary-500">
+                              <span>Tax @ {ratePct}%</span>
+                              <span>{formatAmount(tax)}</span>
+                            </div>
+                          </>
+                        )}
+                        {p.tendered != null && p.tendered > p.amount && (
+                          <>
+                            <div className="row flex justify-between text-[10px]">
+                              <span>Tendered</span>
+                              <span>{formatAmount(p.tendered)}</span>
+                            </div>
+                            <div className="row flex justify-between text-[10px]">
+                              <span>Change</span>
+                              <span>{formatAmount(p.change ?? 0)}</span>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    );
+                  })}
+                </>
+              );
+            })()}
 
             {/* Footer */}
             <div className="divider my-2 border-t border-dashed border-secondary-400" />
