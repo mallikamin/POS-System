@@ -39,6 +39,7 @@ interface ReceiptData {
   customer_name: string | null;
   customer_phone: string | null;
   cashier_name: string;
+  waiter_name: string | null;
   items: ReceiptItem[];
   subtotal: number;
   tax_label: string;
@@ -198,6 +199,7 @@ export function ReceiptModal({ orderId, sessionId, open, onClose }: Props) {
             )}
             {receipt.customer_phone && <div>Phone: {receipt.customer_phone}</div>}
             <div>Cashier: {receipt.cashier_name}</div>
+            {receipt.waiter_name && <div>Waiter: {receipt.waiter_name}</div>}
 
             <div className="divider my-2 border-t border-dashed border-secondary-400" />
 

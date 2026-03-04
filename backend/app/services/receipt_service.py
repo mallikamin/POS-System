@@ -137,6 +137,7 @@ async def get_receipt_data(
         customer_name=order.customer_name,
         customer_phone=order.customer_phone,
         cashier_name=cashier_name,
+        waiter_name=order.waiter.full_name if order.waiter else None,
         items=receipt_items,
         subtotal=order.subtotal,
         tax_label="GST" if tax_rate_bps > 0 else "Tax",
@@ -167,6 +168,8 @@ async def get_session_receipt_data(
             selectinload(TableSession.orders)
             .selectinload(Order.items)
             .selectinload(OrderItem.modifiers),
+            selectinload(TableSession.orders)
+            .selectinload(Order.waiter),
         )
         .where(TableSession.id == session_id, TableSession.tenant_id == tenant_id)
     )
@@ -318,6 +321,7 @@ async def get_session_receipt_data(
         customer_name=customer_name,
         customer_phone=customer_phone,
         cashier_name=cashier_name,
+        waiter_name=next((o.waiter.full_name for o in orders if o.waiter), None),
         items=receipt_items,
         subtotal=subtotal,
         tax_label="GST" if tax_rate_bps > 0 else "Tax",

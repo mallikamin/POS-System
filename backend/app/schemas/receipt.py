@@ -42,6 +42,7 @@ class ReceiptData(BaseModel):
     customer_name: str | None = None
     customer_phone: str | None = None
     cashier_name: str
+    waiter_name: str | None = None
 
     items: list[ReceiptItem]
     subtotal: int  # paisa

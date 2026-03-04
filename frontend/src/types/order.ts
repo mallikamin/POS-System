@@ -76,6 +76,8 @@ export interface OrderListItem {
   table_id?: string;
   table_number?: number;
   table_label?: string;
+  waiter_id?: string;
+  waiter_name?: string;
   item_count: number;
   total: number;
   created_at: string;

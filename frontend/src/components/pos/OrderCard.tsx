@@ -12,6 +12,7 @@ import {
   FileText,
   Send,
   MapPin,
+  User,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -273,10 +274,20 @@ export function OrderCard({ order, onTransition, onVoid }: OrderCardProps) {
           </span>
         </div>
 
-        {tableText && (
-          <div className="flex items-center gap-1 text-xs text-secondary-500">
-            <MapPin className="h-3 w-3" />
-            <span>{tableText}</span>
+        {(tableText || order.waiter_name) && (
+          <div className="flex items-center gap-3 text-xs text-secondary-500">
+            {tableText && (
+              <span className="flex items-center gap-1">
+                <MapPin className="h-3 w-3" />
+                {tableText}
+              </span>
+            )}
+            {order.waiter_name && (
+              <span className="flex items-center gap-1">
+                <User className="h-3 w-3" />
+                {order.waiter_name}
+              </span>
+            )}
           </div>
         )}
 
