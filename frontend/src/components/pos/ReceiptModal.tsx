@@ -64,28 +64,30 @@ function formatSignedAmount(paisa: number): string {
 }
 
 interface Props {
-  orderId: string;
+  orderId?: string;
+  sessionId?: string;
   open: boolean;
   onClose: () => void;
 }
 
-export function ReceiptModal({ orderId, open, onClose }: Props) {
+export function ReceiptModal({ orderId, sessionId, open, onClose }: Props) {
   const [receipt, setReceipt] = useState<ReceiptData | null>(null);
   const [loading, setLoading] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (open && orderId) {
+    if (open && (orderId || sessionId)) {
       fetchReceipt();
     }
-  }, [open, orderId]);
+  }, [open, orderId, sessionId]);
 
   async function fetchReceipt() {
     try {
       setLoading(true);
-      const { data } = await api.get<ReceiptData>(
-        `/receipts/orders/${orderId}`
-      );
+      const url = sessionId
+        ? `/receipts/sessions/${sessionId}`
+        : `/receipts/orders/${orderId}`;
+      const { data } = await api.get<ReceiptData>(url);
       setReceipt(data);
     } catch {
       setReceipt(null);

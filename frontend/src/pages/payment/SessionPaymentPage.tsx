@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { CreditCard, Loader2, Printer, RefreshCw, ShieldCheck, Tag, X } from "lucide-react";
+import { CreditCard, Loader2, Printer, Receipt, RefreshCw, ShieldCheck, Tag, X } from "lucide-react";
+import { ReceiptModal } from "@/components/pos/ReceiptModal";
 import { isAxiosError } from "axios";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -62,6 +63,7 @@ function SessionPaymentPage() {
   const [showManagerApproval, setShowManagerApproval] = useState(false);
   const [managerPassword, setManagerPassword] = useState("");
   const [managerApprovalError, setManagerApprovalError] = useState("");
+  const [showReceipt, setShowReceipt] = useState(false);
 
   const [cashAmount, setCashAmount] = useState("");
   const [cashTendered, setCashTendered] = useState("");
@@ -257,8 +259,8 @@ function SessionPaymentPage() {
     }
   }
 
-  function handlePrintConsolidatedBill() {
-    window.print();
+  function handleViewReceipt() {
+    setShowReceipt(true);
   }
 
   if (!sessionId) {
@@ -300,9 +302,9 @@ function SessionPaymentPage() {
           <RefreshCw className="mr-1 h-4 w-4" />
           Refresh
         </Button>
-        <Button variant="outline" size="sm" onClick={handlePrintConsolidatedBill}>
-          <Printer className="mr-1 h-4 w-4" />
-          Print Consolidated Bill
+        <Button variant="outline" size="sm" onClick={handleViewReceipt}>
+          <Receipt className="mr-1 h-4 w-4" />
+          View Receipt
         </Button>
       </div>
 
@@ -747,6 +749,15 @@ function SessionPaymentPage() {
           <p className="text-lg font-semibold text-success-700">Session Fully Paid</p>
           <p className="text-sm text-success-600">All {summary.order_count} orders are settled.</p>
         </div>
+      )}
+
+      {/* Receipt modal */}
+      {sessionId && (
+        <ReceiptModal
+          sessionId={sessionId}
+          open={showReceipt}
+          onClose={() => setShowReceipt(false)}
+        />
       )}
     </div>
   );

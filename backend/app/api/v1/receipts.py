@@ -27,3 +27,18 @@ async def get_order_receipt(
         )
     except ValueError as e:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(e))
+
+
+@router.get("/sessions/{session_id}", response_model=ReceiptData)
+async def get_session_receipt(
+    session_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ReceiptData:
+    """Get consolidated receipt data for all orders in a table session."""
+    try:
+        return await receipt_service.get_session_receipt_data(
+            db, current_user.tenant_id, session_id, current_user.full_name
+        )
+    except ValueError as e:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(e))

@@ -41,7 +41,7 @@ async def get_receipt_data(
         raise ValueError("Order not found")
 
     if order.table_session_id:
-        return await _get_session_receipt_data(
+        return await get_session_receipt_data(
             db, tenant_id, order.table_session_id, cashier_name
         )
 
@@ -153,7 +153,7 @@ async def get_receipt_data(
     )
 
 
-async def _get_session_receipt_data(
+async def get_session_receipt_data(
     db: AsyncSession,
     tenant_id: uuid.UUID,
     session_id: uuid.UUID,
