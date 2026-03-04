@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Minus, Plus, ShoppingCart, ChefHat, X, Loader2, CreditCard } from "lucide-react";
+import { Minus, Plus, ShoppingCart, ChefHat, X, Loader2, CreditCard, User, Search, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -17,6 +17,8 @@ import { useOrderStore } from "@/stores/orderStore";
 import { useUIStore } from "@/stores/uiStore";
 import { useCustomerStore } from "@/stores/customerStore";
 import { useConfigStore } from "@/stores/configStore";
+import { searchCustomers } from "@/services/customerApi";
+import type { CustomerResponse } from "@/types/customer";
 
 const DEFAULT_TAX_BPS = 1600; // 16.00% in basis points (integer math)
 
@@ -47,6 +49,48 @@ export function CartPanel({ waiterId, onOrderCreated }: CartPanelProps = {}) {
   const [orderNumber, setOrderNumber] = useState<string | null>(null);
   const [displayError, setDisplayError] = useState<string | null>(null);
 
+  // Customer lookup for dine-in / takeaway
+  const [customerName, setCustomerName] = useState("Walk-in Customer");
+  const [customerPhone, setCustomerPhone] = useState("");
+  const [linkedCustomer, setLinkedCustomer] = useState<CustomerResponse | null>(null);
+  const [phoneQuery, setPhoneQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<CustomerResponse[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [customerExpanded, setCustomerExpanded] = useState(false);
+  const searchTimeout = useRef<ReturnType<typeof setTimeout>>();
+
+  // Debounced phone search
+  useEffect(() => {
+    if (phoneQuery.length < 3) { setSearchResults([]); return; }
+    clearTimeout(searchTimeout.current);
+    searchTimeout.current = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const results = await searchCustomers(phoneQuery, 5);
+        setSearchResults(results.filter((c) => c.phone !== "0000000000"));
+      } catch { setSearchResults([]); }
+      finally { setSearching(false); }
+    }, 300);
+    return () => clearTimeout(searchTimeout.current);
+  }, [phoneQuery]);
+
+  function selectCustomer(c: CustomerResponse) {
+    setLinkedCustomer(c);
+    setCustomerName(c.name);
+    setCustomerPhone(c.phone);
+    setPhoneQuery("");
+    setSearchResults([]);
+    setCustomerExpanded(false);
+  }
+
+  function resetCustomer() {
+    setLinkedCustomer(null);
+    setCustomerName("Walk-in Customer");
+    setCustomerPhone("");
+    setPhoneQuery("");
+    setSearchResults([]);
+  }
+
   // Sync orderError to displayError
   useEffect(() => {
     if (orderError) {
@@ -69,15 +113,22 @@ export function CartPanel({ waiterId, onOrderCreated }: CartPanelProps = {}) {
 
     try {
       setDisplayError(null);
-      const customerName =
-        orderType === "call_center" && selectedCustomer ? selectedCustomer.name : undefined;
-      const customerPhone =
-        orderType === "call_center" && selectedCustomer ? selectedCustomer.phone : undefined;
+      let custName: string | undefined;
+      let custPhone: string | undefined;
+      if (orderType === "call_center" && selectedCustomer) {
+        custName = selectedCustomer.name;
+        custPhone = selectedCustomer.phone;
+      } else {
+        // dine_in / takeaway: use linked customer or manual name
+        const name = customerName.trim();
+        if (name && name !== "Walk-in Customer") custName = name;
+        if (customerPhone.trim()) custPhone = customerPhone.trim();
+      }
       const order = await useOrderStore.getState().createOrderFromCart(
         orderType,
         tableId,
-        customerName,
-        customerPhone,
+        custName,
+        custPhone,
         waiterId
       );
       onOrderCreated?.();
@@ -114,6 +165,72 @@ export function CartPanel({ waiterId, onOrderCreated }: CartPanelProps = {}) {
           <Badge variant="default">{itemCount} item{itemCount !== 1 && "s"}</Badge>
         )}
       </div>
+
+      {/* Customer selector (dine-in / takeaway only) */}
+      {currentChannel !== "call_center" && (
+        <div className="border-b border-secondary-200">
+          <button
+            type="button"
+            onClick={() => setCustomerExpanded(!customerExpanded)}
+            className="flex w-full items-center gap-2 px-4 py-2 text-xs hover:bg-secondary-50 transition-colors"
+          >
+            <User className="h-3.5 w-3.5 text-secondary-400" />
+            <span className="font-medium text-secondary-700">{customerName}</span>
+            {customerPhone && (
+              <span className="text-secondary-400">({customerPhone})</span>
+            )}
+            {linkedCustomer && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); resetCustomer(); }}
+                className="ml-auto rounded p-0.5 text-secondary-400 hover:text-danger-500"
+                aria-label="Reset to walk-in"
+              >
+                <RotateCcw className="h-3 w-3" />
+              </button>
+            )}
+          </button>
+          {customerExpanded && (
+            <div className="px-4 pb-3 space-y-2">
+              <div className="relative">
+                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-secondary-400" />
+                <input
+                  type="tel"
+                  placeholder="Search by phone..."
+                  value={phoneQuery}
+                  onChange={(e) => setPhoneQuery(e.target.value)}
+                  className="w-full rounded border border-secondary-200 py-1.5 pl-7 pr-2 text-xs focus:border-primary-400 focus:outline-none"
+                />
+              </div>
+              {searching && <p className="text-[10px] text-secondary-400">Searching...</p>}
+              {searchResults.length > 0 && (
+                <div className="max-h-28 overflow-y-auto rounded border border-secondary-200 divide-y divide-secondary-100">
+                  {searchResults.map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => selectCustomer(c)}
+                      className="flex w-full items-center justify-between px-3 py-1.5 text-xs hover:bg-primary-50 transition-colors"
+                    >
+                      <span className="font-medium text-secondary-800">{c.name}</span>
+                      <span className="text-secondary-400">{c.phone}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {!linkedCustomer && (
+                <input
+                  type="text"
+                  placeholder="Or type customer name..."
+                  value={customerName === "Walk-in Customer" ? "" : customerName}
+                  onChange={(e) => setCustomerName(e.target.value || "Walk-in Customer")}
+                  className="w-full rounded border border-secondary-200 py-1.5 px-2 text-xs focus:border-primary-400 focus:outline-none"
+                />
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Cart Lines */}
       <div className="flex-1 overflow-y-auto">
