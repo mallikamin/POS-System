@@ -540,17 +540,11 @@ async def create_session_payment(
     await db.flush()
 
     # Sync payment status for all affected orders
+    # (_sync_order_payment_status auto-closes session when all orders paid)
     for order, _ in order_dues:
         await _sync_order_payment_status(db, order, tenant_id)
 
-    summary = await get_session_payment_summary(db, session_id, tenant_id)
-
-    # Auto-close session and release table when fully paid
-    if summary.due_amount <= 0:
-        from app.services import table_session_service
-        await table_session_service.close_session(db, session_id, tenant_id, user_id)
-
-    return summary
+    return await get_session_payment_summary(db, session_id, tenant_id)
 
 
 async def _retax_unpaid_session_orders_for_method(
@@ -699,14 +693,7 @@ async def split_session_payment(
     for order, _ in order_dues:
         await _sync_order_payment_status(db, order, tenant_id)
 
-    summary = await get_session_payment_summary(db, session_id, tenant_id)
-
-    # Auto-close session and release table when fully paid
-    if summary.due_amount <= 0:
-        from app.services import table_session_service
-        await table_session_service.close_session(db, session_id, tenant_id, user_id)
-
-    return summary
+    return await get_session_payment_summary(db, session_id, tenant_id)
 
 
 async def _retax_unpaid_order_for_split_allocations(
@@ -838,6 +825,40 @@ async def _sync_order_payment_status(
         order.status = "completed"
 
     await db.flush()
+
+    # Auto-close table session when all its orders are fully settled.
+    # This covers the per-order payment path (session payment endpoints
+    # handle their own auto-close separately).
+    if order.payment_status == "paid" and order.table_session_id:
+        await _maybe_close_session(db, order.table_session_id, tenant_id)
+
+
+async def _maybe_close_session(
+    db: AsyncSession, session_id: uuid.UUID, tenant_id: uuid.UUID
+) -> None:
+    """Close a table session if every order in it is paid or completed/voided."""
+    from app.models.table_session import TableSession
+
+    result = await db.execute(
+        select(TableSession)
+        .options(selectinload(TableSession.orders))
+        .where(TableSession.id == session_id, TableSession.tenant_id == tenant_id)
+    )
+    session = result.scalar_one_or_none()
+    if session is None or session.status == "closed":
+        return
+
+    for o in session.orders:
+        if o.status == "voided":
+            continue
+        if o.payment_status != "paid":
+            return  # at least one unpaid order — don't close
+
+    # All orders paid or voided — close the session
+    from app.services import table_session_service
+    await table_session_service.close_session(
+        db, session_id, tenant_id, session.opened_by
+    )
 
 
 async def _get_order_payment_totals(
