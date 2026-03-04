@@ -78,3 +78,10 @@ class DiscountBreakdown(BaseModel):
     order_id: uuid.UUID
     discounts: list[OrderDiscountResponse] = []
     total_discount: int = 0
+
+
+class SessionDiscountBreakdown(BaseModel):
+    """Summary of discounts on a table session."""
+    session_id: uuid.UUID
+    discounts: list[OrderDiscountResponse] = []
+    total_discount: int = 0

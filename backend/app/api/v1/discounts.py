@@ -15,6 +15,7 @@ from app.schemas.discount import (
     DiscountTypeResponse,
     DiscountTypeUpdate,
     OrderDiscountResponse,
+    SessionDiscountBreakdown,
 )
 from app.services import discount_service
 
@@ -145,6 +146,23 @@ async def get_order_discounts(
     total_discount = sum(d.amount for d in discounts)
     return DiscountBreakdown(
         order_id=order_id,
+        discounts=[OrderDiscountResponse.model_validate(d) for d in discounts],
+        total_discount=total_discount,
+    )
+
+
+@router.get("/sessions/{session_id}", response_model=SessionDiscountBreakdown)
+async def get_session_discounts(
+    session_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> SessionDiscountBreakdown:
+    discounts = await discount_service.list_session_discounts(
+        db, current_user.tenant_id, session_id
+    )
+    total_discount = sum(d.amount for d in discounts)
+    return SessionDiscountBreakdown(
+        session_id=session_id,
         discounts=[OrderDiscountResponse.model_validate(d) for d in discounts],
         total_discount=total_discount,
     )

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { CreditCard, Loader2, Printer, RefreshCw } from "lucide-react";
+import { CreditCard, Loader2, Printer, RefreshCw, ShieldCheck, Tag, X } from "lucide-react";
 import { isAxiosError } from "axios";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,6 +8,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatPKR, rupeesToPaisa, paisaToRupees } from "@/utils/currency";
 import * as paymentsApi from "@/services/paymentsApi";
+import {
+  fetchDiscountTypes,
+  fetchSessionDiscounts,
+  applyDiscount,
+  removeDiscount,
+  type DiscountType,
+  type SessionDiscountBreakdown,
+} from "@/services/discountsApi";
+import { verifyPassword } from "@/services/ordersApi";
 import type {
   PaymentMethodCode,
   SessionPaymentPreview,
@@ -44,6 +53,15 @@ function SessionPaymentPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  const [discountTypes, setDiscountTypes] = useState<DiscountType[]>([]);
+  const [discountBreakdown, setDiscountBreakdown] = useState<SessionDiscountBreakdown | null>(null);
+  const [selectedDiscountTypeId, setSelectedDiscountTypeId] = useState("");
+  const [manualDiscountAmount, setManualDiscountAmount] = useState("");
+  const [manualDiscountNote, setManualDiscountNote] = useState("");
+  const [showManagerApproval, setShowManagerApproval] = useState(false);
+  const [managerPassword, setManagerPassword] = useState("");
+  const [managerApprovalError, setManagerApprovalError] = useState("");
 
   const [cashAmount, setCashAmount] = useState("");
   const [cashTendered, setCashTendered] = useState("");
@@ -113,12 +131,16 @@ function SessionPaymentPage() {
     setLoading(true);
     setError(null);
     try {
-      const [s, p] = await Promise.all([
+      const [s, p, dt, db] = await Promise.all([
         paymentsApi.fetchSessionPaymentSummary(id),
         paymentsApi.fetchSessionPaymentPreview(id),
+        fetchDiscountTypes(true),
+        fetchSessionDiscounts(id),
       ]);
       setSummary(s);
       setPreview(p);
+      setDiscountTypes(dt);
+      setDiscountBreakdown(db);
       if (s.due_amount > 0 && p) {
         const cashDue = Math.max(p.cash_total - s.paid_amount, 0);
         const cardDue = Math.max(p.card_total - s.paid_amount, 0);
@@ -353,6 +375,212 @@ function SessionPaymentPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Discounts */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Tag className="h-4 w-4" />
+            Discounts
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {/* Applied discounts */}
+          {discountBreakdown && discountBreakdown.discounts.length > 0 && (
+            <div className="space-y-2">
+              {discountBreakdown.discounts.map((d) => (
+                <div key={d.id} className="flex items-center justify-between rounded-lg bg-amber-50 px-3 py-2">
+                  <div>
+                    <p className="text-sm font-medium text-amber-800">{d.label}</p>
+                    {d.note && <p className="text-xs text-amber-600">{d.note}</p>}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold text-amber-900">-{formatPKR(d.amount)}</span>
+                    <button
+                      onClick={async () => {
+                        try {
+                          await removeDiscount(d.id);
+                          if (sessionId) await loadData(sessionId);
+                        } catch (err: unknown) {
+                          setError(getErrorMessage(err, "Failed to remove discount"));
+                        }
+                      }}
+                      className="rounded p-1 text-amber-500 hover:bg-amber-100"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+              <div className="flex justify-between text-sm font-semibold border-t border-secondary-100 pt-2">
+                <span>Total Discount</span>
+                <span className="text-amber-700">-{formatPKR(discountBreakdown.total_discount)}</span>
+              </div>
+            </div>
+          )}
+          {/* Apply new discount */}
+          <div className="space-y-2">
+            <div className="grid gap-2 md:grid-cols-3">
+              <div>
+                <Label className="text-xs">Discount Type</Label>
+                <select
+                  value={selectedDiscountTypeId}
+                  onChange={(e) => setSelectedDiscountTypeId(e.target.value)}
+                  className="h-10 w-full rounded-lg border border-secondary-300 px-3 text-sm"
+                >
+                  <option value="">Manual</option>
+                  {discountTypes.map((dt) => (
+                    <option key={dt.id} value={dt.id}>
+                      {dt.name} ({dt.kind === "percent" ? `${dt.value / 100}%` : formatPKR(dt.value)})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {!selectedDiscountTypeId && (
+                <div>
+                  <Label className="text-xs">Amount (PKR)</Label>
+                  <Input
+                    value={manualDiscountAmount}
+                    onChange={(e) => setManualDiscountAmount(e.target.value)}
+                    placeholder="0"
+                    type="number"
+                    min="0"
+                  />
+                </div>
+              )}
+              <div>
+                <Label className="text-xs">Note</Label>
+                <Input
+                  value={manualDiscountNote}
+                  onChange={(e) => setManualDiscountNote(e.target.value)}
+                  placeholder="Optional"
+                />
+              </div>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={submitting}
+              onClick={async () => {
+                if (!sessionId) return;
+                setSubmitting(true);
+                setError(null);
+                try {
+                  await applyDiscount({
+                    table_session_id: sessionId,
+                    discount_type_id: selectedDiscountTypeId || undefined,
+                    amount: !selectedDiscountTypeId && manualDiscountAmount
+                      ? rupeesToPaisa(Number(manualDiscountAmount))
+                      : undefined,
+                    label: !selectedDiscountTypeId ? "Manual Discount" : undefined,
+                    source_type: !selectedDiscountTypeId ? "manual" : undefined,
+                    note: manualDiscountNote || undefined,
+                  });
+                  setManualDiscountAmount("");
+                  setManualDiscountNote("");
+                  setSelectedDiscountTypeId("");
+                  await loadData(sessionId);
+                  setSuccess("Discount applied.");
+                } catch (err: unknown) {
+                  const msg = getErrorMessage(err, "Failed to apply discount");
+                  if (msg === "approval_required") {
+                    setShowManagerApproval(true);
+                    setManagerApprovalError("");
+                    setManagerPassword("");
+                  } else {
+                    setError(msg);
+                  }
+                } finally {
+                  setSubmitting(false);
+                }
+              }}
+            >
+              Apply Discount
+            </Button>
+
+            {/* Manager approval dialog */}
+            {showManagerApproval && (
+              <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <ShieldCheck className="h-5 w-5 text-amber-600" />
+                  <span className="text-sm font-semibold text-amber-800">
+                    Manager Approval Required
+                  </span>
+                </div>
+                <p className="text-xs text-amber-700 mb-3">
+                  This discount exceeds the approval threshold. Enter manager password to authorize.
+                </p>
+                <div className="flex gap-2">
+                  <Input
+                    type="password"
+                    placeholder="Manager password"
+                    value={managerPassword}
+                    onChange={(e) => setManagerPassword(e.target.value)}
+                    onKeyDown={async (e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        (e.target as HTMLInputElement).closest("div")?.querySelector<HTMLButtonElement>("button")?.click();
+                      }
+                    }}
+                    className="flex-1"
+                  />
+                  <Button
+                    size="sm"
+                    disabled={submitting || !managerPassword}
+                    onClick={async () => {
+                      if (!sessionId) return;
+                      setSubmitting(true);
+                      setManagerApprovalError("");
+                      try {
+                        const { auth_token } = await verifyPassword(managerPassword);
+                        await applyDiscount({
+                          table_session_id: sessionId,
+                          discount_type_id: selectedDiscountTypeId || undefined,
+                          amount: !selectedDiscountTypeId && manualDiscountAmount
+                            ? rupeesToPaisa(Number(manualDiscountAmount))
+                            : undefined,
+                          label: !selectedDiscountTypeId ? "Manual Discount" : undefined,
+                          source_type: !selectedDiscountTypeId ? "manual" : undefined,
+                          note: manualDiscountNote || undefined,
+                          manager_verify_token: auth_token,
+                        });
+                        setShowManagerApproval(false);
+                        setManagerPassword("");
+                        setManualDiscountAmount("");
+                        setManualDiscountNote("");
+                        setSelectedDiscountTypeId("");
+                        await loadData(sessionId);
+                        setSuccess("Discount approved and applied.");
+                      } catch (err: unknown) {
+                        setManagerApprovalError(
+                          getErrorMessage(err, "Approval failed")
+                        );
+                      } finally {
+                        setSubmitting(false);
+                      }
+                    }}
+                  >
+                    Approve
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setShowManagerApproval(false);
+                      setManagerPassword("");
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+                {managerApprovalError && (
+                  <p className="mt-2 text-xs text-danger-600">{managerApprovalError}</p>
+                )}
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Session summary totals */}
       <Card>

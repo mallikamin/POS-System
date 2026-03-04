@@ -85,3 +85,14 @@ export async function fetchOrderDiscounts(orderId: string): Promise<DiscountBrea
   const { data } = await api.get<DiscountBreakdown>(`/discounts/orders/${orderId}`);
   return data;
 }
+
+export interface SessionDiscountBreakdown {
+  session_id: string;
+  discounts: OrderDiscount[];
+  total_discount: number;
+}
+
+export async function fetchSessionDiscounts(sessionId: string): Promise<SessionDiscountBreakdown> {
+  const { data } = await api.get<SessionDiscountBreakdown>(`/discounts/sessions/${sessionId}`);
+  return data;
+}
