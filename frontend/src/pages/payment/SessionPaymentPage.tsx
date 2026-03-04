@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { CreditCard, Loader2, Printer, Receipt, RefreshCw, ShieldCheck, Tag, X } from "lucide-react";
+import { CreditCard, Loader2, Receipt, RefreshCw, ShieldCheck, Tag, X } from "lucide-react";
 import { ReceiptModal } from "@/components/pos/ReceiptModal";
 import { isAxiosError } from "axios";
 import { Button } from "@/components/ui/button";
