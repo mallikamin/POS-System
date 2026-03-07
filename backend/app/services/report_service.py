@@ -260,9 +260,10 @@ async def get_void_report(
     totals = totals_result.one()
 
     # By reason (from status log)
+    reason_label = func.coalesce(OrderStatusLog.note, "No reason provided")
     reason_result = await db.execute(
         select(
-            func.coalesce(OrderStatusLog.note, "No reason provided").label("reason"),
+            reason_label.label("reason"),
             func.count(OrderStatusLog.id).label("count"),
             func.coalesce(func.sum(Order.total), 0).label("total_value"),
         )
@@ -273,7 +274,7 @@ async def get_void_report(
             func.cast(Order.created_at, Date) >= date_from,
             func.cast(Order.created_at, Date) <= date_to,
         )
-        .group_by(func.coalesce(OrderStatusLog.note, "No reason provided"))
+        .group_by(reason_label)
         .order_by(func.count(OrderStatusLog.id).desc())
     )
     by_reason = [
