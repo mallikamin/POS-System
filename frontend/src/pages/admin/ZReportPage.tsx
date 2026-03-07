@@ -36,6 +36,7 @@ interface ZReport {
   total_revenue: number;
   total_tax: number;
   total_discount: number;
+  net_revenue: number;
   settled_orders: number;
   fully_refunded_orders: number;
   net_tax: number;
