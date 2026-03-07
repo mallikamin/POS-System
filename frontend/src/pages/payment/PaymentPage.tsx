@@ -76,6 +76,9 @@ function PaymentPage() {
     { method: "cash", amount: "", reference: "" },
     { method: "card", amount: "", reference: "" },
   ]);
+  const [refundingPaymentId, setRefundingPaymentId] = useState<string | null>(null);
+  const [refundAmount, setRefundAmount] = useState("");
+  const [refundNote, setRefundNote] = useState("");
 
   const splitCalcEnabled = useMemo(
     () => !!preview && !!summary && summary.paid_amount === 0,
@@ -102,6 +105,23 @@ function PaymentPage() {
     () => splitCashPayable + splitCardPayable,
     [splitCashPayable, splitCardPayable]
   );
+  const refundableAmounts = useMemo(() => {
+    if (!summary) return {};
+
+    const refundedByParent = summary.payments.reduce<Record<string, number>>((acc, payment) => {
+      if (payment.kind === "refund" && payment.parent_payment_id) {
+        acc[payment.parent_payment_id] = (acc[payment.parent_payment_id] ?? 0) + payment.amount;
+      }
+      return acc;
+    }, {});
+
+    return summary.payments.reduce<Record<string, number>>((acc, payment) => {
+      if (payment.kind === "payment" && payment.status === "completed") {
+        acc[payment.id] = Math.max(payment.amount - (refundedByParent[payment.id] ?? 0), 0);
+      }
+      return acc;
+    }, {});
+  }, [summary]);
 
   const dueDisplay = useMemo(() => {
     if (!summary) return "--";
@@ -270,6 +290,34 @@ function PaymentPage() {
       setSuccess("Cash drawer session closed.");
     } catch (err: unknown) {
       setError(getErrorMessage(err, "Failed to close drawer"));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleRefund(paymentId: string) {
+    const amount = parseRupees(refundAmount);
+    if (!amount) {
+      setError("Enter a refund amount greater than zero.");
+      return;
+    }
+
+    setSubmitting(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const next = await paymentsApi.refundPayment({
+        payment_id: paymentId,
+        amount,
+        note: refundNote || undefined,
+      });
+      setSummary(next);
+      setSuccess("Refund recorded.");
+      setRefundingPaymentId(null);
+      setRefundAmount("");
+      setRefundNote("");
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, "Failed to record refund"));
     } finally {
       setSubmitting(false);
     }
@@ -776,18 +824,79 @@ function PaymentPage() {
                   const taxRateBps = preview ? (isCash ? preview.cash_tax_rate_bps : preview.card_tax_rate_bps) : 0;
                   const taxPct = taxRateBps / 100;
                   const paymentTax = Math.round(payment.amount * taxRateBps / 10000);
+                  const refundableAmount = refundableAmounts[payment.id] ?? 0;
+                  const isRefund = payment.kind === "refund";
                   return (
                     <div key={payment.id}>
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-secondary-600">
                           {methodName} ({payment.kind})
                         </span>
-                        <span className="font-medium text-secondary-900">{formatPKR(payment.amount)}</span>
+                        <span className={`font-medium ${isRefund ? "text-danger-700" : "text-secondary-900"}`}>
+                          {isRefund ? "-" : ""}
+                          {formatPKR(payment.amount)}
+                        </span>
                       </div>
-                      {taxRateBps > 0 && (
+                      {(payment.reference || payment.note) && (
+                        <div className="mt-1 space-y-0.5 pl-2 text-xs text-secondary-400">
+                          {payment.reference && <div>Ref: {payment.reference}</div>}
+                          {payment.note && <div>Note: {payment.note}</div>}
+                        </div>
+                      )}
+                      {!isRefund && taxRateBps > 0 && (
                         <div className="flex items-center justify-between text-xs text-secondary-400 pl-2">
                           <span>Tax @ {taxPct}%</span>
                           <span>{formatPKR(paymentTax)}</span>
+                        </div>
+                      )}
+                      {!isRefund && refundableAmount > 0 && (
+                        <div className="mt-2 rounded-lg border border-secondary-200 bg-secondary-50 p-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="text-xs text-secondary-500">
+                              Refundable balance: <span className="font-medium text-secondary-700">{formatPKR(refundableAmount)}</span>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={submitting}
+                              onClick={() => {
+                                if (refundingPaymentId === payment.id) {
+                                  setRefundingPaymentId(null);
+                                  setRefundAmount("");
+                                  setRefundNote("");
+                                  return;
+                                }
+                                setRefundingPaymentId(payment.id);
+                                setRefundAmount(String(paisaToRupees(refundableAmount)));
+                                setRefundNote("");
+                              }}
+                            >
+                              {refundingPaymentId === payment.id ? "Cancel" : "Refund"}
+                            </Button>
+                          </div>
+                          {refundingPaymentId === payment.id && (
+                            <div className="mt-3 grid gap-2 md:grid-cols-[1fr_1fr_auto]">
+                              <Input
+                                value={refundAmount}
+                                onChange={(e) => setRefundAmount(e.target.value)}
+                                placeholder="Amount (PKR)"
+                                type="number"
+                                min="0"
+                                max={String(paisaToRupees(refundableAmount))}
+                              />
+                              <Input
+                                value={refundNote}
+                                onChange={(e) => setRefundNote(e.target.value)}
+                                placeholder="Reason / note"
+                              />
+                              <Button
+                                disabled={submitting}
+                                onClick={() => void handleRefund(payment.id)}
+                              >
+                                Post Refund
+                              </Button>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>

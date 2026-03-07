@@ -13,6 +13,7 @@ export interface PaymentResponse {
   id: string;
   order_id: string;
   method_id: string;
+  parent_payment_id?: string;
   kind: "payment" | "refund";
   status: "pending" | "completed" | "failed";
   amount: number;

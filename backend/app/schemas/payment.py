@@ -21,6 +21,7 @@ class PaymentResponse(BaseModel):
     id: uuid.UUID
     order_id: uuid.UUID
     method_id: uuid.UUID
+    parent_payment_id: uuid.UUID | None = None
     kind: str
     status: str
     amount: int

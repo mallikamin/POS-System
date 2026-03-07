@@ -52,6 +52,16 @@
 20. Item-wise and category-wise sales reports. Status: Exists.
 21. Full daily summary (cash+credit, tax, net sale). Status: Partial. Planned: P2.
 
+## Manual Verification Status - March 7, 2026
+- Pending manual client-review verification:
+  - #16 Refund option with complete tracking
+  - #17 Shift closing report with cash reconciliation
+  - #18 Access controls for sensitive actions (discount, void, refund)
+- Adjacent follow-up checks to verify after the items above:
+  - #8 Pay-before-eat runtime enforcement
+  - #19 Payment-mode-wise daily sales report
+  - #21 Full daily summary (cash, credit, tax, net sale)
+
 ## Agreed Technical Decisions
 
 1. Tax by payment mode
