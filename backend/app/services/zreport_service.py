@@ -101,6 +101,66 @@ async def generate_zreport(
         )
     ).all()
 
+    # --- Settlement summary (transaction-date based) ---
+    settlement_rows = (
+        await db.execute(
+            select(
+                Payment.order_id,
+                Order.payment_status,
+                Order.total,
+                Order.tax_amount,
+                Payment.kind,
+                Payment.amount,
+            )
+            .join(Order, Payment.order_id == Order.id)
+            .where(
+                Payment.tenant_id == tenant_id,
+                Payment.status == "completed",
+                Payment.kind.in_(["payment", "refund"]),
+                func.cast(Payment.created_at, Date) == target_date,
+                Order.tenant_id == tenant_id,
+                Order.status.notin_(["draft", "voided"]),
+            )
+        )
+    ).all()
+
+    settlement_by_order: dict[uuid.UUID, dict[str, int | str]] = {}
+    for row in settlement_rows:
+        entry = settlement_by_order.setdefault(
+            row.order_id,
+            {
+                "payment_status": row.payment_status,
+                "order_total": row.total,
+                "tax_amount": row.tax_amount,
+                "payments": 0,
+                "refunds": 0,
+            },
+        )
+        entry["payment_status"] = row.payment_status
+        if row.kind == "payment":
+            entry["payments"] = int(entry["payments"]) + row.amount
+        else:
+            entry["refunds"] = int(entry["refunds"]) + row.amount
+
+    settled_orders = 0
+    fully_refunded_orders = 0
+    net_revenue = 0
+    net_tax = 0
+    for entry in settlement_by_order.values():
+        payment_status = str(entry["payment_status"])
+        if payment_status == "paid":
+            settled_orders += 1
+        elif payment_status == "refunded":
+            fully_refunded_orders += 1
+
+        net_amount = int(entry["payments"]) - int(entry["refunds"])
+        net_revenue += net_amount
+        net_tax += _proportional_amount(
+            int(entry["tax_amount"]),
+            net_amount,
+            int(entry["order_total"]),
+        )
+
     # --- Top 10 items ---
     item_rows = (
         await db.execute(
@@ -211,7 +271,10 @@ async def generate_zreport(
         "total_revenue": totals.revenue,
         "total_tax": totals.tax,
         "total_discount": totals.discount,
-        "net_revenue": totals.revenue - totals.discount,
+        "net_revenue": net_revenue,
+        "settled_orders": settled_orders,
+        "fully_refunded_orders": fully_refunded_orders,
+        "net_tax": net_tax,
         "by_channel": [
             {"channel": r.order_type, "orders": r.orders, "revenue": r.revenue}
             for r in channel_rows
@@ -243,3 +306,12 @@ async def generate_zreport(
             for r in disc_rows
         ],
     }
+
+
+def _proportional_amount(base_amount: int, partial_amount: int, total_amount: int) -> int:
+    if base_amount == 0 or partial_amount == 0 or total_amount <= 0:
+        return 0
+
+    sign = -1 if partial_amount < 0 else 1
+    scaled = base_amount * abs(partial_amount)
+    return sign * ((scaled + (total_amount // 2)) // total_amount)

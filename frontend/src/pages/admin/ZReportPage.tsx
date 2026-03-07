@@ -7,6 +7,7 @@ import {
   ShoppingCart,
   CreditCard,
   TrendingUp,
+  RotateCcw,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -35,6 +36,9 @@ interface ZReport {
   total_revenue: number;
   total_tax: number;
   total_discount: number;
+  settled_orders: number;
+  fully_refunded_orders: number;
+  net_tax: number;
   by_channel: { channel: string; orders: number; revenue: number }[];
   by_payment_method: {
     method: string;
@@ -146,21 +150,26 @@ function ZReportPage() {
         <div className="space-y-6 print:space-y-4">
           {/* ===== KPI SUMMARY ===== */}
           {/* Screen: card grid */}
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 print:hidden">
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-5 print:hidden">
             <KpiCard
               icon={<ShoppingCart className="h-5 w-5" />}
-              label="Total Orders"
-              value={report.total_orders.toString()}
+              label="Settled Orders"
+              value={report.settled_orders.toString()}
+            />
+            <KpiCard
+              icon={<RotateCcw className="h-5 w-5" />}
+              label="Fully Refunded"
+              value={report.fully_refunded_orders.toString()}
             />
             <KpiCard
               icon={<DollarSign className="h-5 w-5" />}
-              label="Total Revenue"
-              value={formatPKR(report.total_revenue)}
+              label="Net Revenue"
+              value={formatPKR(report.net_revenue)}
             />
             <KpiCard
               icon={<TrendingUp className="h-5 w-5" />}
-              label="Tax Collected"
-              value={formatPKR(report.total_tax)}
+              label="Net Tax Collected"
+              value={formatPKR(report.net_tax)}
             />
             <KpiCard
               icon={<CreditCard className="h-5 w-5" />}
@@ -174,14 +183,11 @@ function ZReportPage() {
             <h2 className="text-sm font-bold uppercase tracking-wide border-b border-gray-300 pb-1 mb-2">Summary</h2>
             <table className="w-full text-sm">
               <tbody>
-                <tr><td className="py-1">Total Orders</td><td className="py-1 text-right font-semibold">{report.total_orders}</td></tr>
-                <tr><td className="py-1">Total Revenue</td><td className="py-1 text-right font-semibold">{formatPKR(report.total_revenue)}</td></tr>
-                <tr><td className="py-1">Tax Collected</td><td className="py-1 text-right font-semibold">{formatPKR(report.total_tax)}</td></tr>
+                <tr><td className="py-1">Settled Orders</td><td className="py-1 text-right font-semibold">{report.settled_orders}</td></tr>
+                <tr><td className="py-1">Fully Refunded Orders</td><td className="py-1 text-right font-semibold">{report.fully_refunded_orders}</td></tr>
+                <tr><td className="py-1">Net Revenue</td><td className="py-1 text-right font-semibold">{formatPKR(report.net_revenue)}</td></tr>
+                <tr><td className="py-1">Net Tax Collected</td><td className="py-1 text-right font-semibold">{formatPKR(report.net_tax)}</td></tr>
                 <tr><td className="py-1">Discounts</td><td className="py-1 text-right font-semibold">{formatPKR(report.total_discount)}</td></tr>
-                <tr className="border-t border-gray-300 font-bold">
-                  <td className="py-1">Net Revenue</td>
-                  <td className="py-1 text-right">{formatPKR(report.total_revenue - report.total_discount)}</td>
-                </tr>
               </tbody>
             </table>
           </div>

@@ -65,6 +65,9 @@ class ZReport(BaseModel):
     total_tax: int
     total_discount: int
     net_revenue: int = 0  # total_revenue - total_discount
+    settled_orders: int = 0
+    fully_refunded_orders: int = 0
+    net_tax: int = 0
 
     by_channel: list[ChannelBreakdown]
     by_payment_method: list[PaymentMethodBreakdown]
