@@ -26,6 +26,11 @@ class PaymentMethodBreakdown(BaseModel):
     method: str
     count: int
     total: int
+    payment_count: int = 0
+    refund_count: int = 0
+    gross_total: int = 0
+    refund_total: int = 0
+    net_total: int = 0
 
 
 class StatusBreakdown(BaseModel):

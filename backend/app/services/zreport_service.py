@@ -3,7 +3,7 @@
 import uuid
 from datetime import date, datetime, timezone
 
-from sqlalchemy import Date, func, select
+from sqlalchemy import Date, case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.discount import OrderDiscount
@@ -70,17 +70,34 @@ async def generate_zreport(
         await db.execute(
             select(
                 PaymentMethod.display_name,
-                func.count(Payment.id).label("count"),
-                func.coalesce(func.sum(Payment.amount), 0).label("total"),
+                func.coalesce(
+                    func.sum(case((Payment.kind == "payment", 1), else_=0)), 0
+                ).label("payment_count"),
+                func.coalesce(
+                    func.sum(case((Payment.kind == "refund", 1), else_=0)), 0
+                ).label("refund_count"),
+                func.coalesce(
+                    func.sum(
+                        case((Payment.kind == "payment", Payment.amount), else_=0)
+                    ),
+                    0,
+                ).label("gross_total"),
+                func.coalesce(
+                    func.sum(
+                        case((Payment.kind == "refund", Payment.amount), else_=0)
+                    ),
+                    0,
+                ).label("refund_total"),
             )
             .join(PaymentMethod, Payment.method_id == PaymentMethod.id)
             .where(
                 Payment.tenant_id == tenant_id,
-                Payment.kind == "payment",
+                Payment.kind.in_(["payment", "refund"]),
                 Payment.status == "completed",
                 func.cast(Payment.created_at, Date) == target_date,
             )
             .group_by(PaymentMethod.display_name)
+            .order_by(PaymentMethod.display_name)
         )
     ).all()
 
@@ -200,7 +217,16 @@ async def generate_zreport(
             for r in channel_rows
         ],
         "by_payment_method": [
-            {"method": r.display_name, "count": r.count, "total": r.total}
+            {
+                "method": r.display_name,
+                "count": r.payment_count,
+                "total": r.gross_total - r.refund_total,
+                "payment_count": r.payment_count,
+                "refund_count": r.refund_count,
+                "gross_total": r.gross_total,
+                "refund_total": r.refund_total,
+                "net_total": r.gross_total - r.refund_total,
+            }
             for r in pm_rows
         ],
         "by_status": [{"status": r.status, "count": r.count} for r in status_rows],

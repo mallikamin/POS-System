@@ -36,7 +36,16 @@ interface ZReport {
   total_tax: number;
   total_discount: number;
   by_channel: { channel: string; orders: number; revenue: number }[];
-  by_payment_method: { method: string; count: number; total: number }[];
+  by_payment_method: {
+    method: string;
+    count: number;
+    total: number;
+    payment_count: number;
+    refund_count: number;
+    gross_total: number;
+    refund_total: number;
+    net_total: number;
+  }[];
   by_status: { status: string; count: number }[];
   top_items: { name: string; quantity: number; revenue: number }[];
 }
@@ -261,7 +270,7 @@ function ZReportPage() {
             <Card className="print:border print:border-gray-300 print:shadow-none print:rounded-none">
               <CardContent className="space-y-3 pt-6 print:pt-3 print:px-3">
                 <h2 className="font-semibold text-secondary-800 print:text-sm print:font-bold print:uppercase print:tracking-wide print:border-b print:border-gray-300 print:pb-1">
-                  By Payment Method
+                  By Payment Method (Net)
                 </h2>
                 {report.by_payment_method.length === 0 ? (
                   <p className="text-pos-sm text-secondary-500">
@@ -274,10 +283,26 @@ function ZReportPage() {
                         key={pm.method}
                         className="flex items-center justify-between rounded-lg bg-secondary-50 px-3 py-2 print:rounded-none print:bg-transparent print:px-0 print:py-1 print:border-b print:border-gray-100"
                       >
-                        <span className="font-medium">{pm.method}</span>
-                        <span>
-                          {pm.count}x — {formatPKR(pm.total)}
-                        </span>
+                        <div>
+                          <div className="font-medium">{pm.method}</div>
+                          <div className="text-xs text-secondary-500">
+                            {pm.payment_count} payment{pm.payment_count === 1 ? "" : "s"}
+                            {pm.refund_count > 0
+                              ? ` | ${pm.refund_count} refund${pm.refund_count === 1 ? "" : "s"}`
+                              : ""}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="font-semibold">
+                            {formatPKR(pm.net_total)}
+                          </div>
+                          <div className="text-xs text-secondary-500">
+                            Gross {formatPKR(pm.gross_total)}
+                            {pm.refund_total > 0
+                              ? ` | Refunds -${formatPKR(pm.refund_total)}`
+                              : ""}
+                          </div>
+                        </div>
                       </div>
                     ))}
                   </div>
