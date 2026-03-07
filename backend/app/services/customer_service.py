@@ -219,4 +219,5 @@ async def update_customer_stats(
         customer.risk_flag = compute_risk_flag(history)
 
     await db.flush()
+    await db.refresh(customer)
     return customer
