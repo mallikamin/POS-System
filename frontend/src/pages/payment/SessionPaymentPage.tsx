@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { CreditCard, Loader2, Receipt, RefreshCw, ShieldCheck, Tag, X } from "lucide-react";
+import { ArrowLeft, CreditCard, Loader2, Receipt, RefreshCw, ShieldCheck, Tag, X } from "lucide-react";
 import { ReceiptModal } from "@/components/pos/ReceiptModal";
 import { isAxiosError } from "axios";
 import { Button } from "@/components/ui/button";
@@ -280,6 +280,14 @@ function SessionPaymentPage() {
       {/* Header */}
       <div className="flex items-center justify-between rounded-xl border border-secondary-200 bg-white px-4 py-3">
         <div className="flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-9 w-9 p-0 text-secondary-500 hover:text-secondary-700"
+            onClick={() => navigate(-1)}
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
           <CreditCard className="h-5 w-5 text-primary-600" />
           <div>
             <h2 className="text-lg font-semibold text-secondary-900">Settle Table Session</h2>

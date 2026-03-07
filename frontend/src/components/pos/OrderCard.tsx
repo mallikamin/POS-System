@@ -31,6 +31,7 @@ import { cn } from "@/lib/utils";
 import { formatPKR } from "@/utils/currency";
 import { ReceiptModal } from "@/components/pos/ReceiptModal";
 import { verifyPassword } from "@/services/ordersApi";
+import { useConfigStore } from "@/stores/configStore";
 import type { OrderListItem } from "@/types/order";
 
 /* -------------------------------------------------------------------------- */
@@ -165,9 +166,15 @@ export function OrderCard({ order, onTransition, onVoid }: OrderCardProps) {
   const [voidPassword, setVoidPassword] = useState("");
   const [voidError, setVoidError] = useState("");
   const [voidSubmitting, setVoidSubmitting] = useState(false);
+  const paymentFlow = useConfigStore((s) => s.config?.payment_flow);
+  const isPayFirst = paymentFlow === "pay_first";
+  const isPendingPayment = isPayFirst && order.status === "confirmed" && order.payment_status !== "paid";
   const typeConfig = ORDER_TYPE_CONFIG[order.order_type] ?? { label: "Order", bg: "bg-secondary-100", text: "text-secondary-700", icon: Package };
-  const statusConfig = STATUS_CONFIG[order.status] ?? { label: "Unknown", bg: "bg-secondary-100", text: "text-secondary-600", dot: "bg-secondary-400" };
-  const transition = TRANSITION_ACTIONS[order.status];
+  const statusConfig = isPendingPayment
+    ? { label: "Pending Payment", bg: "bg-amber-100", text: "text-amber-700", dot: "bg-amber-500" }
+    : STATUS_CONFIG[order.status] ?? { label: "Unknown", bg: "bg-secondary-100", text: "text-secondary-600", dot: "bg-secondary-400" };
+  // In pay-first mode, don't show "Send to Kitchen" for unpaid confirmed orders — show Pay instead
+  const transition = isPendingPayment ? undefined : TRANSITION_ACTIONS[order.status];
   const canVoid = VOIDABLE_STATUSES.has(order.status);
   const canPay = order.payment_status !== "paid" && order.status !== "voided" && order.status !== "draft";
   const canReceipt = order.status !== "draft";
@@ -306,13 +313,13 @@ export function OrderCard({ order, onTransition, onVoid }: OrderCardProps) {
             )}
             {canPay && (
               <Button
-                variant="outline"
+                variant={isPendingPayment ? "default" : "outline"}
                 size="sm"
-                className="gap-1"
+                className={isPendingPayment ? "flex-1 gap-1.5" : "gap-1"}
                 onClick={() => navigate(`/payment/${order.id}`)}
               >
                 <CreditCard className="h-3.5 w-3.5" />
-                Pay
+                {isPendingPayment ? "Pay Now" : "Pay"}
               </Button>
             )}
             {canReceipt && (

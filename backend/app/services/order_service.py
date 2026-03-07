@@ -382,7 +382,8 @@ async def transition_order(
             )
             if paid_result.scalar_one() == 0:
                 raise ValueError(
-                    "Payment required before sending to kitchen (pay-first mode)"
+                    "This order is pending payment. Please complete payment first — "
+                    "go to the order and click Pay to proceed."
                 )
 
     order.status = new_status

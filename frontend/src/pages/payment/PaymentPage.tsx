@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
-import { CreditCard, Loader2, Printer, RefreshCw, ShieldCheck, Tag, X } from "lucide-react";
+import { useParams, useNavigate } from "react-router-dom";
+import { ArrowLeft, CreditCard, Loader2, Printer, RefreshCw, ShieldCheck, Tag, X } from "lucide-react";
 import { isAxiosError } from "axios";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -47,6 +47,7 @@ function getErrorMessage(err: unknown, fallback: string): string {
 
 function PaymentPage() {
   const { orderId } = useParams<{ orderId: string }>();
+  const navigate = useNavigate();
   const [mode, setMode] = useState<Mode>("cash");
   const [summary, setSummary] = useState<PaymentSummary | null>(null);
   const [orderDetail, setOrderDetail] = useState<OrderResponse | null>(null);
@@ -295,6 +296,14 @@ function PaymentPage() {
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-4 p-4 md:p-6">
       <div className="flex items-center justify-between rounded-xl border border-secondary-200 bg-white px-4 py-3">
         <div className="flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-9 w-9 p-0 text-secondary-500 hover:text-secondary-700"
+            onClick={() => navigate(-1)}
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
           <CreditCard className="h-5 w-5 text-primary-600" />
           <div>
             <h2 className="text-lg font-semibold text-secondary-900">Payment</h2>

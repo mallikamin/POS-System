@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { useConfigStore } from "@/stores/configStore";
 import api from "@/lib/axios";
 
 interface ConfigData {
@@ -89,6 +90,8 @@ function SettingsPage() {
         discount_approval_threshold_bps: Math.round(discountThresholdPct * 100),
         discount_approval_threshold_fixed: Math.round(discountThresholdFixed * 100),
       });
+      // Refresh global config store so all POS pages see new values immediately
+      await useConfigStore.getState().fetchConfig();
       toast({ title: "Settings saved", variant: "success" });
     } catch {
       toast({ title: "Failed to save settings", variant: "destructive" });
