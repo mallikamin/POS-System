@@ -217,3 +217,19 @@ export interface PaymentMethodReport {
   entries: PaymentMethodReportEntry[];
   total_collected: number;
 }
+
+/* Waiter Performance Report types */
+
+export interface WaiterPerformanceEntry {
+  waiter_id: string;
+  waiter_name: string;
+  order_count: number;
+  total_revenue: number;
+  avg_order_value: number;
+}
+
+export interface WaiterPerformanceReport {
+  entries: WaiterPerformanceEntry[];
+  total_orders_with_waiter: number;
+  total_orders_without_waiter: number;
+}

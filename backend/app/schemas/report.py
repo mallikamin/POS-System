@@ -99,3 +99,22 @@ class PaymentMethodReportEntry(BaseModel):
 class PaymentMethodReport(BaseModel):
     entries: list[PaymentMethodReportEntry]
     total_collected: int  # paisa
+
+
+# ---------------------------------------------------------------------------
+# Waiter Performance Report (#11)
+# ---------------------------------------------------------------------------
+
+
+class WaiterPerformanceEntry(BaseModel):
+    waiter_id: str
+    waiter_name: str
+    order_count: int
+    total_revenue: int  # paisa
+    avg_order_value: int  # paisa
+
+
+class WaiterPerformanceReport(BaseModel):
+    entries: list[WaiterPerformanceEntry]
+    total_orders_with_waiter: int
+    total_orders_without_waiter: int

@@ -5,6 +5,7 @@ import type {
   HourlyBreakdown,
   VoidReport,
   PaymentMethodReport,
+  WaiterPerformanceReport,
 } from "@/types/order";
 
 export async function fetchSalesSummary(
@@ -51,6 +52,16 @@ export async function fetchPaymentMethodReport(
   dateTo: string
 ): Promise<PaymentMethodReport> {
   const { data } = await api.get<PaymentMethodReport>("/reports/payment-method", {
+    params: { date_from: dateFrom, date_to: dateTo },
+  });
+  return data;
+}
+
+export async function fetchWaiterPerformance(
+  dateFrom: string,
+  dateTo: string
+): Promise<WaiterPerformanceReport> {
+  const { data } = await api.get<WaiterPerformanceReport>("/reports/waiter-performance", {
     params: { date_from: dateFrom, date_to: dateTo },
   });
   return data;

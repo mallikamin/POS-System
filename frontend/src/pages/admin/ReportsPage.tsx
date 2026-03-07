@@ -5,6 +5,7 @@ import {
   fetchHourlyBreakdown,
   fetchVoidReport,
   fetchPaymentMethodReport,
+  fetchWaiterPerformance,
   downloadSalesCsv,
 } from "@/services/reportsApi";
 import type {
@@ -13,6 +14,7 @@ import type {
   HourlyBreakdown,
   VoidReport,
   PaymentMethodReport,
+  WaiterPerformanceReport,
 } from "@/types/order";
 import { formatPKR } from "@/utils/currency";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -107,6 +109,7 @@ function ReportsPage() {
   const [hourly, setHourly] = useState<HourlyBreakdown | null>(null);
   const [voidReport, setVoidReport] = useState<VoidReport | null>(null);
   const [pmReport, setPmReport] = useState<PaymentMethodReport | null>(null);
+  const [waiterReport, setWaiterReport] = useState<WaiterPerformanceReport | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -117,18 +120,20 @@ function ReportsPage() {
     setLoading(true);
     setError(null);
     try {
-      const [summaryData, itemData, hourlyData, voidData, pmData] = await Promise.all([
+      const [summaryData, itemData, hourlyData, voidData, pmData, waiterData] = await Promise.all([
         fetchSalesSummary(dateFrom, dateTo),
         fetchItemPerformance(dateFrom, dateTo),
         fetchHourlyBreakdown(dateFrom),
         fetchVoidReport(dateFrom, dateTo),
         fetchPaymentMethodReport(dateFrom, dateTo),
+        fetchWaiterPerformance(dateFrom, dateTo),
       ]);
       setSummary(summaryData);
       setItemPerf(itemData);
       setHourly(hourlyData);
       setVoidReport(voidData);
       setPmReport(pmData);
+      setWaiterReport(waiterData);
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Failed to load report data";
@@ -614,6 +619,87 @@ function ReportsPage() {
               </Card>
             )}
           </div>
+
+          {/* waiter performance */}
+          {waiterReport && waiterReport.entries.length > 0 && (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <UserCircle className="h-4 w-4 text-primary-500" />
+                  <CardTitle className="text-base text-secondary-800">
+                    Waiter Performance
+                  </CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-hidden rounded-lg border border-secondary-200">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-secondary-200 bg-secondary-50">
+                        <th className="px-4 py-2.5 text-left font-medium text-secondary-600">
+                          Waiter
+                        </th>
+                        <th className="px-4 py-2.5 text-right font-medium text-secondary-600">
+                          Orders
+                        </th>
+                        <th className="px-4 py-2.5 text-right font-medium text-secondary-600">
+                          Revenue
+                        </th>
+                        <th className="px-4 py-2.5 text-right font-medium text-secondary-600">
+                          Avg Order
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-secondary-100">
+                      {waiterReport.entries.map((entry) => (
+                        <tr key={entry.waiter_id} className="hover:bg-secondary-50">
+                          <td className="px-4 py-2.5 text-secondary-700">
+                            <div className="flex items-center gap-1.5">
+                              <UserCircle className="h-3.5 w-3.5 text-secondary-400" />
+                              {entry.waiter_name}
+                            </div>
+                          </td>
+                          <td className="px-4 py-2.5 text-right text-secondary-800">
+                            {entry.order_count}
+                          </td>
+                          <td className="px-4 py-2.5 text-right font-medium text-secondary-900">
+                            {formatPKR(entry.total_revenue)}
+                          </td>
+                          <td className="px-4 py-2.5 text-right text-secondary-700">
+                            {formatPKR(entry.avg_order_value)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t border-secondary-200 bg-secondary-50">
+                        <td className="px-4 py-2.5 font-medium text-secondary-700">
+                          Total (with waiter)
+                        </td>
+                        <td className="px-4 py-2.5 text-right font-bold text-secondary-900">
+                          {waiterReport.total_orders_with_waiter}
+                        </td>
+                        <td className="px-4 py-2.5 text-right font-bold text-secondary-900">
+                          {formatPKR(waiterReport.entries.reduce((s, e) => s + e.total_revenue, 0))}
+                        </td>
+                        <td />
+                      </tr>
+                      {waiterReport.total_orders_without_waiter > 0 && (
+                        <tr className="bg-secondary-50">
+                          <td className="px-4 py-2.5 text-secondary-500" colSpan={2}>
+                            Orders without waiter
+                          </td>
+                          <td className="px-4 py-2.5 text-right text-secondary-500" colSpan={2}>
+                            {waiterReport.total_orders_without_waiter}
+                          </td>
+                        </tr>
+                      )}
+                    </tfoot>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* channel breakdown + hourly chart */}
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">

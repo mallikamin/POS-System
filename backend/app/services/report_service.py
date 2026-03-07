@@ -357,3 +357,61 @@ async def get_payment_method_report(
     total_collected = sum(e["total"] for e in entries)
 
     return {"entries": entries, "total_collected": total_collected}
+
+
+async def get_waiter_performance(
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    date_from: date,
+    date_to: date,
+) -> dict:
+    """Waiter performance: orders, revenue, avg order value per waiter."""
+    # Orders with a waiter assigned
+    result = await db.execute(
+        select(
+            User.id.label("waiter_id"),
+            User.full_name.label("waiter_name"),
+            func.count(Order.id).label("order_count"),
+            func.coalesce(func.sum(Order.total), 0).label("total_revenue"),
+        )
+        .join(User, Order.waiter_id == User.id)
+        .where(
+            Order.tenant_id == tenant_id,
+            Order.status != "voided",
+            func.cast(Order.created_at, Date) >= date_from,
+            func.cast(Order.created_at, Date) <= date_to,
+        )
+        .group_by(User.id, User.full_name)
+        .order_by(func.sum(Order.total).desc())
+    )
+    rows = result.all()
+
+    entries = [
+        {
+            "waiter_id": str(r.waiter_id),
+            "waiter_name": r.waiter_name,
+            "order_count": r.order_count,
+            "total_revenue": r.total_revenue,
+            "avg_order_value": r.total_revenue // r.order_count if r.order_count else 0,
+        }
+        for r in rows
+    ]
+
+    # Count orders without waiter
+    no_waiter_result = await db.execute(
+        select(func.count(Order.id)).where(
+            Order.tenant_id == tenant_id,
+            Order.status != "voided",
+            Order.waiter_id.is_(None),
+            func.cast(Order.created_at, Date) >= date_from,
+            func.cast(Order.created_at, Date) <= date_to,
+        )
+    )
+    total_without = no_waiter_result.scalar_one()
+    total_with = sum(e["order_count"] for e in entries)
+
+    return {
+        "entries": entries,
+        "total_orders_with_waiter": total_with,
+        "total_orders_without_waiter": total_without,
+    }

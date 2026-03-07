@@ -17,6 +17,7 @@ from app.schemas.report import (
     PaymentMethodReport,
     SalesSummary,
     VoidReport,
+    WaiterPerformanceReport,
 )
 from app.schemas.zreport import ZReport
 from app.services import report_service
@@ -137,6 +138,20 @@ async def get_payment_method_report(
         db, current_user.tenant_id, date_from, date_to
     )
     return PaymentMethodReport(**data)
+
+
+@router.get("/waiter-performance", response_model=WaiterPerformanceReport)
+async def get_waiter_performance(
+    date_from: date = Query(...),
+    date_to: date = Query(...),
+    current_user: User = Depends(_admin),
+    db: AsyncSession = Depends(get_db),
+) -> WaiterPerformanceReport:
+    """Get waiter performance breakdown for a date range."""
+    data = await report_service.get_waiter_performance(
+        db, current_user.tenant_id, date_from, date_to
+    )
+    return WaiterPerformanceReport(**data)
 
 
 @router.get("/z-report", response_model=ZReport)

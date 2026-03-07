@@ -83,4 +83,34 @@
 
 ---
 
+## ENH-006: Back button on KDS (Kitchen Display) page
+- **Logged:** 2026-03-07 (Test 9 session)
+- **Source:** UAT observation — KDS is fullscreen with no navigation back to POS/dashboard; user must use browser back button
+- **Description:** Add a back/home button to the KDS header bar so kitchen staff or managers can navigate back to the dashboard without relying on the browser back button.
+- **Affected:** `frontend/src/pages/kitchen/KitchenPage.tsx`
+- **Priority:** Medium
+- **Phase:** Post-UAT polish
+
+---
+
+## ENH-007: Kitchen View shortcut in Admin panel
+- **Logged:** 2026-03-07 (Test 9 session)
+- **Source:** UAT observation — no way to reach KDS from the Admin panel; must navigate to dashboard first then open KDS
+- **Description:** Add a "Kitchen Display" button/link in the Admin sidebar or dashboard so managers can quickly open the KDS view without leaving the admin context.
+- **Affected:** `frontend/src/components/layout/AdminLayout.tsx`
+- **Priority:** Medium
+- **Phase:** Post-UAT polish
+
+---
+
+## ENH-008: Lean PDF report format (McKinsey-style)
+- **Logged:** 2026-03-07 (Reports testing session)
+- **Source:** User request — reports should have a clean, professional PDF export format similar to the Radius2 Analytics project (`C:\Users\Malik\desktop\radius2-analytics`)
+- **Description:** Add PDF export option to all report sections (sales summary, waiter performance, void report, etc.) with a lean, structured layout: branded header, clean typography, tables with alternating rows, summary KPI cards, and print-optimized CSS. Reference the Radius2 Analytics report templates for style and structure.
+- **Affected:** `frontend/src/pages/admin/ReportsPage.tsx`, new print/PDF utility
+- **Priority:** Medium
+- **Phase:** Post-UAT polish
+
+---
+
 *New items should be added below with sequential ENH-NNN numbering, date, source, and phase assignment.*
