@@ -75,9 +75,7 @@ async def authenticate_by_pin(
     loop = asyncio.get_running_loop()
     for user in users:
         # Run bcrypt in thread pool so we don't block the event loop
-        match = await loop.run_in_executor(
-            None, verify_password, pin, user.pin_code
-        )
+        match = await loop.run_in_executor(None, verify_password, pin, user.pin_code)
         if match:
             user.last_login_at = datetime.now(timezone.utc)
             await db.flush()
@@ -155,9 +153,7 @@ async def refresh_tokens(db: AsyncSession, refresh_token_str: str) -> TokenRespo
 
     # Fetch the user to build new tokens
     user_result = await db.execute(
-        select(User)
-        .options(selectinload(User.role))
-        .where(User.id == db_token.user_id)
+        select(User).options(selectinload(User.role)).where(User.id == db_token.user_id)
     )
     user = user_result.scalar_one_or_none()
 

@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 # Request Schemas
 # ---------------------------------------------------------------------------
 
+
 class TableSessionOpenRequest(BaseModel):
     table_id: uuid.UUID
     waiter_id: uuid.UUID | None = None
@@ -24,8 +25,10 @@ class TableSessionCloseRequest(BaseModel):
 # Response Schemas
 # ---------------------------------------------------------------------------
 
+
 class TableSessionOrderSummary(BaseModel):
     """Lightweight order info within a session."""
+
     id: uuid.UUID
     order_number: str
     status: str
@@ -61,11 +64,13 @@ class TableSessionResponse(BaseModel):
 
 class TableSessionDetailResponse(TableSessionResponse):
     """Session with nested orders."""
+
     orders: list[TableSessionOrderSummary] = []
 
 
 class TableSessionBillSummary(BaseModel):
     """Consolidated bill for all orders in a session."""
+
     session_id: uuid.UUID
     table_id: uuid.UUID
     table_number: int | None = None

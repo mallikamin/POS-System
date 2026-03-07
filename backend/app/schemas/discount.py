@@ -10,11 +10,14 @@ from pydantic import BaseModel, Field
 # Discount Type CRUD
 # ---------------------------------------------------------------------------
 
+
 class DiscountTypeCreate(BaseModel):
     code: str = Field(..., min_length=1, max_length=50)
     name: str = Field(..., min_length=1, max_length=100)
     kind: str = Field(..., pattern=r"^(percent|fixed)$")
-    value: int = Field(..., ge=0, description="Percent in basis points or fixed in paisa")
+    value: int = Field(
+        ..., ge=0, description="Percent in basis points or fixed in paisa"
+    )
     is_active: bool = True
 
 
@@ -42,15 +45,30 @@ class DiscountTypeResponse(BaseModel):
 # Apply / Remove Discount
 # ---------------------------------------------------------------------------
 
+
 class ApplyDiscountRequest(BaseModel):
     order_id: uuid.UUID | None = None
     table_session_id: uuid.UUID | None = None
-    discount_type_id: uuid.UUID | None = Field(None, description="Use a catalog discount type")
-    label: str | None = Field(None, max_length=200, description="Override label (auto-derived if using type)")
-    source_type: str | None = Field(None, max_length=50, description="Override source_type (auto-derived if using type)")
-    amount: int | None = Field(None, ge=0, description="Override amount in paisa (auto-calculated if percent type)")
+    discount_type_id: uuid.UUID | None = Field(
+        None, description="Use a catalog discount type"
+    )
+    label: str | None = Field(
+        None, max_length=200, description="Override label (auto-derived if using type)"
+    )
+    source_type: str | None = Field(
+        None,
+        max_length=50,
+        description="Override source_type (auto-derived if using type)",
+    )
+    amount: int | None = Field(
+        None,
+        ge=0,
+        description="Override amount in paisa (auto-calculated if percent type)",
+    )
     note: str | None = Field(None, max_length=500)
-    manager_verify_token: str | None = Field(None, description="Required if discount exceeds approval threshold")
+    manager_verify_token: str | None = Field(
+        None, description="Required if discount exceeds approval threshold"
+    )
 
 
 class OrderDiscountResponse(BaseModel):
@@ -73,8 +91,10 @@ class OrderDiscountResponse(BaseModel):
 # Discount summary for payment/receipt
 # ---------------------------------------------------------------------------
 
+
 class DiscountBreakdown(BaseModel):
     """Summary of discounts on an order."""
+
     order_id: uuid.UUID
     discounts: list[OrderDiscountResponse] = []
     total_discount: int = 0
@@ -82,6 +102,7 @@ class DiscountBreakdown(BaseModel):
 
 class SessionDiscountBreakdown(BaseModel):
     """Summary of discounts on a table session."""
+
     session_id: uuid.UUID
     discounts: list[OrderDiscountResponse] = []
     total_discount: int = 0

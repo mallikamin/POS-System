@@ -24,6 +24,7 @@ from dataclasses import dataclass, field
 @dataclass(frozen=True)
 class AccountingNeed:
     """One accounting concept the POS needs mapped to QB."""
+
     key: str
     label: str
     description: str
@@ -56,8 +57,16 @@ POS_ACCOUNTING_NEEDS: list[AccountingNeed] = [
         expected_qb_types=["Income", "Other Income"],
         expected_qb_sub_type="SalesOfProductIncome",
         required=True,
-        search_hints=["food sales", "sales", "revenue", "income", "food revenue",
-                       "dining revenue", "restaurant sales", "food income"],
+        search_hints=[
+            "food sales",
+            "sales",
+            "revenue",
+            "income",
+            "food revenue",
+            "dining revenue",
+            "restaurant sales",
+            "food income",
+        ],
     ),
     AccountingNeed(
         key="beverage_income",
@@ -66,10 +75,15 @@ POS_ACCOUNTING_NEEDS: list[AccountingNeed] = [
         expected_qb_types=["Income", "Other Income"],
         expected_qb_sub_type="SalesOfProductIncome",
         required=False,
-        search_hints=["beverage sales", "drink sales", "beverage revenue",
-                       "chai", "juice", "sharbat"],
+        search_hints=[
+            "beverage sales",
+            "drink sales",
+            "beverage revenue",
+            "chai",
+            "juice",
+            "sharbat",
+        ],
     ),
-
     # ── COST OF GOODS SOLD ──────────────────────────────────
     AccountingNeed(
         key="cogs",
@@ -78,10 +92,17 @@ POS_ACCOUNTING_NEEDS: list[AccountingNeed] = [
         expected_qb_types=["Cost of Goods Sold"],
         expected_qb_sub_type="SuppliesMaterialsCogs",
         required=True,
-        search_hints=["cogs", "cost of goods", "food cost", "raw material",
-                       "ingredient", "recipe cost", "purchase", "procurement"],
+        search_hints=[
+            "cogs",
+            "cost of goods",
+            "food cost",
+            "raw material",
+            "ingredient",
+            "recipe cost",
+            "purchase",
+            "procurement",
+        ],
     ),
-
     # ── TAX ─────────────────────────────────────────────────
     AccountingNeed(
         key="tax_payable",
@@ -90,11 +111,22 @@ POS_ACCOUNTING_NEEDS: list[AccountingNeed] = [
         expected_qb_types=["Other Current Liability"],
         expected_qb_sub_type="GlobalTaxPayable",
         required=True,
-        search_hints=["tax payable", "sales tax", "gst", "fbr", "pra", "pst",
-                       "sst", "vat", "tax collected", "government tax",
-                       "federal tax", "provincial tax", "withholding"],
+        search_hints=[
+            "tax payable",
+            "sales tax",
+            "gst",
+            "fbr",
+            "pra",
+            "pst",
+            "sst",
+            "vat",
+            "tax collected",
+            "government tax",
+            "federal tax",
+            "provincial tax",
+            "withholding",
+        ],
     ),
-
     # ── BANK / PAYMENT METHODS ──────────────────────────────
     AccountingNeed(
         key="bank",
@@ -103,8 +135,19 @@ POS_ACCOUNTING_NEEDS: list[AccountingNeed] = [
         expected_qb_types=["Bank"],
         expected_qb_sub_type="Checking",
         required=True,
-        search_hints=["bank", "checking", "current account", "savings",
-                       "deposit", "hbl", "meezan", "ubl", "mcb", "allied", "nbp"],
+        search_hints=[
+            "bank",
+            "checking",
+            "current account",
+            "savings",
+            "deposit",
+            "hbl",
+            "meezan",
+            "ubl",
+            "mcb",
+            "allied",
+            "nbp",
+        ],
     ),
     AccountingNeed(
         key="cash",
@@ -113,8 +156,15 @@ POS_ACCOUNTING_NEEDS: list[AccountingNeed] = [
         expected_qb_types=["Bank", "Other Current Asset"],
         expected_qb_sub_type="CashOnHand",
         required=False,
-        search_hints=["cash", "register", "drawer", "till", "petty cash",
-                       "cash on hand", "cash register"],
+        search_hints=[
+            "cash",
+            "register",
+            "drawer",
+            "till",
+            "petty cash",
+            "cash on hand",
+            "cash register",
+        ],
     ),
     AccountingNeed(
         key="mobile_wallet",
@@ -122,10 +172,15 @@ POS_ACCOUNTING_NEEDS: list[AccountingNeed] = [
         description="JazzCash, Easypaisa, SadaPay digital payment deposits",
         expected_qb_types=["Bank", "Other Current Asset"],
         required=False,
-        search_hints=["jazzcash", "easypaisa", "sadapay", "nayapay",
-                       "mobile wallet", "digital payment"],
+        search_hints=[
+            "jazzcash",
+            "easypaisa",
+            "sadapay",
+            "nayapay",
+            "mobile wallet",
+            "digital payment",
+        ],
     ),
-
     # ── ADJUSTMENTS ─────────────────────────────────────────
     AccountingNeed(
         key="discount",
@@ -134,8 +189,14 @@ POS_ACCOUNTING_NEEDS: list[AccountingNeed] = [
         expected_qb_types=["Income", "Other Income", "Expense"],
         expected_qb_sub_type="DiscountsRefundsGiven",
         required=True,
-        search_hints=["discount", "rebate", "allowance", "markdown",
-                       "concession", "promotional discount"],
+        search_hints=[
+            "discount",
+            "rebate",
+            "allowance",
+            "markdown",
+            "concession",
+            "promotional discount",
+        ],
     ),
     AccountingNeed(
         key="rounding",
@@ -153,10 +214,15 @@ POS_ACCOUNTING_NEEDS: list[AccountingNeed] = [
         expected_qb_types=["Expense", "Other Expense"],
         expected_qb_sub_type="OtherMiscellaneousExpense",
         required=True,
-        search_hints=["over short", "cash over", "cash short", "variance",
-                       "discrepancy", "cash over short"],
+        search_hints=[
+            "over short",
+            "cash over",
+            "cash short",
+            "variance",
+            "discrepancy",
+            "cash over short",
+        ],
     ),
-
     # ── SERVICE / TIPS ──────────────────────────────────────
     AccountingNeed(
         key="tips",
@@ -174,7 +240,6 @@ POS_ACCOUNTING_NEEDS: list[AccountingNeed] = [
         required=False,
         search_hints=["service charge", "service fee"],
     ),
-
     # ── DELIVERY ────────────────────────────────────────────
     AccountingNeed(
         key="delivery_fee",
@@ -182,8 +247,13 @@ POS_ACCOUNTING_NEEDS: list[AccountingNeed] = [
         description="Delivery charges collected from customers",
         expected_qb_types=["Income", "Other Income"],
         required=False,
-        search_hints=["delivery fee", "delivery charge", "delivery income",
-                       "shipping", "dispatch"],
+        search_hints=[
+            "delivery fee",
+            "delivery charge",
+            "delivery income",
+            "shipping",
+            "dispatch",
+        ],
     ),
     AccountingNeed(
         key="foodpanda_commission",
@@ -192,10 +262,16 @@ POS_ACCOUNTING_NEEDS: list[AccountingNeed] = [
         expected_qb_types=["Expense", "Cost of Goods Sold"],
         expected_qb_sub_type="OtherMiscellaneousServiceCost",
         required=False,
-        search_hints=["foodpanda", "commission", "platform fee", "cheetay",
-                       "careem", "bykea", "aggregator"],
+        search_hints=[
+            "foodpanda",
+            "commission",
+            "platform fee",
+            "cheetay",
+            "careem",
+            "bykea",
+            "aggregator",
+        ],
     ),
-
     # ── GIFT CARDS ──────────────────────────────────────────
     AccountingNeed(
         key="gift_card_liability",
@@ -203,10 +279,8 @@ POS_ACCOUNTING_NEEDS: list[AccountingNeed] = [
         description="Unredeemed gift cards / vouchers — liability until used",
         expected_qb_types=["Other Current Liability"],
         required=False,
-        search_hints=["gift card", "voucher", "coupon", "credit note",
-                       "gift voucher"],
+        search_hints=["gift card", "voucher", "coupon", "credit note", "gift voucher"],
     ),
-
     # ── COMMON EXPENSES ────────────────────────────────────
     AccountingNeed(
         key="rent_expense",
@@ -224,8 +298,15 @@ POS_ACCOUNTING_NEEDS: list[AccountingNeed] = [
         expected_qb_types=["Expense"],
         expected_qb_sub_type="PayrollExpenses",
         required=False,
-        search_hints=["salary", "salaries", "wages", "payroll", "staff cost",
-                       "compensation", "tankhwah"],
+        search_hints=[
+            "salary",
+            "salaries",
+            "wages",
+            "payroll",
+            "staff cost",
+            "compensation",
+            "tankhwah",
+        ],
     ),
     AccountingNeed(
         key="utility_expense",
@@ -234,8 +315,15 @@ POS_ACCOUNTING_NEEDS: list[AccountingNeed] = [
         expected_qb_types=["Expense"],
         expected_qb_sub_type="Utilities",
         required=False,
-        search_hints=["utility", "utilities", "electricity", "gas", "water",
-                       "bijli", "sui gas"],
+        search_hints=[
+            "utility",
+            "utilities",
+            "electricity",
+            "gas",
+            "water",
+            "bijli",
+            "sui gas",
+        ],
     ),
     AccountingNeed(
         key="packaging_expense",
@@ -243,8 +331,13 @@ POS_ACCOUNTING_NEEDS: list[AccountingNeed] = [
         description="Takeaway containers, bags, disposable items",
         expected_qb_types=["Expense", "Cost of Goods Sold"],
         required=False,
-        search_hints=["packaging", "container", "disposable", "packing",
-                       "takeaway supplies"],
+        search_hints=[
+            "packaging",
+            "container",
+            "disposable",
+            "packing",
+            "takeaway supplies",
+        ],
     ),
 ]
 
@@ -253,7 +346,10 @@ POS_ACCOUNTING_NEEDS: list[AccountingNeed] = [
 # ---------------------------------------------------------------------------
 NEEDS_BY_KEY: dict[str, AccountingNeed] = {n.key: n for n in POS_ACCOUNTING_NEEDS}
 REQUIRED_NEEDS: list[AccountingNeed] = [n for n in POS_ACCOUNTING_NEEDS if n.required]
-OPTIONAL_NEEDS: list[AccountingNeed] = [n for n in POS_ACCOUNTING_NEEDS if not n.required]
+OPTIONAL_NEEDS: list[AccountingNeed] = [
+    n for n in POS_ACCOUNTING_NEEDS if not n.required
+]
+
 
 def get_all_needs_as_dicts() -> list[dict]:
     """Return all needs as serializable dicts for API responses."""

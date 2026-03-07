@@ -14,12 +14,12 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, ROUND_HALF_UP
 
-from sqlalchemy import Date, and_, func, select, update
+from sqlalchemy import Date, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.menu import Category, MenuItem
-from app.models.order import Order, OrderItem, OrderItemModifier
+from app.models.order import Order, OrderItem
 from app.models.quickbooks import (
     QBAccountMapping,
     QBConnection,
@@ -34,6 +34,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Currency helpers
 # ---------------------------------------------------------------------------
+
 
 def paisa_to_decimal(paisa: int) -> str:
     """Convert paisa (integer) to a decimal string for QB.
@@ -83,16 +84,32 @@ _COA_TEMPLATE: list[dict] = [
     {"name": "Delivery Revenue", "type": "Income", "sub": "ServiceFeeIncome"},
     {"name": "Tips Income", "type": "Income", "sub": "OtherPrimaryIncome"},
     # COGS
-    {"name": "Cost of Food", "type": "Cost of Goods Sold", "sub": "SuppliesMaterialsCogs"},
-    {"name": "Cost of Beverages", "type": "Cost of Goods Sold", "sub": "SuppliesMaterialsCogs"},
+    {
+        "name": "Cost of Food",
+        "type": "Cost of Goods Sold",
+        "sub": "SuppliesMaterialsCogs",
+    },
+    {
+        "name": "Cost of Beverages",
+        "type": "Cost of Goods Sold",
+        "sub": "SuppliesMaterialsCogs",
+    },
     # Expenses
     {"name": "Kitchen Supplies", "type": "Expense", "sub": "SuppliesMaterials"},
     {"name": "Packaging & Disposables", "type": "Expense", "sub": "SuppliesMaterials"},
     {"name": "Delivery Expense", "type": "Expense", "sub": "Travel"},
     {"name": "Foodpanda Commission", "type": "Expense", "sub": "CommissionsAndFees"},
     # Liability
-    {"name": "FBR GST Payable", "type": "Other Current Liability", "sub": "GlobalTaxPayable"},
-    {"name": "PRA PST Payable", "type": "Other Current Liability", "sub": "GlobalTaxPayable"},
+    {
+        "name": "FBR GST Payable",
+        "type": "Other Current Liability",
+        "sub": "GlobalTaxPayable",
+    },
+    {
+        "name": "PRA PST Payable",
+        "type": "Other Current Liability",
+        "sub": "GlobalTaxPayable",
+    },
     # Bank / Cash
     {"name": "Cash Drawer", "type": "Bank", "sub": "CashOnHand"},
     {"name": "Business Bank Account", "type": "Bank", "sub": "Checking"},
@@ -136,7 +153,9 @@ class SyncService:
             if existing.scalar_one_or_none() is not None:
                 logger.info(
                     "Skipped duplicate QB sync job type=%s entity=%s/%s (already queued)",
-                    job_type, entity_type, entity_id,
+                    job_type,
+                    entity_type,
+                    entity_id,
                 )
                 return None
 
@@ -157,7 +176,10 @@ class SyncService:
         await self.db.flush()
         logger.info(
             "Enqueued QB sync job %s  type=%s entity=%s/%s",
-            job.id, job_type, entity_type, entity_id,
+            job.id,
+            job_type,
+            entity_type,
+            entity_id,
         )
         return job
 
@@ -188,32 +210,47 @@ class SyncService:
             return await self._handle_job_failure(job, exc, elapsed)
 
     async def _handle_job_failure(
-        self, job: QBSyncJob, exc: Exception, elapsed_ms: int,
+        self,
+        job: QBSyncJob,
+        exc: Exception,
+        elapsed_ms: int,
     ) -> bool:
         job.retry_count += 1
         job.error_message = str(exc)[:2000]
         job.processing_duration_ms = elapsed_ms
         if isinstance(exc, QBAPIError):
             # error_detail is a JSON column (dict), not a string
-            job.error_detail = {
-                "detail": exc.detail,
-                "qb_error_code": exc.qb_error_code,
-                "status_code": exc.status_code,
-            } if hasattr(exc, "detail") else None
+            job.error_detail = (
+                {
+                    "detail": exc.detail,
+                    "qb_error_code": exc.qb_error_code,
+                    "status_code": exc.status_code,
+                }
+                if hasattr(exc, "detail")
+                else None
+            )
 
         if job.retry_count >= job.max_retries:
             job.status = "dead_letter"
             logger.error(
                 "Job %s exhausted retries (%d).  Moved to dead_letter: %s",
-                job.id, job.max_retries, exc,
+                job.id,
+                job.max_retries,
+                exc,
             )
         else:
-            backoff_secs = (2 ** job.retry_count) * 30  # 60s, 120s, 240s ...
+            backoff_secs = (2**job.retry_count) * 30  # 60s, 120s, 240s ...
             job.status = "failed"
-            job.next_retry_at = datetime.now(timezone.utc) + timedelta(seconds=backoff_secs)
+            job.next_retry_at = datetime.now(timezone.utc) + timedelta(
+                seconds=backoff_secs
+            )
             logger.warning(
                 "Job %s failed (attempt %d/%d), retry in %ds: %s",
-                job.id, job.retry_count, job.max_retries, backoff_secs, exc,
+                job.id,
+                job.retry_count,
+                job.max_retries,
+                backoff_secs,
+                exc,
             )
 
         await self.db.flush()
@@ -248,13 +285,23 @@ class SyncService:
                 p["invoice_qb_id"],
             )
         if jt == "daily_summary":
-            date = datetime.fromisoformat(job.payload["date"]) if job.payload else datetime.now(timezone.utc)
+            date = (
+                datetime.fromisoformat(job.payload["date"])
+                if job.payload
+                else datetime.now(timezone.utc)
+            )
             return await self.create_daily_summary(date)
         if jt == "daily_deposit":
             p = job.payload or {}
-            date = datetime.fromisoformat(p["date"]) if "date" in p else datetime.now(timezone.utc)
+            date = (
+                datetime.fromisoformat(p["date"])
+                if "date" in p
+                else datetime.now(timezone.utc)
+            )
             return await self.create_daily_deposit(
-                date, p.get("cash_amount_paisa", 0), p.get("card_amount_paisa", 0),
+                date,
+                p.get("cash_amount_paisa", 0),
+                p.get("card_amount_paisa", 0),
             )
         if jt == "create_estimate":
             order = await self._load_order(job.entity_id)
@@ -262,27 +309,39 @@ class SyncService:
         if jt == "create_bill":
             p = job.payload or {}
             return await self.sync_bill(
-                p["vendor_name"], p["amount_paisa"], p.get("line_items", []), p.get("memo"),
+                p["vendor_name"],
+                p["amount_paisa"],
+                p.get("line_items", []),
+                p.get("memo"),
             )
         if jt == "create_bill_payment":
             p = job.payload or {}
             return await self.sync_bill_payment(
-                p["bill_qb_id"], p["amount_paisa"], p["payment_account_id"],
+                p["bill_qb_id"],
+                p["amount_paisa"],
+                p["payment_account_id"],
             )
         if jt == "create_purchase_order":
             p = job.payload or {}
             return await self.sync_purchase_order(
-                p["vendor_name"], p.get("line_items", []), p.get("memo"),
+                p["vendor_name"],
+                p.get("line_items", []),
+                p.get("memo"),
             )
         if jt == "create_transfer":
             p = job.payload or {}
             return await self.sync_transfer(
-                p["from_account_id"], p["to_account_id"], p["amount_paisa"], p.get("memo"),
+                p["from_account_id"],
+                p["to_account_id"],
+                p["amount_paisa"],
+                p.get("memo"),
             )
         if jt == "create_vendor_credit":
             p = job.payload or {}
             return await self.sync_vendor_credit(
-                p["vendor_name"], p["amount_paisa"], p.get("line_items", []),
+                p["vendor_name"],
+                p["amount_paisa"],
+                p.get("line_items", []),
             )
 
         # Entity syncs
@@ -414,7 +473,9 @@ class SyncService:
     # =====================================================================
 
     async def _get_entity_mapping(
-        self, entity_type: str, pos_entity_id: uuid.UUID,
+        self,
+        entity_type: str,
+        pos_entity_id: uuid.UUID,
     ) -> QBEntityMapping | None:
         """Look up an existing POS <-> QB entity mapping."""
         result = await self.db.execute(
@@ -535,11 +596,15 @@ class SyncService:
 
         # Resolve tax code refs once (shared by all line items)
         tax_code_ref = await self._get_default_tax_code_ref()
-        non_tax_ref = await self._get_non_taxable_code_ref()
+        _non_tax_ref = (
+            await self._get_non_taxable_code_ref()
+        )  # reserved for future non-taxable items
 
         for item in order.items:
             # Resolve QB item ref via entity mapping
-            item_mapping = await self._get_entity_mapping("menu_item", item.menu_item_id)
+            item_mapping = await self._get_entity_mapping(
+                "menu_item", item.menu_item_id
+            )
             item_ref: dict | None = None
             if item_mapping:
                 item_ref = {
@@ -571,7 +636,9 @@ class SyncService:
                 line["SalesItemLineDetail"]["ItemRef"] = item_ref
 
             # Resolve income account for this item's category
-            category_id = getattr(item.menu_item, "category_id", None) if item.menu_item else None
+            category_id = (
+                getattr(item.menu_item, "category_id", None) if item.menu_item else None
+            )
             income_mapping = await self._get_account_mapping("income", category_id)
             if income_mapping:
                 line["SalesItemLineDetail"]["ItemAccountRef"] = {
@@ -624,7 +691,8 @@ class SyncService:
             walkin_id = uuid.uuid5(uuid.NAMESPACE_DNS, f"walkin:{self.tenant_id}")
         else:
             walkin_id = uuid.uuid5(
-                uuid.NAMESPACE_DNS, f"customer:{self.tenant_id}:{name}:{phone or ''}",
+                uuid.NAMESPACE_DNS,
+                f"customer:{self.tenant_id}:{name}:{phone or ''}",
             )
 
         mapping = await self._get_entity_mapping("customer", walkin_id)
@@ -635,7 +703,9 @@ class SyncService:
         qb_customer_id = await self.sync_customer(name, phone, walkin_id)
         return {"value": qb_customer_id, "name": name}
 
-    async def _resolve_payment_method_ref(self, payment_method: str = "Cash") -> dict | None:
+    async def _resolve_payment_method_ref(
+        self, payment_method: str = "Cash"
+    ) -> dict | None:
         """Look up the QB PaymentMethodRef for a payment method name."""
         pm_id = uuid.uuid5(uuid.NAMESPACE_DNS, f"pm:{self.tenant_id}:{payment_method}")
         mapping = await self._get_entity_mapping("payment_method", pm_id)
@@ -698,13 +768,21 @@ class SyncService:
 
             # Include business address so QB US AST can calculate tax
             company_info = self.connection.company_info or {}
-            company_addr = company_info.get("CompanyAddr") or company_info.get("LegalAddr")
+            company_addr = company_info.get("CompanyAddr") or company_info.get(
+                "LegalAddr"
+            )
             if company_addr:
                 payload["ShipAddr"] = company_addr
             elif company_info.get("Country") == "US":
                 # Fallback: use company address fields if available
                 addr = {}
-                for key in ("Line1", "City", "CountrySubDivisionCode", "PostalCode", "Country"):
+                for key in (
+                    "Line1",
+                    "City",
+                    "CountrySubDivisionCode",
+                    "PostalCode",
+                    "Country",
+                ):
                     if company_info.get(key):
                         addr[key] = company_info[key]
                 if addr:
@@ -728,7 +806,9 @@ class SyncService:
             elapsed = int((time.monotonic() - t0) * 1000)
 
             qb_id = response.get("SalesReceipt", {}).get("Id", "")
-            doc_number = response.get("SalesReceipt", {}).get("DocNumber", order.order_number)
+            doc_number = response.get("SalesReceipt", {}).get(
+                "DocNumber", order.order_number
+            )
 
             # Save entity mapping (order -> SalesReceipt)
             await self._save_entity_mapping(
@@ -759,7 +839,9 @@ class SyncService:
 
             logger.info(
                 "Synced order %s as SalesReceipt %s (QB ID %s)",
-                order.order_number, doc_number, qb_id,
+                order.order_number,
+                doc_number,
+                qb_id,
             )
             return response
 
@@ -811,7 +893,9 @@ class SyncService:
             elapsed = int((time.monotonic() - t0) * 1000)
 
             qb_id = response.get("Invoice", {}).get("Id", "")
-            doc_number = response.get("Invoice", {}).get("DocNumber", order.order_number)
+            doc_number = response.get("Invoice", {}).get(
+                "DocNumber", order.order_number
+            )
 
             await self._save_entity_mapping(
                 entity_type="order",
@@ -1124,7 +1208,9 @@ class SyncService:
                     qb_doc_number=f"DAILY-{txn_date}",
                     duration_ms=int((time.monotonic() - t0) * 1000),
                 )
-                logger.info("No completed orders for %s, skipping daily summary", txn_date)
+                logger.info(
+                    "No completed orders for %s, skipping daily summary", txn_date
+                )
                 return None
 
             # Totals
@@ -1142,28 +1228,36 @@ class SyncService:
             # For simplicity, all goes to one bank account
             bank_mapping = await self._get_account_mapping("bank")
             bank_acct_ref = (
-                {"value": bank_mapping.qb_account_id, "name": bank_mapping.qb_account_name}
+                {
+                    "value": bank_mapping.qb_account_id,
+                    "name": bank_mapping.qb_account_name,
+                }
                 if bank_mapping
                 else {"value": "1", "name": "Undeposited Funds"}
             )
 
             line_num += 1
-            je_lines.append({
-                "Id": str(line_num),
-                "LineNum": line_num,
-                "Amount": paisa_to_decimal(total_collected),
-                "Description": f"Daily sales collected ({order_count} orders) - {txn_date}",
-                "DetailType": "JournalEntryLineDetail",
-                "JournalEntryLineDetail": {
-                    "PostingType": "Debit",
-                    "AccountRef": bank_acct_ref,
-                },
-            })
+            je_lines.append(
+                {
+                    "Id": str(line_num),
+                    "LineNum": line_num,
+                    "Amount": paisa_to_decimal(total_collected),
+                    "Description": f"Daily sales collected ({order_count} orders) - {txn_date}",
+                    "DetailType": "JournalEntryLineDetail",
+                    "JournalEntryLineDetail": {
+                        "PostingType": "Debit",
+                        "AccountRef": bank_acct_ref,
+                    },
+                }
+            )
 
             # CREDIT: Food / Beverage Sales (revenue)
             income_mapping = await self._get_account_mapping("income")
             income_acct_ref = (
-                {"value": income_mapping.qb_account_id, "name": income_mapping.qb_account_name}
+                {
+                    "value": income_mapping.qb_account_id,
+                    "name": income_mapping.qb_account_name,
+                }
                 if income_mapping
                 else {"value": "2", "name": "Sales Revenue"}
             )
@@ -1171,39 +1265,46 @@ class SyncService:
             net_revenue = total_revenue - total_discount
             if net_revenue > 0:
                 line_num += 1
-                je_lines.append({
-                    "Id": str(line_num),
-                    "LineNum": line_num,
-                    "Amount": paisa_to_decimal(net_revenue),
-                    "Description": f"Net food sales revenue - {txn_date}",
-                    "DetailType": "JournalEntryLineDetail",
-                    "JournalEntryLineDetail": {
-                        "PostingType": "Credit",
-                        "AccountRef": income_acct_ref,
-                    },
-                })
+                je_lines.append(
+                    {
+                        "Id": str(line_num),
+                        "LineNum": line_num,
+                        "Amount": paisa_to_decimal(net_revenue),
+                        "Description": f"Net food sales revenue - {txn_date}",
+                        "DetailType": "JournalEntryLineDetail",
+                        "JournalEntryLineDetail": {
+                            "PostingType": "Credit",
+                            "AccountRef": income_acct_ref,
+                        },
+                    }
+                )
 
             # CREDIT: Tax Payable
             if total_tax > 0:
                 tax_mapping = await self._get_account_mapping("tax_payable")
                 tax_acct_ref = (
-                    {"value": tax_mapping.qb_account_id, "name": tax_mapping.qb_account_name}
+                    {
+                        "value": tax_mapping.qb_account_id,
+                        "name": tax_mapping.qb_account_name,
+                    }
                     if tax_mapping
                     else {"value": "3", "name": "Sales Tax Payable"}
                 )
 
                 line_num += 1
-                je_lines.append({
-                    "Id": str(line_num),
-                    "LineNum": line_num,
-                    "Amount": paisa_to_decimal(total_tax),
-                    "Description": f"Tax collected (FBR/PRA) - {txn_date}",
-                    "DetailType": "JournalEntryLineDetail",
-                    "JournalEntryLineDetail": {
-                        "PostingType": "Credit",
-                        "AccountRef": tax_acct_ref,
-                    },
-                })
+                je_lines.append(
+                    {
+                        "Id": str(line_num),
+                        "LineNum": line_num,
+                        "Amount": paisa_to_decimal(total_tax),
+                        "Description": f"Tax collected (FBR/PRA) - {txn_date}",
+                        "DetailType": "JournalEntryLineDetail",
+                        "JournalEntryLineDetail": {
+                            "PostingType": "Credit",
+                            "AccountRef": tax_acct_ref,
+                        },
+                    }
+                )
 
             # DEBIT: Discount as contra-revenue (if any)
             # Discounts reduce what's collected but we already debited only
@@ -1247,7 +1348,9 @@ class SyncService:
 
             logger.info(
                 "Created daily summary JE for %s: %d orders, %s PKR",
-                txn_date, order_count, paisa_to_decimal(total_collected),
+                txn_date,
+                order_count,
+                paisa_to_decimal(total_collected),
             )
             return response
 
@@ -1285,7 +1388,10 @@ class SyncService:
         try:
             bank_mapping = await self._get_account_mapping("bank")
             bank_ref = (
-                {"value": bank_mapping.qb_account_id, "name": bank_mapping.qb_account_name}
+                {
+                    "value": bank_mapping.qb_account_id,
+                    "name": bank_mapping.qb_account_name,
+                }
                 if bank_mapping
                 else {"value": "1", "name": "Business Bank Account"}
             )
@@ -1293,24 +1399,28 @@ class SyncService:
             deposit_lines: list[dict] = []
 
             if cash_amount_paisa > 0:
-                deposit_lines.append({
-                    "Amount": paisa_to_decimal(cash_amount_paisa),
-                    "DetailType": "DepositLineDetail",
-                    "DepositLineDetail": {
-                        "AccountRef": {"value": "1", "name": "Cash Drawer"},
-                    },
-                    "Description": f"Cash deposit - {txn_date}",
-                })
+                deposit_lines.append(
+                    {
+                        "Amount": paisa_to_decimal(cash_amount_paisa),
+                        "DetailType": "DepositLineDetail",
+                        "DepositLineDetail": {
+                            "AccountRef": {"value": "1", "name": "Cash Drawer"},
+                        },
+                        "Description": f"Cash deposit - {txn_date}",
+                    }
+                )
 
             if card_amount_paisa > 0:
-                deposit_lines.append({
-                    "Amount": paisa_to_decimal(card_amount_paisa),
-                    "DetailType": "DepositLineDetail",
-                    "DepositLineDetail": {
-                        "AccountRef": {"value": "1", "name": "Undeposited Funds"},
-                    },
-                    "Description": f"Card settlements deposit - {txn_date}",
-                })
+                deposit_lines.append(
+                    {
+                        "Amount": paisa_to_decimal(card_amount_paisa),
+                        "DetailType": "DepositLineDetail",
+                        "DepositLineDetail": {
+                            "AccountRef": {"value": "1", "name": "Undeposited Funds"},
+                        },
+                        "Description": f"Card settlements deposit - {txn_date}",
+                    }
+                )
 
             payload: dict = {
                 "TxnDate": txn_date,
@@ -1430,32 +1540,40 @@ class SyncService:
             vendor_qb_id = await self.sync_vendor(vendor_name)
             vendor_ref = {"value": vendor_qb_id, "name": vendor_name}
             txn_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-            due_date = (datetime.now(timezone.utc) + timedelta(days=30)).strftime("%Y-%m-%d")
+            due_date = (datetime.now(timezone.utc) + timedelta(days=30)).strftime(
+                "%Y-%m-%d"
+            )
 
             lines: list[dict] = []
             for idx, li in enumerate(line_items, 1):
-                lines.append({
-                    "Id": str(idx),
-                    "LineNum": idx,
-                    "Amount": paisa_to_decimal(li.get("amount_paisa", 0)),
-                    "Description": li.get("description", ""),
-                    "DetailType": "AccountBasedExpenseLineDetail",
-                    "AccountBasedExpenseLineDetail": {
-                        "AccountRef": li.get("account_ref", {"value": "1", "name": "Expense"}),
-                    },
-                })
+                lines.append(
+                    {
+                        "Id": str(idx),
+                        "LineNum": idx,
+                        "Amount": paisa_to_decimal(li.get("amount_paisa", 0)),
+                        "Description": li.get("description", ""),
+                        "DetailType": "AccountBasedExpenseLineDetail",
+                        "AccountBasedExpenseLineDetail": {
+                            "AccountRef": li.get(
+                                "account_ref", {"value": "1", "name": "Expense"}
+                            ),
+                        },
+                    }
+                )
 
             if not lines:
-                lines.append({
-                    "Id": "1",
-                    "LineNum": 1,
-                    "Amount": paisa_to_decimal(amount_paisa),
-                    "Description": memo or f"Bill from {vendor_name}",
-                    "DetailType": "AccountBasedExpenseLineDetail",
-                    "AccountBasedExpenseLineDetail": {
-                        "AccountRef": {"value": "1", "name": "Expense"},
-                    },
-                })
+                lines.append(
+                    {
+                        "Id": "1",
+                        "LineNum": 1,
+                        "Amount": paisa_to_decimal(amount_paisa),
+                        "Description": memo or f"Bill from {vendor_name}",
+                        "DetailType": "AccountBasedExpenseLineDetail",
+                        "AccountBasedExpenseLineDetail": {
+                            "AccountRef": {"value": "1", "name": "Expense"},
+                        },
+                    }
+                )
 
             payload: dict = {
                 "VendorRef": vendor_ref,
@@ -1585,17 +1703,21 @@ class SyncService:
             for idx, li in enumerate(line_items, 1):
                 item_amount = li.get("amount_paisa", 0)
                 total_paisa += item_amount
-                lines.append({
-                    "Id": str(idx),
-                    "LineNum": idx,
-                    "Amount": paisa_to_decimal(item_amount),
-                    "Description": li.get("description", ""),
-                    "DetailType": "ItemBasedExpenseLineDetail",
-                    "ItemBasedExpenseLineDetail": {
-                        "Qty": li.get("quantity", 1),
-                        "UnitPrice": paisa_to_decimal(li.get("unit_price_paisa", item_amount)),
-                    },
-                })
+                lines.append(
+                    {
+                        "Id": str(idx),
+                        "LineNum": idx,
+                        "Amount": paisa_to_decimal(item_amount),
+                        "Description": li.get("description", ""),
+                        "DetailType": "ItemBasedExpenseLineDetail",
+                        "ItemBasedExpenseLineDetail": {
+                            "Qty": li.get("quantity", 1),
+                            "UnitPrice": paisa_to_decimal(
+                                li.get("unit_price_paisa", item_amount)
+                            ),
+                        },
+                    }
+                )
 
             payload: dict = {
                 "VendorRef": vendor_ref,
@@ -1707,28 +1829,34 @@ class SyncService:
 
             lines: list[dict] = []
             for idx, li in enumerate(line_items, 1):
-                lines.append({
-                    "Id": str(idx),
-                    "LineNum": idx,
-                    "Amount": paisa_to_decimal(li.get("amount_paisa", 0)),
-                    "Description": li.get("description", ""),
-                    "DetailType": "AccountBasedExpenseLineDetail",
-                    "AccountBasedExpenseLineDetail": {
-                        "AccountRef": li.get("account_ref", {"value": "1", "name": "Expense"}),
-                    },
-                })
+                lines.append(
+                    {
+                        "Id": str(idx),
+                        "LineNum": idx,
+                        "Amount": paisa_to_decimal(li.get("amount_paisa", 0)),
+                        "Description": li.get("description", ""),
+                        "DetailType": "AccountBasedExpenseLineDetail",
+                        "AccountBasedExpenseLineDetail": {
+                            "AccountRef": li.get(
+                                "account_ref", {"value": "1", "name": "Expense"}
+                            ),
+                        },
+                    }
+                )
 
             if not lines:
-                lines.append({
-                    "Id": "1",
-                    "LineNum": 1,
-                    "Amount": paisa_to_decimal(amount_paisa),
-                    "Description": f"Vendor credit from {vendor_name}",
-                    "DetailType": "AccountBasedExpenseLineDetail",
-                    "AccountBasedExpenseLineDetail": {
-                        "AccountRef": {"value": "1", "name": "Expense"},
-                    },
-                })
+                lines.append(
+                    {
+                        "Id": "1",
+                        "LineNum": 1,
+                        "Amount": paisa_to_decimal(amount_paisa),
+                        "Description": f"Vendor credit from {vendor_name}",
+                        "DetailType": "AccountBasedExpenseLineDetail",
+                        "AccountBasedExpenseLineDetail": {
+                            "AccountRef": {"value": "1", "name": "Expense"},
+                        },
+                    }
+                )
 
             payload: dict = {
                 "VendorRef": vendor_ref,
@@ -1798,7 +1926,10 @@ class SyncService:
             # Resolve income account (try category-specific, then default)
             income_mapping = await self._get_account_mapping("income", item.category_id)
             income_ref = (
-                {"value": income_mapping.qb_account_id, "name": income_mapping.qb_account_name}
+                {
+                    "value": income_mapping.qb_account_id,
+                    "name": income_mapping.qb_account_name,
+                }
                 if income_mapping
                 else None
             )
@@ -1831,7 +1962,9 @@ class SyncService:
             if existing:
                 # Update existing QB item
                 payload["Id"] = existing.qb_entity_id
-                payload["SyncToken"] = (existing.qb_entity_ref or {}).get("SyncToken", "0")
+                payload["SyncToken"] = (existing.qb_entity_ref or {}).get(
+                    "SyncToken", "0"
+                )
                 payload["sparse"] = True
                 response = await self.client.post("item", payload)
             else:
@@ -1912,7 +2045,9 @@ class SyncService:
 
             if existing:
                 payload["Id"] = existing.qb_entity_id
-                payload["SyncToken"] = (existing.qb_entity_ref or {}).get("SyncToken", "0")
+                payload["SyncToken"] = (existing.qb_entity_ref or {}).get(
+                    "SyncToken", "0"
+                )
                 payload["sparse"] = True
 
             response = await self.client.post("item", payload)
@@ -1978,7 +2113,8 @@ class SyncService:
         # Generate a deterministic ID if none given
         if customer_id is None:
             customer_id = uuid.uuid5(
-                uuid.NAMESPACE_DNS, f"customer:{self.tenant_id}:{name}:{phone or ''}",
+                uuid.NAMESPACE_DNS,
+                f"customer:{self.tenant_id}:{name}:{phone or ''}",
             )
 
         # Check local mapping first
@@ -1989,7 +2125,8 @@ class SyncService:
         try:
             # Query QB for existing customer by name
             customers = await self.client.query(
-                "Customer", where=f"DisplayName = '{name}'",
+                "Customer",
+                where=f"DisplayName = '{name}'",
             )
 
             if customers:
@@ -2002,7 +2139,10 @@ class SyncService:
                     qb_entity_id=qb_id,
                     qb_entity_type="Customer",
                     qb_entity_name=name,
-                    qb_entity_ref={"Id": qb_id, "SyncToken": qb_customer.get("SyncToken", "0")},
+                    qb_entity_ref={
+                        "Id": qb_id,
+                        "SyncToken": qb_customer.get("SyncToken", "0"),
+                    },
                 )
                 elapsed = int((time.monotonic() - t0) * 1000)
                 await self._log_sync(
@@ -2043,7 +2183,10 @@ class SyncService:
                 qb_entity_id=qb_id,
                 qb_entity_type="Customer",
                 qb_entity_name=name,
-                qb_entity_ref={"Id": qb_id, "SyncToken": qb_customer.get("SyncToken", "0")},
+                qb_entity_ref={
+                    "Id": qb_id,
+                    "SyncToken": qb_customer.get("SyncToken", "0"),
+                },
             )
 
             await self._log_sync(
@@ -2113,7 +2256,9 @@ class SyncService:
 
     # Well-known deterministic UUIDs for tax code entity mappings
     _TAX_CODE_TAXABLE_POS_ID = uuid.uuid5(uuid.NAMESPACE_DNS, "tax_code:taxable")
-    _TAX_CODE_NON_TAXABLE_POS_ID = uuid.uuid5(uuid.NAMESPACE_DNS, "tax_code:non_taxable")
+    _TAX_CODE_NON_TAXABLE_POS_ID = uuid.uuid5(
+        uuid.NAMESPACE_DNS, "tax_code:non_taxable"
+    )
 
     async def setup_tax_code_mapping(self) -> dict:
         """Query QB for tax codes and auto-map the default taxable / non-taxable.
@@ -2135,10 +2280,12 @@ class SyncService:
         """
         # Check if already set up
         existing_taxable = await self._get_entity_mapping(
-            "tax_code", self._TAX_CODE_TAXABLE_POS_ID,
+            "tax_code",
+            self._TAX_CODE_TAXABLE_POS_ID,
         )
         existing_non = await self._get_entity_mapping(
-            "tax_code", self._TAX_CODE_NON_TAXABLE_POS_ID,
+            "tax_code",
+            self._TAX_CODE_NON_TAXABLE_POS_ID,
         )
         if existing_taxable and existing_non:
             return {
@@ -2163,7 +2310,11 @@ class SyncService:
             code_id = str(code.get("Id", ""))
             code_name = code.get("Name", "")
             # QB uses "NON" as the standard non-taxable code
-            if code_id == "NON" or "non" in code_name.lower() or "exempt" in code_name.lower():
+            if (
+                code_id == "NON"
+                or "non" in code_name.lower()
+                or "exempt" in code_name.lower()
+            ):
                 non_taxable_code = code
             else:
                 # Pick the first taxable code (there's usually only one default)
@@ -2188,7 +2339,9 @@ class SyncService:
             result["taxable"] = tc_ref_value
             logger.info(
                 "Mapped default taxable tax code → %s (%s) [US=%s]",
-                tc_ref_value, tc_name, is_us,
+                tc_ref_value,
+                tc_name,
+                is_us,
             )
 
         if non_taxable_code and not existing_non:
@@ -2206,7 +2359,9 @@ class SyncService:
             result["non_taxable"] = nt_ref_value
             logger.info(
                 "Mapped non-taxable tax code → %s (%s) [US=%s]",
-                nt_ref_value, nt_name, is_us,
+                nt_ref_value,
+                nt_name,
+                is_us,
             )
         elif not existing_non:
             # If no explicit non-taxable code found, use "NON" for US (always available)
@@ -2237,7 +2392,8 @@ class SyncService:
     async def _get_default_tax_code_ref(self) -> dict | None:
         """Return ``{"value": "<QB TaxCode Id>"}`` for the default taxable code."""
         mapping = await self._get_entity_mapping(
-            "tax_code", self._TAX_CODE_TAXABLE_POS_ID,
+            "tax_code",
+            self._TAX_CODE_TAXABLE_POS_ID,
         )
         if mapping:
             return {"value": mapping.qb_entity_id}
@@ -2246,7 +2402,8 @@ class SyncService:
     async def _get_non_taxable_code_ref(self) -> dict | None:
         """Return ``{"value": "<QB TaxCode Id>"}`` for the non-taxable code."""
         mapping = await self._get_entity_mapping(
-            "tax_code", self._TAX_CODE_NON_TAXABLE_POS_ID,
+            "tax_code",
+            self._TAX_CODE_NON_TAXABLE_POS_ID,
         )
         if mapping:
             return {"value": mapping.qb_entity_id}
@@ -2257,9 +2414,14 @@ class SyncService:
     async def sync_tax_agencies(self) -> list[dict]:
         """Create or find FBR and PRA as vendors in QB for tax reporting."""
         agencies: list[dict] = []
-        for agency_name in ["Federal Board of Revenue (FBR)", "Punjab Revenue Authority (PRA)"]:
+        for agency_name in [
+            "Federal Board of Revenue (FBR)",
+            "Punjab Revenue Authority (PRA)",
+        ]:
             slug = "fbr" if "FBR" in agency_name else "pra"
-            agency_id = uuid.uuid5(uuid.NAMESPACE_DNS, f"tax_agency:{self.tenant_id}:{slug}")
+            agency_id = uuid.uuid5(
+                uuid.NAMESPACE_DNS, f"tax_agency:{self.tenant_id}:{slug}"
+            )
 
             existing = await self._get_entity_mapping("tax_agency", agency_id)
             if existing:
@@ -2331,7 +2493,8 @@ class SyncService:
             try:
                 # Query QB for existing payment method by name
                 pms = await self.client.query(
-                    "PaymentMethod", where=f"Name = '{pm_name}'",
+                    "PaymentMethod",
+                    where=f"Name = '{pm_name}'",
                 )
 
                 if pms:
@@ -2384,7 +2547,9 @@ class SyncService:
         t0 = time.monotonic()
         try:
             accounts = await self.client.query(
-                "Account", where="Active = true", max_results=1000,
+                "Account",
+                where="Active = true",
+                max_results=1000,
             )
             elapsed = int((time.monotonic() - t0) * 1000)
 
@@ -2418,7 +2583,9 @@ class SyncService:
     ) -> str:
         """Sync or find a vendor in QB.  Returns QB vendor ID."""
         if vendor_id is None:
-            vendor_id = uuid.uuid5(uuid.NAMESPACE_DNS, f"vendor:{self.tenant_id}:{name}")
+            vendor_id = uuid.uuid5(
+                uuid.NAMESPACE_DNS, f"vendor:{self.tenant_id}:{name}"
+            )
 
         existing = await self._get_entity_mapping("vendor", vendor_id)
         if existing:
@@ -2428,7 +2595,8 @@ class SyncService:
         try:
             # Query by name
             vendors = await self.client.query(
-                "Vendor", where=f"DisplayName = '{name}'",
+                "Vendor",
+                where=f"DisplayName = '{name}'",
             )
 
             if vendors:
@@ -2482,7 +2650,9 @@ class SyncService:
     # 23. Class (branch / location) ------------------------------------
 
     async def sync_class(
-        self, name: str, class_id: uuid.UUID | None = None,
+        self,
+        name: str,
+        class_id: uuid.UUID | None = None,
     ) -> str:
         """Sync a restaurant branch/location as a QB Class."""
         if class_id is None:
@@ -2495,13 +2665,16 @@ class SyncService:
         t0 = time.monotonic()
         try:
             classes = await self.client.query(
-                "Class", where=f"Name = '{name}'",
+                "Class",
+                where=f"Name = '{name}'",
             )
 
             if classes:
                 qb_id = classes[0]["Id"]
             else:
-                response = await self.client.post("class", {"Name": name, "Active": True})
+                response = await self.client.post(
+                    "class", {"Name": name, "Active": True}
+                )
                 qb_id = response.get("Class", {}).get("Id", "")
 
             elapsed = int((time.monotonic() - t0) * 1000)
@@ -2539,7 +2712,9 @@ class SyncService:
     # 24. Department ---------------------------------------------------
 
     async def sync_department(
-        self, name: str, dept_id: uuid.UUID | None = None,
+        self,
+        name: str,
+        dept_id: uuid.UUID | None = None,
     ) -> str:
         """Sync a department (Kitchen, Bar, FOH) as a QB Department."""
         if dept_id is None:
@@ -2552,14 +2727,16 @@ class SyncService:
         t0 = time.monotonic()
         try:
             depts = await self.client.query(
-                "Department", where=f"Name = '{name}'",
+                "Department",
+                where=f"Name = '{name}'",
             )
 
             if depts:
                 qb_id = depts[0]["Id"]
             else:
                 response = await self.client.post(
-                    "department", {"Name": name, "Active": True},
+                    "department",
+                    {"Name": name, "Active": True},
                 )
                 qb_id = response.get("Department", {}).get("Id", "")
 
@@ -2598,7 +2775,9 @@ class SyncService:
     # 25. Employee -----------------------------------------------------
 
     async def sync_employee(
-        self, name: str, employee_id: uuid.UUID | None = None,
+        self,
+        name: str,
+        employee_id: uuid.UUID | None = None,
     ) -> str:
         """Sync a staff member as a QB Employee reference."""
         if employee_id is None:
@@ -2611,7 +2790,8 @@ class SyncService:
         t0 = time.monotonic()
         try:
             emps = await self.client.query(
-                "Employee", where=f"DisplayName = '{name}'",
+                "Employee",
+                where=f"DisplayName = '{name}'",
             )
 
             if emps:
@@ -2622,12 +2802,15 @@ class SyncService:
                 given = parts[0]
                 family = parts[1] if len(parts) > 1 else given
 
-                response = await self.client.post("employee", {
-                    "GivenName": given,
-                    "FamilyName": family,
-                    "DisplayName": name,
-                    "Active": True,
-                })
+                response = await self.client.post(
+                    "employee",
+                    {
+                        "GivenName": given,
+                        "FamilyName": family,
+                        "DisplayName": name,
+                        "Active": True,
+                    },
+                )
                 qb_id = response.get("Employee", {}).get("Id", "")
 
             elapsed = int((time.monotonic() - t0) * 1000)
@@ -2685,7 +2868,8 @@ class SyncService:
         except Exception:
             logger.warning(
                 "Failed to setup tax code mapping for order %s, continuing",
-                order.order_number, exc_info=True,
+                order.order_number,
+                exc_info=True,
             )
 
         # Step 1: Sync customer
@@ -2694,7 +2878,8 @@ class SyncService:
         except Exception:
             logger.warning(
                 "Failed to sync customer for order %s, continuing with receipt",
-                order.order_number, exc_info=True,
+                order.order_number,
+                exc_info=True,
             )
 
         # Step 2: Ensure all menu items are mapped
@@ -2706,7 +2891,9 @@ class SyncService:
                 except Exception:
                     logger.warning(
                         "Failed to sync menu item %s for order %s, continuing",
-                        item.menu_item_id, order.order_number, exc_info=True,
+                        item.menu_item_id,
+                        order.order_number,
+                        exc_info=True,
                     )
 
         # Step 3: Create the financial transaction
@@ -2763,7 +2950,9 @@ class SyncService:
             "errors": 0,
         }
 
-        logger.info("Starting full sync (batch %s) for tenant %s", batch_id, self.tenant_id)
+        logger.info(
+            "Starting full sync (batch %s) for tenant %s", batch_id, self.tenant_id
+        )
 
         # 1. Payment methods
         try:
@@ -2847,12 +3036,16 @@ class SyncService:
             except Exception:
                 summary["errors"] += 1
                 logger.warning(
-                    "Full sync: order %s failed", order.order_number, exc_info=True,
+                    "Full sync: order %s failed",
+                    order.order_number,
+                    exc_info=True,
                 )
 
         # Update connection
         self.connection.last_sync_at = datetime.now(timezone.utc)
-        self.connection.last_sync_status = "success" if summary["errors"] == 0 else "partial"
+        self.connection.last_sync_status = (
+            "success" if summary["errors"] == 0 else "partial"
+        )
         await self.db.flush()
 
         await self._log_sync(
@@ -2910,7 +3103,9 @@ class SyncService:
                 logger.error("Daily close: deposit failed", exc_info=True)
 
         self.connection.last_sync_at = datetime.now(timezone.utc)
-        self.connection.last_sync_status = "success" if not result["errors"] else "partial"
+        self.connection.last_sync_status = (
+            "success" if not result["errors"] else "partial"
+        )
         await self.db.flush()
 
         logger.info("Daily close for %s: %s", target_date, result)
@@ -2920,6 +3115,7 @@ class SyncService:
 # ---------------------------------------------------------------------------
 # Preview / Simulation (standalone — no QBConnection required)
 # ---------------------------------------------------------------------------
+
 
 async def build_preview_sales_receipt(
     order: "Order",
@@ -2985,16 +3181,18 @@ async def build_preview_sales_receipt(
 
     # Discount line
     if order.discount_amount and order.discount_amount > 0:
-        lines.append({
-            "Id": str(line_num),
-            "LineNum": line_num,
-            "Amount": paisa_to_decimal(order.discount_amount),
-            "DetailType": "DiscountLineDetail",
-            "DiscountLineDetail": {
-                "PercentBased": False,
-                "DiscountPercent": 0,
-            },
-        })
+        lines.append(
+            {
+                "Id": str(line_num),
+                "LineNum": line_num,
+                "Amount": paisa_to_decimal(order.discount_amount),
+                "DetailType": "DiscountLineDetail",
+                "DiscountLineDetail": {
+                    "PercentBased": False,
+                    "DiscountPercent": 0,
+                },
+            }
+        )
 
     order_label = _ORDER_TYPE_LABELS.get(order.order_type, order.order_type)
     txn_date = order.created_at.strftime("%Y-%m-%d")
@@ -3006,7 +3204,10 @@ async def build_preview_sales_receipt(
         "TxnTaxDetail": {
             "TotalTax": paisa_to_decimal(order.tax_amount),
         },
-        "CustomerRef": {"value": "SIM-customer", "name": order.customer_name or "Walk-In Customer"},
+        "CustomerRef": {
+            "value": "SIM-customer",
+            "name": order.customer_name or "Walk-In Customer",
+        },
         "TotalAmt": paisa_to_decimal(order.total),
         "PrivateNote": (
             f"{order_label} order {order.order_number}"

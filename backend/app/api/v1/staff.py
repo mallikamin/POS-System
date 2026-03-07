@@ -186,7 +186,9 @@ async def create_staff(
         await db.commit()
     except IntegrityError:
         await db.rollback()
-        raise HTTPException(status.HTTP_409_CONFLICT, "Email or PIN already in use (concurrent create)")
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, "Email or PIN already in use (concurrent create)"
+        )
     await db.refresh(user)
     return StaffResponse.model_validate(user)
 

@@ -36,43 +36,69 @@ class TableSession(BaseMixin, Base):
     )
 
     table_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid, ForeignKey("tables.id", ondelete="CASCADE"), nullable=False, index=True,
+        Uuid,
+        ForeignKey("tables.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     status: Mapped[str] = mapped_column(
-        String(20), default="open", nullable=False,
+        String(20),
+        default="open",
+        nullable=False,
         comment="open | closed",
     )
     opened_by: Mapped[uuid.UUID] = mapped_column(
-        Uuid, ForeignKey("users.id"), nullable=False,
+        Uuid,
+        ForeignKey("users.id"),
+        nullable=False,
     )
     opened_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=func.now(),
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
     )
     closed_by: Mapped[uuid.UUID | None] = mapped_column(
-        Uuid, ForeignKey("users.id"), nullable=True,
+        Uuid,
+        ForeignKey("users.id"),
+        nullable=True,
     )
     closed_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True,
+        DateTime(timezone=True),
+        nullable=True,
     )
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     assigned_waiter_id: Mapped[uuid.UUID | None] = mapped_column(
-        Uuid, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True,
+        Uuid,
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
         comment="Staff member assigned as waiter for this session",
     )
 
     tenant_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid, ForeignKey("tenants.id"), nullable=False, index=True,
+        Uuid,
+        ForeignKey("tenants.id"),
+        nullable=False,
+        index=True,
     )
 
     # Relationships
     table: Mapped["Table"] = relationship("Table", lazy="selectin")
-    opener: Mapped["User"] = relationship("User", foreign_keys=[opened_by], lazy="selectin")
-    closer: Mapped["User | None"] = relationship("User", foreign_keys=[closed_by], lazy="selectin")
+    opener: Mapped["User"] = relationship(
+        "User", foreign_keys=[opened_by], lazy="selectin"
+    )
+    closer: Mapped["User | None"] = relationship(
+        "User", foreign_keys=[closed_by], lazy="selectin"
+    )
     assigned_waiter: Mapped["User | None"] = relationship(
-        "User", foreign_keys=[assigned_waiter_id], lazy="selectin",
+        "User",
+        foreign_keys=[assigned_waiter_id],
+        lazy="selectin",
     )
     orders: Mapped[list["Order"]] = relationship(
-        "Order", back_populates="table_session", lazy="selectin",
+        "Order",
+        back_populates="table_session",
+        lazy="selectin",
     )
 
 

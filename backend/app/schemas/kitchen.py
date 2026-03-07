@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 # Station schemas
 # ---------------------------------------------------------------------------
 
+
 class StationCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     display_order: int = Field(default=0)
@@ -40,6 +41,7 @@ class StationResponse(BaseModel):
 # Ticket item schemas
 # ---------------------------------------------------------------------------
 
+
 class TicketItemResponse(BaseModel):
     id: uuid.UUID
     order_item_id: uuid.UUID
@@ -55,9 +57,11 @@ class TicketItemResponse(BaseModel):
 # Ticket schemas
 # ---------------------------------------------------------------------------
 
+
 class TicketStatusUpdate(BaseModel):
     status: str = Field(
-        ..., pattern=r"^(preparing|ready|served)$",
+        ...,
+        pattern=r"^(preparing|ready|served)$",
     )
 
 

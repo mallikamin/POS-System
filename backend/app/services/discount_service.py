@@ -14,6 +14,7 @@ from app.schemas.discount import DiscountTypeCreate, DiscountTypeUpdate
 # Discount Type CRUD
 # ---------------------------------------------------------------------------
 
+
 async def list_discount_types(
     db: AsyncSession, tenant_id: uuid.UUID, active_only: bool = False
 ) -> list[DiscountType]:
@@ -73,6 +74,7 @@ async def delete_discount_type(db: AsyncSession, dt: DiscountType) -> None:
 # Apply Discount
 # ---------------------------------------------------------------------------
 
+
 async def apply_discount(
     db: AsyncSession,
     tenant_id: uuid.UUID,
@@ -111,7 +113,9 @@ async def apply_discount(
 
         if dt.kind == "percent":
             # Need the order subtotal to compute amount
-            target_subtotal = await _get_target_subtotal(db, tenant_id, order_id, table_session_id)
+            target_subtotal = await _get_target_subtotal(
+                db, tenant_id, order_id, table_session_id
+            )
             resolved_amount = round(target_subtotal * dt.value / 10_000)
             percent_bps = dt.value
             if label is None:
@@ -124,7 +128,9 @@ async def apply_discount(
         raise ValueError("Discount amount must be > 0")
 
     # Validate: discount cannot exceed remaining applicable amount
-    target_subtotal = await _get_target_subtotal(db, tenant_id, order_id, table_session_id)
+    target_subtotal = await _get_target_subtotal(
+        db, tenant_id, order_id, table_session_id
+    )
     existing_discounts = await _get_existing_discount_total(
         db, tenant_id, order_id, table_session_id
     )
@@ -136,7 +142,11 @@ async def apply_discount(
 
     # --- Threshold check: require manager approval if exceeded ---
     await _check_approval_threshold(
-        db, tenant_id, resolved_amount, percent_bps, target_subtotal,
+        db,
+        tenant_id,
+        resolved_amount,
+        percent_bps,
+        target_subtotal,
         manager_verify_token,
     )
 
@@ -166,6 +176,7 @@ async def apply_discount(
 # Remove Discount
 # ---------------------------------------------------------------------------
 
+
 async def remove_discount(
     db: AsyncSession, discount_id: uuid.UUID, tenant_id: uuid.UUID
 ) -> None:
@@ -192,14 +203,17 @@ async def remove_discount(
 # List Discounts on Order
 # ---------------------------------------------------------------------------
 
+
 async def list_order_discounts(
     db: AsyncSession, tenant_id: uuid.UUID, order_id: uuid.UUID
 ) -> list[OrderDiscount]:
     result = await db.execute(
-        select(OrderDiscount).where(
+        select(OrderDiscount)
+        .where(
             OrderDiscount.tenant_id == tenant_id,
             OrderDiscount.order_id == order_id,
-        ).order_by(OrderDiscount.created_at)
+        )
+        .order_by(OrderDiscount.created_at)
     )
     return list(result.scalars().all())
 
@@ -208,10 +222,12 @@ async def list_session_discounts(
     db: AsyncSession, tenant_id: uuid.UUID, session_id: uuid.UUID
 ) -> list[OrderDiscount]:
     result = await db.execute(
-        select(OrderDiscount).where(
+        select(OrderDiscount)
+        .where(
             OrderDiscount.tenant_id == tenant_id,
             OrderDiscount.table_session_id == session_id,
-        ).order_by(OrderDiscount.created_at)
+        )
+        .order_by(OrderDiscount.created_at)
     )
     return list(result.scalars().all())
 
@@ -219,6 +235,7 @@ async def list_session_discounts(
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 async def _get_target_subtotal(
     db: AsyncSession,
@@ -240,7 +257,6 @@ async def _get_target_subtotal(
 
     if table_session_id:
         # Sum subtotals of non-voided orders in session
-        from app.models.table_session import TableSession
         result = await db.execute(
             select(Order.subtotal).where(
                 Order.table_session_id == table_session_id,
@@ -259,9 +275,7 @@ async def _get_existing_discount_total(
     order_id: uuid.UUID | None,
     table_session_id: uuid.UUID | None,
 ) -> int:
-    stmt = select(OrderDiscount.amount).where(
-        OrderDiscount.tenant_id == tenant_id
-    )
+    stmt = select(OrderDiscount.amount).where(OrderDiscount.tenant_id == tenant_id)
     if order_id:
         stmt = stmt.where(OrderDiscount.order_id == order_id)
     elif table_session_id:

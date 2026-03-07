@@ -9,7 +9,7 @@ from sqlalchemy.orm import selectinload
 
 from app.api.deps import get_current_user, require_role
 from app.database import get_db
-from app.models.order import Order, OrderItem
+from app.models.order import Order
 from app.models.user import User
 from app.schemas.kitchen import (
     StationCreate,
@@ -20,7 +20,7 @@ from app.schemas.kitchen import (
     TicketStatusUpdate,
 )
 from app.services import kitchen_service
-from app.websockets.kitchen_events import emit_ticket_created, emit_ticket_updated
+from app.websockets.kitchen_events import emit_ticket_updated
 
 router = APIRouter(prefix="/kitchen", tags=["kitchen"])
 
@@ -28,6 +28,7 @@ router = APIRouter(prefix="/kitchen", tags=["kitchen"])
 # ---------------------------------------------------------------------------
 # Station CRUD
 # ---------------------------------------------------------------------------
+
 
 @router.get("/stations", response_model=list[StationResponse])
 async def list_stations(
@@ -66,7 +67,8 @@ async def create_station(
 ) -> StationResponse:
     try:
         station = await kitchen_service.create_station(
-            db, current_user.tenant_id,
+            db,
+            current_user.tenant_id,
             name=body.name,
             display_order=body.display_order,
             is_active=body.is_active,
@@ -96,7 +98,9 @@ async def update_station(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Station not found")
     try:
         station = await kitchen_service.update_station(
-            db, station, current_user.tenant_id,
+            db,
+            station,
+            current_user.tenant_id,
             body.model_dump(exclude_unset=True),
         )
         await db.commit()
@@ -111,18 +115,21 @@ async def update_station(
 # Ticket Queue
 # ---------------------------------------------------------------------------
 
+
 def _ticket_to_response(ticket) -> TicketResponse:
     """Build a TicketResponse with denormalized order + item fields."""
     items = []
     for ti in ticket.items:
         oi = ti.order_item
-        items.append(TicketItemResponse(
-            id=ti.id,
-            order_item_id=ti.order_item_id,
-            quantity=ti.quantity,
-            item_name=oi.name if oi else None,
-            item_notes=oi.notes if oi else None,
-        ))
+        items.append(
+            TicketItemResponse(
+                id=ti.id,
+                order_item_id=ti.order_item_id,
+                quantity=ti.quantity,
+                item_name=oi.name if oi else None,
+                item_notes=oi.notes if oi else None,
+            )
+        )
     order = ticket.order
     return TicketResponse(
         id=ticket.id,
@@ -156,7 +163,10 @@ async def get_station_queue(
     if station is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Station not found")
     tickets = await kitchen_service.get_station_queue(
-        db, station_id, current_user.tenant_id, active_only=active_only,
+        db,
+        station_id,
+        current_user.tenant_id,
+        active_only=active_only,
     )
     return [_ticket_to_response(t) for t in tickets]
 
@@ -177,6 +187,7 @@ async def get_ticket(
 # Ticket Status Transition
 # ---------------------------------------------------------------------------
 
+
 @router.patch("/tickets/{ticket_id}/status", response_model=TicketResponse)
 async def transition_ticket(
     ticket_id: uuid.UUID,
@@ -185,14 +196,15 @@ async def transition_ticket(
     db: AsyncSession = Depends(get_db),
 ) -> TicketResponse:
     # Capture previous status before transition
-    pre_ticket = await kitchen_service.get_ticket(
-        db, ticket_id, current_user.tenant_id
-    )
+    pre_ticket = await kitchen_service.get_ticket(db, ticket_id, current_user.tenant_id)
     previous_status = pre_ticket.status if pre_ticket else None
 
     try:
         ticket = await kitchen_service.transition_ticket(
-            db, ticket_id, current_user.tenant_id, body.status,
+            db,
+            ticket_id,
+            current_user.tenant_id,
+            body.status,
         )
         await db.commit()
     except ValueError as e:
@@ -211,6 +223,7 @@ async def transition_ticket(
 # ---------------------------------------------------------------------------
 # Backfill: create tickets for existing in_kitchen orders that have no ticket
 # ---------------------------------------------------------------------------
+
 
 @router.post(
     "/backfill-tickets",
@@ -231,6 +244,7 @@ async def backfill_tickets(
 
     # Find in_kitchen orders without tickets
     from app.models.kitchen import KitchenTicket
+
     result = await db.execute(
         select(Order)
         .options(selectinload(Order.items))
@@ -249,7 +263,11 @@ async def backfill_tickets(
         if not item_quantities:
             continue
         ticket = await kitchen_service.create_ticket_for_order(
-            db, tenant_id, order.id, station.id, item_quantities,
+            db,
+            tenant_id,
+            order.id,
+            station.id,
+            item_quantities,
         )
         created.append(ticket)
 

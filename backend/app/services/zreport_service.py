@@ -5,7 +5,6 @@ from datetime import date, datetime, timezone
 
 from sqlalchemy import Date, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from app.models.discount import OrderDiscount
 from app.models.order import Order, OrderItem
@@ -121,23 +120,36 @@ async def generate_zreport(
     if drawer_session:
         # Calculate cash movements for this session
         cash_payments = (
-            await db.execute(
-                select(Payment)
-                .join(PaymentMethod, Payment.method_id == PaymentMethod.id)
-                .where(
-                    Payment.tenant_id == tenant_id,
-                    PaymentMethod.code == "cash",
-                    Payment.status == "completed",
-                    Payment.created_at >= drawer_session.opened_at,
-                    Payment.created_at <= (drawer_session.closed_at if drawer_session.closed_at else func.now()),
+            (
+                await db.execute(
+                    select(Payment)
+                    .join(PaymentMethod, Payment.method_id == PaymentMethod.id)
+                    .where(
+                        Payment.tenant_id == tenant_id,
+                        PaymentMethod.code == "cash",
+                        Payment.status == "completed",
+                        Payment.created_at >= drawer_session.opened_at,
+                        Payment.created_at
+                        <= (
+                            drawer_session.closed_at
+                            if drawer_session.closed_at
+                            else func.now()
+                        ),
+                    )
                 )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
 
         cash_in = sum(p.amount for p in cash_payments if p.kind == "payment")
-        cash_out_change = sum((p.change_amount or 0) for p in cash_payments if p.kind == "payment")
+        cash_out_change = sum(
+            (p.change_amount or 0) for p in cash_payments if p.kind == "payment"
+        )
         cash_out_refund = sum(p.amount for p in cash_payments if p.kind == "refund")
-        expected = drawer_session.opening_float + cash_in - cash_out_change - cash_out_refund
+        expected = (
+            drawer_session.opening_float + cash_in - cash_out_change - cash_out_refund
+        )
 
         drawer_data = {
             "opening_float": drawer_session.opening_float,
@@ -191,13 +203,9 @@ async def generate_zreport(
             {"method": r.display_name, "count": r.count, "total": r.total}
             for r in pm_rows
         ],
-        "by_status": [
-            {"status": r.status, "count": r.count}
-            for r in status_rows
-        ],
+        "by_status": [{"status": r.status, "count": r.count} for r in status_rows],
         "top_items": [
-            {"name": r.name, "quantity": r.qty, "revenue": r.revenue}
-            for r in item_rows
+            {"name": r.name, "quantity": r.qty, "revenue": r.revenue} for r in item_rows
         ],
         "discount_breakdown": [
             {

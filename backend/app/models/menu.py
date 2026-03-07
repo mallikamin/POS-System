@@ -54,7 +54,9 @@ class MenuItem(BaseMixin, Base):
 
     __tablename__ = "menu_items"
     __table_args__ = (
-        UniqueConstraint("tenant_id", "category_id", "name", name="uq_item_tenant_cat_name"),
+        UniqueConstraint(
+            "tenant_id", "category_id", "name", name="uq_item_tenant_cat_name"
+        ),
     )
 
     name: Mapped[str] = mapped_column(String(200), nullable=False)
@@ -73,7 +75,10 @@ class MenuItem(BaseMixin, Base):
         Uuid, ForeignKey("tenants.id"), nullable=False, index=True
     )
     category_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid, ForeignKey("categories.id", ondelete="CASCADE"), nullable=False, index=True
+        Uuid,
+        ForeignKey("categories.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
 
     # Relationships
@@ -103,8 +108,7 @@ class ModifierGroup(BaseMixin, Base):
     required: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     min_selections: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     max_selections: Mapped[int] = mapped_column(
-        Integer, default=1, nullable=False,
-        comment="0 = unlimited"
+        Integer, default=1, nullable=False, comment="0 = unlimited"
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
@@ -114,7 +118,9 @@ class ModifierGroup(BaseMixin, Base):
 
     # Relationships
     modifiers: Mapped[list["Modifier"]] = relationship(
-        "Modifier", back_populates="group", lazy="selectin",
+        "Modifier",
+        back_populates="group",
+        lazy="selectin",
         order_by="Modifier.display_order",
     )
     menu_items: Mapped[list[MenuItem]] = relationship(
@@ -138,8 +144,10 @@ class Modifier(BaseMixin, Base):
 
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     price_adjustment: Mapped[int] = mapped_column(
-        Integer, default=0, nullable=False,
-        comment="Price adjustment in paisa (can be 0, positive, or negative)"
+        Integer,
+        default=0,
+        nullable=False,
+        comment="Price adjustment in paisa (can be 0, positive, or negative)",
     )
     display_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     is_available: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
@@ -148,11 +156,16 @@ class Modifier(BaseMixin, Base):
         Uuid, ForeignKey("tenants.id"), nullable=False, index=True
     )
     group_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid, ForeignKey("modifier_groups.id", ondelete="CASCADE"), nullable=False, index=True
+        Uuid,
+        ForeignKey("modifier_groups.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
 
     # Relationships
-    group: Mapped[ModifierGroup] = relationship("ModifierGroup", back_populates="modifiers")
+    group: Mapped[ModifierGroup] = relationship(
+        "ModifierGroup", back_populates="modifiers"
+    )
 
 
 class MenuItemModifierGroup(BaseMixin, Base):
@@ -160,10 +173,7 @@ class MenuItemModifierGroup(BaseMixin, Base):
 
     __tablename__ = "menu_item_modifier_groups"
     __table_args__ = (
-        UniqueConstraint(
-            "menu_item_id", "modifier_group_id",
-            name="uq_item_modgroup"
-        ),
+        UniqueConstraint("menu_item_id", "modifier_group_id", name="uq_item_modgroup"),
     )
 
     menu_item_id: Mapped[uuid.UUID] = mapped_column(

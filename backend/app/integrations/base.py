@@ -79,9 +79,7 @@ class DeliveryPlatformAdapter(IntegrationAdapter):
         ...
 
     @abstractmethod
-    async def update_order_status(
-        self, external_order_id: str, status: str
-    ) -> bool:
+    async def update_order_status(self, external_order_id: str, status: str) -> bool:
         """Update order status on the delivery platform."""
         ...
 

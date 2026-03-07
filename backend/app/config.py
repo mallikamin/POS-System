@@ -21,7 +21,9 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://:pos_redis_dev_secret@localhost:6379/0"
 
     # CORS — stored as comma-separated string, parsed via property
-    CORS_ORIGINS: str = "http://localhost:3000,http://localhost:5173,http://localhost:8090"
+    CORS_ORIGINS: str = (
+        "http://localhost:3000,http://localhost:5173,http://localhost:8090"
+    )
 
     # JWT Token lifetimes
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 480  # 8 hours for a POS shift
@@ -30,7 +32,9 @@ class Settings(BaseSettings):
     # QuickBooks Integration
     QB_CLIENT_ID: str = ""
     QB_CLIENT_SECRET: str = ""
-    QB_REDIRECT_URI: str = "http://localhost:8090/api/v1/integrations/quickbooks/callback"
+    QB_REDIRECT_URI: str = (
+        "http://localhost:8090/api/v1/integrations/quickbooks/callback"
+    )
     QB_ENVIRONMENT: str = "sandbox"  # sandbox | production
 
     @property
@@ -57,7 +61,9 @@ class Settings(BaseSettings):
 
     @property
     def cors_origins_list(self) -> list[str]:
-        return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
+        return [
+            origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()
+        ]
 
     @property
     def is_production(self) -> bool:

@@ -9,7 +9,6 @@ from sqlalchemy.orm import selectinload
 
 from app.models.discount import OrderDiscount
 from app.models.floor import Table
-from app.models.order import Order
 from app.models.payment import Payment
 from app.models.table_session import TableSession
 
@@ -17,6 +16,7 @@ from app.models.table_session import TableSession
 # ---------------------------------------------------------------------------
 # Open session (idempotent — returns existing open session if present)
 # ---------------------------------------------------------------------------
+
 
 async def open_session(
     db: AsyncSession,
@@ -56,6 +56,7 @@ async def open_session(
 # Get session
 # ---------------------------------------------------------------------------
 
+
 async def get_session(
     db: AsyncSession, session_id: uuid.UUID, tenant_id: uuid.UUID
 ) -> TableSession | None:
@@ -94,6 +95,7 @@ async def get_active_session_by_table(
 # Close session
 # ---------------------------------------------------------------------------
 
+
 async def close_session(
     db: AsyncSession,
     session_id: uuid.UUID,
@@ -129,6 +131,7 @@ async def close_session(
 # Bill summary
 # ---------------------------------------------------------------------------
 
+
 async def get_bill_summary(
     db: AsyncSession, session_id: uuid.UUID, tenant_id: uuid.UUID
 ) -> dict:
@@ -137,9 +140,7 @@ async def get_bill_summary(
     if session is None:
         raise ValueError("Table session not found")
 
-    billable_orders = [
-        o for o in session.orders if o.status != "voided"
-    ]
+    billable_orders = [o for o in session.orders if o.status != "voided"]
 
     subtotal = sum(o.subtotal for o in billable_orders)
     tax_amount = sum(o.tax_amount for o in billable_orders)
@@ -159,8 +160,7 @@ async def get_bill_summary(
         )
         payments = list(result.scalars().all())
         paid_amount = sum(
-            p.amount if p.kind == "payment" else -p.amount
-            for p in payments
+            p.amount if p.kind == "payment" else -p.amount for p in payments
         )
 
     # Also include session-level discounts
@@ -195,6 +195,7 @@ async def get_bill_summary(
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 async def _get_table_or_raise(
     db: AsyncSession, table_id: uuid.UUID, tenant_id: uuid.UUID

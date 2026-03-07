@@ -21,7 +21,9 @@ router = APIRouter(prefix="/customers", tags=["customers"])
 
 @router.get("/search", response_model=list[CustomerResponse])
 async def search_customers(
-    phone: str = Query(..., min_length=1, max_length=20, description="Phone digits to search"),
+    phone: str = Query(
+        ..., min_length=1, max_length=20, description="Phone digits to search"
+    ),
     limit: int = Query(10, ge=1, le=50),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -39,7 +41,9 @@ async def get_customer(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> CustomerResponse:
-    customer = await customer_service.get_customer(db, customer_id, current_user.tenant_id)
+    customer = await customer_service.get_customer(
+        db, customer_id, current_user.tenant_id
+    )
     if customer is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Customer not found")
     return CustomerResponse.model_validate(customer)
@@ -52,7 +56,9 @@ async def create_customer(
     db: AsyncSession = Depends(get_db),
 ) -> CustomerResponse:
     try:
-        customer = await customer_service.create_customer(db, current_user.tenant_id, body)
+        customer = await customer_service.create_customer(
+            db, current_user.tenant_id, body
+        )
         await db.commit()
     except ValueError as e:
         await db.rollback()
@@ -68,7 +74,9 @@ async def update_customer(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> CustomerResponse:
-    customer = await customer_service.get_customer(db, customer_id, current_user.tenant_id)
+    customer = await customer_service.get_customer(
+        db, customer_id, current_user.tenant_id
+    )
     if customer is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Customer not found")
     try:
@@ -91,7 +99,9 @@ async def get_customer_order_history(
     db: AsyncSession = Depends(get_db),
 ) -> list[CustomerOrderHistoryItem]:
     """Get recent orders for a customer (matched by phone number)."""
-    customer = await customer_service.get_customer(db, customer_id, current_user.tenant_id)
+    customer = await customer_service.get_customer(
+        db, customer_id, current_user.tenant_id
+    )
     if customer is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Customer not found")
     orders = await customer_service.get_order_history(

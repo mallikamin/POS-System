@@ -26,13 +26,13 @@ VALID_TICKET_TRANSITIONS: dict[str, list[str]] = {
 # Station CRUD
 # ---------------------------------------------------------------------------
 
+
 async def list_stations(
-    db: AsyncSession, tenant_id: uuid.UUID, active_only: bool = False,
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    active_only: bool = False,
 ) -> list[KitchenStation]:
-    stmt = (
-        select(KitchenStation)
-        .where(KitchenStation.tenant_id == tenant_id)
-    )
+    stmt = select(KitchenStation).where(KitchenStation.tenant_id == tenant_id)
     if active_only:
         stmt = stmt.where(KitchenStation.is_active == True)  # noqa: E712
     stmt = stmt.order_by(KitchenStation.display_order, KitchenStation.name)
@@ -41,7 +41,9 @@ async def list_stations(
 
 
 async def get_station(
-    db: AsyncSession, station_id: uuid.UUID, tenant_id: uuid.UUID,
+    db: AsyncSession,
+    station_id: uuid.UUID,
+    tenant_id: uuid.UUID,
 ) -> KitchenStation | None:
     result = await db.execute(
         select(KitchenStation).where(
@@ -53,8 +55,11 @@ async def get_station(
 
 
 async def create_station(
-    db: AsyncSession, tenant_id: uuid.UUID, name: str,
-    display_order: int = 0, is_active: bool = True,
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    name: str,
+    display_order: int = 0,
+    is_active: bool = True,
     description: str | None = None,
 ) -> KitchenStation:
     # Check for duplicate name
@@ -79,7 +84,9 @@ async def create_station(
 
 
 async def update_station(
-    db: AsyncSession, station: KitchenStation, tenant_id: uuid.UUID,
+    db: AsyncSession,
+    station: KitchenStation,
+    tenant_id: uuid.UUID,
     update_data: dict,
 ) -> KitchenStation:
     new_name = update_data.get("name")
@@ -102,16 +109,20 @@ async def update_station(
 # Ticket Queries
 # ---------------------------------------------------------------------------
 
+
 async def get_station_queue(
-    db: AsyncSession, station_id: uuid.UUID, tenant_id: uuid.UUID,
+    db: AsyncSession,
+    station_id: uuid.UUID,
+    tenant_id: uuid.UUID,
     active_only: bool = True,
 ) -> list[KitchenTicket]:
     """Get tickets for a station, optionally filtering to active only."""
     stmt = (
         select(KitchenTicket)
         .options(
-            selectinload(KitchenTicket.items)
-            .selectinload(KitchenTicketItem.order_item),
+            selectinload(KitchenTicket.items).selectinload(
+                KitchenTicketItem.order_item
+            ),
             selectinload(KitchenTicket.order),
         )
         .where(
@@ -130,13 +141,16 @@ async def get_station_queue(
 
 
 async def get_ticket(
-    db: AsyncSession, ticket_id: uuid.UUID, tenant_id: uuid.UUID,
+    db: AsyncSession,
+    ticket_id: uuid.UUID,
+    tenant_id: uuid.UUID,
 ) -> KitchenTicket | None:
     result = await db.execute(
         select(KitchenTicket)
         .options(
-            selectinload(KitchenTicket.items)
-            .selectinload(KitchenTicketItem.order_item),
+            selectinload(KitchenTicket.items).selectinload(
+                KitchenTicketItem.order_item
+            ),
             selectinload(KitchenTicket.order),
             selectinload(KitchenTicket.station),
         )
@@ -151,6 +165,7 @@ async def get_ticket(
 # ---------------------------------------------------------------------------
 # Ticket State Transitions
 # ---------------------------------------------------------------------------
+
 
 async def transition_ticket(
     db: AsyncSession,
@@ -167,8 +182,7 @@ async def transition_ticket(
     allowed = VALID_TICKET_TRANSITIONS.get(current, [])
     if new_status not in allowed:
         raise ValueError(
-            f"Cannot transition from '{current}' to '{new_status}'. "
-            f"Allowed: {allowed}"
+            f"Cannot transition from '{current}' to '{new_status}'. Allowed: {allowed}"
         )
 
     now = datetime.now(timezone.utc)
@@ -192,6 +206,7 @@ async def transition_ticket(
 # ---------------------------------------------------------------------------
 # Ticket Creation (called from order service or route)
 # ---------------------------------------------------------------------------
+
 
 async def create_ticket_for_order(
     db: AsyncSession,

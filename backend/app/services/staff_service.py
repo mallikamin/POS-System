@@ -201,9 +201,7 @@ async def get_role(
     return result.scalar_one_or_none()
 
 
-async def create_role(
-    db: AsyncSession, tenant_id: uuid.UUID, data: RoleCreate
-) -> Role:
+async def create_role(db: AsyncSession, tenant_id: uuid.UUID, data: RoleCreate) -> Role:
     """Create a new role with optional permission assignments."""
     existing = await db.execute(
         select(Role).where(Role.tenant_id == tenant_id, Role.name == data.name)
@@ -221,9 +219,13 @@ async def create_role(
     await db.flush()
 
     for perm_id in data.permission_ids:
-        db.add(RolePermission(
-            tenant_id=tenant_id, role_id=role.id, permission_id=perm_id,
-        ))
+        db.add(
+            RolePermission(
+                tenant_id=tenant_id,
+                role_id=role.id,
+                permission_id=perm_id,
+            )
+        )
     await db.flush()
 
     return await get_role(db, tenant_id, role.id)  # type: ignore[return-value]
@@ -263,9 +265,13 @@ async def update_role(
             )
         )
         for perm_id in data.permission_ids:
-            db.add(RolePermission(
-                tenant_id=tenant_id, role_id=role_id, permission_id=perm_id,
-            ))
+            db.add(
+                RolePermission(
+                    tenant_id=tenant_id,
+                    role_id=role_id,
+                    permission_id=perm_id,
+                )
+            )
 
     await db.flush()
     return await get_role(db, tenant_id, role_id)  # type: ignore[return-value]
@@ -273,9 +279,7 @@ async def update_role(
 
 async def list_permissions(db: AsyncSession) -> list[Permission]:
     """List all available permissions."""
-    result = await db.execute(
-        select(Permission).order_by(Permission.code)
-    )
+    result = await db.execute(select(Permission).order_by(Permission.code))
     return list(result.scalars().all())
 
 

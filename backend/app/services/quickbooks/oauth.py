@@ -170,6 +170,7 @@ def validate_state(state: str) -> dict | None:
 # Intuit API Helpers
 # ---------------------------------------------------------------------------
 
+
 def _basic_auth_header() -> str:
     """Build the HTTP Basic Authorization header value for Intuit token endpoint.
 
@@ -187,6 +188,7 @@ _INTUIT_TIMEOUT = httpx.Timeout(connect=10.0, read=30.0, write=10.0, pool=10.0)
 # ---------------------------------------------------------------------------
 # Token Exchange & Storage
 # ---------------------------------------------------------------------------
+
 
 async def exchange_code_for_tokens(
     code: str,
@@ -242,14 +244,18 @@ async def exchange_code_for_tokens(
     access_token = token_data.get("access_token")
     refresh_token = token_data.get("refresh_token")
     expires_in = token_data.get("expires_in", 3600)  # seconds, default 1 hour
-    x_refresh_token_expires_in = token_data.get("x_refresh_token_expires_in", 8726400)  # ~101 days
+    x_refresh_token_expires_in = token_data.get(
+        "x_refresh_token_expires_in", 8726400
+    )  # ~101 days
 
     if not access_token or not refresh_token:
         logger.error(
             "QB token response missing tokens (keys present: %s)",
             list(token_data.keys()),
         )
-        raise ValueError("QuickBooks token response is missing access_token or refresh_token")
+        raise ValueError(
+            "QuickBooks token response is missing access_token or refresh_token"
+        )
 
     # -- Step 2: Encrypt tokens --------------------------------------------
     now = datetime.now(timezone.utc)
@@ -452,7 +458,9 @@ async def refresh_access_token(
     connection.access_token_encrypted = encrypt_token(new_access)
     connection.refresh_token_encrypted = encrypt_token(new_refresh)
     connection.access_token_expires_at = now + timedelta(seconds=expires_in)
-    connection.refresh_token_expires_at = now + timedelta(seconds=x_refresh_token_expires_in)
+    connection.refresh_token_expires_at = now + timedelta(
+        seconds=x_refresh_token_expires_in
+    )
 
     await db.flush()
 
@@ -464,9 +472,7 @@ async def refresh_access_token(
     return connection
 
 
-async def ensure_valid_token(
-    connection: QBConnection, db: AsyncSession
-) -> str:
+async def ensure_valid_token(connection: QBConnection, db: AsyncSession) -> str:
     """Get a valid (non-expired) decrypted access token, refreshing if needed.
 
     This is the primary entry point for all QB API calls.  It guarantees
@@ -520,9 +526,8 @@ async def ensure_valid_token(
 # Connection Management
 # ---------------------------------------------------------------------------
 
-async def get_connection(
-    db: AsyncSession, tenant_id: uuid.UUID
-) -> QBConnection | None:
+
+async def get_connection(db: AsyncSession, tenant_id: uuid.UUID) -> QBConnection | None:
     """Get the active QuickBooks connection for a tenant.
 
     Returns None if no active connection exists.
@@ -536,9 +541,7 @@ async def get_connection(
     return result.scalar_one_or_none()
 
 
-async def disconnect(
-    db: AsyncSession, tenant_id: uuid.UUID
-) -> bool:
+async def disconnect(db: AsyncSession, tenant_id: uuid.UUID) -> bool:
     """Disconnect QuickBooks: revoke tokens at Intuit and mark connection inactive.
 
     Steps:
@@ -618,6 +621,7 @@ async def disconnect(
 # QuickBooks API Helpers
 # ---------------------------------------------------------------------------
 
+
 async def fetch_company_info(access_token: str, realm_id: str) -> dict:
     """Fetch company info from the QuickBooks Online API.
 
@@ -630,9 +634,7 @@ async def fetch_company_info(access_token: str, realm_id: str) -> dict:
         ValueError: If the API returns a non-200 status or unexpected format.
         httpx.RequestError: On network errors.
     """
-    url = (
-        f"{settings.qb_base_url}/v3/company/{realm_id}/companyinfo/{realm_id}"
-    )
+    url = f"{settings.qb_base_url}/v3/company/{realm_id}/companyinfo/{realm_id}"
 
     async with httpx.AsyncClient(timeout=_INTUIT_TIMEOUT) as client:
         response = await client.get(

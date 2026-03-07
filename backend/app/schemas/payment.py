@@ -98,6 +98,7 @@ class CashDrawerCloseRequest(BaseModel):
 # Session Payment schemas (P2)
 # ---------------------------------------------------------------------------
 
+
 class SessionPaymentOrderDue(BaseModel):
     order_id: uuid.UUID
     order_number: str
@@ -124,7 +125,9 @@ class SessionPaymentSummary(BaseModel):
 
 class SessionPaymentCreate(BaseModel):
     method_code: str = Field(..., pattern=r"^(cash|card|mobile_wallet|bank_transfer)$")
-    amount: int = Field(..., gt=0, description="Amount in paisa to apply against session due")
+    amount: int = Field(
+        ..., gt=0, description="Amount in paisa to apply against session due"
+    )
     tendered_amount: int | None = Field(None, ge=0)
     reference: str | None = Field(None, max_length=120)
     note: str | None = Field(None, max_length=500)

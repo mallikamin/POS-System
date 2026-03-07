@@ -10,6 +10,7 @@ from pydantic import BaseModel, EmailStr, Field
 # Request schemas
 # ---------------------------------------------------------------------------
 
+
 class StaffCreate(BaseModel):
     """Create a new staff member."""
 
@@ -44,6 +45,7 @@ class PinReset(BaseModel):
 # ---------------------------------------------------------------------------
 # Response schemas
 # ---------------------------------------------------------------------------
+
 
 class PermissionResponse(BaseModel):
     """Permission detail."""

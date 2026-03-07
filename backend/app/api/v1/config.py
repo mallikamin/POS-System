@@ -116,7 +116,9 @@ async def update_restaurant_config(
     if data.discount_approval_threshold_bps is not None:
         config.discount_approval_threshold_bps = data.discount_approval_threshold_bps
     if data.discount_approval_threshold_fixed is not None:
-        config.discount_approval_threshold_fixed = data.discount_approval_threshold_fixed
+        config.discount_approval_threshold_fixed = (
+            data.discount_approval_threshold_fixed
+        )
 
     await db.commit()
     await db.refresh(config)

@@ -9,7 +9,10 @@ from pydantic import BaseModel, Field
 class CustomerCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     phone: str = Field(
-        ..., min_length=7, max_length=20, pattern=r"^\d{7,20}$",
+        ...,
+        min_length=7,
+        max_length=20,
+        pattern=r"^\d{7,20}$",
         description="Digits only, e.g. 03001234567",
     )
     email: str | None = Field(None, max_length=320)
@@ -24,7 +27,10 @@ class CustomerCreate(BaseModel):
 class CustomerUpdate(BaseModel):
     name: str | None = Field(None, min_length=1, max_length=255)
     phone: str | None = Field(
-        None, min_length=7, max_length=20, pattern=r"^\d{7,20}$",
+        None,
+        min_length=7,
+        max_length=20,
+        pattern=r"^\d{7,20}$",
     )
     email: str | None = None
     alt_contact: str | None = None
@@ -59,6 +65,7 @@ class CustomerResponse(BaseModel):
 
 class CustomerOrderHistoryItem(BaseModel):
     """Lightweight order summary for customer history."""
+
     id: uuid.UUID
     order_number: str
     order_type: str

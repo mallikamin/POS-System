@@ -12,7 +12,12 @@ from app.models.payment import Payment
 from app.models.restaurant_config import RestaurantConfig
 from app.models.table_session import TableSession
 from app.models.tenant import Tenant
-from app.schemas.receipt import ReceiptData, ReceiptDiscountLine, ReceiptItem, ReceiptPayment
+from app.schemas.receipt import (
+    ReceiptData,
+    ReceiptDiscountLine,
+    ReceiptItem,
+    ReceiptPayment,
+)
 
 
 async def get_receipt_data(
@@ -51,9 +56,7 @@ async def get_receipt_data(
     )
     config = config_result.scalar_one_or_none()
 
-    tenant_result = await db.execute(
-        select(Tenant).where(Tenant.id == tenant_id)
-    )
+    tenant_result = await db.execute(select(Tenant).where(Tenant.id == tenant_id))
     tenant = tenant_result.scalar_one()
 
     # Fetch payments
@@ -98,16 +101,20 @@ async def get_receipt_data(
                 method=p.method.display_name if p.method else "Unknown",
                 amount=p.amount,
                 tendered=p.tendered_amount,
-                change=p.change_amount if p.change_amount and p.change_amount > 0 else None,
+                change=p.change_amount
+                if p.change_amount and p.change_amount > 0
+                else None,
             )
         )
 
     # Fetch applied discounts
     disc_result = await db.execute(
-        select(OrderDiscount).where(
+        select(OrderDiscount)
+        .where(
             OrderDiscount.tenant_id == tenant_id,
             OrderDiscount.order_id == order_id,
-        ).order_by(OrderDiscount.created_at.asc())
+        )
+        .order_by(OrderDiscount.created_at.asc())
     )
     discount_records = list(disc_result.scalars().all())
     receipt_discounts = [
@@ -130,9 +137,7 @@ async def get_receipt_data(
         order_type=order.order_type,
         date=order.created_at,
         table_label=(
-            f"Table {order.table.label or order.table.number}"
-            if order.table
-            else None
+            f"Table {order.table.label or order.table.number}" if order.table else None
         ),
         customer_name=order.customer_name,
         customer_phone=order.customer_phone,
@@ -141,7 +146,9 @@ async def get_receipt_data(
         items=receipt_items,
         subtotal=order.subtotal,
         tax_label="GST" if tax_rate_bps > 0 else "Tax",
-        tax_rate_display=f"{tax_pct:.0f}%" if tax_pct == int(tax_pct) else f"{tax_pct:.2f}%",
+        tax_rate_display=f"{tax_pct:.0f}%"
+        if tax_pct == int(tax_pct)
+        else f"{tax_pct:.2f}%",
         tax_amount=order.tax_amount,
         discount_lines=receipt_discounts,
         discount_amount=order.discount_amount,
@@ -168,8 +175,7 @@ async def get_session_receipt_data(
             selectinload(TableSession.orders)
             .selectinload(Order.items)
             .selectinload(OrderItem.modifiers),
-            selectinload(TableSession.orders)
-            .selectinload(Order.waiter),
+            selectinload(TableSession.orders).selectinload(Order.waiter),
         )
         .where(TableSession.id == session_id, TableSession.tenant_id == tenant_id)
     )
@@ -189,9 +195,7 @@ async def get_session_receipt_data(
     )
     config = config_result.scalar_one_or_none()
 
-    tenant_result = await db.execute(
-        select(Tenant).where(Tenant.id == tenant_id)
-    )
+    tenant_result = await db.execute(select(Tenant).where(Tenant.id == tenant_id))
     tenant = tenant_result.scalar_one()
 
     order_ids = [o.id for o in orders]
@@ -243,20 +247,24 @@ async def get_session_receipt_data(
 
     # Add session-level discounts
     session_disc_result = await db.execute(
-        select(OrderDiscount).where(
+        select(OrderDiscount)
+        .where(
             OrderDiscount.tenant_id == tenant_id,
             OrderDiscount.table_session_id == session_id,
-        ).order_by(OrderDiscount.created_at.asc())
+        )
+        .order_by(OrderDiscount.created_at.asc())
     )
     session_discount_records = list(session_disc_result.scalars().all())
     session_discount_amount = sum(d.amount for d in session_discount_records)
     discount_amount += session_discount_amount
 
     disc_result = await db.execute(
-        select(OrderDiscount).where(
+        select(OrderDiscount)
+        .where(
             OrderDiscount.tenant_id == tenant_id,
             OrderDiscount.order_id.in_(order_ids),
-        ).order_by(OrderDiscount.created_at.asc())
+        )
+        .order_by(OrderDiscount.created_at.asc())
     )
     order_discount_records = list(disc_result.scalars().all())
     discount_records = order_discount_records + session_discount_records
@@ -279,12 +287,12 @@ async def get_session_receipt_data(
         # For cash: accumulate tendered/change from each allocation
         if p.tendered_amount and p.tendered_amount > 0:
             consolidated[method_name]["tendered"] = (
-                (consolidated[method_name]["tendered"] or 0) + p.tendered_amount
-            )
+                consolidated[method_name]["tendered"] or 0
+            ) + p.tendered_amount
         if p.change_amount and p.change_amount > 0:
             consolidated[method_name]["change"] = (
-                (consolidated[method_name]["change"] or 0) + p.change_amount
-            )
+                consolidated[method_name]["change"] or 0
+            ) + p.change_amount
 
     receipt_payments: list[ReceiptPayment] = [
         ReceiptPayment(
@@ -298,7 +306,11 @@ async def get_session_receipt_data(
 
     final_total = max(total - session_discount_amount, 0)
     paid_amount = sum(p.amount for p in payments)
-    payment_status = "paid" if paid_amount >= final_total else ("partial" if paid_amount > 0 else "unpaid")
+    payment_status = (
+        "paid"
+        if paid_amount >= final_total
+        else ("partial" if paid_amount > 0 else "unpaid")
+    )
 
     tax_rate_bps = config.default_tax_rate if config else 1600
     tax_pct = tax_rate_bps / 100
@@ -325,7 +337,9 @@ async def get_session_receipt_data(
         items=receipt_items,
         subtotal=subtotal,
         tax_label="GST" if tax_rate_bps > 0 else "Tax",
-        tax_rate_display=f"{tax_pct:.0f}%" if tax_pct == int(tax_pct) else f"{tax_pct:.2f}%",
+        tax_rate_display=f"{tax_pct:.0f}%"
+        if tax_pct == int(tax_pct)
+        else f"{tax_pct:.2f}%",
         tax_amount=tax_amount,
         discount_lines=receipt_discounts,
         discount_amount=discount_amount,

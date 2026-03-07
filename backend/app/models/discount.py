@@ -35,22 +35,29 @@ class DiscountType(BaseMixin, Base):
     )
 
     code: Mapped[str] = mapped_column(
-        String(50), nullable=False,
+        String(50),
+        nullable=False,
         comment="e.g. bank_promo, esr, customer, manual",
     )
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     kind: Mapped[str] = mapped_column(
-        String(20), nullable=False,
+        String(20),
+        nullable=False,
         comment="percent | fixed",
     )
     value: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0,
+        Integer,
+        nullable=False,
+        default=0,
         comment="Percent in basis points or fixed amount in paisa",
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     tenant_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid, ForeignKey("tenants.id"), nullable=False, index=True,
+        Uuid,
+        ForeignKey("tenants.id"),
+        nullable=False,
+        index=True,
     )
 
 
@@ -68,42 +75,61 @@ class OrderDiscount(BaseMixin, Base):
     )
 
     order_id: Mapped[uuid.UUID | None] = mapped_column(
-        Uuid, ForeignKey("orders.id", ondelete="CASCADE"), nullable=True, index=True,
+        Uuid,
+        ForeignKey("orders.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
     )
     table_session_id: Mapped[uuid.UUID | None] = mapped_column(
-        Uuid, ForeignKey("table_sessions.id", ondelete="CASCADE"), nullable=True, index=True,
+        Uuid,
+        ForeignKey("table_sessions.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
     )
     discount_type_id: Mapped[uuid.UUID | None] = mapped_column(
-        Uuid, ForeignKey("discount_types.id", ondelete="SET NULL"), nullable=True,
+        Uuid,
+        ForeignKey("discount_types.id", ondelete="SET NULL"),
+        nullable=True,
     )
     label: Mapped[str] = mapped_column(
-        String(200), nullable=False,
+        String(200),
+        nullable=False,
         comment="Display label e.g. 'Bank Promo 10%'",
     )
     source_type: Mapped[str] = mapped_column(
-        String(50), nullable=False,
+        String(50),
+        nullable=False,
         comment="e.g. bank_promo, esr, customer, manual",
     )
     amount: Mapped[int] = mapped_column(
-        Integer, nullable=False,
+        Integer,
+        nullable=False,
         comment="Discount amount in paisa (positive = discount)",
     )
     percent_bps: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0,
+        Integer,
+        nullable=False,
+        default=0,
         comment="Original percent in basis points (0 for fixed discounts)",
     )
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
     applied_by: Mapped[uuid.UUID] = mapped_column(
-        Uuid, ForeignKey("users.id"), nullable=False,
+        Uuid,
+        ForeignKey("users.id"),
+        nullable=False,
     )
 
     tenant_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid, ForeignKey("tenants.id"), nullable=False, index=True,
+        Uuid,
+        ForeignKey("tenants.id"),
+        nullable=False,
+        index=True,
     )
 
     # Relationships
     discount_type: Mapped["DiscountType | None"] = relationship(
-        "DiscountType", lazy="selectin",
+        "DiscountType",
+        lazy="selectin",
     )
     applier: Mapped["User"] = relationship("User", lazy="selectin")
 

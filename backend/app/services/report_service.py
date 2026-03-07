@@ -39,14 +39,19 @@ async def get_sales_summary(
             Order.order_type,
             func.coalesce(func.sum(Order.total), 0).label("revenue"),
             func.count(Order.id).label("orders"),
-        ).where(
+        )
+        .where(
             Order.tenant_id == tenant_id,
             func.cast(Order.created_at, Date) >= date_from,
             func.cast(Order.created_at, Date) <= date_to,
             Order.status != "voided",
-        ).group_by(Order.order_type)
+        )
+        .group_by(Order.order_type)
     )
-    channels = {r.order_type: {"revenue": r.revenue, "orders": r.orders} for r in channel_result.all()}
+    channels = {
+        r.order_type: {"revenue": r.revenue, "orders": r.orders}
+        for r in channel_result.all()
+    }
 
     # Discount breakdown by source_type
     disc_result = await db.execute(
@@ -207,15 +212,20 @@ async def get_hourly_breakdown(
             func.extract("hour", Order.created_at).label("hour"),
             func.count(Order.id).label("order_count"),
             func.coalesce(func.sum(Order.total), 0).label("revenue"),
-        ).where(
+        )
+        .where(
             Order.tenant_id == tenant_id,
             func.cast(Order.created_at, Date) == target_date,
             Order.status != "voided",
-        ).group_by(func.extract("hour", Order.created_at))
+        )
+        .group_by(func.extract("hour", Order.created_at))
         .order_by(func.extract("hour", Order.created_at))
     )
 
-    hour_data = {int(r.hour): {"order_count": r.order_count, "revenue": r.revenue} for r in result.all()}
+    hour_data = {
+        int(r.hour): {"order_count": r.order_count, "revenue": r.revenue}
+        for r in result.all()
+    }
 
     buckets = [
         {
@@ -241,8 +251,7 @@ async def get_void_report(
         select(
             Order.id,
             Order.total,
-        )
-        .where(
+        ).where(
             Order.tenant_id == tenant_id,
             Order.status == "voided",
             func.cast(Order.created_at, Date) >= date_from,

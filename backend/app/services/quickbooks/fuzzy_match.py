@@ -39,40 +39,52 @@ SYNONYM_SETS: list[set[str]] = [
     {"takeaway", "takeout", "parcel", "delivery order"},
     # 5 — Dine-in
     {"dine in", "dine-in", "eat in", "table service"},
-
     # 6 — Cost / COGS
     {"cost", "cogs", "purchase", "procurement", "kharcha"},
     # 7 — Ingredients
     {"ingredient", "raw material", "food cost", "recipe cost"},
     # 8 — Packaging
     {"packaging", "container", "disposable", "disposables", "packing"},
-
     # 9 — Tax (all tax-related terms)
     {"tax", "gst", "pst", "sst", "vat", "duty", "withholding", "sales tax"},
     # 10 — FBR / Federal
     {"fbr", "federal", "national", "government"},
     # 11 — Provincial
     {"pra", "provincial", "sindh", "kpk", "balochistan", "punjab"},
-
     # 12 — Cash / register
     {"cash", "register", "drawer", "till", "petty cash", "naqd"},
     # 13 — Bank
-    {"bank", "checking", "savings", "current account", "hbl", "meezan",
-     "ubl", "mcb", "allied", "nbp"},
+    {
+        "bank",
+        "checking",
+        "savings",
+        "current account",
+        "hbl",
+        "meezan",
+        "ubl",
+        "mcb",
+        "allied",
+        "nbp",
+    },
     # 14 — Mobile wallets
-    {"jazzcash", "easypaisa", "mobile wallet", "digital payment",
-     "sadapay", "nayapay"},
-
+    {"jazzcash", "easypaisa", "mobile wallet", "digital payment", "sadapay", "nayapay"},
     # 15 — Expense (generic)
     {"expense", "expenditure", "spending", "overhead"},
     # 16 — Rent
     {"rent", "lease", "occupancy", "premises", "kiraya"},
     # 17 — Utility
-    {"utility", "utilities", "electricity", "gas", "water", "bijli",
-     "sui gas", "paani"},
+    {
+        "utility",
+        "utilities",
+        "electricity",
+        "gas",
+        "water",
+        "bijli",
+        "sui gas",
+        "paani",
+    },
     # 18 — Payroll
-    {"payroll", "salary", "salaries", "wages",
-     "staff cost", "tankhwah"},
+    {"payroll", "salary", "salaries", "wages", "staff cost", "tankhwah"},
     # 19 — Marketing
     {"marketing", "advertising", "promotion", "publicity", "istihar", "ads"},
     # 20 — Repair / Maintenance
@@ -86,29 +98,23 @@ SYNONYM_SETS: list[set[str]] = [
     # 24 — Inventory / supplies
     {"inventory", "stock", "supplies", "raw material", "goods", "saman"},
     # 25 — Commission
-    {"commission", "brokerage", "percentage", "service fee",
-     "platform fee"},
-
+    {"commission", "brokerage", "percentage", "service fee", "platform fee"},
     # 26 — Discount
-    {"discount", "rebate", "allowance", "markdown", "concession",
-     "riaayat"},
+    {"discount", "rebate", "allowance", "markdown", "concession", "riaayat"},
     # 27 — Tips
     {"tip", "tips", "gratuity", "bakshish"},
     # 28 — Service charge
     {"service charge", "service fee"},
     # 29 — Gift card
     {"gift card", "gift cards", "voucher", "coupon", "credit note"},
-
     # 30 — Delivery platforms
     {"foodpanda", "cheetay", "careem", "bykea"},
     # 31 — Delivery
     {"delivery", "shipping", "dispatch", "courier", "rider"},
-
     # 32 — Rounding
     {"rounding", "round off", "adjustment", "difference", "fark"},
     # 33 — Over/Short
     {"over", "short", "variance", "discrepancy", "cash over short"},
-
     # 34 — Deposit / advance
     {"deposit", "deposits", "advance", "prepaid"},
 ]
@@ -124,28 +130,73 @@ for _i, _syn_set in enumerate(SYNONYM_SETS):
         _SYNONYM_INDEX[_key].add(_i)
 
 # Grammar/noise words to strip during basic tokenization
-_NOISE_WORDS = frozenset({
-    "of", "the", "and", "or", "a", "an", "for", "in", "on", "to", "by",
-    "with", "from", "at", "is", "its", "it", "as", "be", "no", "not",
-    "-", "&", "/", ".", ",",
-})
+_NOISE_WORDS = frozenset(
+    {
+        "of",
+        "the",
+        "and",
+        "or",
+        "a",
+        "an",
+        "for",
+        "in",
+        "on",
+        "to",
+        "by",
+        "with",
+        "from",
+        "at",
+        "is",
+        "its",
+        "it",
+        "as",
+        "be",
+        "no",
+        "not",
+        "-",
+        "&",
+        "/",
+        ".",
+        ",",
+    }
+)
 
 # Accounting stop words — appear in many account names, carry low
 # discriminative power. Stripping these reveals the ANCHOR tokens
 # that actually identify what an account is for.
-_ACCT_STOP_WORDS = frozenset({
-    # Generic category words
-    "expense", "expenses", "cost", "costs",
-    "sales", "revenue", "income",
-    "payable", "receivable",
-    "account", "accounts",
-    # Generic qualifier words
-    "fee", "fees", "given", "allowed",
-    "total", "net", "gross",
-    "other", "general", "misc", "miscellaneous",
-    "paid", "collected",
-    "current", "liability", "asset",
-})
+_ACCT_STOP_WORDS = frozenset(
+    {
+        # Generic category words
+        "expense",
+        "expenses",
+        "cost",
+        "costs",
+        "sales",
+        "revenue",
+        "income",
+        "payable",
+        "receivable",
+        "account",
+        "accounts",
+        # Generic qualifier words
+        "fee",
+        "fees",
+        "given",
+        "allowed",
+        "total",
+        "net",
+        "gross",
+        "other",
+        "general",
+        "misc",
+        "miscellaneous",
+        "paid",
+        "collected",
+        "current",
+        "liability",
+        "asset",
+    }
+)
 
 _NUMERIC_RE = re.compile(r"^[\d.%]+$")
 
@@ -154,11 +205,11 @@ _NUMERIC_RE = re.compile(r"^[\d.%]+$")
 # Scoring weights — anchor tokens dominate non-exact scoring
 # ---------------------------------------------------------------------------
 WEIGHT_EXACT = 1.00
-WEIGHT_ANCHOR = 0.40       # Distinctive key-word matching (highest)
-WEIGHT_SYNONYM = 0.25      # Domain semantic overlap
-WEIGHT_TYPE = 0.20         # QB AccountType compatibility
-WEIGHT_JACCARD = 0.10      # Raw word overlap
-WEIGHT_SUBSTRING = 0.05    # Containment
+WEIGHT_ANCHOR = 0.40  # Distinctive key-word matching (highest)
+WEIGHT_SYNONYM = 0.25  # Domain semantic overlap
+WEIGHT_TYPE = 0.20  # QB AccountType compatibility
+WEIGHT_JACCARD = 0.10  # Raw word overlap
+WEIGHT_SUBSTRING = 0.05  # Containment
 
 # Confidence thresholds (lowered from 0.85/0.60 to match new scoring)
 THRESHOLD_HIGH = 0.80
@@ -171,6 +222,7 @@ THRESHOLD_MEDIUM = 0.55
 @dataclass
 class MatchSignals:
     """Breakdown of individual scoring signals."""
+
     exact: float = 0.0
     anchor: float = 0.0
     jaccard: float = 0.0
@@ -192,6 +244,7 @@ class MatchSignals:
 @dataclass
 class MatchResult:
     """Result of comparing one template mapping against one QB account."""
+
     score: float
     signals: MatchSignals
     confidence: str  # "high" | "medium" | "low"
@@ -207,6 +260,7 @@ class MatchResult:
 @dataclass
 class CandidateMatch:
     """A QB account matched against a template mapping, with score."""
+
     qb_account_id: str
     qb_account_name: str
     qb_account_type: str
@@ -262,7 +316,8 @@ def _extract_anchor_tokens(name: str) -> set[str]:
     """
     words = re.split(r"[\s\-_/()&,.:;]+", name.lower())
     return {
-        w for w in words
+        w
+        for w in words
         if w
         and w not in _NOISE_WORDS
         and w not in _ACCT_STOP_WORDS
@@ -355,8 +410,10 @@ def synonym_overlap(tokens_a: set[str], tokens_b: set[str]) -> float:
 
 
 def type_compatibility(
-    type_a: str, type_b: str,
-    sub_a: str | None, sub_b: str | None,
+    type_a: str,
+    type_b: str,
+    sub_a: str | None,
+    sub_b: str | None,
 ) -> float:
     """
     Score QB AccountType + AccountSubType compatibility.
@@ -444,7 +501,10 @@ def match_score(
 
     # Signal 5: Type compatibility
     signals.type_match = type_compatibility(
-        template_type, qb_type, template_sub_type, qb_sub_type,
+        template_type,
+        qb_type,
+        template_sub_type,
+        qb_sub_type,
     )
 
     # Signal 6: Substring containment
@@ -514,17 +574,19 @@ def find_best_matches(
             qb_sub_type=acct.get("account_sub_type"),
         )
         if result.score >= min_score:
-            candidates.append(CandidateMatch(
-                qb_account_id=str(acct.get("id", "")),
-                qb_account_name=acct.get("name", ""),
-                qb_account_type=acct.get("account_type", ""),
-                qb_account_sub_type=acct.get("account_sub_type"),
-                fully_qualified_name=acct.get("fully_qualified_name"),
-                active=acct.get("active", True),
-                score=result.score,
-                signals=result.signals,
-                confidence=result.confidence,
-            ))
+            candidates.append(
+                CandidateMatch(
+                    qb_account_id=str(acct.get("id", "")),
+                    qb_account_name=acct.get("name", ""),
+                    qb_account_type=acct.get("account_type", ""),
+                    qb_account_sub_type=acct.get("account_sub_type"),
+                    fully_qualified_name=acct.get("fully_qualified_name"),
+                    active=acct.get("active", True),
+                    score=result.score,
+                    signals=result.signals,
+                    confidence=result.confidence,
+                )
+            )
 
     # Sort by score descending
     candidates.sort(key=lambda c: c.score, reverse=True)
@@ -611,18 +673,19 @@ def suggest_mapping_type(qb_account_name: str, qb_account_type: str) -> str | No
     name_lower = qb_account_name.lower()
 
     # Check keywords in order of specificity (longer phrases first)
-    sorted_hints = sorted(
-        _REVERSE_MAPPING_HINTS.items(), key=lambda x: -len(x[0])
-    )
+    sorted_hints = sorted(_REVERSE_MAPPING_HINTS.items(), key=lambda x: -len(x[0]))
     for keyword, mapping_type in sorted_hints:
         if keyword in name_lower:
             # Guardrail: if QB AccountType contradicts the hint, use type
             if mapping_type == "income" and qb_account_type in (
-                "Expense", "Other Expense", "Cost of Goods Sold",
+                "Expense",
+                "Other Expense",
+                "Cost of Goods Sold",
             ):
                 return "expense"
             if mapping_type == "expense" and qb_account_type in (
-                "Income", "Other Income",
+                "Income",
+                "Other Income",
             ):
                 return "income"
             return mapping_type

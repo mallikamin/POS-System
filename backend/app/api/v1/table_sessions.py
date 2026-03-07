@@ -49,7 +49,10 @@ def _to_detail(session) -> TableSessionDetailResponse:
 # Open Session (idempotent)
 # ---------------------------------------------------------------------------
 
-@router.post("/open", response_model=TableSessionResponse, status_code=status.HTTP_201_CREATED)
+
+@router.post(
+    "/open", response_model=TableSessionResponse, status_code=status.HTTP_201_CREATED
+)
 async def open_session(
     body: TableSessionOpenRequest,
     current_user: User = Depends(get_current_user),
@@ -58,8 +61,12 @@ async def open_session(
     """Open a table session or return the existing open session for that table."""
     try:
         session = await table_session_service.open_session(
-            db, current_user.tenant_id, current_user.id,
-            body.table_id, body.notes, body.waiter_id,
+            db,
+            current_user.tenant_id,
+            current_user.id,
+            body.table_id,
+            body.notes,
+            body.waiter_id,
         )
     except ValueError as e:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e))
@@ -71,6 +78,7 @@ async def open_session(
 # ---------------------------------------------------------------------------
 # Get Session by ID
 # ---------------------------------------------------------------------------
+
 
 @router.get("/{session_id}", response_model=TableSessionDetailResponse)
 async def get_session(
@@ -90,7 +98,10 @@ async def get_session(
 # Get Active Session by Table
 # ---------------------------------------------------------------------------
 
-@router.get("/table/{table_id}/active", response_model=TableSessionDetailResponse | None)
+
+@router.get(
+    "/table/{table_id}/active", response_model=TableSessionDetailResponse | None
+)
 async def get_active_session_for_table(
     table_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
@@ -108,6 +119,7 @@ async def get_active_session_for_table(
 # Close Session
 # ---------------------------------------------------------------------------
 
+
 @router.post("/{session_id}/close", response_model=TableSessionResponse)
 async def close_session(
     session_id: uuid.UUID,
@@ -117,8 +129,11 @@ async def close_session(
 ) -> TableSessionResponse:
     try:
         session = await table_session_service.close_session(
-            db, session_id, current_user.tenant_id,
-            current_user.id, body.notes,
+            db,
+            session_id,
+            current_user.tenant_id,
+            current_user.id,
+            body.notes,
         )
     except ValueError as e:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e))
@@ -130,6 +145,7 @@ async def close_session(
 # ---------------------------------------------------------------------------
 # Bill Summary
 # ---------------------------------------------------------------------------
+
 
 @router.get("/{session_id}/bill-summary", response_model=TableSessionBillSummary)
 async def get_bill_summary(

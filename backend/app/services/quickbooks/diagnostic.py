@@ -45,6 +45,7 @@ _match_store: dict[str, dict] = {}
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _build_match_item(need: AccountingNeed, candidates: list) -> dict:
     """Build a single match item for one POS need."""
     best = candidates[0] if candidates else None
@@ -93,6 +94,7 @@ def _compute_grade(matched: int, candidates: int, total: int) -> str:
 # MatchingService — the core of Attempt 2
 # ---------------------------------------------------------------------------
 
+
 class MatchingService:
     """
     Matches POS accounting needs directly against a JV partner's
@@ -131,8 +133,7 @@ class MatchingService:
             accounts = await self._fetch_live_accounts()
         else:
             raise ValueError(
-                "No QB connection or accounts provided. "
-                "Connect to QuickBooks first."
+                "No QB connection or accounts provided. Connect to QuickBooks first."
             )
 
         # 2. For each POS need, fuzzy-match against QB accounts
@@ -148,7 +149,9 @@ class MatchingService:
             search_name = need.label
 
             # Use the first expected type for type matching
-            search_type = need.expected_qb_types[0] if need.expected_qb_types else "Income"
+            search_type = (
+                need.expected_qb_types[0] if need.expected_qb_types else "Income"
+            )
 
             candidates = find_best_matches(
                 template_name=search_name,
@@ -178,7 +181,10 @@ class MatchingService:
                     else:
                         # Update score if this hint produced a better match
                         for i, existing in enumerate(candidates):
-                            if existing.qb_account_id == hc.qb_account_id and hc.score > existing.score:
+                            if (
+                                existing.qb_account_id == hc.qb_account_id
+                                and hc.score > existing.score
+                            ):
                                 candidates[i] = hc
                                 break
 
@@ -206,21 +212,22 @@ class MatchingService:
                     acct.get("name", ""),
                     acct.get("account_type", ""),
                 )
-                unmapped_qb.append({
-                    "qb_account_id": acct_id,
-                    "qb_account_name": acct.get("name", ""),
-                    "qb_account_type": acct.get("account_type", ""),
-                    "qb_account_sub_type": acct.get("account_sub_type"),
-                    "fully_qualified_name": acct.get("fully_qualified_name"),
-                    "active": acct.get("active", True),
-                    "suggested_mapping_type": suggested,
-                })
+                unmapped_qb.append(
+                    {
+                        "qb_account_id": acct_id,
+                        "qb_account_name": acct.get("name", ""),
+                        "qb_account_type": acct.get("account_type", ""),
+                        "qb_account_sub_type": acct.get("account_sub_type"),
+                        "fully_qualified_name": acct.get("fully_qualified_name"),
+                        "active": acct.get("active", True),
+                        "suggested_mapping_type": suggested,
+                    }
+                )
 
         total = len(POS_ACCOUNTING_NEEDS)
         required_total = sum(1 for n in POS_ACCOUNTING_NEEDS if n.required)
         required_matched = sum(
-            1 for item in items
-            if item["required"] and item["status"] == "matched"
+            1 for item in items if item["required"] and item["status"] == "matched"
         )
         grade = _compute_grade(matched_count, candidate_count, total)
 
@@ -246,7 +253,11 @@ class MatchingService:
         _match_store[result_id] = result
         logger.info(
             "Account matching %s: grade=%s, matched=%d, candidates=%d, unmatched=%d",
-            result_id, grade, matched_count, candidate_count, unmatched_count,
+            result_id,
+            grade,
+            matched_count,
+            candidate_count,
+            unmatched_count,
         )
 
         return result
@@ -263,17 +274,19 @@ class MatchingService:
     def list_results() -> list[dict]:
         results = []
         for r in _match_store.values():
-            results.append({
-                "id": r["id"],
-                "created_at": r["created_at"],
-                "health_grade": r["health_grade"],
-                "matched": r["matched"],
-                "candidates": r["candidates"],
-                "unmatched": r["unmatched"],
-                "total_needs": r["total_needs"],
-                "coverage_pct": r["coverage_pct"],
-                "is_live": r.get("is_live", False),
-            })
+            results.append(
+                {
+                    "id": r["id"],
+                    "created_at": r["created_at"],
+                    "health_grade": r["health_grade"],
+                    "matched": r["matched"],
+                    "candidates": r["candidates"],
+                    "unmatched": r["unmatched"],
+                    "total_needs": r["total_needs"],
+                    "coverage_pct": r["coverage_pct"],
+                    "is_live": r.get("is_live", False),
+                }
+            )
         return sorted(results, key=lambda x: x["created_at"], reverse=True)
 
     # -------------------------------------------------------------------
@@ -373,8 +386,15 @@ class MatchingService:
                         continue
 
                     # Get the QB account type from the candidate
-                    qb_type = item["expected_qb_types"][0] if item["expected_qb_types"] else "Income"
-                    if item["best_match"] and item["best_match"]["qb_account_id"] == qb_id:
+                    qb_type = (
+                        item["expected_qb_types"][0]
+                        if item["expected_qb_types"]
+                        else "Income"
+                    )
+                    if (
+                        item["best_match"]
+                        and item["best_match"]["qb_account_id"] == qb_id
+                    ):
                         qb_type = item["best_match"]["qb_account_type"]
 
                     await self._create_mapping(
@@ -396,7 +416,11 @@ class MatchingService:
                         continue
 
                     try:
-                        qb_type = item["expected_qb_types"][0] if item["expected_qb_types"] else "Income"
+                        qb_type = (
+                            item["expected_qb_types"][0]
+                            if item["expected_qb_types"]
+                            else "Income"
+                        )
                         new_acct = await self.client.create_account(
                             name=item["need_label"],
                             account_type=qb_type,
@@ -406,7 +430,9 @@ class MatchingService:
                         qb_name = new_acct.get("Name", new_acct.get("name", ""))
                         accounts_created += 1
                     except Exception as exc:
-                        errors.append(f"Failed to create QB account '{item['need_label']}': {exc}")
+                        errors.append(
+                            f"Failed to create QB account '{item['need_label']}': {exc}"
+                        )
                         continue
 
                     await self._create_mapping(
@@ -439,7 +465,11 @@ class MatchingService:
 
         logger.info(
             "Applied matching %s: created=%d accounts + %d mappings, skipped=%d, errors=%d",
-            result_id, accounts_created, mappings_created, skipped, len(errors),
+            result_id,
+            accounts_created,
+            mappings_created,
+            skipped,
+            len(errors),
         )
 
         return apply_result
@@ -454,9 +484,7 @@ class MatchingService:
             raise ValueError("QB connection required for health check")
 
         live_accounts = await self._fetch_live_accounts()
-        acct_by_id: dict[str, dict] = {
-            str(a.get("id", "")): a for a in live_accounts
-        }
+        acct_by_id: dict[str, dict] = {str(a.get("id", "")): a for a in live_accounts}
 
         stmt = select(QBAccountMapping).where(
             and_(
@@ -477,52 +505,60 @@ class MatchingService:
 
             if qb_acct is None:
                 critical += 1
-                details.append({
-                    "mapping_id": str(m.id),
-                    "mapping_type": m.mapping_type,
-                    "qb_account_id": m.qb_account_id,
-                    "qb_account_name": m.qb_account_name,
-                    "status": "critical",
-                    "issue": "account_deleted",
-                    "message": f"QB account '{m.qb_account_name}' no longer exists.",
-                    "current_name": None,
-                })
+                details.append(
+                    {
+                        "mapping_id": str(m.id),
+                        "mapping_type": m.mapping_type,
+                        "qb_account_id": m.qb_account_id,
+                        "qb_account_name": m.qb_account_name,
+                        "status": "critical",
+                        "issue": "account_deleted",
+                        "message": f"QB account '{m.qb_account_name}' no longer exists.",
+                        "current_name": None,
+                    }
+                )
             elif not qb_acct.get("active", True):
                 critical += 1
-                details.append({
-                    "mapping_id": str(m.id),
-                    "mapping_type": m.mapping_type,
-                    "qb_account_id": m.qb_account_id,
-                    "qb_account_name": m.qb_account_name,
-                    "status": "critical",
-                    "issue": "account_deactivated",
-                    "message": f"QB account '{m.qb_account_name}' is deactivated.",
-                    "current_name": qb_acct.get("name"),
-                })
+                details.append(
+                    {
+                        "mapping_id": str(m.id),
+                        "mapping_type": m.mapping_type,
+                        "qb_account_id": m.qb_account_id,
+                        "qb_account_name": m.qb_account_name,
+                        "status": "critical",
+                        "issue": "account_deactivated",
+                        "message": f"QB account '{m.qb_account_name}' is deactivated.",
+                        "current_name": qb_acct.get("name"),
+                    }
+                )
             elif qb_acct.get("name") != m.qb_account_name:
                 warnings += 1
-                details.append({
-                    "mapping_id": str(m.id),
-                    "mapping_type": m.mapping_type,
-                    "qb_account_id": m.qb_account_id,
-                    "qb_account_name": m.qb_account_name,
-                    "status": "warning",
-                    "issue": "account_renamed",
-                    "message": f"Renamed from '{m.qb_account_name}' to '{qb_acct.get('name')}'.",
-                    "current_name": qb_acct.get("name"),
-                })
+                details.append(
+                    {
+                        "mapping_id": str(m.id),
+                        "mapping_type": m.mapping_type,
+                        "qb_account_id": m.qb_account_id,
+                        "qb_account_name": m.qb_account_name,
+                        "status": "warning",
+                        "issue": "account_renamed",
+                        "message": f"Renamed from '{m.qb_account_name}' to '{qb_acct.get('name')}'.",
+                        "current_name": qb_acct.get("name"),
+                    }
+                )
             else:
                 healthy += 1
-                details.append({
-                    "mapping_id": str(m.id),
-                    "mapping_type": m.mapping_type,
-                    "qb_account_id": m.qb_account_id,
-                    "qb_account_name": m.qb_account_name,
-                    "status": "healthy",
-                    "issue": None,
-                    "message": "OK",
-                    "current_name": qb_acct.get("name"),
-                })
+                details.append(
+                    {
+                        "mapping_id": str(m.id),
+                        "mapping_type": m.mapping_type,
+                        "qb_account_id": m.qb_account_id,
+                        "qb_account_name": m.qb_account_name,
+                        "status": "healthy",
+                        "issue": None,
+                        "message": "OK",
+                        "current_name": qb_acct.get("name"),
+                    }
+                )
 
         total = len(mappings)
         if total == 0:
@@ -593,7 +629,9 @@ class MatchingService:
         result = await self.db.execute(stmt)
         existing = result.scalar_one_or_none()
         if existing:
-            logger.info("Mapping already exists: %s -> %s", mapping_type, qb_account_name)
+            logger.info(
+                "Mapping already exists: %s -> %s", mapping_type, qb_account_name
+            )
             return existing
 
         if is_default:

@@ -31,7 +31,9 @@ DEFAULT_PAYMENT_METHODS: list[tuple[str, str, bool, int]] = [
 ]
 
 
-async def ensure_default_payment_methods(db: AsyncSession, tenant_id: uuid.UUID) -> None:
+async def ensure_default_payment_methods(
+    db: AsyncSession, tenant_id: uuid.UUID
+) -> None:
     result = await db.execute(
         select(PaymentMethod).where(PaymentMethod.tenant_id == tenant_id)
     )
@@ -53,7 +55,9 @@ async def ensure_default_payment_methods(db: AsyncSession, tenant_id: uuid.UUID)
     await db.flush()
 
 
-async def list_payment_methods(db: AsyncSession, tenant_id: uuid.UUID) -> list[PaymentMethod]:
+async def list_payment_methods(
+    db: AsyncSession, tenant_id: uuid.UUID
+) -> list[PaymentMethod]:
     await ensure_default_payment_methods(db, tenant_id)
     result = await db.execute(
         select(PaymentMethod)
@@ -71,7 +75,9 @@ async def create_payment(
 ) -> PaymentSummary:
     order = await _get_order_or_raise(db, data.order_id, tenant_id)
     method = await _get_method_or_raise(db, tenant_id, data.method_code)
-    paid_amount, refunded_amount = await _get_order_payment_totals(db, tenant_id, order.id)
+    paid_amount, refunded_amount = await _get_order_payment_totals(
+        db, tenant_id, order.id
+    )
     due_amount = max(order.total - paid_amount + refunded_amount, 0)
     if due_amount <= 0:
         raise ValueError("Order is already fully paid")
@@ -111,11 +117,15 @@ async def split_payment(
     data: SplitPaymentCreate,
 ) -> PaymentSummary:
     order = await _get_order_or_raise(db, data.order_id, tenant_id)
-    paid_amount, refunded_amount = await _get_order_payment_totals(db, tenant_id, order.id)
+    paid_amount, refunded_amount = await _get_order_payment_totals(
+        db, tenant_id, order.id
+    )
     await _retax_unpaid_order_for_split_allocations(
         db, tenant_id, order, data.allocations, paid_amount, refunded_amount
     )
-    paid_amount, refunded_amount = await _get_order_payment_totals(db, tenant_id, order.id)
+    paid_amount, refunded_amount = await _get_order_payment_totals(
+        db, tenant_id, order.id
+    )
     due_amount = max(order.total - paid_amount + refunded_amount, 0)
     split_total = sum(a.amount for a in data.allocations)
     if split_total <= 0:
@@ -124,19 +134,25 @@ async def split_payment(
         raise ValueError("Split payment exceeds due amount")
 
     methods = {
-        method.code: method
-        for method in await list_payment_methods(db, tenant_id)
+        method.code: method for method in await list_payment_methods(db, tenant_id)
     }
 
     for allocation in data.allocations:
         method = methods.get(allocation.method_code)
         if method is None:
-            raise ValueError(f"Payment method '{allocation.method_code}' is not available")
+            raise ValueError(
+                f"Payment method '{allocation.method_code}' is not available"
+            )
         change_amount = 0
         if allocation.method_code == "cash":
-            if allocation.tendered_amount is not None and allocation.tendered_amount < allocation.amount:
+            if (
+                allocation.tendered_amount is not None
+                and allocation.tendered_amount < allocation.amount
+            ):
                 raise ValueError("Cash split tendered_amount must be >= amount")
-            change_amount = max((allocation.tendered_amount or allocation.amount) - allocation.amount, 0)
+            change_amount = max(
+                (allocation.tendered_amount or allocation.amount) - allocation.amount, 0
+            )
 
         db.add(
             Payment(
@@ -221,8 +237,12 @@ async def get_order_payment_summary(
         .order_by(Payment.created_at.asc())
     )
     payments = list(result.scalars().all())
-    paid_amount = sum(p.amount for p in payments if p.kind == "payment" and p.status == "completed")
-    refunded_amount = sum(p.amount for p in payments if p.kind == "refund" and p.status == "completed")
+    paid_amount = sum(
+        p.amount for p in payments if p.kind == "payment" and p.status == "completed"
+    )
+    refunded_amount = sum(
+        p.amount for p in payments if p.kind == "refund" and p.status == "completed"
+    )
     due_amount = max(order.total - paid_amount + refunded_amount, 0)
     return PaymentSummary(
         order_id=order.id,
@@ -362,14 +382,16 @@ async def get_session_payment_summary(
         net_paid = paid - refunded
         due = max(o.total - net_paid, 0)
         total_paid += net_paid
-        order_dues.append(SessionPaymentOrderDue(
-            order_id=o.id,
-            order_number=o.order_number,
-            order_total=o.total,
-            paid_amount=net_paid,
-            due_amount=due,
-            payment_status=o.payment_status,
-        ))
+        order_dues.append(
+            SessionPaymentOrderDue(
+                order_id=o.id,
+                order_number=o.order_number,
+                order_total=o.total,
+                paid_amount=net_paid,
+                due_amount=due,
+                payment_status=o.payment_status,
+            )
+        )
 
     # Session-level discounts
     session_disc_result = await db.execute(
@@ -395,7 +417,8 @@ async def get_session_payment_summary(
         table_id=session.table_id,
         table_label=(
             (session.table.label or str(session.table.number))
-            if session.table else None
+            if session.table
+            else None
         ),
         order_count=len(billable_orders),
         subtotal=subtotal,
@@ -522,19 +545,21 @@ async def create_session_payment(
             change = max((data.tendered_amount or data.amount) - data.amount, 0)
             is_first = False
 
-        db.add(Payment(
-            tenant_id=tenant_id,
-            order_id=order.id,
-            method_id=method.id,
-            kind="payment",
-            status="completed",
-            amount=alloc,
-            tendered_amount=tendered,
-            change_amount=change,
-            reference=data.reference,
-            note=data.note,
-            processed_by=user_id,
-        ))
+        db.add(
+            Payment(
+                tenant_id=tenant_id,
+                order_id=order.id,
+                method_id=method.id,
+                kind="payment",
+                status="completed",
+                amount=alloc,
+                tendered_amount=tendered,
+                change_amount=change,
+                reference=data.reference,
+                note=data.note,
+                processed_by=user_id,
+            )
+        )
         remaining -= alloc
 
     await db.flush()
@@ -671,19 +696,21 @@ async def split_session_payment(
                 if tendered is not None:
                     change = max(tendered - alloc.amount, 0)
 
-            db.add(Payment(
-                tenant_id=tenant_id,
-                order_id=order.id,
-                method_id=method.id,
-                kind="payment",
-                status="completed",
-                amount=pay_amount,
-                tendered_amount=tendered,
-                change_amount=change,
-                reference=alloc.reference,
-                note=data.note,
-                processed_by=user_id,
-            ))
+            db.add(
+                Payment(
+                    tenant_id=tenant_id,
+                    order_id=order.id,
+                    method_id=method.id,
+                    kind="payment",
+                    status="completed",
+                    amount=pay_amount,
+                    tendered_amount=tendered,
+                    change_amount=change,
+                    reference=alloc.reference,
+                    note=data.note,
+                    processed_by=user_id,
+                )
+            )
 
             order_remaining -= pay_amount
             entry[1] = alloc_rem - pay_amount
@@ -749,7 +776,9 @@ async def _retax_unpaid_session_orders_for_split_allocations(
         if idx == len(billable_orders) - 1:
             tax_amount = remaining_tax
         else:
-            tax_amount = round(order.subtotal * inferred_tax / subtotal) if subtotal > 0 else 0
+            tax_amount = (
+                round(order.subtotal * inferred_tax / subtotal) if subtotal > 0 else 0
+            )
             remaining_tax -= tax_amount
 
         order.tax_amount = tax_amount
@@ -804,7 +833,9 @@ async def _infer_split_subtotal_and_tax(
 async def _sync_order_payment_status(
     db: AsyncSession, order: Order, tenant_id: uuid.UUID
 ) -> None:
-    paid_amount, refunded_amount = await _get_order_payment_totals(db, tenant_id, order.id)
+    paid_amount, refunded_amount = await _get_order_payment_totals(
+        db, tenant_id, order.id
+    )
     net_paid = paid_amount - refunded_amount
     if net_paid <= 0 and refunded_amount > 0:
         order.payment_status = "refunded"
@@ -856,6 +887,7 @@ async def _maybe_close_session(
 
     # All orders paid or voided — close the session
     from app.services import table_session_service
+
     await table_session_service.close_session(
         db, session_id, tenant_id, session.opened_by
     )
@@ -931,17 +963,20 @@ async def _maybe_send_to_kitchen_after_payment(
     for item in order.items:
         item.status = "sent"
 
-    db.add(OrderStatusLog(
-        tenant_id=tenant_id,
-        order_id=order.id,
-        from_status="confirmed",
-        to_status="in_kitchen",
-        changed_by=user_id,
-    ))
+    db.add(
+        OrderStatusLog(
+            tenant_id=tenant_id,
+            order_id=order.id,
+            from_status="confirmed",
+            to_status="in_kitchen",
+            changed_by=user_id,
+        )
+    )
     await db.flush()
 
     # Reload order with items for kitchen ticket creation
     from app.services.order_service import get_order as _get_order_full
+
     full_order = await _get_order_full(db, order.id, tenant_id)
     if full_order:
         await _auto_create_kitchen_ticket(db, tenant_id, full_order)

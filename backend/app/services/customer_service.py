@@ -1,7 +1,6 @@
 """Customer service -- CRUD, phone search, order history, risk & stats."""
 
 import uuid
-from datetime import datetime
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -53,9 +52,7 @@ async def get_by_phone(
     db: AsyncSession, tenant_id: uuid.UUID, phone: str
 ) -> Customer | None:
     result = await db.execute(
-        select(Customer).where(
-            Customer.tenant_id == tenant_id, Customer.phone == phone
-        )
+        select(Customer).where(Customer.tenant_id == tenant_id, Customer.phone == phone)
     )
     return result.scalar_one_or_none()
 

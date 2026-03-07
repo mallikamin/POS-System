@@ -30,6 +30,7 @@ _discount_apply_dep = require_permission("discount.apply")
 # Discount Types (admin CRUD)
 # ---------------------------------------------------------------------------
 
+
 @router.get("/types", response_model=list[DiscountTypeResponse])
 async def list_discount_types(
     active_only: bool = Query(False),
@@ -52,9 +53,7 @@ async def create_discount_type(
     current_user: User = Depends(_discount_manage_dep),
     db: AsyncSession = Depends(get_db),
 ) -> DiscountTypeResponse:
-    dt = await discount_service.create_discount_type(
-        db, current_user.tenant_id, body
-    )
+    dt = await discount_service.create_discount_type(db, current_user.tenant_id, body)
     await db.commit()
     return DiscountTypeResponse.model_validate(dt)
 
@@ -91,7 +90,10 @@ async def delete_discount_type(
 # Apply / Remove Discounts
 # ---------------------------------------------------------------------------
 
-@router.post("/apply", response_model=OrderDiscountResponse, status_code=status.HTTP_201_CREATED)
+
+@router.post(
+    "/apply", response_model=OrderDiscountResponse, status_code=status.HTTP_201_CREATED
+)
 async def apply_discount(
     body: ApplyDiscountRequest,
     current_user: User = Depends(_discount_apply_dep),
@@ -133,6 +135,7 @@ async def remove_discount(
 # ---------------------------------------------------------------------------
 # List Discounts on Order
 # ---------------------------------------------------------------------------
+
 
 @router.get("/orders/{order_id}", response_model=DiscountBreakdown)
 async def get_order_discounts(

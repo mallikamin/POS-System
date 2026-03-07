@@ -15,7 +15,6 @@ from sqlalchemy.orm import selectinload
 
 from app.models.customer import Customer
 from app.models.floor import Table
-from app.models.kitchen import KitchenStation
 from app.models.order import Order, OrderItem, OrderItemModifier, OrderStatusLog
 from app.models.restaurant_config import RestaurantConfig
 from app.models.table_session import TableSession
@@ -43,6 +42,7 @@ VALID_TRANSITIONS: dict[str, list[str]] = {
 # Order Number Generation
 # ---------------------------------------------------------------------------
 
+
 async def generate_order_number(db: AsyncSession, tenant_id: uuid.UUID) -> str:
     """Generate a daily sequential order number: YYMMDD-NNN."""
     now = datetime.now(timezone.utc)
@@ -62,6 +62,7 @@ async def generate_order_number(db: AsyncSession, tenant_id: uuid.UUID) -> str:
 # Tax Calculation
 # ---------------------------------------------------------------------------
 
+
 async def _get_tax_rate(db: AsyncSession, tenant_id: uuid.UUID) -> int:
     """Get the default tax rate in basis points from restaurant config."""
     result = await db.execute(
@@ -76,6 +77,7 @@ async def _get_tax_rate(db: AsyncSession, tenant_id: uuid.UUID) -> int:
 # ---------------------------------------------------------------------------
 # Create Order
 # ---------------------------------------------------------------------------
+
 
 async def create_order(
     db: AsyncSession,
@@ -159,14 +161,18 @@ async def create_order(
         waiter_id = None
         if data.order_type == "dine_in" and data.table_id:
             table_session_id = await _resolve_table_session(
-                db, tenant_id, user_id, data.table_id,
+                db,
+                tenant_id,
+                user_id,
+                data.table_id,
                 waiter_id=data.waiter_id,
             )
             # Inherit waiter from session
             if table_session_id:
                 session_result = await db.execute(
-                    select(TableSession.assigned_waiter_id)
-                    .where(TableSession.id == table_session_id)
+                    select(TableSession.assigned_waiter_id).where(
+                        TableSession.id == table_session_id
+                    )
                 )
                 waiter_id = session_result.scalar_one_or_none()
 
@@ -224,8 +230,12 @@ async def create_order(
         except IntegrityError:
             if attempt == max_retries - 1:
                 raise ValueError("Failed to generate unique order number after retries")
-            logger.warning("Order number collision on '%s', retrying (%d/%d)",
-                           order_number, attempt + 1, max_retries)
+            logger.warning(
+                "Order number collision on '%s', retrying (%d/%d)",
+                order_number,
+                attempt + 1,
+                max_retries,
+            )
             continue
 
     # Status log: creation
@@ -279,6 +289,7 @@ async def create_order(
 # Read Orders
 # ---------------------------------------------------------------------------
 
+
 async def list_orders(
     db: AsyncSession,
     tenant_id: uuid.UUID,
@@ -299,9 +310,7 @@ async def list_orders(
     if type_filter:
         base = base.where(Order.order_type == type_filter)
     if active_only:
-        base = base.where(
-            Order.status.notin_(["completed", "voided"])
-        )
+        base = base.where(Order.status.notin_(["completed", "voided"]))
 
     # Count
     count_stmt = select(func.count()).select_from(base.subquery())
@@ -309,8 +318,7 @@ async def list_orders(
 
     # Fetch with items for item_count
     stmt = (
-        base
-        .options(
+        base.options(
             selectinload(Order.items),
             selectinload(Order.table),
         )
@@ -343,6 +351,7 @@ async def get_order(
 # State Transitions
 # ---------------------------------------------------------------------------
 
+
 async def transition_order(
     db: AsyncSession,
     order_id: uuid.UUID,
@@ -363,8 +372,7 @@ async def transition_order(
     allowed = VALID_TRANSITIONS.get(current, [])
     if new_status not in allowed:
         raise ValueError(
-            f"Cannot transition from '{current}' to '{new_status}'. "
-            f"Allowed: {allowed}"
+            f"Cannot transition from '{current}' to '{new_status}'. Allowed: {allowed}"
         )
 
     # Pay-first guard: block confirmed→in_kitchen without payment
@@ -372,6 +380,7 @@ async def transition_order(
         payment_flow = await _get_payment_flow(db, tenant_id)
         if payment_flow == "pay_first":
             from app.models.payment import Payment
+
             paid_result = await db.execute(
                 select(func.count(Payment.id)).where(
                     Payment.order_id == order_id,
@@ -457,13 +466,19 @@ async def void_order(
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 async def _auto_create_kitchen_ticket(
-    db: AsyncSession, tenant_id: uuid.UUID, order: Order,
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    order: Order,
 ) -> None:
     """Create a kitchen ticket for an order, routing all items to the first active station."""
     stations = await kitchen_service.list_stations(db, tenant_id, active_only=True)
     if not stations:
-        logger.warning("No active kitchen stations — skipping ticket creation for order %s", order.id)
+        logger.warning(
+            "No active kitchen stations — skipping ticket creation for order %s",
+            order.id,
+        )
         return
 
     station = stations[0]  # Route to first active station (Main Kitchen)
@@ -472,7 +487,11 @@ async def _auto_create_kitchen_ticket(
         return
 
     await kitchen_service.create_ticket_for_order(
-        db, tenant_id, order.id, station.id, item_quantities,
+        db,
+        tenant_id,
+        order.id,
+        station.id,
+        item_quantities,
     )
 
 
@@ -505,11 +524,13 @@ async def _resolve_table_session(
 ) -> uuid.UUID:
     """Find an open session for this table, or create one. Returns session id."""
     result = await db.execute(
-        select(TableSession).where(
+        select(TableSession)
+        .where(
             TableSession.tenant_id == tenant_id,
             TableSession.table_id == table_id,
             TableSession.status == "open",
-        ).limit(1)
+        )
+        .limit(1)
     )
     session = result.scalar_one_or_none()
     if session is not None:
@@ -530,6 +551,7 @@ async def _resolve_table_session(
 # ---------------------------------------------------------------------------
 # Payment Preview (dual totals by method-specific tax)
 # ---------------------------------------------------------------------------
+
 
 async def get_payment_preview(
     db: AsyncSession, order_id: uuid.UUID, tenant_id: uuid.UUID

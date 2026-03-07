@@ -7,11 +7,14 @@ from pydantic import BaseModel, EmailStr, Field
 # Request schemas
 # ---------------------------------------------------------------------------
 
+
 class PinLoginRequest(BaseModel):
     """Login using a numeric PIN (fast POS login for staff)."""
 
     pin: str = Field(..., min_length=4, max_length=6, pattern=r"^\d{4,6}$")
-    tenant_id: uuid.UUID | None = Field(None, description="Tenant to authenticate against (auto-detected if omitted)")
+    tenant_id: uuid.UUID | None = Field(
+        None, description="Tenant to authenticate against (auto-detected if omitted)"
+    )
 
 
 class PasswordLoginRequest(BaseModel):
@@ -19,7 +22,9 @@ class PasswordLoginRequest(BaseModel):
 
     email: EmailStr
     password: str = Field(..., min_length=1)
-    tenant_id: uuid.UUID | None = Field(None, description="Tenant to authenticate against (auto-detected if omitted)")
+    tenant_id: uuid.UUID | None = Field(
+        None, description="Tenant to authenticate against (auto-detected if omitted)"
+    )
 
 
 class VerifyPasswordRequest(BaseModel):
@@ -50,6 +55,7 @@ class LogoutRequest(BaseModel):
 # ---------------------------------------------------------------------------
 # Response schemas
 # ---------------------------------------------------------------------------
+
 
 class PermissionResponse(BaseModel):
     """Single permission returned inside a role."""

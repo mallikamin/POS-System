@@ -61,9 +61,7 @@ async def login_with_password(
     """Authenticate with email + password and receive tokens."""
     tenant_id = await _resolve_tenant_id(db, body.tenant_id)
     try:
-        user = await authenticate_by_password(
-            db, body.email, body.password, tenant_id
-        )
+        user = await authenticate_by_password(db, body.email, body.password, tenant_id)
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

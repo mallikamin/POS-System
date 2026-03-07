@@ -88,7 +88,10 @@ class SnapshotService:
 
         logger.info(
             "Created CoA snapshots for %s (realm=%s): %d accounts, v%d",
-            company_name, realm_id, len(accounts), version,
+            company_name,
+            realm_id,
+            len(accounts),
+            version,
         )
 
         return {
@@ -148,6 +151,7 @@ class SnapshotService:
     async def get_snapshot(self, snapshot_id: str) -> QBCoASnapshot | None:
         """Get a specific snapshot by ID."""
         import uuid as _uuid
+
         stmt = select(QBCoASnapshot).where(
             and_(
                 QBCoASnapshot.id == _uuid.UUID(snapshot_id),
@@ -189,8 +193,12 @@ class SnapshotService:
             "qb_company_name": snapshot.qb_company_name,
             "qb_realm_id": snapshot.qb_realm_id,
             "account_count": snapshot.account_count,
-            "fetched_at": snapshot.fetched_at.isoformat() if snapshot.fetched_at else None,
-            "created_at": snapshot.created_at.isoformat() if snapshot.created_at else None,
+            "fetched_at": snapshot.fetched_at.isoformat()
+            if snapshot.fetched_at
+            else None,
+            "created_at": snapshot.created_at.isoformat()
+            if snapshot.created_at
+            else None,
             "notes": snapshot.notes,
             "accounts": snapshot.coa_data,
         }
@@ -240,6 +248,7 @@ class SnapshotService:
     async def _next_version(self) -> int:
         """Get next version number for this connection's snapshots."""
         from sqlalchemy import func
+
         stmt = select(func.coalesce(func.max(QBCoASnapshot.version), 0)).where(
             and_(
                 QBCoASnapshot.tenant_id == self.tenant_id,

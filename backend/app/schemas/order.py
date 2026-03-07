@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field, model_validator
 # Request Schemas
 # ---------------------------------------------------------------------------
 
+
 class OrderItemModifierCreate(BaseModel):
     modifier_id: uuid.UUID
     name: str = Field(..., max_length=100)
@@ -23,7 +24,9 @@ class OrderItemCreate(BaseModel):
     menu_item_id: uuid.UUID
     name: str = Field(..., max_length=200, description="Denormalized item name")
     quantity: int = Field(..., ge=1)
-    unit_price: int = Field(..., ge=0, description="Unit price in paisa (base + modifiers)")
+    unit_price: int = Field(
+        ..., ge=0, description="Unit price in paisa (base + modifiers)"
+    )
     modifiers: list[OrderItemModifierCreate] = Field(default_factory=list)
     notes: str | None = Field(None, max_length=500)
 
@@ -52,13 +55,18 @@ class OrderStatusUpdate(BaseModel):
 
 
 class OrderVoidRequest(BaseModel):
-    reason: str = Field(..., min_length=1, max_length=500, description="Mandatory reason for voiding")
-    auth_token: str | None = Field(None, description="Token from POST /auth/verify-password")
+    reason: str = Field(
+        ..., min_length=1, max_length=500, description="Mandatory reason for voiding"
+    )
+    auth_token: str | None = Field(
+        None, description="Token from POST /auth/verify-password"
+    )
 
 
 # ---------------------------------------------------------------------------
 # Response Schemas
 # ---------------------------------------------------------------------------
+
 
 class OrderItemModifierResponse(BaseModel):
     id: uuid.UUID

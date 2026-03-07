@@ -29,6 +29,7 @@ from app.schemas.menu import (
 # Categories
 # ---------------------------------------------------------------------------
 
+
 async def list_categories(
     db: AsyncSession, tenant_id: uuid.UUID, active_only: bool = False
 ) -> list[Category]:
@@ -92,6 +93,7 @@ async def delete_category(db: AsyncSession, category: Category) -> None:
 # Menu Items
 # ---------------------------------------------------------------------------
 
+
 async def list_menu_items(
     db: AsyncSession,
     tenant_id: uuid.UUID,
@@ -100,7 +102,9 @@ async def list_menu_items(
 ) -> list[MenuItem]:
     stmt = (
         select(MenuItem)
-        .options(selectinload(MenuItem.modifier_groups).selectinload(ModifierGroup.modifiers))
+        .options(
+            selectinload(MenuItem.modifier_groups).selectinload(ModifierGroup.modifiers)
+        )
         .where(MenuItem.tenant_id == tenant_id)
         .order_by(MenuItem.display_order, MenuItem.name)
     )
@@ -117,7 +121,9 @@ async def get_menu_item(
 ) -> MenuItem | None:
     result = await db.execute(
         select(MenuItem)
-        .options(selectinload(MenuItem.modifier_groups).selectinload(ModifierGroup.modifiers))
+        .options(
+            selectinload(MenuItem.modifier_groups).selectinload(ModifierGroup.modifiers)
+        )
         .where(MenuItem.id == item_id, MenuItem.tenant_id == tenant_id)
     )
     return result.scalar_one_or_none()
@@ -142,7 +148,9 @@ async def create_menu_item(
 
     # Link modifier groups
     if data.modifier_group_ids:
-        await _sync_item_modifier_groups(db, tenant_id, item.id, data.modifier_group_ids)
+        await _sync_item_modifier_groups(
+            db, tenant_id, item.id, data.modifier_group_ids
+        )
 
     # Re-fetch with relationships
     return await get_menu_item(db, item.id, tenant_id)  # type: ignore[return-value]
@@ -197,6 +205,7 @@ async def _sync_item_modifier_groups(
 # ---------------------------------------------------------------------------
 # Modifier Groups
 # ---------------------------------------------------------------------------
+
 
 async def list_modifier_groups(
     db: AsyncSession, tenant_id: uuid.UUID, active_only: bool = False
@@ -277,6 +286,7 @@ async def delete_modifier_group(db: AsyncSession, group: ModifierGroup) -> None:
 # Modifiers
 # ---------------------------------------------------------------------------
 
+
 async def create_modifier(
     db: AsyncSession, tenant_id: uuid.UUID, group_id: uuid.UUID, data: ModifierCreate
 ) -> Modifier:
@@ -326,9 +336,8 @@ async def get_modifier(
 # Full Menu Tree
 # ---------------------------------------------------------------------------
 
-async def get_full_menu(
-    db: AsyncSession, tenant_id: uuid.UUID
-) -> list[Category]:
+
+async def get_full_menu(db: AsyncSession, tenant_id: uuid.UUID) -> list[Category]:
     """Fetch the complete menu tree: active categories -> available items -> modifier groups -> modifiers."""
     result = await db.execute(
         select(Category)
@@ -347,10 +356,7 @@ async def get_full_menu(
 
     # Filter to available items only (in-memory to avoid complex subquery)
     for cat in categories:
-        cat.items = [
-            item for item in cat.items
-            if item.is_available
-        ]
+        cat.items = [item for item in cat.items if item.is_available]
         cat.items.sort(key=lambda i: (i.display_order, i.name))
 
     return categories

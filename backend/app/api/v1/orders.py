@@ -5,7 +5,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user, require_permission, require_role
+from app.api.deps import get_current_user, require_permission
 from app.database import get_db
 from app.models.user import User
 from app.schemas.common import PaginatedResponse
@@ -38,6 +38,7 @@ def _to_order_response(order) -> OrderResponse:
 # Create Order
 # ---------------------------------------------------------------------------
 
+
 @router.post("", response_model=OrderResponse, status_code=status.HTTP_201_CREATED)
 async def create_order(
     body: OrderCreate,
@@ -66,6 +67,7 @@ async def create_order(
 # ---------------------------------------------------------------------------
 # List Orders
 # ---------------------------------------------------------------------------
+
 
 @router.get("", response_model=PaginatedResponse[OrderListResponse])
 async def list_orders(
@@ -114,6 +116,7 @@ async def list_orders(
 # Get Order Detail
 # ---------------------------------------------------------------------------
 
+
 @router.get("/{order_id}", response_model=OrderResponse)
 async def get_order(
     order_id: uuid.UUID,
@@ -130,6 +133,7 @@ async def get_order(
 # ---------------------------------------------------------------------------
 # Transition Order Status
 # ---------------------------------------------------------------------------
+
 
 @router.patch("/{order_id}/status", response_model=OrderResponse)
 async def transition_order(
@@ -164,6 +168,7 @@ async def transition_order(
 # Payment Preview (dual totals by payment method)
 # ---------------------------------------------------------------------------
 
+
 @router.get("/{order_id}/payment-preview", response_model=PaymentPreviewResponse)
 async def get_payment_preview(
     order_id: uuid.UUID,
@@ -183,6 +188,7 @@ async def get_payment_preview(
 # Void Order (admin only)
 # ---------------------------------------------------------------------------
 
+
 @router.post("/{order_id}/void", response_model=OrderResponse)
 async def void_order(
     order_id: uuid.UUID,
@@ -195,7 +201,9 @@ async def void_order(
     if body.auth_token:
         verified_user_id = validate_verify_token(body.auth_token)
         if verified_user_id is None or verified_user_id != str(current_user.id):
-            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid or expired re-auth token")
+            raise HTTPException(
+                status.HTTP_401_UNAUTHORIZED, "Invalid or expired re-auth token"
+            )
     try:
         order = await order_service.void_order(
             db, order_id, current_user.tenant_id, current_user.id, body.reason

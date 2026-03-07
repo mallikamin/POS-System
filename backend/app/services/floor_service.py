@@ -22,6 +22,7 @@ from app.schemas.floor import (
 # Floors
 # ---------------------------------------------------------------------------
 
+
 async def list_floors(
     db: AsyncSession, tenant_id: uuid.UUID, active_only: bool = False
 ) -> list[Floor]:
@@ -63,9 +64,7 @@ async def create_floor(
     return await get_floor(db, floor.id, tenant_id)  # type: ignore[return-value]
 
 
-async def update_floor(
-    db: AsyncSession, floor: Floor, data: FloorUpdate
-) -> Floor:
+async def update_floor(db: AsyncSession, floor: Floor, data: FloorUpdate) -> Floor:
     update_data = data.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(floor, field, value)
@@ -82,17 +81,14 @@ async def delete_floor(db: AsyncSession, floor: Floor) -> None:
 # Tables
 # ---------------------------------------------------------------------------
 
+
 async def list_tables(
     db: AsyncSession,
     tenant_id: uuid.UUID,
     floor_id: uuid.UUID | None = None,
     active_only: bool = False,
 ) -> list[Table]:
-    stmt = (
-        select(Table)
-        .where(Table.tenant_id == tenant_id)
-        .order_by(Table.number)
-    )
+    stmt = select(Table).where(Table.tenant_id == tenant_id).order_by(Table.number)
     if floor_id is not None:
         stmt = stmt.where(Table.floor_id == floor_id)
     if active_only:
@@ -132,9 +128,7 @@ async def create_table(
     return table
 
 
-async def update_table(
-    db: AsyncSession, table: Table, data: TableUpdate
-) -> Table:
+async def update_table(db: AsyncSession, table: Table, data: TableUpdate) -> Table:
     update_data = data.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(table, field, value)
@@ -217,7 +211,9 @@ async def reconcile_table_occupancy(
         )
         .distinct()
     )
-    open_session_tables = {row[0] for row in open_session_result.all() if row[0] is not None}
+    open_session_tables = {
+        row[0] for row in open_session_result.all() if row[0] is not None
+    }
 
     active_order_result = await db.execute(
         select(Order.table_id).where(
@@ -228,7 +224,9 @@ async def reconcile_table_occupancy(
             Order.table_id.is_not(None),
         )
     )
-    active_order_tables = {row[0] for row in active_order_result.all() if row[0] is not None}
+    active_order_tables = {
+        row[0] for row in active_order_result.all() if row[0] is not None
+    }
 
     should_be_occupied = open_session_tables | active_order_tables
 

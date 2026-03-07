@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user, require_permission, require_role
+from app.api.deps import get_current_user, require_permission
 from app.database import get_db
 from app.models.user import User
 from app.schemas.payment import (
@@ -69,7 +69,9 @@ async def create_payment(
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e))
 
 
-@router.post("/split", response_model=PaymentSummary, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/split", response_model=PaymentSummary, status_code=status.HTTP_201_CREATED
+)
 async def split_payment(
     body: SplitPaymentCreate,
     current_user: User = Depends(get_current_user),
@@ -113,7 +115,9 @@ async def refund_payment(
 # ---------------------------------------------------------------------------
 
 
-@router.get("/table-sessions/{session_id}/summary", response_model=SessionPaymentSummary)
+@router.get(
+    "/table-sessions/{session_id}/summary", response_model=SessionPaymentSummary
+)
 async def get_session_payment_summary(
     session_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
@@ -193,7 +197,9 @@ async def get_drawer_session(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> CashDrawerSessionResponse | None:
-    session = await payment_service.get_active_drawer_session(db, current_user.tenant_id)
+    session = await payment_service.get_active_drawer_session(
+        db, current_user.tenant_id
+    )
     return CashDrawerSessionResponse.model_validate(session) if session else None
 
 
@@ -215,7 +221,9 @@ async def open_drawer(
         return CashDrawerSessionResponse.model_validate(session)
     except IntegrityError:
         await db.rollback()
-        raise HTTPException(status.HTTP_409_CONFLICT, "A cash drawer is already open for this tenant")
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, "A cash drawer is already open for this tenant"
+        )
     except ValueError as e:
         await db.rollback()
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e))

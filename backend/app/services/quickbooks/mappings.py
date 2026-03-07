@@ -15,7 +15,7 @@ from typing import Any
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.quickbooks import QBConnection, QBAccountMapping, QBEntityMapping
+from app.models.quickbooks import QBConnection, QBAccountMapping
 from app.services.quickbooks.client import QBClient
 from app.services.quickbooks.pos_needs import REQUIRED_NEEDS
 
@@ -93,7 +93,10 @@ class MappingService:
 
         logger.info(
             "Created mapping: type=%s name='%s' qb_id=%s default=%s",
-            mapping_type, qb_account_name, qb_account_id, is_default,
+            mapping_type,
+            qb_account_name,
+            qb_account_id,
+            is_default,
         )
         return mapping
 
@@ -103,9 +106,15 @@ class MappingService:
         mapping = await self._get_mapping_or_raise(mapping_id)
 
         allowed = {
-            "qb_account_id", "qb_account_name", "qb_account_type",
-            "qb_account_sub_type", "pos_reference_id", "pos_reference_type",
-            "pos_reference_name", "is_default", "mapping_type",
+            "qb_account_id",
+            "qb_account_name",
+            "qb_account_type",
+            "qb_account_sub_type",
+            "pos_reference_id",
+            "pos_reference_type",
+            "pos_reference_name",
+            "is_default",
+            "mapping_type",
         }
 
         if updates.get("is_default") is True and not mapping.is_default:
@@ -131,9 +140,7 @@ class MappingService:
         logger.info("Deleted mapping %s", mapping_id)
         return True
 
-    async def get_default_mapping(
-        self, mapping_type: str
-    ) -> QBAccountMapping | None:
+    async def get_default_mapping(self, mapping_type: str) -> QBAccountMapping | None:
         result = await self.db.execute(
             select(QBAccountMapping).where(
                 and_(
@@ -172,7 +179,9 @@ class MappingService:
     async def fetch_qb_accounts(self) -> list[dict]:
         try:
             raw_accounts = await self.client.query(
-                "Account", where="Active = true", order_by="Name",
+                "Account",
+                where="Active = true",
+                order_by="Name",
             )
         except Exception as exc:
             logger.error("Failed to fetch QB accounts: %s", exc)

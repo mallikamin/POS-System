@@ -621,7 +621,7 @@ function ReportsPage() {
           </div>
 
           {/* waiter performance */}
-          {waiterReport && waiterReport.entries.length > 0 && (
+          {waiterReport && (
             <Card>
               <CardHeader>
                 <div className="flex items-center gap-2">
@@ -632,71 +632,77 @@ function ReportsPage() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="overflow-hidden rounded-lg border border-secondary-200">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-secondary-200 bg-secondary-50">
-                        <th className="px-4 py-2.5 text-left font-medium text-secondary-600">
-                          Waiter
-                        </th>
-                        <th className="px-4 py-2.5 text-right font-medium text-secondary-600">
-                          Orders
-                        </th>
-                        <th className="px-4 py-2.5 text-right font-medium text-secondary-600">
-                          Revenue
-                        </th>
-                        <th className="px-4 py-2.5 text-right font-medium text-secondary-600">
-                          Avg Order
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-secondary-100">
-                      {waiterReport.entries.map((entry) => (
-                        <tr key={entry.waiter_id} className="hover:bg-secondary-50">
-                          <td className="px-4 py-2.5 text-secondary-700">
-                            <div className="flex items-center gap-1.5">
-                              <UserCircle className="h-3.5 w-3.5 text-secondary-400" />
-                              {entry.waiter_name}
-                            </div>
-                          </td>
-                          <td className="px-4 py-2.5 text-right text-secondary-800">
-                            {entry.order_count}
-                          </td>
-                          <td className="px-4 py-2.5 text-right font-medium text-secondary-900">
-                            {formatPKR(entry.total_revenue)}
-                          </td>
-                          <td className="px-4 py-2.5 text-right text-secondary-700">
-                            {formatPKR(entry.avg_order_value)}
-                          </td>
+                {waiterReport.entries.length > 0 ? (
+                  <div className="overflow-hidden rounded-lg border border-secondary-200">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-secondary-200 bg-secondary-50">
+                          <th className="px-4 py-2.5 text-left font-medium text-secondary-600">
+                            Waiter
+                          </th>
+                          <th className="px-4 py-2.5 text-right font-medium text-secondary-600">
+                            Orders
+                          </th>
+                          <th className="px-4 py-2.5 text-right font-medium text-secondary-600">
+                            Revenue
+                          </th>
+                          <th className="px-4 py-2.5 text-right font-medium text-secondary-600">
+                            Avg Order
+                          </th>
                         </tr>
-                      ))}
-                    </tbody>
-                    <tfoot>
-                      <tr className="border-t border-secondary-200 bg-secondary-50">
-                        <td className="px-4 py-2.5 font-medium text-secondary-700">
-                          Total (with waiter)
-                        </td>
-                        <td className="px-4 py-2.5 text-right font-bold text-secondary-900">
-                          {waiterReport.total_orders_with_waiter}
-                        </td>
-                        <td className="px-4 py-2.5 text-right font-bold text-secondary-900">
-                          {formatPKR(waiterReport.entries.reduce((s, e) => s + e.total_revenue, 0))}
-                        </td>
-                        <td />
-                      </tr>
-                      {waiterReport.total_orders_without_waiter > 0 && (
-                        <tr className="bg-secondary-50">
-                          <td className="px-4 py-2.5 text-secondary-500" colSpan={2}>
-                            Orders without waiter
+                      </thead>
+                      <tbody className="divide-y divide-secondary-100">
+                        {waiterReport.entries.map((entry) => (
+                          <tr key={entry.waiter_id} className="hover:bg-secondary-50">
+                            <td className="px-4 py-2.5 text-secondary-700">
+                              <div className="flex items-center gap-1.5">
+                                <UserCircle className="h-3.5 w-3.5 text-secondary-400" />
+                                {entry.waiter_name}
+                              </div>
+                            </td>
+                            <td className="px-4 py-2.5 text-right text-secondary-800">
+                              {entry.order_count}
+                            </td>
+                            <td className="px-4 py-2.5 text-right font-medium text-secondary-900">
+                              {formatPKR(entry.total_revenue)}
+                            </td>
+                            <td className="px-4 py-2.5 text-right text-secondary-700">
+                              {formatPKR(entry.avg_order_value)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr className="border-t border-secondary-200 bg-secondary-50">
+                          <td className="px-4 py-2.5 font-medium text-secondary-700">
+                            Total (with waiter)
                           </td>
-                          <td className="px-4 py-2.5 text-right text-secondary-500" colSpan={2}>
-                            {waiterReport.total_orders_without_waiter}
+                          <td className="px-4 py-2.5 text-right font-bold text-secondary-900">
+                            {waiterReport.total_orders_with_waiter}
                           </td>
+                          <td className="px-4 py-2.5 text-right font-bold text-secondary-900">
+                            {formatPKR(waiterReport.entries.reduce((s, e) => s + e.total_revenue, 0))}
+                          </td>
+                          <td />
                         </tr>
-                      )}
-                    </tfoot>
-                  </table>
-                </div>
+                        {waiterReport.total_orders_without_waiter > 0 && (
+                          <tr className="bg-secondary-50">
+                            <td className="px-4 py-2.5 text-secondary-500" colSpan={2}>
+                              Orders without waiter
+                            </td>
+                            <td className="px-4 py-2.5 text-right text-secondary-500" colSpan={2}>
+                              {waiterReport.total_orders_without_waiter}
+                            </td>
+                          </tr>
+                        )}
+                      </tfoot>
+                    </table>
+                  </div>
+                ) : (
+                  <p className="text-center text-sm text-secondary-500 py-4">
+                    No waiter-assigned orders in this period
+                  </p>
+                )}
               </CardContent>
             </Card>
           )}

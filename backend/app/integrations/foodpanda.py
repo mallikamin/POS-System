@@ -51,9 +51,7 @@ class FoodpandaAdapter(DeliveryPlatformAdapter):
     async def reject_order(self, external_order_id: str, reason: str) -> bool:
         raise NotImplementedError("Foodpanda order rejection not yet implemented.")
 
-    async def update_order_status(
-        self, external_order_id: str, status: str
-    ) -> bool:
+    async def update_order_status(self, external_order_id: str, status: str) -> bool:
         raise NotImplementedError("Foodpanda status update not yet implemented.")
 
     async def sync_menu(self, menu_items: list[dict[str, Any]]) -> dict[str, Any]:

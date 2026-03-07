@@ -51,6 +51,7 @@ async def websocket_endpoint(ws: WebSocket) -> None:
 
         # Register in manager (re-create ConnectedClient without re-accepting)
         from app.websockets.manager import ConnectedClient
+
         client = ConnectedClient(ws=ws, tenant_id=tenant_id, user_id=user_id)
         manager._clients[id(ws)] = client
 

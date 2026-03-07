@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 # OAuth Flow
 # ---------------------------------------------------------------------------
 
+
 class QBConnectURL(BaseModel):
     auth_url: str
     state: str
@@ -47,6 +48,7 @@ class QBCompanyInfo(BaseModel):
 # ---------------------------------------------------------------------------
 # Account Mappings
 # ---------------------------------------------------------------------------
+
 
 class QBAccountMappingBase(BaseModel):
     mapping_type: str = Field(..., min_length=1, max_length=50)
@@ -84,6 +86,7 @@ class QBAccountMappingResponse(QBAccountMappingBase):
 # Entity Mappings
 # ---------------------------------------------------------------------------
 
+
 class QBEntityMappingResponse(BaseModel):
     id: uuid.UUID
     entity_type: str
@@ -100,6 +103,7 @@ class QBEntityMappingResponse(BaseModel):
 # ---------------------------------------------------------------------------
 # Sync
 # ---------------------------------------------------------------------------
+
 
 class QBSyncJobResponse(BaseModel):
     id: uuid.UUID
@@ -165,6 +169,7 @@ class QBSyncTriggerResponse(BaseModel):
 # QB Account Discovery
 # ---------------------------------------------------------------------------
 
+
 class QBAccountInfo(BaseModel):
     id: str
     name: str
@@ -183,6 +188,7 @@ class QBAccountListResponse(BaseModel):
 # ---------------------------------------------------------------------------
 # Account Matching (Attempt 2 — replaces diagnostic/templates)
 # ---------------------------------------------------------------------------
+
 
 class QBMatchSignals(BaseModel):
     exact: float = 0.0
@@ -207,6 +213,7 @@ class QBMatchCandidate(BaseModel):
 
 class QBMatchItem(BaseModel):
     """One POS accounting need and its match status."""
+
     need_key: str
     need_label: str
     need_description: str
@@ -241,6 +248,7 @@ class QBDecisionSummary(BaseModel):
 
 class QBMatchResult(BaseModel):
     """Full match result — POS needs vs QB accounts."""
+
     id: str
     created_at: str
     is_live: bool = False
@@ -296,6 +304,7 @@ class QBMatchApplyResponse(BaseModel):
 # Health Check
 # ---------------------------------------------------------------------------
 
+
 class QBHealthCheckDetail(BaseModel):
     mapping_id: str
     mapping_type: str
@@ -321,8 +330,10 @@ class QBHealthCheckResponse(BaseModel):
 # CoA Snapshots
 # ---------------------------------------------------------------------------
 
+
 class QBSnapshotSummary(BaseModel):
     """Summary view of a CoA snapshot (without full account data)."""
+
     id: uuid.UUID
     snapshot_type: str
     account_count: int
@@ -338,11 +349,13 @@ class QBSnapshotSummary(BaseModel):
 
 class QBSnapshotDetail(QBSnapshotSummary):
     """Full snapshot including account data."""
+
     coa_data: list[dict] = Field(default_factory=list)
 
 
 class QBSnapshotCreateResponse(BaseModel):
     """Response after creating snapshots."""
+
     backup_id: str
     working_copy_id: str
     account_count: int

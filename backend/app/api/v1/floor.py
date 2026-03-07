@@ -12,7 +12,6 @@ from app.schemas.common import MessageResponse
 from app.schemas.floor import (
     BulkTablePositionUpdate,
     FloorCreate,
-    FloorResponse,
     FloorStatusBoard,
     FloorUpdate,
     FloorWithTables,
@@ -32,6 +31,7 @@ _admin_dep = require_role("admin")
 # Status Board (POS dine-in view uses this)
 # ---------------------------------------------------------------------------
 
+
 @router.get("/status-board", response_model=FloorStatusBoard)
 async def get_status_board(
     current_user: User = Depends(get_current_user),
@@ -40,13 +40,16 @@ async def get_status_board(
     """Return all active floors with their tables for the POS dine-in view."""
     await floor_service.reconcile_table_occupancy(db, current_user.tenant_id)
     await db.commit()
-    floors = await floor_service.list_floors(db, current_user.tenant_id, active_only=True)
+    floors = await floor_service.list_floors(
+        db, current_user.tenant_id, active_only=True
+    )
     return FloorStatusBoard(floors=floors)
 
 
 # ---------------------------------------------------------------------------
 # Floors CRUD
 # ---------------------------------------------------------------------------
+
 
 @router.get("", response_model=list[FloorWithTables])
 async def list_floors(
@@ -114,6 +117,7 @@ async def delete_floor(
 # Tables CRUD
 # ---------------------------------------------------------------------------
 
+
 @router.get("/{floor_id}/tables", response_model=list[TableResponse])
 async def list_tables(
     floor_id: uuid.UUID,
@@ -127,7 +131,9 @@ async def list_tables(
     return [TableResponse.model_validate(t) for t in tables]
 
 
-@router.post("/tables", response_model=TableResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/tables", response_model=TableResponse, status_code=status.HTTP_201_CREATED
+)
 async def create_table(
     body: TableCreate,
     current_user: User = Depends(_admin_dep),
@@ -175,6 +181,7 @@ async def delete_table(
 # Bulk Position Update (floor editor drag-and-drop)
 # ---------------------------------------------------------------------------
 
+
 @router.put("/tables/positions", response_model=list[TableResponse])
 async def bulk_update_positions(
     body: BulkTablePositionUpdate,
@@ -190,6 +197,7 @@ async def bulk_update_positions(
 # ---------------------------------------------------------------------------
 # Table Status Update (POS operational — cashier can update)
 # ---------------------------------------------------------------------------
+
 
 @router.patch("/tables/{table_id}/status", response_model=TableResponse)
 async def update_table_status(

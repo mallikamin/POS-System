@@ -15,14 +15,12 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from app.api.deps import get_current_user, require_role
 from app.config import settings
 from app.database import get_db
-from app.models.order import Order, OrderItem
+from app.models.order import Order
 from app.models.quickbooks import (
-    QBAccountMapping,
     QBConnection,
     QBEntityMapping,
     QBSyncJob,
@@ -80,8 +78,10 @@ router = APIRouter(
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 async def _require_connection(
-    db: AsyncSession, tenant_id: uuid.UUID,
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
 ) -> QBConnection:
     conn = await get_connection(db, tenant_id)
     if conn is None:
@@ -103,6 +103,7 @@ def _check_qb_configured() -> None:
 # =========================================================================
 # OAUTH FLOW
 # =========================================================================
+
 
 @router.get("/connect", response_model=QBConnectURL)
 async def connect_quickbooks(
@@ -138,8 +139,11 @@ async def quickbooks_callback(
 
     try:
         connection = await exchange_code_for_tokens(
-            code=code, realm_id=realmId,
-            tenant_id=tenant_id, user_id=user_id, db=db,
+            code=code,
+            realm_id=realmId,
+            tenant_id=tenant_id,
+            user_id=user_id,
+            db=db,
         )
     except Exception as exc:
         logger.error("QB OAuth exchange failed: %s", exc, exc_info=True)
@@ -154,12 +158,15 @@ async def quickbooks_callback(
         snap_result = await snapshot_svc.create_initial_snapshots()
         logger.info(
             "Auto-created CoA snapshots on connect: %d accounts, v%d",
-            snap_result["account_count"], snap_result["version"],
+            snap_result["account_count"],
+            snap_result["version"],
         )
     except Exception as exc:
         # Non-fatal: connection still works, snapshots can be created later
         logger.warning(
-            "Failed to auto-create CoA snapshots on connect: %s", exc, exc_info=True,
+            "Failed to auto-create CoA snapshots on connect: %s",
+            exc,
+            exc_info=True,
         )
 
     await db.commit()
@@ -194,13 +201,16 @@ async def disconnect_quickbooks(
     """Disconnect QB — revoke tokens and deactivate."""
     success = await qb_disconnect(db, current_user.tenant_id)
     if not success:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No active connection.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="No active connection."
+        )
     return QBDisconnectResponse(message="QuickBooks disconnected successfully.")
 
 
 # =========================================================================
 # COMPANY INFO
 # =========================================================================
+
 
 @router.get("/company", response_model=QBCompanyInfo)
 async def get_company_info(
@@ -221,13 +231,16 @@ async def get_company_info(
         country=info.get("Country"),
         fiscal_year_start=info.get("FiscalYearStartMonth"),
         industry_type=info.get("IndustryType"),
-        currency=info.get("HomeCurrency", {}).get("value") if isinstance(info.get("HomeCurrency"), dict) else None,
+        currency=info.get("HomeCurrency", {}).get("value")
+        if isinstance(info.get("HomeCurrency"), dict)
+        else None,
     )
 
 
 # =========================================================================
 # POS ACCOUNTING NEEDS (what the system requires)
 # =========================================================================
+
 
 @router.get("/needs")
 async def list_pos_needs(
@@ -240,6 +253,7 @@ async def list_pos_needs(
 # =========================================================================
 # ACCOUNT MATCHING (the core of Attempt 2)
 # =========================================================================
+
 
 @router.post("/match", response_model=QBMatchResult)
 async def run_account_matching(
@@ -281,7 +295,9 @@ async def get_match_result(
     """Get a specific match result."""
     result = MatchingService.get_result(result_id)
     if result is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Match result not found.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Match result not found."
+        )
     return QBMatchResult(**result)
 
 
@@ -294,7 +310,8 @@ async def update_match_decisions(
     """Update admin decisions on match results."""
     try:
         result = MatchingService.update_decisions(
-            result_id, [d.model_dump() for d in body.decisions],
+            result_id,
+            [d.model_dump() for d in body.decisions],
         )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
@@ -324,6 +341,7 @@ async def apply_match_decisions(
 # =========================================================================
 # COA SNAPSHOTS (backup + working copy)
 # =========================================================================
+
 
 @router.get("/snapshots", response_model=list[QBSnapshotSummary])
 async def list_snapshots(
@@ -364,7 +382,9 @@ async def get_snapshot_detail(
     svc = SnapshotService(conn, db)
     snapshot = await svc.get_snapshot(snapshot_id)
     if snapshot is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Snapshot not found.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Snapshot not found."
+        )
     return QBSnapshotDetail.model_validate(snapshot)
 
 
@@ -381,7 +401,9 @@ async def export_snapshot_json(
     svc = SnapshotService(conn, db)
     snapshot = await svc.get_snapshot(snapshot_id)
     if snapshot is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Snapshot not found.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Snapshot not found."
+        )
 
     json_str = svc.export_as_json(snapshot)
     filename = f"coa_backup_{snapshot.qb_realm_id}_v{snapshot.version}_{snapshot.snapshot_type}.json"
@@ -412,6 +434,7 @@ async def refresh_snapshots(
 # HEALTH CHECK
 # =========================================================================
 
+
 @router.get("/health-check", response_model=QBHealthCheckResponse)
 async def run_health_check(
     current_user: User = Depends(get_current_user),
@@ -431,6 +454,7 @@ async def run_health_check(
 # ACCOUNT MAPPINGS (CRUD)
 # =========================================================================
 
+
 @router.get("/mappings", response_model=list[QBAccountMappingResponse])
 async def list_account_mappings(
     mapping_type: str | None = Query(None),
@@ -444,7 +468,11 @@ async def list_account_mappings(
     return [QBAccountMappingResponse.model_validate(m) for m in mappings]
 
 
-@router.post("/mappings", response_model=QBAccountMappingResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/mappings",
+    response_model=QBAccountMappingResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def create_account_mapping(
     body: QBAccountMappingCreate,
     current_user: User = Depends(require_role("admin")),
@@ -479,7 +507,9 @@ async def update_account_mapping(
     svc = MappingService(conn, db)
     updates = body.model_dump(exclude_unset=True)
     if not updates:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No fields to update.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="No fields to update."
+        )
     try:
         mapping = await svc.update_mapping(mapping_id, **updates)
     except ValueError as exc:
@@ -517,6 +547,7 @@ async def validate_mappings(
 # QB ACCOUNT DISCOVERY
 # =========================================================================
 
+
 @router.get("/accounts", response_model=QBAccountListResponse)
 async def list_qb_accounts(
     current_user: User = Depends(get_current_user),
@@ -549,6 +580,7 @@ async def list_qb_accounts(
 # ENTITY MAPPINGS
 # =========================================================================
 
+
 @router.get("/entity-mappings", response_model=list[QBEntityMappingResponse])
 async def list_entity_mappings(
     entity_type: str | None = Query(None),
@@ -572,6 +604,7 @@ async def list_entity_mappings(
 # =========================================================================
 # SYNC OPERATIONS
 # =========================================================================
+
 
 @router.post("/sync", response_model=QBSyncTriggerResponse)
 async def trigger_manual_sync(
@@ -604,26 +637,35 @@ async def trigger_manual_sync(
 
     if body.sync_type == "sync_items":
         from app.models.menu import MenuItem
+
         stmt = select(MenuItem.id).where(MenuItem.tenant_id == current_user.tenant_id)
         if body.entity_ids:
             stmt = stmt.where(MenuItem.id.in_(body.entity_ids))
         result = await db.execute(stmt)
         for item_id in result.scalars().all():
-            job = await sync_svc.enqueue_job("sync_menu_item", "menu_item", item_id, priority=7)
+            job = await sync_svc.enqueue_job(
+                "sync_menu_item", "menu_item", item_id, priority=7
+            )
             if job is not None:
                 jobs_created += 1
 
     elif body.sync_type == "sync_customers":
         from app.models.order import Order as OrderModel
+
         cust_stmt = (
             select(OrderModel.customer_name, OrderModel.customer_phone)
-            .where(OrderModel.tenant_id == current_user.tenant_id, OrderModel.customer_name.isnot(None))
+            .where(
+                OrderModel.tenant_id == current_user.tenant_id,
+                OrderModel.customer_name.isnot(None),
+            )
             .distinct()
         )
         for row in (await db.execute(cust_stmt)).all():
             if row[0]:
                 job = await sync_svc.enqueue_job(
-                    "sync_customer", "customer", priority=7,
+                    "sync_customer",
+                    "customer",
+                    priority=7,
                     payload={"name": row[0], "phone": row[1]},
                 )
                 if job is not None:
@@ -632,12 +674,15 @@ async def trigger_manual_sync(
     elif body.sync_type == "setup_tax_codes":
         result = await sync_svc.setup_tax_code_mapping()
         return QBSyncTriggerResponse(
-            jobs_created=len(result), message=f"Tax codes set up: {result}", batch_id=batch_id,
+            jobs_created=len(result),
+            message=f"Tax codes set up: {result}",
+            batch_id=batch_id,
         )
 
     elif body.sync_type == "sync_orders":
         stmt = select(Order.id).where(
-            Order.tenant_id == current_user.tenant_id, Order.status == "completed",
+            Order.tenant_id == current_user.tenant_id,
+            Order.status == "completed",
         )
         if body.entity_ids:
             stmt = stmt.where(Order.id.in_(body.entity_ids))
@@ -646,7 +691,9 @@ async def trigger_manual_sync(
         if body.date_to:
             stmt = stmt.where(Order.created_at < body.date_to + timedelta(days=1))
         for order_id in (await db.execute(stmt)).scalars().all():
-            job = await sync_svc.enqueue_job("create_sales_receipt", "order", order_id, priority=3)
+            job = await sync_svc.enqueue_job(
+                "create_sales_receipt", "order", order_id, priority=3
+            )
             if job is not None:
                 jobs_created += 1
 
@@ -654,13 +701,16 @@ async def trigger_manual_sync(
         await sync_svc.process_pending_jobs(batch_size=jobs_created)
 
     return QBSyncTriggerResponse(
-        jobs_created=jobs_created, message=f"Queued {jobs_created} sync jobs.", batch_id=batch_id,
+        jobs_created=jobs_created,
+        message=f"Queued {jobs_created} sync jobs.",
+        batch_id=batch_id,
     )
 
 
 # =========================================================================
 # SYNC STATUS & LOGS
 # =========================================================================
+
 
 @router.get("/sync/stats", response_model=QBSyncStats)
 async def get_sync_stats(
@@ -673,41 +723,57 @@ async def get_sync_stats(
 
     total_r = await db.execute(
         select(func.count(QBSyncLog.id)).where(
-            QBSyncLog.tenant_id == tid, QBSyncLog.connection_id == cid, QBSyncLog.status == "success",
+            QBSyncLog.tenant_id == tid,
+            QBSyncLog.connection_id == cid,
+            QBSyncLog.status == "success",
         )
     )
     cutoff = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0)
     last_24h_r = await db.execute(
         select(func.count(QBSyncLog.id)).where(
-            QBSyncLog.tenant_id == tid, QBSyncLog.connection_id == cid,
-            QBSyncLog.status == "success", QBSyncLog.created_at >= cutoff,
+            QBSyncLog.tenant_id == tid,
+            QBSyncLog.connection_id == cid,
+            QBSyncLog.status == "success",
+            QBSyncLog.created_at >= cutoff,
         )
     )
     last_24h_f = await db.execute(
         select(func.count(QBSyncLog.id)).where(
-            QBSyncLog.tenant_id == tid, QBSyncLog.connection_id == cid,
-            QBSyncLog.status == "failed", QBSyncLog.created_at >= cutoff,
+            QBSyncLog.tenant_id == tid,
+            QBSyncLog.connection_id == cid,
+            QBSyncLog.status == "failed",
+            QBSyncLog.created_at >= cutoff,
         )
     )
     pending_r = await db.execute(
         select(func.count(QBSyncJob.id)).where(
-            QBSyncJob.tenant_id == tid, QBSyncJob.connection_id == cid, QBSyncJob.status == "pending",
+            QBSyncJob.tenant_id == tid,
+            QBSyncJob.connection_id == cid,
+            QBSyncJob.status == "pending",
         )
     )
     failed_r = await db.execute(
         select(func.count(QBSyncJob.id)).where(
-            QBSyncJob.tenant_id == tid, QBSyncJob.connection_id == cid, QBSyncJob.status == "failed",
+            QBSyncJob.tenant_id == tid,
+            QBSyncJob.connection_id == cid,
+            QBSyncJob.status == "failed",
         )
     )
     dead_r = await db.execute(
         select(func.count(QBSyncJob.id)).where(
-            QBSyncJob.tenant_id == tid, QBSyncJob.connection_id == cid, QBSyncJob.status == "dead_letter",
+            QBSyncJob.tenant_id == tid,
+            QBSyncJob.connection_id == cid,
+            QBSyncJob.status == "dead_letter",
         )
     )
     type_r = await db.execute(
-        select(QBSyncLog.sync_type, func.count(QBSyncLog.id)).where(
-            QBSyncLog.tenant_id == tid, QBSyncLog.connection_id == cid, QBSyncLog.status == "success",
-        ).group_by(QBSyncLog.sync_type)
+        select(QBSyncLog.sync_type, func.count(QBSyncLog.id))
+        .where(
+            QBSyncLog.tenant_id == tid,
+            QBSyncLog.connection_id == cid,
+            QBSyncLog.status == "success",
+        )
+        .group_by(QBSyncLog.sync_type)
     )
 
     return QBSyncStats(
@@ -733,11 +799,16 @@ async def list_sync_jobs(
     """List sync queue jobs."""
     conn = await _require_connection(db, current_user.tenant_id)
     stmt = select(QBSyncJob).where(
-        QBSyncJob.tenant_id == current_user.tenant_id, QBSyncJob.connection_id == conn.id,
+        QBSyncJob.tenant_id == current_user.tenant_id,
+        QBSyncJob.connection_id == conn.id,
     )
     if status_filter:
         stmt = stmt.where(QBSyncJob.status == status_filter)
-    stmt = stmt.order_by(QBSyncJob.created_at.desc()).offset((page - 1) * page_size).limit(page_size)
+    stmt = (
+        stmt.order_by(QBSyncJob.created_at.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    )
     result = await db.execute(stmt)
     return [QBSyncJobResponse.model_validate(j) for j in result.scalars().all()]
 
@@ -754,13 +825,18 @@ async def list_sync_log(
     """List sync audit log."""
     conn = await _require_connection(db, current_user.tenant_id)
     stmt = select(QBSyncLog).where(
-        QBSyncLog.tenant_id == current_user.tenant_id, QBSyncLog.connection_id == conn.id,
+        QBSyncLog.tenant_id == current_user.tenant_id,
+        QBSyncLog.connection_id == conn.id,
     )
     if sync_type:
         stmt = stmt.where(QBSyncLog.sync_type == sync_type)
     if status_filter:
         stmt = stmt.where(QBSyncLog.status == status_filter)
-    stmt = stmt.order_by(QBSyncLog.created_at.desc()).offset((page - 1) * page_size).limit(page_size)
+    stmt = (
+        stmt.order_by(QBSyncLog.created_at.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    )
     result = await db.execute(stmt)
     return [QBSyncLogResponse.model_validate(lg) for lg in result.scalars().all()]
 
@@ -775,15 +851,21 @@ async def retry_sync_job(
     conn = await _require_connection(db, current_user.tenant_id)
     result = await db.execute(
         select(QBSyncJob).where(
-            QBSyncJob.id == job_id, QBSyncJob.tenant_id == current_user.tenant_id,
+            QBSyncJob.id == job_id,
+            QBSyncJob.tenant_id == current_user.tenant_id,
             QBSyncJob.connection_id == conn.id,
         )
     )
     job = result.scalar_one_or_none()
     if job is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Job not found."
+        )
     if job.status not in ("failed", "dead_letter"):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Cannot retry '{job.status}' job.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot retry '{job.status}' job.",
+        )
 
     job.status = "pending"
     job.retry_count = 0

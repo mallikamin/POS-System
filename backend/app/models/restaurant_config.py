@@ -28,41 +28,46 @@ class RestaurantConfig(BaseMixin, Base):
     payment_flow: Mapped[str] = mapped_column(
         String(50), default="order_first", nullable=False
     )
-    currency: Mapped[str] = mapped_column(
-        String(10), default="PKR", nullable=False
-    )
+    currency: Mapped[str] = mapped_column(String(10), default="PKR", nullable=False)
     timezone: Mapped[str] = mapped_column(
         String(50), default="Asia/Karachi", nullable=False
     )
-    tax_inclusive: Mapped[bool] = mapped_column(
-        Boolean, default=True, nullable=False
-    )
+    tax_inclusive: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     default_tax_rate: Mapped[int] = mapped_column(
-        Integer, default=1600, nullable=False, comment="Tax rate in basis points (1600 = 16.00%)"
+        Integer,
+        default=1600,
+        nullable=False,
+        comment="Tax rate in basis points (1600 = 16.00%)",
     )
     cash_tax_rate_bps: Mapped[int] = mapped_column(
-        Integer, default=1600, nullable=False, comment="Tax rate for cash payments in basis points (1600 = 16%)"
+        Integer,
+        default=1600,
+        nullable=False,
+        comment="Tax rate for cash payments in basis points (1600 = 16%)",
     )
     card_tax_rate_bps: Mapped[int] = mapped_column(
-        Integer, default=500, nullable=False, comment="Tax rate for card payments in basis points (500 = 5%)"
+        Integer,
+        default=500,
+        nullable=False,
+        comment="Tax rate for card payments in basis points (500 = 5%)",
     )
-    receipt_header: Mapped[str | None] = mapped_column(
-        String(1000), nullable=True
-    )
-    receipt_footer: Mapped[str | None] = mapped_column(
-        String(1000), nullable=True
-    )
+    receipt_header: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    receipt_footer: Mapped[str | None] = mapped_column(String(1000), nullable=True)
 
     # Discount approval thresholds — if either is exceeded, manager verify required
     discount_approval_threshold_bps: Mapped[int] = mapped_column(
-        Integer, default=0, nullable=False,
+        Integer,
+        default=0,
+        nullable=False,
         comment="Percent threshold in basis points (0 = disabled). "
-                "E.g. 1500 means discounts > 15% need manager approval.",
+        "E.g. 1500 means discounts > 15% need manager approval.",
     )
     discount_approval_threshold_fixed: Mapped[int] = mapped_column(
-        Integer, default=0, nullable=False,
+        Integer,
+        default=0,
+        nullable=False,
         comment="Fixed amount threshold in paisa (0 = disabled). "
-                "E.g. 50000 means discounts > Rs 500 need manager approval.",
+        "E.g. 50000 means discounts > Rs 500 need manager approval.",
     )
 
     # Relationships

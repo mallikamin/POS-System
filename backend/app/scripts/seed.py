@@ -16,7 +16,13 @@ from app.database import async_session_factory
 from app.models.tenant import Tenant
 from app.models.user import Permission, Role, RolePermission, User
 from app.models.restaurant_config import RestaurantConfig
-from app.models.menu import Category, MenuItem, ModifierGroup, Modifier, MenuItemModifierGroup
+from app.models.menu import (
+    Category,
+    MenuItem,
+    ModifierGroup,
+    Modifier,
+    MenuItemModifierGroup,
+)
 from app.models.floor import Floor, Table
 from app.models.order import Order, OrderItem, OrderItemModifier, OrderStatusLog
 from app.models.payment import CashDrawerSession, Payment, PaymentMethod
@@ -140,167 +146,409 @@ SEED_USERS = [
 # ---------------------------------------------------------------------------
 
 MENU_CATEGORIES = [
-    {"name": "BBQ & Grill", "icon": "flame", "display_order": 1,
-     "description": "Charcoal grilled meats and tikkas"},
-    {"name": "Karahi", "icon": "soup", "display_order": 2,
-     "description": "Traditional karahi dishes cooked in iron woks"},
-    {"name": "Biryani & Rice", "icon": "utensils-crossed", "display_order": 3,
-     "description": "Aromatic rice dishes and biryanis"},
-    {"name": "Naan & Roti", "icon": "croissant", "display_order": 4,
-     "description": "Freshly baked breads from the tandoor"},
-    {"name": "Curries", "icon": "cooking-pot", "display_order": 5,
-     "description": "Traditional curry dishes"},
-    {"name": "Appetizers", "icon": "salad", "display_order": 6,
-     "description": "Starters and snacks"},
-    {"name": "Drinks", "icon": "cup-soda", "display_order": 7,
-     "description": "Hot and cold beverages"},
-    {"name": "Desserts", "icon": "cake-slice", "display_order": 8,
-     "description": "Sweet treats and traditional desserts"},
+    {
+        "name": "BBQ & Grill",
+        "icon": "flame",
+        "display_order": 1,
+        "description": "Charcoal grilled meats and tikkas",
+    },
+    {
+        "name": "Karahi",
+        "icon": "soup",
+        "display_order": 2,
+        "description": "Traditional karahi dishes cooked in iron woks",
+    },
+    {
+        "name": "Biryani & Rice",
+        "icon": "utensils-crossed",
+        "display_order": 3,
+        "description": "Aromatic rice dishes and biryanis",
+    },
+    {
+        "name": "Naan & Roti",
+        "icon": "croissant",
+        "display_order": 4,
+        "description": "Freshly baked breads from the tandoor",
+    },
+    {
+        "name": "Curries",
+        "icon": "cooking-pot",
+        "display_order": 5,
+        "description": "Traditional curry dishes",
+    },
+    {
+        "name": "Appetizers",
+        "icon": "salad",
+        "display_order": 6,
+        "description": "Starters and snacks",
+    },
+    {
+        "name": "Drinks",
+        "icon": "cup-soda",
+        "display_order": 7,
+        "description": "Hot and cold beverages",
+    },
+    {
+        "name": "Desserts",
+        "icon": "cake-slice",
+        "display_order": 8,
+        "description": "Sweet treats and traditional desserts",
+    },
 ]
 
 # category_name -> list of items
 MENU_ITEMS: dict[str, list[dict]] = {
     "BBQ & Grill": [
-        {"name": "Chicken Tikka", "price": 65000, "display_order": 1,
-         "description": "Boneless chicken marinated in spices, grilled on charcoal", "prep_time": 20,
-         "image_url": "https://images.unsplash.com/photo-1599487488170-d11ec9c172f0?w=400&h=300&fit=crop"},
-        {"name": "Seekh Kebab", "price": 55000, "display_order": 2,
-         "description": "Minced beef kebabs cooked on skewers", "prep_time": 18,
-         "image_url": "https://images.unsplash.com/photo-1603496987351-f84a3ba5ec85?w=400&h=300&fit=crop"},
-        {"name": "Malai Boti", "price": 75000, "display_order": 3,
-         "description": "Creamy marinated chicken pieces, charcoal grilled", "prep_time": 20,
-         "image_url": "https://images.unsplash.com/photo-1610057099443-fde6c99db9e1?w=400&h=300&fit=crop"},
-        {"name": "Lamb Chops", "price": 120000, "display_order": 4,
-         "description": "Tender lamb chops marinated and grilled to perfection", "prep_time": 25,
-         "image_url": "https://images.unsplash.com/photo-1514516345957-556ca7d90a29?w=400&h=300&fit=crop"},
-        {"name": "Reshmi Kebab", "price": 60000, "display_order": 5,
-         "description": "Silky smooth chicken kebabs with cream", "prep_time": 18,
-         "image_url": "https://images.unsplash.com/photo-1567188040759-fb8a883dc6d8?w=400&h=300&fit=crop"},
-        {"name": "Mixed Grill Platter", "price": 180000, "display_order": 6,
-         "description": "Assorted BBQ: tikka, seekh kebab, malai boti, chops", "prep_time": 30,
-         "image_url": "https://images.unsplash.com/photo-1544025162-d76694265947?w=400&h=300&fit=crop"},
+        {
+            "name": "Chicken Tikka",
+            "price": 65000,
+            "display_order": 1,
+            "description": "Boneless chicken marinated in spices, grilled on charcoal",
+            "prep_time": 20,
+            "image_url": "https://images.unsplash.com/photo-1599487488170-d11ec9c172f0?w=400&h=300&fit=crop",
+        },
+        {
+            "name": "Seekh Kebab",
+            "price": 55000,
+            "display_order": 2,
+            "description": "Minced beef kebabs cooked on skewers",
+            "prep_time": 18,
+            "image_url": "https://images.unsplash.com/photo-1603496987351-f84a3ba5ec85?w=400&h=300&fit=crop",
+        },
+        {
+            "name": "Malai Boti",
+            "price": 75000,
+            "display_order": 3,
+            "description": "Creamy marinated chicken pieces, charcoal grilled",
+            "prep_time": 20,
+            "image_url": "https://images.unsplash.com/photo-1610057099443-fde6c99db9e1?w=400&h=300&fit=crop",
+        },
+        {
+            "name": "Lamb Chops",
+            "price": 120000,
+            "display_order": 4,
+            "description": "Tender lamb chops marinated and grilled to perfection",
+            "prep_time": 25,
+            "image_url": "https://images.unsplash.com/photo-1514516345957-556ca7d90a29?w=400&h=300&fit=crop",
+        },
+        {
+            "name": "Reshmi Kebab",
+            "price": 60000,
+            "display_order": 5,
+            "description": "Silky smooth chicken kebabs with cream",
+            "prep_time": 18,
+            "image_url": "https://images.unsplash.com/photo-1567188040759-fb8a883dc6d8?w=400&h=300&fit=crop",
+        },
+        {
+            "name": "Mixed Grill Platter",
+            "price": 180000,
+            "display_order": 6,
+            "description": "Assorted BBQ: tikka, seekh kebab, malai boti, chops",
+            "prep_time": 30,
+            "image_url": "https://images.unsplash.com/photo-1544025162-d76694265947?w=400&h=300&fit=crop",
+        },
     ],
     "Karahi": [
-        {"name": "Chicken Karahi", "price": 130000, "display_order": 1,
-         "description": "Classic chicken karahi with tomatoes, green chilies, ginger", "prep_time": 25,
-         "image_url": "https://images.unsplash.com/photo-1631452180519-c014fe946bc7?w=400&h=300&fit=crop"},
-        {"name": "Mutton Karahi", "price": 180000, "display_order": 2,
-         "description": "Traditional mutton karahi slow-cooked in spices", "prep_time": 35,
-         "image_url": "https://images.unsplash.com/photo-1545247181-516773cae754?w=400&h=300&fit=crop"},
-        {"name": "Prawn Karahi", "price": 160000, "display_order": 3,
-         "description": "Fresh prawns cooked in karahi style", "prep_time": 20,
-         "image_url": "https://images.unsplash.com/photo-1625398407796-82650a8c135f?w=400&h=300&fit=crop"},
-        {"name": "Namkeen Gosht", "price": 170000, "display_order": 4,
-         "description": "Salt-and-pepper style dry meat karahi", "prep_time": 30,
-         "image_url": "https://images.unsplash.com/photo-1574653853027-5382a3d23a15?w=400&h=300&fit=crop"},
+        {
+            "name": "Chicken Karahi",
+            "price": 130000,
+            "display_order": 1,
+            "description": "Classic chicken karahi with tomatoes, green chilies, ginger",
+            "prep_time": 25,
+            "image_url": "https://images.unsplash.com/photo-1631452180519-c014fe946bc7?w=400&h=300&fit=crop",
+        },
+        {
+            "name": "Mutton Karahi",
+            "price": 180000,
+            "display_order": 2,
+            "description": "Traditional mutton karahi slow-cooked in spices",
+            "prep_time": 35,
+            "image_url": "https://images.unsplash.com/photo-1545247181-516773cae754?w=400&h=300&fit=crop",
+        },
+        {
+            "name": "Prawn Karahi",
+            "price": 160000,
+            "display_order": 3,
+            "description": "Fresh prawns cooked in karahi style",
+            "prep_time": 20,
+            "image_url": "https://images.unsplash.com/photo-1625398407796-82650a8c135f?w=400&h=300&fit=crop",
+        },
+        {
+            "name": "Namkeen Gosht",
+            "price": 170000,
+            "display_order": 4,
+            "description": "Salt-and-pepper style dry meat karahi",
+            "prep_time": 30,
+            "image_url": "https://images.unsplash.com/photo-1574653853027-5382a3d23a15?w=400&h=300&fit=crop",
+        },
     ],
     "Biryani & Rice": [
-        {"name": "Chicken Biryani", "price": 35000, "display_order": 1,
-         "description": "Aromatic basmati rice layered with spiced chicken", "prep_time": 25,
-         "image_url": "https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=400&h=300&fit=crop"},
-        {"name": "Mutton Biryani", "price": 45000, "display_order": 2,
-         "description": "Premium mutton biryani with saffron rice", "prep_time": 30,
-         "image_url": "https://images.unsplash.com/photo-1642821373181-696a54913e93?w=400&h=300&fit=crop"},
-        {"name": "Sindhi Biryani", "price": 40000, "display_order": 3,
-         "description": "Spicy Sindhi-style biryani with potatoes and plums", "prep_time": 25,
-         "image_url": "https://images.unsplash.com/photo-1589302168068-964664d93dc0?w=400&h=300&fit=crop"},
-        {"name": "Pulao", "price": 30000, "display_order": 4,
-         "description": "Lightly spiced rice with meat", "prep_time": 20,
-         "image_url": "https://images.unsplash.com/photo-1596797038530-2c107229654b?w=400&h=300&fit=crop"},
-        {"name": "Plain Rice", "price": 15000, "display_order": 5,
-         "description": "Steamed basmati rice", "prep_time": 10,
-         "image_url": "https://images.unsplash.com/photo-1516684732162-798a0062be99?w=400&h=300&fit=crop"},
+        {
+            "name": "Chicken Biryani",
+            "price": 35000,
+            "display_order": 1,
+            "description": "Aromatic basmati rice layered with spiced chicken",
+            "prep_time": 25,
+            "image_url": "https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=400&h=300&fit=crop",
+        },
+        {
+            "name": "Mutton Biryani",
+            "price": 45000,
+            "display_order": 2,
+            "description": "Premium mutton biryani with saffron rice",
+            "prep_time": 30,
+            "image_url": "https://images.unsplash.com/photo-1642821373181-696a54913e93?w=400&h=300&fit=crop",
+        },
+        {
+            "name": "Sindhi Biryani",
+            "price": 40000,
+            "display_order": 3,
+            "description": "Spicy Sindhi-style biryani with potatoes and plums",
+            "prep_time": 25,
+            "image_url": "https://images.unsplash.com/photo-1589302168068-964664d93dc0?w=400&h=300&fit=crop",
+        },
+        {
+            "name": "Pulao",
+            "price": 30000,
+            "display_order": 4,
+            "description": "Lightly spiced rice with meat",
+            "prep_time": 20,
+            "image_url": "https://images.unsplash.com/photo-1596797038530-2c107229654b?w=400&h=300&fit=crop",
+        },
+        {
+            "name": "Plain Rice",
+            "price": 15000,
+            "display_order": 5,
+            "description": "Steamed basmati rice",
+            "prep_time": 10,
+            "image_url": "https://images.unsplash.com/photo-1516684732162-798a0062be99?w=400&h=300&fit=crop",
+        },
     ],
     "Naan & Roti": [
-        {"name": "Plain Naan", "price": 5000, "display_order": 1,
-         "description": "Fresh tandoori naan", "prep_time": 5,
-         "image_url": "https://images.unsplash.com/photo-1565557623262-b51c2513a641?w=400&h=300&fit=crop"},
-        {"name": "Butter Naan", "price": 7000, "display_order": 2,
-         "description": "Naan brushed with butter", "prep_time": 5,
-         "image_url": "https://images.unsplash.com/photo-1600628421060-939639517883?w=400&h=300&fit=crop"},
-        {"name": "Garlic Naan", "price": 8000, "display_order": 3,
-         "description": "Naan topped with garlic and herbs", "prep_time": 5,
-         "image_url": "https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=400&h=300&fit=crop"},
-        {"name": "Cheese Naan", "price": 12000, "display_order": 4,
-         "description": "Naan stuffed with melted cheese", "prep_time": 7,
-         "image_url": "https://images.unsplash.com/photo-1601050690597-df0568f70950?w=400&h=300&fit=crop"},
-        {"name": "Roghni Naan", "price": 6000, "display_order": 5,
-         "description": "Soft naan with egg wash and sesame seeds", "prep_time": 5,
-         "image_url": "https://images.unsplash.com/photo-1574071318508-1cdbab80d002?w=400&h=300&fit=crop"},
-        {"name": "Tandoori Roti", "price": 3000, "display_order": 6,
-         "description": "Whole wheat bread from the tandoor", "prep_time": 5,
-         "image_url": "https://images.unsplash.com/photo-1604152135912-04a022e23696?w=400&h=300&fit=crop"},
+        {
+            "name": "Plain Naan",
+            "price": 5000,
+            "display_order": 1,
+            "description": "Fresh tandoori naan",
+            "prep_time": 5,
+            "image_url": "https://images.unsplash.com/photo-1565557623262-b51c2513a641?w=400&h=300&fit=crop",
+        },
+        {
+            "name": "Butter Naan",
+            "price": 7000,
+            "display_order": 2,
+            "description": "Naan brushed with butter",
+            "prep_time": 5,
+            "image_url": "https://images.unsplash.com/photo-1600628421060-939639517883?w=400&h=300&fit=crop",
+        },
+        {
+            "name": "Garlic Naan",
+            "price": 8000,
+            "display_order": 3,
+            "description": "Naan topped with garlic and herbs",
+            "prep_time": 5,
+            "image_url": "https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=400&h=300&fit=crop",
+        },
+        {
+            "name": "Cheese Naan",
+            "price": 12000,
+            "display_order": 4,
+            "description": "Naan stuffed with melted cheese",
+            "prep_time": 7,
+            "image_url": "https://images.unsplash.com/photo-1601050690597-df0568f70950?w=400&h=300&fit=crop",
+        },
+        {
+            "name": "Roghni Naan",
+            "price": 6000,
+            "display_order": 5,
+            "description": "Soft naan with egg wash and sesame seeds",
+            "prep_time": 5,
+            "image_url": "https://images.unsplash.com/photo-1574071318508-1cdbab80d002?w=400&h=300&fit=crop",
+        },
+        {
+            "name": "Tandoori Roti",
+            "price": 3000,
+            "display_order": 6,
+            "description": "Whole wheat bread from the tandoor",
+            "prep_time": 5,
+            "image_url": "https://images.unsplash.com/photo-1604152135912-04a022e23696?w=400&h=300&fit=crop",
+        },
     ],
     "Curries": [
-        {"name": "Chicken Handi", "price": 85000, "display_order": 1,
-         "description": "Creamy chicken curry cooked in a clay pot", "prep_time": 25,
-         "image_url": "https://images.unsplash.com/photo-1603894584373-5ac82b2ae398?w=400&h=300&fit=crop"},
-        {"name": "Daal Makhani", "price": 45000, "display_order": 2,
-         "description": "Rich black lentils slow-cooked with butter and cream", "prep_time": 20,
-         "image_url": "https://images.unsplash.com/photo-1546833999-b9f581a1996d?w=400&h=300&fit=crop"},
-        {"name": "Palak Paneer", "price": 50000, "display_order": 3,
-         "description": "Spinach curry with cottage cheese cubes", "prep_time": 20,
-         "image_url": "https://images.unsplash.com/photo-1601050690597-df0568f70950?w=400&h=300&fit=crop"},
-        {"name": "Nihari", "price": 90000, "display_order": 4,
-         "description": "Slow-cooked beef stew, Mughlai style", "prep_time": 40,
-         "image_url": "https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=400&h=300&fit=crop"},
-        {"name": "Haleem", "price": 70000, "display_order": 5,
-         "description": "Thick meat and lentil stew with wheat", "prep_time": 35,
-         "image_url": "https://images.unsplash.com/photo-1574653853027-5382a3d23a15?w=400&h=300&fit=crop"},
+        {
+            "name": "Chicken Handi",
+            "price": 85000,
+            "display_order": 1,
+            "description": "Creamy chicken curry cooked in a clay pot",
+            "prep_time": 25,
+            "image_url": "https://images.unsplash.com/photo-1603894584373-5ac82b2ae398?w=400&h=300&fit=crop",
+        },
+        {
+            "name": "Daal Makhani",
+            "price": 45000,
+            "display_order": 2,
+            "description": "Rich black lentils slow-cooked with butter and cream",
+            "prep_time": 20,
+            "image_url": "https://images.unsplash.com/photo-1546833999-b9f581a1996d?w=400&h=300&fit=crop",
+        },
+        {
+            "name": "Palak Paneer",
+            "price": 50000,
+            "display_order": 3,
+            "description": "Spinach curry with cottage cheese cubes",
+            "prep_time": 20,
+            "image_url": "https://images.unsplash.com/photo-1601050690597-df0568f70950?w=400&h=300&fit=crop",
+        },
+        {
+            "name": "Nihari",
+            "price": 90000,
+            "display_order": 4,
+            "description": "Slow-cooked beef stew, Mughlai style",
+            "prep_time": 40,
+            "image_url": "https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=400&h=300&fit=crop",
+        },
+        {
+            "name": "Haleem",
+            "price": 70000,
+            "display_order": 5,
+            "description": "Thick meat and lentil stew with wheat",
+            "prep_time": 35,
+            "image_url": "https://images.unsplash.com/photo-1574653853027-5382a3d23a15?w=400&h=300&fit=crop",
+        },
     ],
     "Appetizers": [
-        {"name": "Samosa (2 pcs)", "price": 15000, "display_order": 1,
-         "description": "Crispy pastry filled with spiced potatoes and peas", "prep_time": 10,
-         "image_url": "https://images.unsplash.com/photo-1601050690597-df0568f70950?w=400&h=300&fit=crop"},
-        {"name": "Chicken Pakora", "price": 25000, "display_order": 2,
-         "description": "Spiced chicken fritters, deep fried", "prep_time": 12,
-         "image_url": "https://images.unsplash.com/photo-1567188040759-fb8a883dc6d8?w=400&h=300&fit=crop"},
-        {"name": "Fish Pakora", "price": 30000, "display_order": 3,
-         "description": "Battered fish pieces, deep fried", "prep_time": 12,
-         "image_url": "https://images.unsplash.com/photo-1626645738196-c2a7c87a8f58?w=400&h=300&fit=crop"},
-        {"name": "Dahi Bhalla", "price": 20000, "display_order": 4,
-         "description": "Lentil dumplings in yogurt with chutneys", "prep_time": 8,
-         "image_url": "https://images.unsplash.com/photo-1606491956689-2ea866880049?w=400&h=300&fit=crop"},
-        {"name": "Chana Chaat", "price": 18000, "display_order": 5,
-         "description": "Spiced chickpea salad with chutneys", "prep_time": 8,
-         "image_url": "https://images.unsplash.com/photo-1626776876729-bab4369a5a5a?w=400&h=300&fit=crop"},
+        {
+            "name": "Samosa (2 pcs)",
+            "price": 15000,
+            "display_order": 1,
+            "description": "Crispy pastry filled with spiced potatoes and peas",
+            "prep_time": 10,
+            "image_url": "https://images.unsplash.com/photo-1601050690597-df0568f70950?w=400&h=300&fit=crop",
+        },
+        {
+            "name": "Chicken Pakora",
+            "price": 25000,
+            "display_order": 2,
+            "description": "Spiced chicken fritters, deep fried",
+            "prep_time": 12,
+            "image_url": "https://images.unsplash.com/photo-1567188040759-fb8a883dc6d8?w=400&h=300&fit=crop",
+        },
+        {
+            "name": "Fish Pakora",
+            "price": 30000,
+            "display_order": 3,
+            "description": "Battered fish pieces, deep fried",
+            "prep_time": 12,
+            "image_url": "https://images.unsplash.com/photo-1626645738196-c2a7c87a8f58?w=400&h=300&fit=crop",
+        },
+        {
+            "name": "Dahi Bhalla",
+            "price": 20000,
+            "display_order": 4,
+            "description": "Lentil dumplings in yogurt with chutneys",
+            "prep_time": 8,
+            "image_url": "https://images.unsplash.com/photo-1606491956689-2ea866880049?w=400&h=300&fit=crop",
+        },
+        {
+            "name": "Chana Chaat",
+            "price": 18000,
+            "display_order": 5,
+            "description": "Spiced chickpea salad with chutneys",
+            "prep_time": 8,
+            "image_url": "https://images.unsplash.com/photo-1626776876729-bab4369a5a5a?w=400&h=300&fit=crop",
+        },
     ],
     "Drinks": [
-        {"name": "Lassi (Sweet)", "price": 15000, "display_order": 1,
-         "description": "Creamy yogurt drink, sweetened", "prep_time": 3,
-         "image_url": "https://images.unsplash.com/photo-1587049352846-4a222e784d38?w=400&h=300&fit=crop"},
-        {"name": "Lassi (Salt)", "price": 15000, "display_order": 2,
-         "description": "Creamy yogurt drink, salted", "prep_time": 3,
-         "image_url": "https://images.unsplash.com/photo-1587049352846-4a222e784d38?w=400&h=300&fit=crop"},
-        {"name": "Fresh Lime Water", "price": 10000, "display_order": 3,
-         "description": "Fresh squeezed lime with water", "prep_time": 3,
-         "image_url": "https://images.unsplash.com/photo-1523371683773-affcb3f1e8f9?w=400&h=300&fit=crop"},
-        {"name": "Doodh Patti Chai", "price": 8000, "display_order": 4,
-         "description": "Traditional milk tea", "prep_time": 5,
-         "image_url": "https://images.unsplash.com/photo-1571934811356-5cc061b6821f?w=400&h=300&fit=crop"},
-        {"name": "Kashmiri Chai", "price": 12000, "display_order": 5,
-         "description": "Pink tea with cardamom and nuts", "prep_time": 8,
-         "image_url": "https://images.unsplash.com/photo-1571934811356-5cc061b6821f?w=400&h=300&fit=crop"},
-        {"name": "Cold Drink (Can)", "price": 10000, "display_order": 6,
-         "description": "Coca-Cola / Pepsi / 7UP", "prep_time": 1,
-         "image_url": "https://images.unsplash.com/photo-1629203851122-3726ecdf080e?w=400&h=300&fit=crop"},
-        {"name": "Mineral Water", "price": 5000, "display_order": 7,
-         "description": "500ml bottled water", "prep_time": 1,
-         "image_url": "https://images.unsplash.com/photo-1548839140-29a749e1cf4d?w=400&h=300&fit=crop"},
+        {
+            "name": "Lassi (Sweet)",
+            "price": 15000,
+            "display_order": 1,
+            "description": "Creamy yogurt drink, sweetened",
+            "prep_time": 3,
+            "image_url": "https://images.unsplash.com/photo-1587049352846-4a222e784d38?w=400&h=300&fit=crop",
+        },
+        {
+            "name": "Lassi (Salt)",
+            "price": 15000,
+            "display_order": 2,
+            "description": "Creamy yogurt drink, salted",
+            "prep_time": 3,
+            "image_url": "https://images.unsplash.com/photo-1587049352846-4a222e784d38?w=400&h=300&fit=crop",
+        },
+        {
+            "name": "Fresh Lime Water",
+            "price": 10000,
+            "display_order": 3,
+            "description": "Fresh squeezed lime with water",
+            "prep_time": 3,
+            "image_url": "https://images.unsplash.com/photo-1523371683773-affcb3f1e8f9?w=400&h=300&fit=crop",
+        },
+        {
+            "name": "Doodh Patti Chai",
+            "price": 8000,
+            "display_order": 4,
+            "description": "Traditional milk tea",
+            "prep_time": 5,
+            "image_url": "https://images.unsplash.com/photo-1571934811356-5cc061b6821f?w=400&h=300&fit=crop",
+        },
+        {
+            "name": "Kashmiri Chai",
+            "price": 12000,
+            "display_order": 5,
+            "description": "Pink tea with cardamom and nuts",
+            "prep_time": 8,
+            "image_url": "https://images.unsplash.com/photo-1571934811356-5cc061b6821f?w=400&h=300&fit=crop",
+        },
+        {
+            "name": "Cold Drink (Can)",
+            "price": 10000,
+            "display_order": 6,
+            "description": "Coca-Cola / Pepsi / 7UP",
+            "prep_time": 1,
+            "image_url": "https://images.unsplash.com/photo-1629203851122-3726ecdf080e?w=400&h=300&fit=crop",
+        },
+        {
+            "name": "Mineral Water",
+            "price": 5000,
+            "display_order": 7,
+            "description": "500ml bottled water",
+            "prep_time": 1,
+            "image_url": "https://images.unsplash.com/photo-1548839140-29a749e1cf4d?w=400&h=300&fit=crop",
+        },
     ],
     "Desserts": [
-        {"name": "Gulab Jamun (2 pcs)", "price": 15000, "display_order": 1,
-         "description": "Deep-fried milk dumplings in sugar syrup", "prep_time": 5,
-         "image_url": "https://images.unsplash.com/photo-1666190406021-2c0f07c79c15?w=400&h=300&fit=crop"},
-        {"name": "Kheer", "price": 18000, "display_order": 2,
-         "description": "Rice pudding with cardamom and nuts", "prep_time": 5,
-         "image_url": "https://images.unsplash.com/photo-1631452180519-c014fe946bc7?w=400&h=300&fit=crop"},
-        {"name": "Gajar Ka Halwa", "price": 20000, "display_order": 3,
-         "description": "Sweet carrot pudding with nuts", "prep_time": 5,
-         "image_url": "https://images.unsplash.com/photo-1645177628172-a94c1f96e6db?w=400&h=300&fit=crop"},
-        {"name": "Firni", "price": 15000, "display_order": 4,
-         "description": "Ground rice pudding set in clay pots", "prep_time": 5,
-         "image_url": "https://images.unsplash.com/photo-1488477181946-6428a0291777?w=400&h=300&fit=crop"},
+        {
+            "name": "Gulab Jamun (2 pcs)",
+            "price": 15000,
+            "display_order": 1,
+            "description": "Deep-fried milk dumplings in sugar syrup",
+            "prep_time": 5,
+            "image_url": "https://images.unsplash.com/photo-1666190406021-2c0f07c79c15?w=400&h=300&fit=crop",
+        },
+        {
+            "name": "Kheer",
+            "price": 18000,
+            "display_order": 2,
+            "description": "Rice pudding with cardamom and nuts",
+            "prep_time": 5,
+            "image_url": "https://images.unsplash.com/photo-1631452180519-c014fe946bc7?w=400&h=300&fit=crop",
+        },
+        {
+            "name": "Gajar Ka Halwa",
+            "price": 20000,
+            "display_order": 3,
+            "description": "Sweet carrot pudding with nuts",
+            "prep_time": 5,
+            "image_url": "https://images.unsplash.com/photo-1645177628172-a94c1f96e6db?w=400&h=300&fit=crop",
+        },
+        {
+            "name": "Firni",
+            "price": 15000,
+            "display_order": 4,
+            "description": "Ground rice pudding set in clay pots",
+            "prep_time": 5,
+            "image_url": "https://images.unsplash.com/photo-1488477181946-6428a0291777?w=400&h=300&fit=crop",
+        },
     ],
 }
 
@@ -370,10 +618,9 @@ CATEGORY_MODIFIER_LINKS: dict[str, list[str]] = {
 # Phase 2: Seed logic
 # ---------------------------------------------------------------------------
 
+
 async def seed_tenant(db: AsyncSession) -> Tenant:
-    result = await db.execute(
-        select(Tenant).where(Tenant.slug == DEMO_TENANT_SLUG)
-    )
+    result = await db.execute(select(Tenant).where(Tenant.slug == DEMO_TENANT_SLUG))
     tenant = result.scalar_one_or_none()
     if tenant is not None:
         print(f"  Tenant '{tenant.name}' already exists, skipping.")
@@ -423,9 +670,7 @@ async def seed_config(db: AsyncSession, tenant: Tenant) -> RestaurantConfig:
 async def seed_permissions(db: AsyncSession, tenant: Tenant) -> dict[str, Permission]:
     perm_map: dict[str, Permission] = {}
     for code, description in ALL_PERMISSIONS:
-        result = await db.execute(
-            select(Permission).where(Permission.code == code)
-        )
+        result = await db.execute(select(Permission).where(Permission.code == code))
         perm = result.scalar_one_or_none()
         if perm is None:
             perm = Permission(
@@ -441,7 +686,9 @@ async def seed_permissions(db: AsyncSession, tenant: Tenant) -> dict[str, Permis
 
 
 async def seed_roles(
-    db: AsyncSession, tenant: Tenant, perm_map: dict[str, Permission],
+    db: AsyncSession,
+    tenant: Tenant,
+    perm_map: dict[str, Permission],
 ) -> dict[str, Role]:
     role_map: dict[str, Role] = {}
     for role_name, role_def in ROLE_DEFINITIONS.items():
@@ -482,7 +729,9 @@ async def seed_roles(
 
 
 async def seed_users(
-    db: AsyncSession, tenant: Tenant, role_map: dict[str, Role],
+    db: AsyncSession,
+    tenant: Tenant,
+    role_map: dict[str, Role],
 ) -> None:
     for user_def in SEED_USERS:
         result = await db.execute(
@@ -508,12 +757,15 @@ async def seed_users(
         )
         db.add(user)
         await db.flush()
-        print(f"  Created user '{user_def['email']}' with role '{user_def['role_name']}'")
+        print(
+            f"  Created user '{user_def['email']}' with role '{user_def['role_name']}'"
+        )
 
 
 # ---------------------------------------------------------------------------
 # Phase 3: Menu seed logic
 # ---------------------------------------------------------------------------
+
 
 async def seed_modifier_groups(
     db: AsyncSession, tenant: Tenant
@@ -654,28 +906,157 @@ FLOOR_SEED = [
         "name": "Ground Floor",
         "display_order": 1,
         "tables": [
-            {"number": 1, "capacity": 2, "shape": "round",     "pos_x": 60,  "pos_y": 60,  "width": 70,  "height": 70},
-            {"number": 2, "capacity": 2, "shape": "round",     "pos_x": 180, "pos_y": 60,  "width": 70,  "height": 70},
-            {"number": 3, "capacity": 4, "shape": "square",    "pos_x": 320, "pos_y": 60,  "width": 90,  "height": 90},
-            {"number": 4, "capacity": 4, "shape": "square",    "pos_x": 460, "pos_y": 60,  "width": 90,  "height": 90},
-            {"number": 5, "capacity": 6, "shape": "rectangle", "pos_x": 60,  "pos_y": 220, "width": 140, "height": 80},
-            {"number": 6, "capacity": 6, "shape": "rectangle", "pos_x": 260, "pos_y": 220, "width": 140, "height": 80},
-            {"number": 7, "capacity": 8, "shape": "rectangle", "pos_x": 460, "pos_y": 220, "width": 160, "height": 90},
-            {"number": 8, "capacity": 4, "shape": "square",    "pos_x": 60,  "pos_y": 380, "width": 90,  "height": 90},
-            {"number": 9, "capacity": 4, "shape": "square",    "pos_x": 200, "pos_y": 380, "width": 90,  "height": 90},
-            {"number": 10, "capacity": 2, "shape": "round",    "pos_x": 360, "pos_y": 380, "width": 70,  "height": 70},
+            {
+                "number": 1,
+                "capacity": 2,
+                "shape": "round",
+                "pos_x": 60,
+                "pos_y": 60,
+                "width": 70,
+                "height": 70,
+            },
+            {
+                "number": 2,
+                "capacity": 2,
+                "shape": "round",
+                "pos_x": 180,
+                "pos_y": 60,
+                "width": 70,
+                "height": 70,
+            },
+            {
+                "number": 3,
+                "capacity": 4,
+                "shape": "square",
+                "pos_x": 320,
+                "pos_y": 60,
+                "width": 90,
+                "height": 90,
+            },
+            {
+                "number": 4,
+                "capacity": 4,
+                "shape": "square",
+                "pos_x": 460,
+                "pos_y": 60,
+                "width": 90,
+                "height": 90,
+            },
+            {
+                "number": 5,
+                "capacity": 6,
+                "shape": "rectangle",
+                "pos_x": 60,
+                "pos_y": 220,
+                "width": 140,
+                "height": 80,
+            },
+            {
+                "number": 6,
+                "capacity": 6,
+                "shape": "rectangle",
+                "pos_x": 260,
+                "pos_y": 220,
+                "width": 140,
+                "height": 80,
+            },
+            {
+                "number": 7,
+                "capacity": 8,
+                "shape": "rectangle",
+                "pos_x": 460,
+                "pos_y": 220,
+                "width": 160,
+                "height": 90,
+            },
+            {
+                "number": 8,
+                "capacity": 4,
+                "shape": "square",
+                "pos_x": 60,
+                "pos_y": 380,
+                "width": 90,
+                "height": 90,
+            },
+            {
+                "number": 9,
+                "capacity": 4,
+                "shape": "square",
+                "pos_x": 200,
+                "pos_y": 380,
+                "width": 90,
+                "height": 90,
+            },
+            {
+                "number": 10,
+                "capacity": 2,
+                "shape": "round",
+                "pos_x": 360,
+                "pos_y": 380,
+                "width": 70,
+                "height": 70,
+            },
         ],
     },
     {
         "name": "Terrace",
         "display_order": 2,
         "tables": [
-            {"number": 11, "capacity": 4, "shape": "square",    "pos_x": 80,  "pos_y": 80,  "width": 90,  "height": 90},
-            {"number": 12, "capacity": 4, "shape": "square",    "pos_x": 240, "pos_y": 80,  "width": 90,  "height": 90},
-            {"number": 13, "capacity": 6, "shape": "rectangle", "pos_x": 400, "pos_y": 80,  "width": 140, "height": 80},
-            {"number": 14, "capacity": 2, "shape": "round",     "pos_x": 80,  "pos_y": 240, "width": 70,  "height": 70},
-            {"number": 15, "capacity": 2, "shape": "round",     "pos_x": 200, "pos_y": 240, "width": 70,  "height": 70},
-            {"number": 16, "capacity": 8, "shape": "rectangle", "pos_x": 340, "pos_y": 240, "width": 180, "height": 90, "label": "VIP-1"},
+            {
+                "number": 11,
+                "capacity": 4,
+                "shape": "square",
+                "pos_x": 80,
+                "pos_y": 80,
+                "width": 90,
+                "height": 90,
+            },
+            {
+                "number": 12,
+                "capacity": 4,
+                "shape": "square",
+                "pos_x": 240,
+                "pos_y": 80,
+                "width": 90,
+                "height": 90,
+            },
+            {
+                "number": 13,
+                "capacity": 6,
+                "shape": "rectangle",
+                "pos_x": 400,
+                "pos_y": 80,
+                "width": 140,
+                "height": 80,
+            },
+            {
+                "number": 14,
+                "capacity": 2,
+                "shape": "round",
+                "pos_x": 80,
+                "pos_y": 240,
+                "width": 70,
+                "height": 70,
+            },
+            {
+                "number": 15,
+                "capacity": 2,
+                "shape": "round",
+                "pos_x": 200,
+                "pos_y": 240,
+                "width": 70,
+                "height": 70,
+            },
+            {
+                "number": 16,
+                "capacity": 8,
+                "shape": "rectangle",
+                "pos_x": 340,
+                "pos_y": 240,
+                "width": 180,
+                "height": 90,
+                "label": "VIP-1",
+            },
         ],
     },
 ]
@@ -738,7 +1119,9 @@ async def seed_floors(db: AsyncSession, tenant: Tenant) -> None:
 
         await db.flush()
 
-    print(f"  Created {floors_created} floors, {tables_created} tables (skipped existing).")
+    print(
+        f"  Created {floors_created} floors, {tables_created} tables (skipped existing)."
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -880,7 +1263,6 @@ STATUS_PATH: dict[str, list[str]] = {
 
 async def seed_orders(db: AsyncSession, tenant: Tenant) -> None:
     """Create sample orders with items, modifiers, and status logs."""
-    from datetime import datetime, timedelta, timezone
 
     # Check if orders already exist
     result = await db.execute(
@@ -899,6 +1281,14 @@ async def seed_orders(db: AsyncSession, tenant: Tenant) -> None:
         print("  Admin user not found, skipping orders.")
         return
 
+    # Get cashier user for waiter assignment on dine-in orders
+    result = await db.execute(
+        select(User).where(
+            User.email == "cashier@demo.com", User.tenant_id == tenant.id
+        )
+    )
+    cashier = result.scalar_one_or_none()
+
     # Get restaurant config for tax rate
     result = await db.execute(
         select(RestaurantConfig).where(RestaurantConfig.tenant_id == tenant.id)
@@ -907,27 +1297,18 @@ async def seed_orders(db: AsyncSession, tenant: Tenant) -> None:
     tax_rate_bps = config.default_tax_rate if config else 1600  # 16% default
 
     # Build lookup maps
-    result = await db.execute(
-        select(MenuItem).where(MenuItem.tenant_id == tenant.id)
-    )
+    result = await db.execute(select(MenuItem).where(MenuItem.tenant_id == tenant.id))
     menu_items_map: dict[str, MenuItem] = {mi.name: mi for mi in result.scalars().all()}
 
-    result = await db.execute(
-        select(Modifier).where(Modifier.tenant_id == tenant.id)
-    )
+    result = await db.execute(select(Modifier).where(Modifier.tenant_id == tenant.id))
     modifiers_map: dict[str, Modifier] = {m.name: m for m in result.scalars().all()}
 
-    result = await db.execute(
-        select(Table).where(Table.tenant_id == tenant.id)
-    )
+    result = await db.execute(select(Table).where(Table.tenant_id == tenant.id))
     tables_map: dict[int, Table] = {t.number: t for t in result.scalars().all()}
 
     orders_created = 0
-    base_time = datetime.now(timezone.utc) - timedelta(hours=2)
 
     for idx, odef in enumerate(SEED_ORDERS):
-        order_time = base_time + timedelta(minutes=idx * 12)
-
         # Resolve table
         table_id = None
         table_num = odef.get("table_number")
@@ -952,12 +1333,14 @@ async def seed_orders(db: AsyncSession, tenant: Tenant) -> None:
                 mod = modifiers_map.get(mname)
                 if mod:
                     base_price += mod.price_adjustment
-                    item_modifiers.append(OrderItemModifier(
-                        tenant_id=tenant.id,
-                        modifier_id=mod.id,
-                        name=mod.name,
-                        price_adjustment=mod.price_adjustment,
-                    ))
+                    item_modifiers.append(
+                        OrderItemModifier(
+                            tenant_id=tenant.id,
+                            modifier_id=mod.id,
+                            name=mod.name,
+                            price_adjustment=mod.price_adjustment,
+                        )
+                    )
 
             unit_price = max(0, base_price)
             line_total = unit_price * qty
@@ -982,6 +1365,11 @@ async def seed_orders(db: AsyncSession, tenant: Tenant) -> None:
         tax_amount = round(subtotal * tax_rate_bps / 10_000)
         total = subtotal + tax_amount
 
+        # Assign waiter to dine-in orders
+        waiter_id = None
+        if odef["order_type"] == "dine_in" and cashier:
+            waiter_id = cashier.id
+
         order = Order(
             tenant_id=tenant.id,
             order_number=odef["order_number"],
@@ -989,6 +1377,7 @@ async def seed_orders(db: AsyncSession, tenant: Tenant) -> None:
             status=odef["status"],
             payment_status="paid" if odef["status"] == "completed" else "unpaid",
             table_id=table_id,
+            waiter_id=waiter_id,
             customer_name=odef.get("customer_name"),
             customer_phone=odef.get("customer_phone"),
             subtotal=subtotal,
@@ -1016,9 +1405,11 @@ async def seed_orders(db: AsyncSession, tenant: Tenant) -> None:
             prev_status = step_status
 
         # Mark dine-in tables as occupied (if order is active)
-        if (odef["order_type"] == "dine_in"
-                and table_num is not None
-                and odef["status"] not in ("completed", "voided")):
+        if (
+            odef["order_type"] == "dine_in"
+            and table_num is not None
+            and odef["status"] not in ("completed", "voided")
+        ):
             table = tables_map.get(table_num)
             if table:
                 table.status = "occupied"
@@ -1032,6 +1423,7 @@ async def seed_orders(db: AsyncSession, tenant: Tenant) -> None:
 # ---------------------------------------------------------------------------
 # Phase 9: Seed payments + cash drawer for demo
 # ---------------------------------------------------------------------------
+
 
 async def seed_payments(db: AsyncSession, tenant: Tenant) -> None:
     """Create payment methods, payments for completed orders, and a cash drawer session."""
@@ -1142,7 +1534,8 @@ async def seed_payments(db: AsyncSession, tenant: Tenant) -> None:
 
     # Calculate expected cash balance
     cash_in = sum(
-        o.total for i, o in enumerate(completed_orders)
+        o.total
+        for i, o in enumerate(completed_orders)
         if i % 2 == 0  # cash payments
     )
     cash_change = sum(
@@ -1240,157 +1633,297 @@ SEED_CUSTOMERS = [
 # Spread over last 30 days for realistic history
 SEED_CUSTOMER_ORDERS = [
     # Ahmed Khan — 8 orders, all completed (loyal customer)
-    ("03001234567", "260127-011", "completed", [
-        ("Chicken Biryani", 2, ["Medium"]),
-        ("Chicken Pakora", 1, ["Mild"]),
-        ("Lassi (Sweet)", 2, ["Regular"]),
-    ]),
-    ("03001234567", "260128-012", "completed", [
-        ("Mutton Karahi", 1, ["Hot", "Full"]),
-        ("Garlic Naan", 4, []),
-        ("Doodh Patti Chai", 2, ["Regular"]),
-    ]),
-    ("03001234567", "260130-013", "completed", [
-        ("Nihari", 1, ["Medium", "Full"]),
-        ("Roghni Naan", 6, []),
-        ("Kashmiri Chai", 3, ["Large"]),
-    ]),
-    ("03001234567", "260202-014", "completed", [
-        ("Seekh Kebab", 4, ["Hot"]),
-        ("Butter Naan", 4, []),
-        ("Cold Drink (Can)", 4, ["Regular"]),
-    ]),
-    ("03001234567", "260205-015", "completed", [
-        ("Chicken Handi", 1, ["Mild", "Full"]),
-        ("Plain Naan", 6, []),
-        ("Fresh Lime Water", 2, ["Regular"]),
-    ]),
-    ("03001234567", "260210-016", "completed", [
-        ("Mixed Grill Platter", 1, ["Medium"]),
-        ("Cheese Naan", 2, []),
-        ("Gulab Jamun (2 pcs)", 2, []),
-    ]),
-    ("03001234567", "260218-017", "completed", [
-        ("Chicken Karahi", 1, ["Medium", "Full"]),
-        ("Tandoori Roti", 8, []),
-        ("Kheer", 2, []),
-    ]),
-    ("03001234567", "260224-018", "completed", [
-        ("Daal Makhani", 1, ["Mild", "Full"]),
-        ("Mutton Biryani", 2, ["Medium"]),
-        ("Garlic Naan", 4, []),
-    ]),
+    (
+        "03001234567",
+        "260127-011",
+        "completed",
+        [
+            ("Chicken Biryani", 2, ["Medium"]),
+            ("Chicken Pakora", 1, ["Mild"]),
+            ("Lassi (Sweet)", 2, ["Regular"]),
+        ],
+    ),
+    (
+        "03001234567",
+        "260128-012",
+        "completed",
+        [
+            ("Mutton Karahi", 1, ["Hot", "Full"]),
+            ("Garlic Naan", 4, []),
+            ("Doodh Patti Chai", 2, ["Regular"]),
+        ],
+    ),
+    (
+        "03001234567",
+        "260130-013",
+        "completed",
+        [
+            ("Nihari", 1, ["Medium", "Full"]),
+            ("Roghni Naan", 6, []),
+            ("Kashmiri Chai", 3, ["Large"]),
+        ],
+    ),
+    (
+        "03001234567",
+        "260202-014",
+        "completed",
+        [
+            ("Seekh Kebab", 4, ["Hot"]),
+            ("Butter Naan", 4, []),
+            ("Cold Drink (Can)", 4, ["Regular"]),
+        ],
+    ),
+    (
+        "03001234567",
+        "260205-015",
+        "completed",
+        [
+            ("Chicken Handi", 1, ["Mild", "Full"]),
+            ("Plain Naan", 6, []),
+            ("Fresh Lime Water", 2, ["Regular"]),
+        ],
+    ),
+    (
+        "03001234567",
+        "260210-016",
+        "completed",
+        [
+            ("Mixed Grill Platter", 1, ["Medium"]),
+            ("Cheese Naan", 2, []),
+            ("Gulab Jamun (2 pcs)", 2, []),
+        ],
+    ),
+    (
+        "03001234567",
+        "260218-017",
+        "completed",
+        [
+            ("Chicken Karahi", 1, ["Medium", "Full"]),
+            ("Tandoori Roti", 8, []),
+            ("Kheer", 2, []),
+        ],
+    ),
+    (
+        "03001234567",
+        "260224-018",
+        "completed",
+        [
+            ("Daal Makhani", 1, ["Mild", "Full"]),
+            ("Mutton Biryani", 2, ["Medium"]),
+            ("Garlic Naan", 4, []),
+        ],
+    ),
     # Sara Ali — 4 orders, 1 voided (mostly good)
-    ("03219876543", "260129-019", "completed", [
-        ("Palak Paneer", 1, ["Mild", "Full"]),
-        ("Butter Naan", 4, []),
-        ("Lassi (Sweet)", 2, ["Large"]),
-    ]),
-    ("03219876543", "260203-020", "completed", [
-        ("Daal Makhani", 1, ["Medium", "Full"]),
-        ("Cheese Naan", 2, []),
-        ("Doodh Patti Chai", 2, ["Regular"]),
-    ]),
-    ("03219876543", "260212-021", "voided", [
-        ("Chicken Biryani", 1, ["Mild"]),
-        ("Samosa (2 pcs)", 2, ["Mild"]),
-    ]),
-    ("03219876543", "260220-022", "completed", [
-        ("Chana Chaat", 2, ["Mild"]),
-        ("Dahi Bhalla", 2, ["Mild"]),
-        ("Fresh Lime Water", 2, ["Regular"]),
-    ]),
+    (
+        "03219876543",
+        "260129-019",
+        "completed",
+        [
+            ("Palak Paneer", 1, ["Mild", "Full"]),
+            ("Butter Naan", 4, []),
+            ("Lassi (Sweet)", 2, ["Large"]),
+        ],
+    ),
+    (
+        "03219876543",
+        "260203-020",
+        "completed",
+        [
+            ("Daal Makhani", 1, ["Medium", "Full"]),
+            ("Cheese Naan", 2, []),
+            ("Doodh Patti Chai", 2, ["Regular"]),
+        ],
+    ),
+    (
+        "03219876543",
+        "260212-021",
+        "voided",
+        [
+            ("Chicken Biryani", 1, ["Mild"]),
+            ("Samosa (2 pcs)", 2, ["Mild"]),
+        ],
+    ),
+    (
+        "03219876543",
+        "260220-022",
+        "completed",
+        [
+            ("Chana Chaat", 2, ["Mild"]),
+            ("Dahi Bhalla", 2, ["Mild"]),
+            ("Fresh Lime Water", 2, ["Regular"]),
+        ],
+    ),
     # Bilal Hussain — 5 orders, 2 voided (HIGH RISK: 40% void rate)
-    ("03331122334", "260128-023", "completed", [
-        ("Chicken Biryani", 3, ["Hot"]),
-        ("Chicken Pakora", 2, ["Hot"]),
-        ("Cold Drink (Can)", 3, ["Regular"]),
-    ]),
-    ("03331122334", "260201-024", "voided", [
-        ("Mutton Karahi", 1, ["Hot", "Full"]),
-        ("Garlic Naan", 6, []),
-    ]),
-    ("03331122334", "260208-025", "completed", [
-        ("Seekh Kebab", 6, ["Hot"]),
-        ("Tandoori Roti", 6, []),
-        ("Lassi (Salt)", 2, ["Regular"]),
-    ]),
-    ("03331122334", "260215-026", "voided", [
-        ("Nihari", 2, ["Hot", "Full"]),
-        ("Roghni Naan", 8, []),
-        ("Kashmiri Chai", 4, ["Large"]),
-    ]),
-    ("03331122334", "260222-027", "in_kitchen", [
-        ("Chicken Handi", 1, ["Hot", "Full"]),
-        ("Haleem", 1, ["Hot", "Full"]),
-        ("Plain Naan", 8, []),
-    ]),
+    (
+        "03331122334",
+        "260128-023",
+        "completed",
+        [
+            ("Chicken Biryani", 3, ["Hot"]),
+            ("Chicken Pakora", 2, ["Hot"]),
+            ("Cold Drink (Can)", 3, ["Regular"]),
+        ],
+    ),
+    (
+        "03331122334",
+        "260201-024",
+        "voided",
+        [
+            ("Mutton Karahi", 1, ["Hot", "Full"]),
+            ("Garlic Naan", 6, []),
+        ],
+    ),
+    (
+        "03331122334",
+        "260208-025",
+        "completed",
+        [
+            ("Seekh Kebab", 6, ["Hot"]),
+            ("Tandoori Roti", 6, []),
+            ("Lassi (Salt)", 2, ["Regular"]),
+        ],
+    ),
+    (
+        "03331122334",
+        "260215-026",
+        "voided",
+        [
+            ("Nihari", 2, ["Hot", "Full"]),
+            ("Roghni Naan", 8, []),
+            ("Kashmiri Chai", 4, ["Large"]),
+        ],
+    ),
+    (
+        "03331122334",
+        "260222-027",
+        "in_kitchen",
+        [
+            ("Chicken Handi", 1, ["Hot", "Full"]),
+            ("Haleem", 1, ["Hot", "Full"]),
+            ("Plain Naan", 8, []),
+        ],
+    ),
     # Fatima Zahra — 1 order only (new customer)
-    ("03451234567", "260225-028", "confirmed", [
-        ("Chicken Biryani", 1, ["Mild"]),
-        ("Samosa (2 pcs)", 1, ["Mild"]),
-        ("Mineral Water", 1, []),
-    ]),
+    (
+        "03451234567",
+        "260225-028",
+        "confirmed",
+        [
+            ("Chicken Biryani", 1, ["Mild"]),
+            ("Samosa (2 pcs)", 1, ["Mild"]),
+            ("Mineral Water", 1, []),
+        ],
+    ),
     # Usman Malik — 10 orders, all completed (VIP, large orders)
-    ("03111234567", "260126-029", "completed", [
-        ("Mixed Grill Platter", 3, ["Medium"]),
-        ("Chicken Karahi", 2, ["Medium", "Full"]),
-        ("Garlic Naan", 10, []),
-        ("Cold Drink (Can)", 10, ["Regular"]),
-    ]),
-    ("03111234567", "260128-030", "completed", [
-        ("Mutton Biryani", 5, ["Medium"]),
-        ("Chicken Pakora", 3, ["Mild"]),
-        ("Lassi (Sweet)", 5, ["Large"]),
-    ]),
-    ("03111234567", "260131-031", "completed", [
-        ("Lamb Chops", 4, ["Medium"]),
-        ("Seekh Kebab", 6, ["Medium"]),
-        ("Butter Naan", 10, []),
-        ("Gulab Jamun (2 pcs)", 5, []),
-    ]),
-    ("03111234567", "260203-032", "completed", [
-        ("Nihari", 3, ["Medium", "Full"]),
-        ("Haleem", 2, ["Medium", "Full"]),
-        ("Roghni Naan", 10, []),
-        ("Doodh Patti Chai", 6, ["Large"]),
-    ]),
-    ("03111234567", "260206-033", "completed", [
-        ("Chicken Handi", 2, ["Mild", "Full"]),
-        ("Prawn Karahi", 1, ["Medium", "Full"]),
-        ("Cheese Naan", 6, []),
-        ("Kheer", 4, []),
-    ]),
-    ("03111234567", "260209-034", "completed", [
-        ("Sindhi Biryani", 4, ["Hot"]),
-        ("Fish Pakora", 3, ["Medium"]),
-        ("Chana Chaat", 3, ["Mild"]),
-        ("Fresh Lime Water", 6, ["Regular"]),
-    ]),
-    ("03111234567", "260212-035", "completed", [
-        ("Namkeen Gosht", 2, ["Hot", "Full"]),
-        ("Mutton Karahi", 1, ["Hot", "Full"]),
-        ("Tandoori Roti", 12, []),
-        ("Kashmiri Chai", 6, ["Large"]),
-    ]),
-    ("03111234567", "260216-036", "completed", [
-        ("Chicken Tikka", 6, ["Medium"]),
-        ("Malai Boti", 4, ["Mild"]),
-        ("Garlic Naan", 8, []),
-        ("Gajar Ka Halwa", 4, []),
-    ]),
-    ("03111234567", "260220-037", "completed", [
-        ("Pulao", 5, ["Mild"]),
-        ("Daal Makhani", 2, ["Mild", "Full"]),
-        ("Plain Naan", 10, []),
-        ("Firni", 5, []),
-    ]),
-    ("03111234567", "260224-038", "completed", [
-        ("Chicken Biryani", 6, ["Medium"]),
-        ("Samosa (2 pcs)", 4, ["Mild"]),
-        ("Lassi (Sweet)", 6, ["Large"]),
-        ("Gulab Jamun (2 pcs)", 3, []),
-    ]),
+    (
+        "03111234567",
+        "260126-029",
+        "completed",
+        [
+            ("Mixed Grill Platter", 3, ["Medium"]),
+            ("Chicken Karahi", 2, ["Medium", "Full"]),
+            ("Garlic Naan", 10, []),
+            ("Cold Drink (Can)", 10, ["Regular"]),
+        ],
+    ),
+    (
+        "03111234567",
+        "260128-030",
+        "completed",
+        [
+            ("Mutton Biryani", 5, ["Medium"]),
+            ("Chicken Pakora", 3, ["Mild"]),
+            ("Lassi (Sweet)", 5, ["Large"]),
+        ],
+    ),
+    (
+        "03111234567",
+        "260131-031",
+        "completed",
+        [
+            ("Lamb Chops", 4, ["Medium"]),
+            ("Seekh Kebab", 6, ["Medium"]),
+            ("Butter Naan", 10, []),
+            ("Gulab Jamun (2 pcs)", 5, []),
+        ],
+    ),
+    (
+        "03111234567",
+        "260203-032",
+        "completed",
+        [
+            ("Nihari", 3, ["Medium", "Full"]),
+            ("Haleem", 2, ["Medium", "Full"]),
+            ("Roghni Naan", 10, []),
+            ("Doodh Patti Chai", 6, ["Large"]),
+        ],
+    ),
+    (
+        "03111234567",
+        "260206-033",
+        "completed",
+        [
+            ("Chicken Handi", 2, ["Mild", "Full"]),
+            ("Prawn Karahi", 1, ["Medium", "Full"]),
+            ("Cheese Naan", 6, []),
+            ("Kheer", 4, []),
+        ],
+    ),
+    (
+        "03111234567",
+        "260209-034",
+        "completed",
+        [
+            ("Sindhi Biryani", 4, ["Hot"]),
+            ("Fish Pakora", 3, ["Medium"]),
+            ("Chana Chaat", 3, ["Mild"]),
+            ("Fresh Lime Water", 6, ["Regular"]),
+        ],
+    ),
+    (
+        "03111234567",
+        "260212-035",
+        "completed",
+        [
+            ("Namkeen Gosht", 2, ["Hot", "Full"]),
+            ("Mutton Karahi", 1, ["Hot", "Full"]),
+            ("Tandoori Roti", 12, []),
+            ("Kashmiri Chai", 6, ["Large"]),
+        ],
+    ),
+    (
+        "03111234567",
+        "260216-036",
+        "completed",
+        [
+            ("Chicken Tikka", 6, ["Medium"]),
+            ("Malai Boti", 4, ["Mild"]),
+            ("Garlic Naan", 8, []),
+            ("Gajar Ka Halwa", 4, []),
+        ],
+    ),
+    (
+        "03111234567",
+        "260220-037",
+        "completed",
+        [
+            ("Pulao", 5, ["Mild"]),
+            ("Daal Makhani", 2, ["Mild", "Full"]),
+            ("Plain Naan", 10, []),
+            ("Firni", 5, []),
+        ],
+    ),
+    (
+        "03111234567",
+        "260224-038",
+        "completed",
+        [
+            ("Chicken Biryani", 6, ["Medium"]),
+            ("Samosa (2 pcs)", 4, ["Mild"]),
+            ("Lassi (Sweet)", 6, ["Large"]),
+            ("Gulab Jamun (2 pcs)", 3, []),
+        ],
+    ),
 ]
 
 # Voided orders need a different status path
@@ -1399,7 +1932,7 @@ VOIDED_STATUS_PATH = ["confirmed", "in_kitchen", "voided"]
 
 async def seed_customers(db: AsyncSession, tenant: Tenant) -> None:
     """Create customer records and their call-center order history."""
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timezone
 
     # Check if customers already exist
     result = await db.execute(
@@ -1426,29 +1959,28 @@ async def seed_customers(db: AsyncSession, tenant: Tenant) -> None:
     tax_rate_bps = config.default_tax_rate if config else 1600
 
     # Build lookup maps
-    result = await db.execute(
-        select(MenuItem).where(MenuItem.tenant_id == tenant.id)
-    )
+    result = await db.execute(select(MenuItem).where(MenuItem.tenant_id == tenant.id))
     menu_items_map = {mi.name: mi for mi in result.scalars().all()}
 
-    result = await db.execute(
-        select(Modifier).where(Modifier.tenant_id == tenant.id)
-    )
+    result = await db.execute(select(Modifier).where(Modifier.tenant_id == tenant.id))
     modifiers_map = {m.name: m for m in result.scalars().all()}
 
     # Seed walk-in customer sentinel
     walkin_result = await db.execute(
         select(Customer).where(
-            Customer.tenant_id == tenant.id, Customer.phone == "0000000000",
+            Customer.tenant_id == tenant.id,
+            Customer.phone == "0000000000",
         )
     )
     if walkin_result.scalar_one_or_none() is None:
-        db.add(Customer(
-            tenant_id=tenant.id,
-            name="Walk-in Customer",
-            phone="0000000000",
-            notes="Default walk-in customer record (do not delete)",
-        ))
+        db.add(
+            Customer(
+                tenant_id=tenant.id,
+                name="Walk-in Customer",
+                phone="0000000000",
+                notes="Default walk-in customer record (do not delete)",
+            )
+        )
         await db.flush()
         print("  Created Walk-in Customer sentinel.")
 
@@ -1475,7 +2007,6 @@ async def seed_customers(db: AsyncSession, tenant: Tenant) -> None:
 
     # Create orders for each customer
     orders_created = 0
-    now = datetime.now(timezone.utc)
 
     for phone, order_number, target_status, items_def in SEED_CUSTOMER_ORDERS:
         customer = customer_map.get(phone)
@@ -1487,8 +2018,9 @@ async def seed_customers(db: AsyncSession, tenant: Tenant) -> None:
         day_offset = int(date_part[4:6])
         month_offset = int(date_part[2:4])
         # Create a realistic timestamp
-        order_date = datetime(2026, month_offset, day_offset, 12, 30, 0,
-                              tzinfo=timezone.utc)
+        order_date = datetime(
+            2026, month_offset, day_offset, 12, 30, 0, tzinfo=timezone.utc
+        )
 
         # Build order items
         order_items: list[OrderItem] = []
@@ -1505,12 +2037,14 @@ async def seed_customers(db: AsyncSession, tenant: Tenant) -> None:
                 mod = modifiers_map.get(mname)
                 if mod:
                     base_price += mod.price_adjustment
-                    item_modifiers.append(OrderItemModifier(
-                        tenant_id=tenant.id,
-                        modifier_id=mod.id,
-                        name=mod.name,
-                        price_adjustment=mod.price_adjustment,
-                    ))
+                    item_modifiers.append(
+                        OrderItemModifier(
+                            tenant_id=tenant.id,
+                            modifier_id=mod.id,
+                            name=mod.name,
+                            price_adjustment=mod.price_adjustment,
+                        )
+                    )
 
             unit_price = max(0, base_price)
             line_total = unit_price * qty
@@ -1588,6 +2122,7 @@ async def seed_customers(db: AsyncSession, tenant: Tenant) -> None:
 
     # Update customer stats (order_count, total_spent, last_order_at, risk_flag)
     from app.services.customer_service import update_customer_stats
+
     for customer in customer_map.values():
         await update_customer_stats(db, tenant.id, customer)
     await db.flush()
@@ -1600,10 +2135,10 @@ async def seed_customers(db: AsyncSession, tenant: Tenant) -> None:
 # ---------------------------------------------------------------------------
 
 SEED_DISCOUNT_TYPES = [
-    ("bank_promo", "Bank Promotion", "percent", 1000),   # 10%
-    ("esr", "ESR Discount", "percent", 500),              # 5%
-    ("customer", "Customer Loyalty", "percent", 800),     # 8%
-    ("manual", "Manual Discount", "fixed", 0),            # ad-hoc
+    ("bank_promo", "Bank Promotion", "percent", 1000),  # 10%
+    ("esr", "ESR Discount", "percent", 500),  # 5%
+    ("customer", "Customer Loyalty", "percent", 800),  # 8%
+    ("manual", "Manual Discount", "fixed", 0),  # ad-hoc
 ]
 
 
@@ -1617,14 +2152,16 @@ async def seed_discount_types(db: AsyncSession, tenant: Tenant) -> None:
     for code, name, kind, value in SEED_DISCOUNT_TYPES:
         if code in existing_codes:
             continue
-        db.add(DiscountType(
-            tenant_id=tenant.id,
-            code=code,
-            name=name,
-            kind=kind,
-            value=value,
-            is_active=True,
-        ))
+        db.add(
+            DiscountType(
+                tenant_id=tenant.id,
+                code=code,
+                name=name,
+                kind=kind,
+                value=value,
+                is_active=True,
+            )
+        )
     await db.flush()
     print(f"  Discount types: {len(SEED_DISCOUNT_TYPES)} checked/created")
 
@@ -1632,6 +2169,7 @@ async def seed_discount_types(db: AsyncSession, tenant: Tenant) -> None:
 # ---------------------------------------------------------------------------
 # Main entry point
 # ---------------------------------------------------------------------------
+
 
 async def main() -> None:
     """Run the full seed process inside a single transaction."""

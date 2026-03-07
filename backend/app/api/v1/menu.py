@@ -36,6 +36,7 @@ _admin_dep = require_role("admin")
 # Full Menu Tree (POS frontend uses this)
 # ---------------------------------------------------------------------------
 
+
 @router.get("/full", response_model=FullMenuResponse)
 async def get_full_menu(
     current_user: User = Depends(get_current_user),
@@ -49,6 +50,7 @@ async def get_full_menu(
 # ---------------------------------------------------------------------------
 # Categories
 # ---------------------------------------------------------------------------
+
 
 @router.get("/categories", response_model=list[CategoryResponse])
 async def list_categories(
@@ -117,6 +119,7 @@ async def delete_category(
 # Menu Items
 # ---------------------------------------------------------------------------
 
+
 @router.get("/items", response_model=list[MenuItemResponse])
 async def list_menu_items(
     category_id: uuid.UUID | None = Query(None),
@@ -166,7 +169,9 @@ async def update_menu_item(
     item = await menu_service.get_menu_item(db, item_id, current_user.tenant_id)
     if item is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Menu item not found")
-    updated = await menu_service.update_menu_item(db, current_user.tenant_id, item, body)
+    updated = await menu_service.update_menu_item(
+        db, current_user.tenant_id, item, body
+    )
     return MenuItemResponse.model_validate(updated)
 
 
@@ -186,6 +191,7 @@ async def delete_menu_item(
 # ---------------------------------------------------------------------------
 # Modifier Groups
 # ---------------------------------------------------------------------------
+
 
 @router.get("/modifier-groups", response_model=list[ModifierGroupResponse])
 async def list_modifier_groups(
@@ -257,6 +263,7 @@ async def delete_modifier_group(
 # ---------------------------------------------------------------------------
 # Modifiers (within a group)
 # ---------------------------------------------------------------------------
+
 
 @router.post(
     "/modifier-groups/{group_id}/modifiers",

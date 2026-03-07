@@ -65,9 +65,14 @@ class Payment(BaseMixin, Base):
         String(20), nullable=False, default="payment", comment="payment | refund"
     )
     status: Mapped[str] = mapped_column(
-        String(20), nullable=False, default="completed", comment="pending | completed | failed"
+        String(20),
+        nullable=False,
+        default="completed",
+        comment="pending | completed | failed",
     )
-    amount: Mapped[int] = mapped_column(Integer, nullable=False, comment="Amount in paisa")
+    amount: Mapped[int] = mapped_column(
+        Integer, nullable=False, comment="Amount in paisa"
+    )
     tendered_amount: Mapped[int | None] = mapped_column(
         Integer, nullable=True, comment="Cash tendered amount in paisa"
     )
@@ -84,7 +89,9 @@ class Payment(BaseMixin, Base):
     )
 
     order: Mapped["Order"] = relationship("Order", lazy="selectin")
-    method: Mapped[PaymentMethod] = relationship("PaymentMethod", back_populates="payments", lazy="selectin")
+    method: Mapped[PaymentMethod] = relationship(
+        "PaymentMethod", back_populates="payments", lazy="selectin"
+    )
     processor: Mapped["User"] = relationship("User", lazy="selectin")
     parent_payment: Mapped["Payment | None"] = relationship(
         "Payment", remote_side="Payment.id", lazy="selectin"
@@ -107,15 +114,21 @@ class CashDrawerSession(BaseMixin, Base):
     status: Mapped[str] = mapped_column(
         String(20), nullable=False, default="open", comment="open | closed"
     )
-    opened_by: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id"), nullable=False)
+    opened_by: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("users.id"), nullable=False
+    )
     opened_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
     opening_float: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, comment="Opening float in paisa"
     )
-    closed_by: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("users.id"), nullable=True)
-    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    closed_by: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("users.id"), nullable=True
+    )
+    closed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     closing_balance_expected: Mapped[int | None] = mapped_column(
         Integer, nullable=True, comment="System expected closing balance in paisa"
     )
@@ -124,8 +137,12 @@ class CashDrawerSession(BaseMixin, Base):
     )
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    opener: Mapped["User"] = relationship("User", foreign_keys=[opened_by], lazy="selectin")
-    closer: Mapped["User | None"] = relationship("User", foreign_keys=[closed_by], lazy="selectin")
+    opener: Mapped["User"] = relationship(
+        "User", foreign_keys=[opened_by], lazy="selectin"
+    )
+    closer: Mapped["User | None"] = relationship(
+        "User", foreign_keys=[closed_by], lazy="selectin"
+    )
 
 
 from app.models.order import Order  # noqa: E402, F401

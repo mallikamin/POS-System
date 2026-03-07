@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 # Floor
 # ---------------------------------------------------------------------------
 
+
 class FloorCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     display_order: int = Field(default=0)
@@ -34,6 +35,7 @@ class FloorResponse(BaseModel):
 # Table
 # ---------------------------------------------------------------------------
 
+
 class TableCreate(BaseModel):
     floor_id: uuid.UUID
     number: int = Field(..., ge=1)
@@ -58,12 +60,15 @@ class TableUpdate(BaseModel):
     height: float | None = Field(None, gt=0)
     rotation: float | None = Field(None, ge=0, lt=360)
     shape: str | None = Field(None, pattern=r"^(square|round|rectangle)$")
-    status: str | None = Field(None, pattern=r"^(available|occupied|reserved|cleaning)$")
+    status: str | None = Field(
+        None, pattern=r"^(available|occupied|reserved|cleaning)$"
+    )
     is_active: bool | None = None
 
 
 class TableStatusUpdate(BaseModel):
     """Dedicated schema for the table status endpoint — status is required."""
+
     status: str = Field(..., pattern=r"^(available|occupied|reserved|cleaning)$")
 
 
@@ -89,8 +94,10 @@ class TableResponse(BaseModel):
 # Bulk position update (drag-and-drop editor)
 # ---------------------------------------------------------------------------
 
+
 class TablePositionUpdate(BaseModel):
     """Position data for a single table in a bulk update."""
+
     id: uuid.UUID
     pos_x: float
     pos_y: float
@@ -101,6 +108,7 @@ class TablePositionUpdate(BaseModel):
 
 class BulkTablePositionUpdate(BaseModel):
     """Batch update table positions from the floor editor."""
+
     tables: list[TablePositionUpdate] = Field(..., min_length=1)
 
 
@@ -108,8 +116,10 @@ class BulkTablePositionUpdate(BaseModel):
 # Floor with tables (composite responses)
 # ---------------------------------------------------------------------------
 
+
 class FloorWithTables(FloorResponse):
     """Floor including all its tables."""
+
     tables: list[TableResponse] = []
 
     model_config = {"from_attributes": True}
@@ -117,4 +127,5 @@ class FloorWithTables(FloorResponse):
 
 class FloorStatusBoard(BaseModel):
     """All floors with tables — used by POS dine-in view."""
+
     floors: list[FloorWithTables]

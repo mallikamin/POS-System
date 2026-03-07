@@ -39,7 +39,9 @@ class Floor(BaseMixin, Base):
 
     # Relationships
     tables: Mapped[list["Table"]] = relationship(
-        "Table", back_populates="floor", lazy="selectin",
+        "Table",
+        back_populates="floor",
+        lazy="selectin",
         order_by="Table.number",
     )
 
@@ -56,7 +58,9 @@ class Table(BaseMixin, Base):
 
     __tablename__ = "tables"
     __table_args__ = (
-        UniqueConstraint("tenant_id", "floor_id", "number", name="uq_table_tenant_floor_number"),
+        UniqueConstraint(
+            "tenant_id", "floor_id", "number", name="uq_table_tenant_floor_number"
+        ),
     )
 
     floor_id: Mapped[uuid.UUID] = mapped_column(
@@ -77,13 +81,17 @@ class Table(BaseMixin, Base):
         Float, default=0.0, nullable=False, comment="Rotation in degrees (0-360)"
     )
     shape: Mapped[str] = mapped_column(
-        String(20), default="square", nullable=False,
-        comment="square | round | rectangle"
+        String(20),
+        default="square",
+        nullable=False,
+        comment="square | round | rectangle",
     )
 
     status: Mapped[str] = mapped_column(
-        String(20), default="available", nullable=False,
-        comment="available | occupied | reserved | cleaning"
+        String(20),
+        default="available",
+        nullable=False,
+        comment="available | occupied | reserved | cleaning",
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 

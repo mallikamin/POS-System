@@ -27,6 +27,7 @@ class ConnectedClient:
     eq=False preserves default object-identity __hash__,
     which is needed because instances are stored in sets.
     """
+
     ws: WebSocket
     tenant_id: uuid.UUID
     user_id: uuid.UUID
@@ -48,7 +49,10 @@ class ConnectionManager:
         self._clients: dict[int, ConnectedClient] = {}
 
     async def connect(
-        self, ws: WebSocket, tenant_id: uuid.UUID, user_id: uuid.UUID,
+        self,
+        ws: WebSocket,
+        tenant_id: uuid.UUID,
+        user_id: uuid.UUID,
     ) -> ConnectedClient:
         """Accept the WebSocket and register the client."""
         await ws.accept()
@@ -88,7 +92,10 @@ class ConnectionManager:
             del self._rooms[room]
 
     async def broadcast_to_room(
-        self, room: str, tenant_id: uuid.UUID, message: dict,
+        self,
+        room: str,
+        tenant_id: uuid.UUID,
+        message: dict,
     ) -> None:
         """Send a message to all clients in a room that belong to the given tenant.
 
@@ -105,7 +112,9 @@ class ConnectionManager:
             await asyncio.gather(*tasks)
 
     async def broadcast_to_tenant(
-        self, tenant_id: uuid.UUID, message: dict,
+        self,
+        tenant_id: uuid.UUID,
+        message: dict,
     ) -> None:
         """Send a message to ALL connections belonging to a tenant."""
         tasks = []

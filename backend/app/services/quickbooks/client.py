@@ -33,6 +33,7 @@ _REQUEST_TIMEOUT = 30.0  # seconds
 # Exception
 # ---------------------------------------------------------------------------
 
+
 class QBAPIError(Exception):
     """Raised when the QuickBooks API returns an error response.
 
@@ -74,6 +75,7 @@ class QBAPIError(Exception):
 # Client
 # ---------------------------------------------------------------------------
 
+
 class QBClient:
     """Async client for QuickBooks Online API v3.
 
@@ -90,9 +92,7 @@ class QBClient:
         self.connection = connection
         self.db = db
         self.realm_id: str = connection.realm_id
-        self.base_url: str = (
-            f"{settings.qb_base_url}/v3/company/{connection.realm_id}"
-        )
+        self.base_url: str = f"{settings.qb_base_url}/v3/company/{connection.realm_id}"
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -331,9 +331,7 @@ class QBClient:
     async def find_customer(self, display_name: str) -> dict | None:
         """Find a customer by exact display name. Returns ``None`` if not found."""
         escaped = display_name.replace("'", "\\'")
-        results = await self.query(
-            "Customer", where=f"DisplayName = '{escaped}'"
-        )
+        results = await self.query("Customer", where=f"DisplayName = '{escaped}'")
         return results[0] if results else None
 
     # ------------------------------------------------------------------
@@ -365,9 +363,7 @@ class QBClient:
         body = await self._post("item", data=payload)
         return body.get("Item", body)
 
-    async def update_item(
-        self, item_id: str, sync_token: str, **updates: Any
-    ) -> dict:
+    async def update_item(self, item_id: str, sync_token: str, **updates: Any) -> dict:
         """Update an existing item.
 
         ``sync_token`` is required by QB for optimistic concurrency control.
@@ -430,9 +426,7 @@ class QBClient:
         body = await self._post("salesreceipt", data=data)
         return body.get("SalesReceipt", body)
 
-    async def void_sales_receipt(
-        self, receipt_id: str, sync_token: str
-    ) -> dict:
+    async def void_sales_receipt(self, receipt_id: str, sync_token: str) -> dict:
         """Void a Sales Receipt (irreversible)."""
         payload: dict[str, Any] = {
             "Id": receipt_id,
@@ -630,9 +624,7 @@ class QBClient:
     async def find_vendor(self, display_name: str) -> dict | None:
         """Find a vendor by exact display name. Returns ``None`` if not found."""
         escaped = display_name.replace("'", "\\'")
-        results = await self.query(
-            "Vendor", where=f"DisplayName = '{escaped}'"
-        )
+        results = await self.query("Vendor", where=f"DisplayName = '{escaped}'")
         return results[0] if results else None
 
     # ------------------------------------------------------------------
@@ -661,9 +653,7 @@ class QBClient:
     # Class (location / branch tracking)
     # ------------------------------------------------------------------
 
-    async def create_class(
-        self, name: str, parent_id: str | None = None
-    ) -> dict:
+    async def create_class(self, name: str, parent_id: str | None = None) -> dict:
         """Create a Class (used for location/branch tracking in reports)."""
         payload: dict[str, Any] = {"Name": name}
         if parent_id:
@@ -680,9 +670,7 @@ class QBClient:
     # Department
     # ------------------------------------------------------------------
 
-    async def create_department(
-        self, name: str, parent_id: str | None = None
-    ) -> dict:
+    async def create_department(self, name: str, parent_id: str | None = None) -> dict:
         """Create a Department."""
         payload: dict[str, Any] = {"Name": name}
         if parent_id:

@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 # Modifier
 # ---------------------------------------------------------------------------
 
+
 class ModifierCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     price_adjustment: int = Field(default=0, description="Price adjustment in paisa")
@@ -41,6 +42,7 @@ class ModifierResponse(BaseModel):
 # Modifier Group
 # ---------------------------------------------------------------------------
 
+
 class ModifierGroupCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     display_order: int = Field(default=0)
@@ -50,7 +52,7 @@ class ModifierGroupCreate(BaseModel):
     is_active: bool = Field(default=True)
     modifiers: list[ModifierCreate] = Field(
         default_factory=list,
-        description="Optionally create modifiers inline with the group"
+        description="Optionally create modifiers inline with the group",
     )
 
 
@@ -79,6 +81,7 @@ class ModifierGroupResponse(BaseModel):
 # ---------------------------------------------------------------------------
 # Category
 # ---------------------------------------------------------------------------
+
 
 class CategoryCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
@@ -111,6 +114,7 @@ class CategoryResponse(BaseModel):
 # Menu Item
 # ---------------------------------------------------------------------------
 
+
 class MenuItemCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=200)
     description: str | None = None
@@ -121,8 +125,7 @@ class MenuItemCreate(BaseModel):
     display_order: int = Field(default=0)
     preparation_time_minutes: int | None = Field(None, ge=0)
     modifier_group_ids: list[uuid.UUID] = Field(
-        default_factory=list,
-        description="Modifier groups to attach to this item"
+        default_factory=list, description="Modifier groups to attach to this item"
     )
 
 
@@ -158,6 +161,7 @@ class MenuItemResponse(BaseModel):
 # ---------------------------------------------------------------------------
 # Full Menu Tree (for POS frontend)
 # ---------------------------------------------------------------------------
+
 
 class CategoryWithItems(BaseModel):
     """Category including its menu items (each with modifier groups)."""

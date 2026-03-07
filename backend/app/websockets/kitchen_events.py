@@ -35,11 +35,13 @@ def _build_ticket_payload(ticket: KitchenTicket) -> dict:
     items = []
     for ti in ticket.items:
         oi = ti.order_item
-        items.append({
-            "order_item_id": str(ti.order_item_id),
-            "name": oi.name if oi else "Unknown",
-            "quantity": ti.quantity,
-        })
+        items.append(
+            {
+                "order_item_id": str(ti.order_item_id),
+                "name": oi.name if oi else "Unknown",
+                "quantity": ti.quantity,
+            }
+        )
     return {
         "ticket_id": str(ticket.id),
         "order_id": str(ticket.order_id),
@@ -54,7 +56,8 @@ def _build_ticket_payload(ticket: KitchenTicket) -> dict:
 
 
 async def emit_ticket_created(
-    tenant_id: uuid.UUID, ticket: KitchenTicket,
+    tenant_id: uuid.UUID,
+    ticket: KitchenTicket,
 ) -> None:
     """Broadcast a ticket.created event to station + global rooms."""
     payload = {
