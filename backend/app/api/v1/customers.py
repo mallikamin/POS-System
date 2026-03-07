@@ -50,9 +50,7 @@ async def get_customer(
     )
     if customer is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Customer not found")
-    await customer_service.update_customer_stats(
-        db, current_user.tenant_id, customer
-    )
+    await customer_service.update_customer_stats(db, current_user.tenant_id, customer)
     return CustomerResponse.model_validate(customer)
 
 
