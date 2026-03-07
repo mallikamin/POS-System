@@ -31,6 +31,7 @@ import { useUIStore } from "@/stores/uiStore";
 import { useCustomerStore } from "@/stores/customerStore";
 import { useMenuStore } from "@/stores/menuStore";
 import { fetchOrder } from "@/services/ordersApi";
+import { getCustomer } from "@/services/customerApi";
 import { formatPKR } from "@/utils/currency";
 import type { CartItem } from "@/types/cart";
 import type { MenuItem } from "@/types/menu";
@@ -159,13 +160,18 @@ function CallCenterPage() {
     }
   }, [debouncedPhone, searchByPhone]);
 
-  // Auto-select if single result
+  // Auto-select only on an exact phone match.
   useEffect(() => {
-    if (searchResults.length === 1 && !selectedCustomer) {
+    const exactMatch =
+      searchResults.length === 1 &&
+      !selectedCustomer &&
+      phoneInput.trim().length >= 3 &&
+      searchResults[0]!.phone === phoneInput.trim();
+
+    if (exactMatch) {
       selectCustomer(searchResults[0]!);
-      setPhoneInput(searchResults[0]!.phone);
     }
-  }, [searchResults, selectedCustomer, selectCustomer]);
+  }, [searchResults, selectedCustomer, selectCustomer, phoneInput]);
 
   const handleAddToCart = useCallback(
     (item: CartItem) => {
@@ -173,6 +179,20 @@ function CallCenterPage() {
     },
     [addItem]
   );
+
+  const handleOrderCreated = useCallback(async () => {
+    if (!selectedCustomer) return;
+
+    try {
+      const refreshedCustomer = await getCustomer(selectedCustomer.id);
+      selectCustomer(refreshedCustomer);
+      setPhoneInput(refreshedCustomer.phone);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to refresh customer";
+      setError(message);
+    }
+  }, [selectedCustomer, selectCustomer, setError]);
 
   function handlePhoneChange(value: string) {
     // Strip non-digits
@@ -597,7 +617,7 @@ function CallCenterPage() {
 
         {/* Right: Cart panel */}
         <div className="w-80 shrink-0 border-l border-secondary-200">
-          <CartPanel />
+          <CartPanel onOrderCreated={handleOrderCreated} />
         </div>
       </div>
 

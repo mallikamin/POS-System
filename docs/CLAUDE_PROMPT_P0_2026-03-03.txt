@@ -1,0 +1,29 @@
+Implement P0 from docs/BWL_REVIEW_2026-03-03_SCOPE.md on branch wip/BWL3rdMarchChanges.
+
+Scope (P0 only):
+1) Receipt modifier pricing breakdown
+- Backend: extend receipt response to include modifier price adjustments (not just names).
+- Frontend: render each modifier with signed amount (+/- PKR) under the parent line item.
+- Keep existing totals unchanged.
+
+2) Tax baseline verification/fix
+- Verify all defaults used in local/demo seed/config are 16% baseline where single-rate tax is still in effect.
+- If any 17% defaults exist in repo config/seed/demo docs used by runtime, patch to 16%.
+- Do not implement payment-mode tax logic yet (that is P1-A).
+
+3) Table number visibility
+- Show table number/label clearly on order cards/list and payment context.
+- Backend: include table number/label in list/detail response payloads where needed.
+- Frontend: surface table info in Orders and Payment screens without breaking existing UX.
+
+Requirements:
+- No DB migration in P0.
+- Keep changes low-risk and backward-compatible.
+- Add/update tests for changed API contracts and UI assumptions where feasible.
+- Run relevant tests/lint and report what passed/failed.
+
+Output format:
+- Summary of files changed and why.
+- API contract deltas.
+- Test commands run and results.
+- Any follow-up risks or TODOs for P1.

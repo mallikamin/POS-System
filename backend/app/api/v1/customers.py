@@ -32,6 +32,10 @@ async def search_customers(
     customers = await customer_service.search_by_phone(
         db, current_user.tenant_id, phone, limit
     )
+    for customer in customers:
+        await customer_service.update_customer_stats(
+            db, current_user.tenant_id, customer
+        )
     return [CustomerResponse.model_validate(c) for c in customers]
 
 
@@ -46,6 +50,9 @@ async def get_customer(
     )
     if customer is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Customer not found")
+    await customer_service.update_customer_stats(
+        db, current_user.tenant_id, customer
+    )
     return CustomerResponse.model_validate(customer)
 
 

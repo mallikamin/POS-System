@@ -19,7 +19,7 @@ from app.models.order import Order, OrderItem, OrderItemModifier, OrderStatusLog
 from app.models.restaurant_config import RestaurantConfig
 from app.models.table_session import TableSession
 from app.schemas.order import OrderCreate, PaymentPreviewResponse
-from app.services import kitchen_service
+from app.services import customer_service, kitchen_service
 
 logger = logging.getLogger(__name__)
 
@@ -282,6 +282,8 @@ async def create_order(
         # Auto-create kitchen ticket: route all items to the first active station
         await _auto_create_kitchen_ticket(db, tenant_id, order)
 
+    await _sync_customer_stats_for_order(db, tenant_id, order)
+
     return await get_order(db, order.id, tenant_id)  # type: ignore[return-value]
 
 
@@ -413,6 +415,7 @@ async def transition_order(
             table.status = "available"
 
     await db.flush()
+    await _sync_customer_stats_for_order(db, tenant_id, order)
     # Force fresh load with all relationships by fetching anew
     order_id = order.id
     db.expunge(order)
@@ -457,6 +460,7 @@ async def void_order(
             table.status = "available"
 
     await db.flush()
+    await _sync_customer_stats_for_order(db, tenant_id, order)
     order_id = order.id
     db.expunge(order)
     return await get_order(db, order_id, tenant_id)  # type: ignore[return-value]
@@ -513,6 +517,19 @@ async def _get_table(
         select(Table).where(Table.id == table_id, Table.tenant_id == tenant_id)
     )
     return result.scalar_one_or_none()
+
+
+async def _sync_customer_stats_for_order(
+    db: AsyncSession, tenant_id: uuid.UUID, order: Order
+) -> None:
+    if order.customer_id is None:
+        return
+
+    customer = await customer_service.get_customer(db, order.customer_id, tenant_id)
+    if customer is None:
+        return
+
+    await customer_service.update_customer_stats(db, tenant_id, customer)
 
 
 async def _resolve_table_session(

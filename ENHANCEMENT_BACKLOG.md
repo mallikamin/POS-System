@@ -113,4 +113,29 @@
 
 ---
 
+## ENH-009: Clickable reports with drill-down funnels and CSV export
+- **Logged:** 2026-03-07 (Reports testing session)
+- **Source:** User request — reports should be interactive with clickable elements that drill into detail views, plus CSV export on every report section
+- **Description:** Make all report sections clickable/interactive:
+  - **Clickable funnels:** Click a waiter name → see their individual orders. Click a menu item → see order breakdown. Click a channel → see orders for that channel. Click an hour on the hourly chart → see orders placed in that hour.
+  - **CSV export per section:** Each report card (Sales Summary, Item Performance, Waiter Performance, Void Report, Payment Methods, Channel Breakdown, Hourly) gets its own CSV download button exporting that section's data.
+  - **Reference:** `C:\Users\Malik\desktop\radius2-analytics` for reporting patterns, clickable drill-down funnels, and export UX.
+- **Affected:** `frontend/src/pages/admin/ReportsPage.tsx`, `frontend/src/services/reportsApi.ts`, potentially new drill-down modal/page components
+- **Priority:** High
+- **Phase:** Post-UAT enhancement
+
+---
+
+## ENH-010: Z-Report print — tax breakdown by channel, cash vs card split
+- **Logged:** 2026-03-07 (Z-Report testing session)
+- **Source:** User request — printed Z-Report should include tax breakdown per channel and cash vs card payment split
+- **Description:** Add two sections to the Z-Report print layout:
+  1. **Tax breakdown by channel** — show tax collected per channel (Dine-In, Takeaway, Call Center) so accountant can reconcile per revenue stream
+  2. **Cash vs Card split** — clear side-by-side or row breakdown showing cash total vs card total (and any other payment methods) with percentages
+- **Affected:** `backend/app/services/zreport_service.py` (add tax-by-channel and payment-type aggregation), `frontend/src/pages/admin/ZReportPage.tsx` (render in print layout)
+- **Priority:** Medium
+- **Phase:** Post-UAT enhancement
+
+---
+
 *New items should be added below with sequential ENH-NNN numbering, date, source, and phase assignment.*

@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Receipt Preview Icon — Pick One</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #1e293b; color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 40px; }
+  h1 { text-align: center; margin-bottom: 32px; font-size: 24px; font-weight: 600; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; max-width: 900px; margin: 0 auto; }
+  .card {
+    background: #334155; border-radius: 12px; padding: 28px; text-align: center;
+    border: 2px solid transparent; cursor: pointer; transition: all 0.2s;
+  }
+  .card:hover { border-color: #22c55e; background: #3b4f6b; }
+  .icons { display: flex; justify-content: center; align-items: center; gap: 24px; margin-bottom: 16px; }
+  .icons svg { flex-shrink: 0; }
+  .label { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+  .desc { font-size: 13px; color: #94a3b8; }
+  .size-label { font-size: 10px; color: #64748b; margin-top: 2px; }
+  .note { text-align: center; margin-top: 32px; color: #64748b; font-size: 13px; }
+  .num { display: inline-block; background: #22c55e; color: #000; width: 22px; height: 22px; border-radius: 50%; font-size: 12px; font-weight: 700; line-height: 22px; margin-bottom: 12px; }
+</style>
+</head>
+<body>
+
+<h1>Receipt Preview Icon — Pick One (1-6)</h1>
+
+<div class="grid">
+
+  <!-- 1. Receipt scroll -->
+  <div class="card">
+    <div class="num">1</div>
+    <div class="icons">
+      <div>
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#f1f5f9" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 2v20l2-1.5 2 1.5 2-1.5 2 1.5 2-1.5 2 1.5 2-1.5 2 1.5V2l-2 1.5L16 2l-2 1.5L12 2l-2 1.5L8 2 6 3.5 4 2z"/>
+          <line x1="8" y1="7" x2="16" y2="7"/>
+          <line x1="8" y1="11" x2="16" y2="11"/>
+          <line x1="8" y1="15" x2="12" y2="15"/>
+        </svg>
+        <div class="size-label">48px</div>
+      </div>
+      <div>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#f1f5f9" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 2v20l2-1.5 2 1.5 2-1.5 2 1.5 2-1.5 2 1.5 2-1.5 2 1.5V2l-2 1.5L16 2l-2 1.5L12 2l-2 1.5L8 2 6 3.5 4 2z"/>
+          <line x1="8" y1="7" x2="16" y2="7"/>
+          <line x1="8" y1="11" x2="16" y2="11"/>
+          <line x1="8" y1="15" x2="12" y2="15"/>
+        </svg>
+        <div class="size-label">24px</div>
+      </div>
+    </div>
+    <div class="label">Receipt Scroll</div>
+    <div class="desc">Classic receipt with zigzag tear edges + bill lines</div>
+  </div>
+
+  <!-- 2. Document with lines -->
+  <div class="card">
+    <div class="num">2</div>
+    <div class="icons">
+      <div>
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#f1f5f9" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="8" y1="13" x2="16" y2="13"/>
+          <line x1="8" y1="17" x2="16" y2="17"/>
+          <line x1="8" y1="9" x2="10" y2="9"/>
+        </svg>
+        <div class="size-label">48px</div>
+      </div>
+      <div>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#f1f5f9" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="8" y1="13" x2="16" y2="13"/>
+          <line x1="8" y1="17" x2="16" y2="17"/>
+          <line x1="8" y1="9" x2="10" y2="9"/>
+        </svg>
+        <div class="size-label">24px</div>
+      </div>
+    </div>
+    <div class="label">Document + Lines</div>
+    <div class="desc">Page with folded corner and text lines (bill/invoice)</div>
+  </div>
+
+  <!-- 3. Receipt with checkmark -->
+  <div class="card">
+    <div class="num">3</div>
+    <div class="icons">
+      <div>
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#f1f5f9" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 2v20l2-1.5 2 1.5 2-1.5 2 1.5 2-1.5 2 1.5 2-1.5 2 1.5V2l-2 1.5L16 2l-2 1.5L12 2l-2 1.5L8 2 6 3.5 4 2z"/>
+          <polyline points="9 12 11 14 15 10"/>
+          <line x1="8" y1="7" x2="16" y2="7"/>
+        </svg>
+        <div class="size-label">48px</div>
+      </div>
+      <div>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#f1f5f9" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 2v20l2-1.5 2 1.5 2-1.5 2 1.5 2-1.5 2 1.5 2-1.5 2 1.5V2l-2 1.5L16 2l-2 1.5L12 2l-2 1.5L8 2 6 3.5 4 2z"/>
+          <polyline points="9 12 11 14 15 10"/>
+          <line x1="8" y1="7" x2="16" y2="7"/>
+        </svg>
+        <div class="size-label">24px</div>
+      </div>
+    </div>
+    <div class="label">Receipt + Checkmark</div>
+    <div class="desc">Receipt paper with verified/paid checkmark</div>
+  </div>
+
+  <!-- 4. Printer -->
+  <div class="card">
+    <div class="num">4</div>
+    <div class="icons">
+      <div>
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#f1f5f9" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="6 9 6 2 18 2 18 9"/>
+          <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+          <rect x="6" y="14" width="12" height="8"/>
+        </svg>
+        <div class="size-label">48px</div>
+      </div>
+      <div>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#f1f5f9" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="6 9 6 2 18 2 18 9"/>
+          <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+          <rect x="6" y="14" width="12" height="8"/>
+        </svg>
+        <div class="size-label">24px</div>
+      </div>
+    </div>
+    <div class="label">Thermal Printer</div>
+    <div class="desc">Printer icon — matches POS hardware context</div>
+  </div>
+
+  <!-- 5. Invoice / currency -->
+  <div class="card">
+    <div class="num">5</div>
+    <div class="icons">
+      <div>
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#f1f5f9" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <text x="12" y="17" text-anchor="middle" fill="#f1f5f9" stroke="none" font-size="8" font-weight="600" font-family="sans-serif">Rs</text>
+        </svg>
+        <div class="size-label">48px</div>
+      </div>
+      <div>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#f1f5f9" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <text x="12" y="17" text-anchor="middle" fill="#f1f5f9" stroke="none" font-size="8" font-weight="600" font-family="sans-serif">Rs</text>
+        </svg>
+        <div class="size-label">24px</div>
+      </div>
+    </div>
+    <div class="label">Invoice / Bill</div>
+    <div class="desc">Document with Rs currency — invoice/bill feel</div>
+  </div>
+
+  <!-- 6. Eye on document (preview) -->
+  <div class="card">
+    <div class="num">6</div>
+    <div class="icons">
+      <div>
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#f1f5f9" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <path d="M8 15.5s1.5-2 4-2 4 2 4 2-1.5 2-4 2-4-2-4-2z"/>
+          <circle cx="12" cy="15.5" r="1"/>
+        </svg>
+        <div class="size-label">48px</div>
+      </div>
+      <div>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#f1f5f9" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <path d="M8 15.5s1.5-2 4-2 4 2 4 2-1.5 2-4 2-4-2-4-2z"/>
+          <circle cx="12" cy="15.5" r="1"/>
+        </svg>
+        <div class="size-label">24px</div>
+      </div>
+    </div>
+    <div class="label">Document + Eye</div>
+    <div class="desc">Preview concept — "view this document"</div>
+  </div>
+
+</div>
+
+<p class="note">Icons render at 24px on order cards. 48px shown for detail. Hover to highlight. Tell me the number (1-6).</p>
+
+</body>
+</html>

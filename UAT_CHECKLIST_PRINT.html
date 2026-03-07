@@ -1,0 +1,2244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>POS System | UAT Checklist — Sitara Infotech | BPO World Limited</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Source+Serif+4:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+  /* ═══════════════════════════════════════════════════════════════
+     ROOT & RESET
+     ═══════════════════════════════════════════════════════════════ */
+  *, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  :root {
+    --ink: #0f0f0f;
+    --ink-secondary: #3a3a3a;
+    --ink-tertiary: #6b6b6b;
+    --ink-faint: #9a9a9a;
+    --canvas: #fafaf8;
+    --surface: #ffffff;
+    --surface-alt: #f5f4f1;
+    --surface-hover: #f0efec;
+    --gold: #b8860b;
+    --gold-light: #c5a55a;
+    --gold-pale: rgba(184, 134, 11, 0.08);
+    --gold-border: rgba(184, 134, 11, 0.25);
+    --pass-bg: #e9f5db;
+    --pass-text: #2d6a4f;
+    --pass-border: #b7e4c7;
+    --fail-bg: #fde8e8;
+    --fail-text: #c1121f;
+    --fail-border: #f5c6cb;
+    --rule: #e5e4e0;
+    --rule-dark: #d4d3cf;
+    --font-heading: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --font-body: 'Source Serif 4', 'Georgia', 'Times New Roman', serif;
+    --font-mono: 'SF Mono', 'Consolas', 'Liberation Mono', monospace;
+  }
+
+  /* ═══════════════════════════════════════════════════════════════
+     BASE TYPOGRAPHY
+     ═══════════════════════════════════════════════════════════════ */
+  html {
+    font-size: 15px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    font-family: var(--font-body);
+    color: var(--ink);
+    background: var(--canvas);
+    line-height: 1.65;
+    letter-spacing: 0.01em;
+  }
+
+  /* ═══════════════════════════════════════════════════════════════
+     DOCUMENT WRAPPER
+     ═══════════════════════════════════════════════════════════════ */
+  .document {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 60px 50px;
+  }
+
+  /* ═══════════════════════════════════════════════════════════════
+     DOCUMENT HEADER
+     ═══════════════════════════════════════════════════════════════ */
+  .doc-header {
+    text-align: center;
+    padding-bottom: 50px;
+    border-bottom: 1px solid var(--gold-border);
+    margin-bottom: 50px;
+  }
+
+  .doc-header__brand {
+    font-family: var(--font-heading);
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 5px;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 8px;
+  }
+
+  .doc-header__rule {
+    width: 60px;
+    height: 1px;
+    background: var(--gold);
+    margin: 16px auto;
+    border: none;
+  }
+
+  .doc-header__title {
+    font-family: var(--font-heading);
+    font-size: 1.7rem;
+    font-weight: 300;
+    letter-spacing: 1px;
+    color: var(--ink);
+    margin-bottom: 6px;
+    line-height: 1.3;
+  }
+
+  .doc-header__subtitle {
+    font-family: var(--font-body);
+    font-size: 1.05rem;
+    font-weight: 400;
+    color: var(--ink-secondary);
+    font-style: italic;
+    margin-bottom: 24px;
+  }
+
+  .doc-header__meta {
+    display: flex;
+    justify-content: center;
+    gap: 40px;
+    flex-wrap: wrap;
+  }
+
+  .doc-header__meta-item {
+    font-family: var(--font-heading);
+    font-size: 0.7rem;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--ink-tertiary);
+  }
+
+  .doc-header__meta-item span {
+    font-weight: 600;
+    color: var(--ink-secondary);
+  }
+
+  /* ═══════════════════════════════════════════════════════════════
+     EXECUTIVE SUMMARY DASHBOARD
+     ═══════════════════════════════════════════════════════════════ */
+  .summary {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-top: 2px solid var(--gold);
+    padding: 40px;
+    margin-bottom: 50px;
+  }
+
+  .summary__title {
+    font-family: var(--font-heading);
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 28px;
+  }
+
+  .summary__grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+    margin-bottom: 30px;
+  }
+
+  .summary__stat {
+    background: var(--surface);
+    padding: 24px 20px;
+    text-align: center;
+  }
+
+  .summary__stat-value {
+    font-family: var(--font-heading);
+    font-size: 2.2rem;
+    font-weight: 700;
+    line-height: 1;
+    margin-bottom: 6px;
+  }
+
+  .summary__stat-value--total { color: var(--ink); }
+  .summary__stat-value--pass { color: var(--pass-text); }
+  .summary__stat-value--fail { color: var(--fail-text); }
+  .summary__stat-value--rate { color: var(--gold); }
+
+  .summary__stat-label {
+    font-family: var(--font-heading);
+    font-size: 0.6rem;
+    font-weight: 500;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--ink-tertiary);
+  }
+
+  /* Pass rate bar */
+  .summary__bar-container {
+    position: relative;
+    height: 8px;
+    background: var(--fail-bg);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 12px;
+  }
+
+  .summary__bar-fill {
+    height: 100%;
+    width: 98.99%;
+    background: linear-gradient(90deg, var(--pass-text), #40916c);
+    border-radius: 4px;
+    transition: width 1s ease;
+  }
+
+  .summary__bar-labels {
+    display: flex;
+    justify-content: space-between;
+    font-family: var(--font-heading);
+    font-size: 0.6rem;
+    letter-spacing: 1px;
+    color: var(--ink-tertiary);
+  }
+
+  /* Verdict */
+  .summary__verdict {
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 1px solid var(--rule);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .summary__verdict-badge {
+    font-family: var(--font-heading);
+    font-size: 0.6rem;
+    font-weight: 600;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    padding: 6px 16px;
+    border-radius: 2px;
+    background: var(--pass-bg);
+    color: var(--pass-text);
+    border: 1px solid var(--pass-border);
+  }
+
+  .summary__verdict-text {
+    font-family: var(--font-body);
+    font-size: 0.9rem;
+    color: var(--ink-secondary);
+    font-style: italic;
+  }
+
+  /* ═══════════════════════════════════════════════════════════════
+     REFERENCE TABLES (Credentials + Routes)
+     ═══════════════════════════════════════════════════════════════ */
+  .ref-section {
+    margin-bottom: 50px;
+  }
+
+  .ref-section__title {
+    font-family: var(--font-heading);
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 16px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--gold-border);
+  }
+
+  .ref-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 30px;
+  }
+
+  .ref-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+  }
+
+  .ref-table th {
+    font-family: var(--font-heading);
+    font-size: 0.6rem;
+    font-weight: 600;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--ink-tertiary);
+    text-align: left;
+    padding: 8px 12px;
+    border-bottom: 2px solid var(--rule-dark);
+    background: var(--surface-alt);
+  }
+
+  .ref-table td {
+    padding: 7px 12px;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: top;
+  }
+
+  .ref-table tr:last-child td {
+    border-bottom: none;
+  }
+
+  .ref-table code {
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    background: var(--surface-alt);
+    padding: 1px 6px;
+    border-radius: 2px;
+    color: var(--ink-secondary);
+  }
+
+  .ref-table .role-badge {
+    font-family: var(--font-heading);
+    font-size: 0.6rem;
+    font-weight: 500;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border-radius: 2px;
+    background: var(--gold-pale);
+    color: var(--gold);
+    border: 1px solid var(--gold-border);
+  }
+
+  /* ═══════════════════════════════════════════════════════════════
+     MODULE SECTIONS
+     ═══════════════════════════════════════════════════════════════ */
+  .module {
+    margin-bottom: 0;
+    page-break-before: always;
+    padding-top: 40px;
+  }
+
+  .module:first-of-type {
+    page-break-before: avoid;
+  }
+
+  .module__header {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    margin-bottom: 6px;
+  }
+
+  .module__number {
+    font-family: var(--font-heading);
+    font-size: 0.6rem;
+    font-weight: 600;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--gold);
+    white-space: nowrap;
+  }
+
+  .module__title {
+    font-family: var(--font-heading);
+    font-size: 1.1rem;
+    font-weight: 500;
+    color: var(--ink);
+    letter-spacing: 0.5px;
+  }
+
+  .module__rule {
+    width: 100%;
+    height: 1px;
+    border: none;
+    background: linear-gradient(90deg, var(--gold), var(--gold-border) 40%, transparent);
+    margin-bottom: 24px;
+  }
+
+  .module__count {
+    font-family: var(--font-heading);
+    font-size: 0.6rem;
+    font-weight: 400;
+    letter-spacing: 1px;
+    color: var(--ink-faint);
+    margin-bottom: 20px;
+  }
+
+  /* ═══════════════════════════════════════════════════════════════
+     TEST CASE TABLES
+     ═══════════════════════════════════════════════════════════════ */
+  .test-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.82rem;
+    margin-bottom: 10px;
+  }
+
+  .test-table thead th {
+    font-family: var(--font-heading);
+    font-size: 0.58rem;
+    font-weight: 600;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    color: var(--ink-tertiary);
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 2px solid var(--rule-dark);
+    background: var(--surface-alt);
+    white-space: nowrap;
+  }
+
+  .test-table thead th:first-child {
+    width: 36px;
+    text-align: center;
+  }
+
+  .test-table thead th:nth-child(2) {
+    width: 72px;
+  }
+
+  .test-table thead th:last-child {
+    width: 68px;
+    text-align: center;
+  }
+
+  .test-table tbody td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: top;
+    line-height: 1.55;
+  }
+
+  .test-table tbody tr:nth-child(even) td {
+    background: rgba(245, 244, 241, 0.5);
+  }
+
+  .test-table tbody tr:hover td {
+    background: var(--surface-hover);
+  }
+
+  .test-table tbody tr:last-child td {
+    border-bottom: 1px solid var(--rule-dark);
+  }
+
+  /* Checkbox column */
+  .col-check {
+    text-align: center;
+    vertical-align: middle !important;
+  }
+
+  .col-check input[type="checkbox"] {
+    width: 15px;
+    height: 15px;
+    accent-color: var(--gold);
+    cursor: pointer;
+  }
+
+  /* ID column */
+  .col-id {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    color: var(--ink-tertiary);
+    white-space: nowrap;
+    font-weight: 500;
+  }
+
+  /* Test case column */
+  .col-case {
+    font-family: var(--font-heading);
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--ink);
+    min-width: 160px;
+  }
+
+  /* Steps column */
+  .col-steps {
+    font-family: var(--font-body);
+    font-size: 0.8rem;
+    color: var(--ink-secondary);
+    min-width: 180px;
+  }
+
+  .col-steps ol {
+    margin: 0;
+    padding-left: 16px;
+  }
+
+  .col-steps ol li {
+    margin-bottom: 2px;
+  }
+
+  .col-steps code {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    background: var(--surface-alt);
+    padding: 0 4px;
+    border-radius: 2px;
+  }
+
+  /* Expected column */
+  .col-expected {
+    font-family: var(--font-body);
+    font-size: 0.8rem;
+    color: var(--ink-secondary);
+    min-width: 180px;
+  }
+
+  /* Status badges */
+  .col-status {
+    text-align: center;
+    vertical-align: middle !important;
+  }
+
+  .badge {
+    display: inline-block;
+    font-family: var(--font-heading);
+    font-size: 0.55rem;
+    font-weight: 600;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 4px 12px;
+    border-radius: 2px;
+    white-space: nowrap;
+  }
+
+  .badge--pass {
+    background: var(--pass-bg);
+    color: var(--pass-text);
+    border: 1px solid var(--pass-border);
+  }
+
+  .badge--fail {
+    background: var(--fail-bg);
+    color: var(--fail-text);
+    border: 1px solid var(--fail-border);
+  }
+
+  /* ═══════════════════════════════════════════════════════════════
+     EXECUTION ORDER & STOP CRITERIA
+     ═══════════════════════════════════════════════════════════════ */
+  .appendix {
+    page-break-before: always;
+    padding-top: 40px;
+    margin-bottom: 50px;
+  }
+
+  .appendix__title {
+    font-family: var(--font-heading);
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 6px;
+  }
+
+  .appendix__rule {
+    width: 100%;
+    height: 1px;
+    border: none;
+    background: linear-gradient(90deg, var(--gold), var(--gold-border) 40%, transparent);
+    margin-bottom: 20px;
+  }
+
+  .appendix ol {
+    padding-left: 24px;
+    font-size: 0.88rem;
+    color: var(--ink-secondary);
+  }
+
+  .appendix ol li {
+    margin-bottom: 6px;
+    padding-left: 4px;
+  }
+
+  .appendix ol li strong {
+    color: var(--ink);
+    font-weight: 600;
+  }
+
+  .appendix ol li code {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--ink-tertiary);
+  }
+
+  .stop-criteria {
+    margin-top: 30px;
+    padding: 24px 28px;
+    border: 1px solid var(--fail-border);
+    border-left: 3px solid var(--fail-text);
+    background: var(--fail-bg);
+  }
+
+  .stop-criteria__title {
+    font-family: var(--font-heading);
+    font-size: 0.6rem;
+    font-weight: 600;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--fail-text);
+    margin-bottom: 12px;
+  }
+
+  .stop-criteria ul {
+    padding-left: 18px;
+    font-size: 0.85rem;
+    color: var(--ink-secondary);
+  }
+
+  .stop-criteria ul li {
+    margin-bottom: 4px;
+  }
+
+  /* ═══════════════════════════════════════════════════════════════
+     SIGNATURE BLOCK
+     ═══════════════════════════════════════════════════════════════ */
+  .signatures {
+    page-break-before: always;
+    padding-top: 40px;
+    margin-top: 60px;
+  }
+
+  .signatures__title {
+    font-family: var(--font-heading);
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 6px;
+  }
+
+  .signatures__rule {
+    width: 100%;
+    height: 1px;
+    border: none;
+    background: linear-gradient(90deg, var(--gold), var(--gold-border) 40%, transparent);
+    margin-bottom: 40px;
+  }
+
+  .signatures__grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 60px;
+  }
+
+  .sig-block {
+    padding-top: 80px;
+  }
+
+  .sig-block__line {
+    border-top: 1px solid var(--ink-tertiary);
+    padding-top: 8px;
+  }
+
+  .sig-block__role {
+    font-family: var(--font-heading);
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--ink);
+    margin-bottom: 2px;
+  }
+
+  .sig-block__detail {
+    font-family: var(--font-heading);
+    font-size: 0.6rem;
+    letter-spacing: 1px;
+    color: var(--ink-tertiary);
+  }
+
+  /* ═══════════════════════════════════════════════════════════════
+     DOCUMENT FOOTER
+     ═══════════════════════════════════════════════════════════════ */
+  .doc-footer {
+    margin-top: 60px;
+    padding-top: 20px;
+    border-top: 1px solid var(--gold-border);
+    text-align: center;
+  }
+
+  .doc-footer__text {
+    font-family: var(--font-heading);
+    font-size: 0.58rem;
+    font-weight: 500;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+
+  /* ═══════════════════════════════════════════════════════════════
+     PRINT STYLES
+     ═══════════════════════════════════════════════════════════════ */
+  @media print {
+    @page {
+      size: A4;
+      margin: 18mm 15mm 20mm 15mm;
+    }
+
+    html {
+      font-size: 11px;
+    }
+
+    body {
+      background: white;
+      color: #000;
+    }
+
+    .document {
+      max-width: 100%;
+      padding: 0;
+    }
+
+    .no-print {
+      display: none !important;
+    }
+
+    .module {
+      page-break-before: always;
+    }
+
+    .module:first-of-type {
+      page-break-before: avoid;
+    }
+
+    .test-table {
+      page-break-inside: auto;
+    }
+
+    .test-table thead {
+      display: table-header-group;
+    }
+
+    .test-table tbody tr {
+      page-break-inside: avoid;
+    }
+
+    .summary {
+      page-break-after: always;
+    }
+
+    .ref-section {
+      page-break-inside: avoid;
+    }
+
+    .appendix {
+      page-break-before: always;
+    }
+
+    .signatures {
+      page-break-before: always;
+    }
+
+    /* Ensure badges print with color */
+    .badge--pass {
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+      background: #e9f5db !important;
+      color: #2d6a4f !important;
+      border-color: #b7e4c7 !important;
+    }
+
+    .badge--fail {
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+      background: #fde8e8 !important;
+      color: #c1121f !important;
+      border-color: #f5c6cb !important;
+    }
+
+    .summary__stat-value--pass { color: #2d6a4f !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .summary__stat-value--fail { color: #c1121f !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .summary__stat-value--rate { color: #b8860b !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+    .summary__bar-fill {
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .summary__grid {
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .test-table tbody tr:nth-child(even) td {
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+      background: #f8f7f5 !important;
+    }
+
+    .col-check input[type="checkbox"] {
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .stop-criteria {
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    /* Print footer on each page */
+    body::after {
+      content: "Confidential — Sitara Infotech | BPO World Limited";
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      text-align: center;
+      font-family: var(--font-heading);
+      font-size: 7pt;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: #9a9a9a;
+      padding-bottom: 2mm;
+    }
+  }
+
+  /* ═══════════════════════════════════════════════════════════════
+     RESPONSIVE
+     ═══════════════════════════════════════════════════════════════ */
+  @media (max-width: 900px) {
+    .document {
+      padding: 30px 20px;
+    }
+
+    .summary__grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+
+    .ref-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .signatures__grid {
+      grid-template-columns: 1fr;
+      gap: 40px;
+    }
+
+    .test-table {
+      font-size: 0.75rem;
+    }
+  }
+</style>
+</head>
+<body>
+
+<div class="document">
+
+  <!-- ════════════════════════════════════════════════════════════
+       DOCUMENT HEADER
+       ════════════════════════════════════════════════════════════ -->
+  <header class="doc-header">
+    <div class="doc-header__brand">Sitara Infotech | BPO World Limited</div>
+    <hr class="doc-header__rule">
+    <h1 class="doc-header__title">POS System</h1>
+    <p class="doc-header__subtitle">User Acceptance Testing Checklist</p>
+    <div class="doc-header__meta">
+      <div class="doc-header__meta-item">Date <span>1 March 2026</span></div>
+      <div class="doc-header__meta-item">Version <span>1.1</span></div>
+      <div class="doc-header__meta-item">Environment <span>pos-demo.duckdns.org</span></div>
+      <div class="doc-header__meta-item">Classification <span>Confidential</span></div>
+    </div>
+  </header>
+
+  <!-- ════════════════════════════════════════════════════════════
+       EXECUTIVE SUMMARY
+       ════════════════════════════════════════════════════════════ -->
+  <section class="summary">
+    <div class="summary__title">Executive Summary</div>
+    <div class="summary__grid">
+      <div class="summary__stat">
+        <div class="summary__stat-value summary__stat-value--total">99</div>
+        <div class="summary__stat-label">Total Tests</div>
+      </div>
+      <div class="summary__stat">
+        <div class="summary__stat-value summary__stat-value--pass">98</div>
+        <div class="summary__stat-label">Passed</div>
+      </div>
+      <div class="summary__stat">
+        <div class="summary__stat-value summary__stat-value--fail">1</div>
+        <div class="summary__stat-label">Failed</div>
+      </div>
+      <div class="summary__stat">
+        <div class="summary__stat-value summary__stat-value--rate">98.99%</div>
+        <div class="summary__stat-label">Pass Rate</div>
+      </div>
+    </div>
+    <div class="summary__bar-container">
+      <div class="summary__bar-fill"></div>
+    </div>
+    <div class="summary__bar-labels">
+      <span>98 Passed</span>
+      <span>1 Failed (UAT-093)</span>
+    </div>
+    <div class="summary__verdict">
+      <div class="summary__verdict-badge">Conditional Pass</div>
+      <div class="summary__verdict-text">One non-critical defect remains in error toast formatting (UAT-093). All functional, financial, and data integrity tests pass.</div>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════════
+       REFERENCE: CREDENTIALS & ROUTES
+       ════════════════════════════════════════════════════════════ -->
+  <section class="ref-section">
+    <div class="ref-section__title">Reference</div>
+    <div class="ref-grid">
+
+      <!-- Credentials -->
+      <div>
+        <table class="ref-table">
+          <thead>
+            <tr><th>User</th><th>Email</th><th>Password</th><th>PIN</th><th>Role</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Admin User</td>
+              <td><code>admin@demo.com</code></td>
+              <td><code>admin123</code></td>
+              <td><code>1234</code></td>
+              <td><span class="role-badge">Admin</span></td>
+            </tr>
+            <tr>
+              <td>Cashier User</td>
+              <td><code>cashier@demo.com</code></td>
+              <td><code>cashier123</code></td>
+              <td><code>5678</code></td>
+              <td><span class="role-badge">Cashier</span></td>
+            </tr>
+            <tr>
+              <td>Kitchen User</td>
+              <td><code>kitchen@demo.com</code></td>
+              <td><code>kitchen123</code></td>
+              <td><code>9012</code></td>
+              <td><span class="role-badge">Kitchen</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Routes -->
+      <div>
+        <table class="ref-table">
+          <thead>
+            <tr><th>Route</th><th>Description</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>/login</code></td><td>Login page (PIN or password)</td></tr>
+            <tr><td><code>/</code></td><td>Channel selector dashboard</td></tr>
+            <tr><td><code>/dine-in</code></td><td>Dine-In POS with floor plan</td></tr>
+            <tr><td><code>/takeaway</code></td><td>Takeaway POS</td></tr>
+            <tr><td><code>/call-center</code></td><td>Call Center POS</td></tr>
+            <tr><td><code>/orders</code></td><td>Order management list</td></tr>
+            <tr><td><code>/payment/:id</code></td><td>Payment processing</td></tr>
+            <tr><td><code>/floor-editor</code></td><td>Floor plan editor (admin)</td></tr>
+            <tr><td><code>/kitchen</code></td><td>KDS fullscreen Kanban</td></tr>
+            <tr><td><code>/admin</code></td><td>Admin dashboard</td></tr>
+            <tr><td><code>/admin/menu</code></td><td>Menu management</td></tr>
+            <tr><td><code>/admin/staff</code></td><td>Staff management</td></tr>
+            <tr><td><code>/admin/settings</code></td><td>Restaurant settings</td></tr>
+            <tr><td><code>/admin/reports</code></td><td>Sales reports</td></tr>
+            <tr><td><code>/admin/z-report</code></td><td>Z-Report daily settlement</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════════
+       MODULE 1: Authentication and Login
+       ════════════════════════════════════════════════════════════ -->
+  <section class="module">
+    <div class="module__header">
+      <span class="module__number">Module 01</span>
+      <h2 class="module__title">Authentication and Login</h2>
+    </div>
+    <hr class="module__rule">
+    <div class="module__count">9 test cases &mdash; 9 passed, 0 failed</div>
+    <table class="test-table">
+      <thead>
+        <tr>
+          <th title="Manual verification checkbox">&#10003;</th>
+          <th>ID</th>
+          <th>Test Case</th>
+          <th>Steps</th>
+          <th>Expected Result</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-001</td>
+          <td class="col-case">PIN login with valid admin PIN</td>
+          <td class="col-steps"><ol><li>Navigate to <code>/login</code></li><li>Enter <code>1234</code> on PIN pad</li><li>Submit</li></ol></td>
+          <td class="col-expected">Redirected to <code>/</code>. Header shows "Admin User".</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-002</td>
+          <td class="col-case">PIN login with valid cashier PIN</td>
+          <td class="col-steps"><ol><li>Enter <code>5678</code> on PIN pad</li><li>Submit</li></ol></td>
+          <td class="col-expected">Redirected to <code>/</code>. Header shows "Cashier User".</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-003</td>
+          <td class="col-case">PIN login with invalid PIN</td>
+          <td class="col-steps"><ol><li>Enter <code>0000</code></li><li>Submit</li></ol></td>
+          <td class="col-expected">Error message. User stays on login page.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-004</td>
+          <td class="col-case">Password login valid</td>
+          <td class="col-steps"><ol><li>Switch to password mode</li><li>Enter <code>admin@demo.com</code> / <code>admin123</code></li><li>Sign In</li></ol></td>
+          <td class="col-expected">Redirected to <code>/</code>.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-005</td>
+          <td class="col-case">Password login wrong password</td>
+          <td class="col-steps"><ol><li>Enter <code>admin@demo.com</code> / <code>wrong123</code></li></ol></td>
+          <td class="col-expected">Error message. Stays on login page.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-006</td>
+          <td class="col-case">Mode toggle PIN / Password</td>
+          <td class="col-steps"><ol><li>Toggle between PIN and password modes via links</li></ol></td>
+          <td class="col-expected">Both modes render correctly.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-007</td>
+          <td class="col-case">Authenticated redirect on login page</td>
+          <td class="col-steps"><ol><li>Log in</li><li>Navigate to <code>/login</code></li></ol></td>
+          <td class="col-expected">Redirected to <code>/</code>.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-008</td>
+          <td class="col-case">Logout clears session</td>
+          <td class="col-steps"><ol><li>Click logout icon in header</li></ol></td>
+          <td class="col-expected">Redirected to <code>/login</code>. Protected routes blocked.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-009</td>
+          <td class="col-case">Unauthenticated route protection</td>
+          <td class="col-steps"><ol><li>Clear localStorage</li><li>Navigate to <code>/dine-in</code></li></ol></td>
+          <td class="col-expected">Redirected to <code>/login</code>.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════════
+       MODULE 2: Dashboard (Channel Selector)
+       ════════════════════════════════════════════════════════════ -->
+  <section class="module">
+    <div class="module__header">
+      <span class="module__number">Module 02</span>
+      <h2 class="module__title">Dashboard (Channel Selector)</h2>
+    </div>
+    <hr class="module__rule">
+    <div class="module__count">4 test cases &mdash; 4 passed, 0 failed</div>
+    <table class="test-table">
+      <thead>
+        <tr>
+          <th>&#10003;</th>
+          <th>ID</th>
+          <th>Test Case</th>
+          <th>Steps</th>
+          <th>Expected Result</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-010</td>
+          <td class="col-case">Three channel cards displayed</td>
+          <td class="col-steps"><ol><li>Log in</li><li>View <code>/</code></li></ol></td>
+          <td class="col-expected">Three cards: Dine-In (blue), Takeaway (green), Call Center (accent).</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-011</td>
+          <td class="col-case">Dine-In card navigates</td>
+          <td class="col-steps"><ol><li>Click Dine-In card</li></ol></td>
+          <td class="col-expected">Navigated to <code>/dine-in</code>.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-012</td>
+          <td class="col-case">Takeaway card navigates</td>
+          <td class="col-steps"><ol><li>Click Takeaway card</li></ol></td>
+          <td class="col-expected">Navigated to <code>/takeaway</code>.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-013</td>
+          <td class="col-case">Call Center card navigates</td>
+          <td class="col-steps"><ol><li>Click Call Center card</li></ol></td>
+          <td class="col-expected">Navigated to <code>/call-center</code>.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════════
+       MODULE 3: Dine-In Order Flow
+       ════════════════════════════════════════════════════════════ -->
+  <section class="module">
+    <div class="module__header">
+      <span class="module__number">Module 03</span>
+      <h2 class="module__title">Dine-In Order Flow</h2>
+    </div>
+    <hr class="module__rule">
+    <div class="module__count">9 test cases &mdash; 9 passed, 0 failed</div>
+    <table class="test-table">
+      <thead>
+        <tr>
+          <th>&#10003;</th>
+          <th>ID</th>
+          <th>Test Case</th>
+          <th>Steps</th>
+          <th>Expected Result</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-014</td>
+          <td class="col-case">Floor plan loads with tables</td>
+          <td class="col-steps"><ol><li>Navigate to <code>/dine-in</code></li></ol></td>
+          <td class="col-expected">Floor tabs visible. Tables rendered with color-coded status.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-015</td>
+          <td class="col-case">Table selection enables menu</td>
+          <td class="col-steps"><ol><li>Click an available table</li></ol></td>
+          <td class="col-expected">MenuGrid appears with category tabs and item cards.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-016</td>
+          <td class="col-case">Add item to cart</td>
+          <td class="col-steps"><ol><li>Click a menu item</li></ol></td>
+          <td class="col-expected">Item appears in CartPanel with name, qty, price. Totals update.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-017</td>
+          <td class="col-case">Modifier selection</td>
+          <td class="col-steps"><ol><li>Click item with modifiers</li></ol></td>
+          <td class="col-expected">ModifierModal opens. Select modifier. Item added with modifier badge.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-018</td>
+          <td class="col-case">Quantity adjustment</td>
+          <td class="col-steps"><ol><li>Use +/&minus; buttons on cart line</li></ol></td>
+          <td class="col-expected">Quantity and line total update. "&minus;" at qty 1 removes item.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-019</td>
+          <td class="col-case">Remove item from cart</td>
+          <td class="col-steps"><ol><li>Click X on cart line</li></ol></td>
+          <td class="col-expected">Item removed. Empty cart shows placeholder.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-020</td>
+          <td class="col-case">Send to Kitchen (dine-in)</td>
+          <td class="col-steps"><ol><li>Add items</li><li>Click "Send to Kitchen"</li></ol></td>
+          <td class="col-expected">Order created. Cart clears. Table turns occupied (red).</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-021</td>
+          <td class="col-case">Multi-table cart switching</td>
+          <td class="col-steps"><ol><li>Select Table A, add items</li><li>Switch to Table B, add items</li><li>Switch back to A</li></ol></td>
+          <td class="col-expected">Each table's cart preserved independently.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-022</td>
+          <td class="col-case">Clear Order confirmation</td>
+          <td class="col-steps"><ol><li>Add items</li><li>Click "Clear Order"</li></ol></td>
+          <td class="col-expected">Confirmation dialog. "Clear All" empties cart.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════════
+       MODULE 4: Takeaway Order Flow
+       ════════════════════════════════════════════════════════════ -->
+  <section class="module">
+    <div class="module__header">
+      <span class="module__number">Module 04</span>
+      <h2 class="module__title">Takeaway Order Flow</h2>
+    </div>
+    <hr class="module__rule">
+    <div class="module__count">3 test cases &mdash; 3 passed, 0 failed</div>
+    <table class="test-table">
+      <thead>
+        <tr>
+          <th>&#10003;</th>
+          <th>ID</th>
+          <th>Test Case</th>
+          <th>Steps</th>
+          <th>Expected Result</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-023</td>
+          <td class="col-case">Takeaway page layout</td>
+          <td class="col-steps"><ol><li>Navigate to <code>/takeaway</code></li></ol></td>
+          <td class="col-expected">MenuGrid + CartPanel. No floor plan. OrderTicker at bottom.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-024</td>
+          <td class="col-case">Submit takeaway order</td>
+          <td class="col-steps"><ol><li>Add items</li><li>Click "Send to Kitchen"</li></ol></td>
+          <td class="col-expected">Order created as "takeaway". Cart clears.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-025</td>
+          <td class="col-case">PKR currency verification</td>
+          <td class="col-steps"><ol><li>Add item at Rs. 650</li><li>Check tax/total</li></ol></td>
+          <td class="col-expected">Subtotal Rs. 650, Tax Rs. 104 (16%), Total Rs. 754.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════════
+       MODULE 5: Call Center Order Flow
+       ════════════════════════════════════════════════════════════ -->
+  <section class="module">
+    <div class="module__header">
+      <span class="module__number">Module 05</span>
+      <h2 class="module__title">Call Center Order Flow</h2>
+    </div>
+    <hr class="module__rule">
+    <div class="module__count">7 test cases &mdash; 7 passed, 0 failed</div>
+    <table class="test-table">
+      <thead>
+        <tr>
+          <th>&#10003;</th>
+          <th>ID</th>
+          <th>Test Case</th>
+          <th>Steps</th>
+          <th>Expected Result</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-026</td>
+          <td class="col-case">Phone search &mdash; existing customer</td>
+          <td class="col-steps"><ol><li>Enter known phone digits</li></ol></td>
+          <td class="col-expected">Results appear after 500ms debounce.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-027</td>
+          <td class="col-case">Auto-select single result</td>
+          <td class="col-steps"><ol><li>Enter phone matching one customer</li></ol></td>
+          <td class="col-expected">Customer auto-selected. Info card + menu + history load.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-028</td>
+          <td class="col-case">Create new customer</td>
+          <td class="col-steps"><ol><li>Enter unknown phone</li><li>Click "Create New Customer"</li></ol></td>
+          <td class="col-expected">Dialog opens with phone pre-filled. Create customer. Auto-selected.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-029</td>
+          <td class="col-case">Edit existing customer</td>
+          <td class="col-steps"><ol><li>Select customer</li><li>Click edit icon</li><li>Modify</li><li>Update</li></ol></td>
+          <td class="col-expected">Customer info card reflects changes.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-030</td>
+          <td class="col-case">Repeat order from history</td>
+          <td class="col-steps"><ol><li>Select customer with history</li><li>Click "Repeat Order"</li></ol></td>
+          <td class="col-expected">Cart filled with items from historical order.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-031</td>
+          <td class="col-case">Menu hidden until customer selected</td>
+          <td class="col-steps"><ol><li>No customer selected</li></ol></td>
+          <td class="col-expected">Center shows "Search for a customer to start ordering".</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-032</td>
+          <td class="col-case">Submit call center order</td>
+          <td class="col-steps"><ol><li>Select customer</li><li>Add items</li><li>Send to Kitchen</li></ol></td>
+          <td class="col-expected">Order type "call_center" with customer_name and customer_phone.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════════
+       MODULE 6: Kitchen Display (KDS)
+       ════════════════════════════════════════════════════════════ -->
+  <section class="module">
+    <div class="module__header">
+      <span class="module__number">Module 06</span>
+      <h2 class="module__title">Kitchen Display System (KDS)</h2>
+    </div>
+    <hr class="module__rule">
+    <div class="module__count">8 test cases &mdash; 8 passed, 0 failed</div>
+    <table class="test-table">
+      <thead>
+        <tr>
+          <th>&#10003;</th>
+          <th>ID</th>
+          <th>Test Case</th>
+          <th>Steps</th>
+          <th>Expected Result</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-033</td>
+          <td class="col-case">KDS fullscreen layout</td>
+          <td class="col-steps"><ol><li>Navigate to <code>/kitchen</code></li></ol></td>
+          <td class="col-expected">Dark Kanban board. 4 columns: New, Preparing, Ready, Served.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-034</td>
+          <td class="col-case">Ticket info display</td>
+          <td class="col-steps"><ol><li>View tickets</li></ol></td>
+          <td class="col-expected">Order number, type badge, elapsed time (color-coded), items, total.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-035</td>
+          <td class="col-case">Bump ticket (New to Preparing)</td>
+          <td class="col-steps"><ol><li>Click "Start" on New ticket</li></ol></td>
+          <td class="col-expected">Ticket moves to Preparing. Column counts update.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-036</td>
+          <td class="col-case">Full lifecycle via bump</td>
+          <td class="col-steps"><ol><li>Bump: New &rarr; Preparing &rarr; Ready &rarr; Served</li></ol></td>
+          <td class="col-expected">Ticket moves through all columns.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-037</td>
+          <td class="col-case">Recall ticket</td>
+          <td class="col-steps"><ol><li>Click "Recall"</li></ol></td>
+          <td class="col-expected">Yellow highlight + "Recalled" badge. "Clear" removes it.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-038</td>
+          <td class="col-case">Station filter</td>
+          <td class="col-steps"><ol><li>Select specific station from dropdown</li></ol></td>
+          <td class="col-expected">Only that station's tickets shown.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-039</td>
+          <td class="col-case">Audio toggle</td>
+          <td class="col-steps"><ol><li>Click Audio button</li></ol></td>
+          <td class="col-expected">Toggles on/off. Beep plays on new ticket when on.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-040</td>
+          <td class="col-case">WebSocket status</td>
+          <td class="col-steps"><ol><li>Observe badge</li></ol></td>
+          <td class="col-expected">"Realtime" (green) when connected, "Degraded" (red) when not.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════════
+       MODULE 7: Order Management
+       ════════════════════════════════════════════════════════════ -->
+  <section class="module">
+    <div class="module__header">
+      <span class="module__number">Module 07</span>
+      <h2 class="module__title">Order Management</h2>
+    </div>
+    <hr class="module__rule">
+    <div class="module__count">9 test cases &mdash; 9 passed, 0 failed</div>
+    <table class="test-table">
+      <thead>
+        <tr>
+          <th>&#10003;</th>
+          <th>ID</th>
+          <th>Test Case</th>
+          <th>Steps</th>
+          <th>Expected Result</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-041</td>
+          <td class="col-case">Orders page with filter tabs</td>
+          <td class="col-steps"><ol><li>Navigate to <code>/orders</code></li></ol></td>
+          <td class="col-expected">5 tabs: All, Active, In Kitchen, Ready, Completed.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-042</td>
+          <td class="col-case">Filter tabs switch content</td>
+          <td class="col-steps"><ol><li>Click each tab</li></ol></td>
+          <td class="col-expected">Orders filtered by status.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-043</td>
+          <td class="col-case">Order card info</td>
+          <td class="col-steps"><ol><li>View order card</li></ol></td>
+          <td class="col-expected">Shows #number, type badge, status, elapsed time, items, total.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-044</td>
+          <td class="col-case">Status transition</td>
+          <td class="col-steps"><ol><li>Click action button on order card</li></ol></td>
+          <td class="col-expected">Status advances. Badge + button update.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-045</td>
+          <td class="col-case">Void order</td>
+          <td class="col-steps"><ol><li>Click "Void"</li><li>Confirm</li></ol></td>
+          <td class="col-expected">Status &rarr; Voided. Red badge. Card faded.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-046</td>
+          <td class="col-case">Navigate to payment</td>
+          <td class="col-steps"><ol><li>Click "Pay" on unpaid order</li></ol></td>
+          <td class="col-expected">Navigated to <code>/payment/{orderId}</code>.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-047</td>
+          <td class="col-case">Receipt preview</td>
+          <td class="col-steps"><ol><li>Click receipt icon</li></ol></td>
+          <td class="col-expected">ReceiptModal with thermal layout.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-048</td>
+          <td class="col-case">Auto-refresh (15s)</td>
+          <td class="col-steps"><ol><li>Create order in another tab</li><li>Wait 15s</li></ol></td>
+          <td class="col-expected">New order appears without manual refresh.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-049</td>
+          <td class="col-case">Order Ticker on POS pages</td>
+          <td class="col-steps"><ol><li>View bottom bar on <code>/dine-in</code>, <code>/takeaway</code>, <code>/call-center</code></li></ol></td>
+          <td class="col-expected">Live ticker of recent orders.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════════
+       MODULE 8: Payments
+       ════════════════════════════════════════════════════════════ -->
+  <section class="module">
+    <div class="module__header">
+      <span class="module__number">Module 08</span>
+      <h2 class="module__title">Payments</h2>
+    </div>
+    <hr class="module__rule">
+    <div class="module__count">5 test cases &mdash; 5 passed, 0 failed</div>
+    <table class="test-table">
+      <thead>
+        <tr>
+          <th>&#10003;</th>
+          <th>ID</th>
+          <th>Test Case</th>
+          <th>Steps</th>
+          <th>Expected Result</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-050</td>
+          <td class="col-case">Payment page loads</td>
+          <td class="col-steps"><ol><li>Navigate to <code>/payment/{orderId}</code></li></ol></td>
+          <td class="col-expected">Due amount, summary card, payment mode tabs.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-051</td>
+          <td class="col-case">Cash payment with change</td>
+          <td class="col-steps"><ol><li>Cash mode</li><li>Amount = total</li><li>Tendered = 1000</li><li>Post</li></ol></td>
+          <td class="col-expected">Paid updates. Change shown. Due = Rs. 0.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-052</td>
+          <td class="col-case">Card payment</td>
+          <td class="col-steps"><ol><li>Card mode</li><li>Amount = total</li><li>Reference filled</li><li>Post</li></ol></td>
+          <td class="col-expected">Paid. Transaction shows "card".</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-053</td>
+          <td class="col-case">Split payment</td>
+          <td class="col-steps"><ol><li>Split mode</li><li>Cash + Card amounts sum to total</li><li>Post</li></ol></td>
+          <td class="col-expected">Both transactions recorded. Due = Rs. 0.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-054</td>
+          <td class="col-case">Cash drawer open/close</td>
+          <td class="col-steps"><ol><li>Open session</li><li>Then close</li></ol></td>
+          <td class="col-expected">Status toggles. Messages confirm actions.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════════
+       MODULE 9: Menu Management (Admin)
+       ════════════════════════════════════════════════════════════ -->
+  <section class="module">
+    <div class="module__header">
+      <span class="module__number">Module 09</span>
+      <h2 class="module__title">Menu Management (Admin)</h2>
+    </div>
+    <hr class="module__rule">
+    <div class="module__count">9 test cases &mdash; 9 passed, 0 failed</div>
+    <table class="test-table">
+      <thead>
+        <tr>
+          <th>&#10003;</th>
+          <th>ID</th>
+          <th>Test Case</th>
+          <th>Steps</th>
+          <th>Expected Result</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-055</td>
+          <td class="col-case">3 tabs loaded</td>
+          <td class="col-steps"><ol><li>Navigate to <code>/admin/menu</code></li></ol></td>
+          <td class="col-expected">Categories, Menu Items, Modifier Groups tabs.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-056</td>
+          <td class="col-case">Create category</td>
+          <td class="col-steps"><ol><li>Add Category</li><li>Fill fields</li><li>Create</li></ol></td>
+          <td class="col-expected">New category in list with Active badge.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-057</td>
+          <td class="col-case">Edit category</td>
+          <td class="col-steps"><ol><li>Click edit</li><li>Change name</li><li>Update</li></ol></td>
+          <td class="col-expected">Name updates.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-058</td>
+          <td class="col-case">Toggle category active</td>
+          <td class="col-steps"><ol><li>Click toggle switch</li></ol></td>
+          <td class="col-expected">Badge flips Active/Inactive.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-059</td>
+          <td class="col-case">Delete category</td>
+          <td class="col-steps"><ol><li>Click trash</li><li>Confirm</li></ol></td>
+          <td class="col-expected">Category removed.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-060</td>
+          <td class="col-case">Create menu item</td>
+          <td class="col-steps"><ol><li>Menu Items tab</li><li>Add Item</li><li>Fill fields</li><li>Create</li></ol></td>
+          <td class="col-expected">New item card with price and category.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-061</td>
+          <td class="col-case">Edit item with modifiers</td>
+          <td class="col-steps"><ol><li>Edit item</li><li>Change price</li><li>Toggle modifier groups</li><li>Update</li></ol></td>
+          <td class="col-expected">Updates reflected.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-062</td>
+          <td class="col-case">Create modifier group + options</td>
+          <td class="col-steps"><ol><li>Modifier Groups tab</li><li>Add group</li><li>Add option</li></ol></td>
+          <td class="col-expected">Group with option visible. Price badge shows.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-063</td>
+          <td class="col-case">Category filter on Items</td>
+          <td class="col-steps"><ol><li>Use category dropdown filter</li></ol></td>
+          <td class="col-expected">Items filtered to selected category.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════════
+       MODULE 10: Floor Editor (Admin)
+       ════════════════════════════════════════════════════════════ -->
+  <section class="module">
+    <div class="module__header">
+      <span class="module__number">Module 10</span>
+      <h2 class="module__title">Floor Editor (Admin)</h2>
+    </div>
+    <hr class="module__rule">
+    <div class="module__count">7 test cases &mdash; 7 passed, 0 failed</div>
+    <table class="test-table">
+      <thead>
+        <tr>
+          <th>&#10003;</th>
+          <th>ID</th>
+          <th>Test Case</th>
+          <th>Steps</th>
+          <th>Expected Result</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-064</td>
+          <td class="col-case">Floor Editor loads</td>
+          <td class="col-steps"><ol><li>Navigate to <code>/floor-editor</code></li></ol></td>
+          <td class="col-expected">Floor tabs. Tables on dot-grid canvas.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-065</td>
+          <td class="col-case">Drag and drop table</td>
+          <td class="col-steps"><ol><li>Drag table to new position</li></ol></td>
+          <td class="col-expected">Table follows mouse. Save button enables.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-066</td>
+          <td class="col-case">Save positions</td>
+          <td class="col-steps"><ol><li>Click "Save Layout"</li></ol></td>
+          <td class="col-expected">Success message. Save button disables.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-067</td>
+          <td class="col-case">Add table</td>
+          <td class="col-steps"><ol><li>Click "Add Table"</li><li>Fill fields</li><li>Add</li></ol></td>
+          <td class="col-expected">New table on canvas.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-068</td>
+          <td class="col-case">Delete table</td>
+          <td class="col-steps"><ol><li>Select table</li><li>Delete</li><li>Confirm</li></ol></td>
+          <td class="col-expected">Table removed.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-069</td>
+          <td class="col-case">Edit table properties</td>
+          <td class="col-steps"><ol><li>Select table</li><li>Change number/shape/capacity/rotation</li></ol></td>
+          <td class="col-expected">Canvas updates in real-time.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-070</td>
+          <td class="col-case">Add new floor</td>
+          <td class="col-steps"><ol><li>Click "+"</li><li>Enter name</li><li>Create</li></ol></td>
+          <td class="col-expected">New floor tab appears.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════════
+       MODULE 11: Reports (Admin)
+       ════════════════════════════════════════════════════════════ -->
+  <section class="module">
+    <div class="module__header">
+      <span class="module__number">Module 11</span>
+      <h2 class="module__title">Reports (Admin)</h2>
+    </div>
+    <hr class="module__rule">
+    <div class="module__count">7 test cases &mdash; 7 passed, 0 failed</div>
+    <table class="test-table">
+      <thead>
+        <tr>
+          <th>&#10003;</th>
+          <th>ID</th>
+          <th>Test Case</th>
+          <th>Steps</th>
+          <th>Expected Result</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-071</td>
+          <td class="col-case">Reports page loads</td>
+          <td class="col-steps"><ol><li>Navigate to <code>/admin/reports</code></li></ol></td>
+          <td class="col-expected">Date range inputs. Preset buttons. Export CSV.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-072</td>
+          <td class="col-case">Summary KPI cards</td>
+          <td class="col-steps"><ol><li>Select date range with data</li></ol></td>
+          <td class="col-expected">Revenue, Orders, Avg Value, Tax cards.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-073</td>
+          <td class="col-case">Channel breakdown</td>
+          <td class="col-steps"><ol><li>Scroll to channel section</li></ol></td>
+          <td class="col-expected">Bar chart + table per channel.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-074</td>
+          <td class="col-case">Hourly chart</td>
+          <td class="col-steps"><ol><li>View hourly section</li></ol></td>
+          <td class="col-expected">Bar chart with 24-hour bars.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-075</td>
+          <td class="col-case">Top/Bottom items</td>
+          <td class="col-steps"><ol><li>Scroll to item tables</li></ol></td>
+          <td class="col-expected">Ranked tables with qty and revenue.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-076</td>
+          <td class="col-case">CSV export</td>
+          <td class="col-steps"><ol><li>Click Export CSV</li></ol></td>
+          <td class="col-expected">File downloads.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-077</td>
+          <td class="col-case">Date preset switching</td>
+          <td class="col-steps"><ol><li>Click Yesterday, This Month, etc.</li></ol></td>
+          <td class="col-expected">Dates update. Data reloads.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════════
+       MODULE 12: Z-Report (Admin)
+       ════════════════════════════════════════════════════════════ -->
+  <section class="module">
+    <div class="module__header">
+      <span class="module__number">Module 12</span>
+      <h2 class="module__title">Z-Report (Admin)</h2>
+    </div>
+    <hr class="module__rule">
+    <div class="module__count">3 test cases &mdash; 3 passed, 0 failed</div>
+    <table class="test-table">
+      <thead>
+        <tr>
+          <th>&#10003;</th>
+          <th>ID</th>
+          <th>Test Case</th>
+          <th>Steps</th>
+          <th>Expected Result</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-078</td>
+          <td class="col-case">Z-Report loads for today</td>
+          <td class="col-steps"><ol><li>Navigate to <code>/admin/z-report</code></li></ol></td>
+          <td class="col-expected">KPIs + Cash Drawer + Channel + Payment + Status + Top Items.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-079</td>
+          <td class="col-case">Date change</td>
+          <td class="col-steps"><ol><li>Change date picker</li></ol></td>
+          <td class="col-expected">Report reloads for that date.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-080</td>
+          <td class="col-case">Print Z-Report</td>
+          <td class="col-steps"><ol><li>Click Print</li></ol></td>
+          <td class="col-expected">Browser print dialog. Clean print layout.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════════
+       MODULE 13: Staff Management (Admin)
+       ════════════════════════════════════════════════════════════ -->
+  <section class="module">
+    <div class="module__header">
+      <span class="module__number">Module 13</span>
+      <h2 class="module__title">Staff Management (Admin)</h2>
+    </div>
+    <hr class="module__rule">
+    <div class="module__count">5 test cases &mdash; 5 passed, 0 failed</div>
+    <table class="test-table">
+      <thead>
+        <tr>
+          <th>&#10003;</th>
+          <th>ID</th>
+          <th>Test Case</th>
+          <th>Steps</th>
+          <th>Expected Result</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-081</td>
+          <td class="col-case">Staff list loads</td>
+          <td class="col-steps"><ol><li>Navigate to <code>/admin/staff</code></li></ol></td>
+          <td class="col-expected">Table with 3+ seed users.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-082</td>
+          <td class="col-case">Search staff</td>
+          <td class="col-steps"><ol><li>Type "admin"</li></ol></td>
+          <td class="col-expected">List filters after 300ms debounce.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-083</td>
+          <td class="col-case">Create staff</td>
+          <td class="col-steps"><ol><li>Add Staff</li><li>Fill all fields</li><li>Create</li></ol></td>
+          <td class="col-expected">Toast success. New row appears.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-084</td>
+          <td class="col-case">Edit staff</td>
+          <td class="col-steps"><ol><li>Click pencil</li><li>Change name/role</li><li>Update</li></ol></td>
+          <td class="col-expected">Toast success. Row updates.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-085</td>
+          <td class="col-case">Toggle active/inactive</td>
+          <td class="col-steps"><ol><li>Click switch</li></ol></td>
+          <td class="col-expected">Status badge flips. Toast confirms.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════════
+       MODULE 14: Settings (Admin)
+       ════════════════════════════════════════════════════════════ -->
+  <section class="module">
+    <div class="module__header">
+      <span class="module__number">Module 14</span>
+      <h2 class="module__title">Settings (Admin)</h2>
+    </div>
+    <hr class="module__rule">
+    <div class="module__count">4 test cases &mdash; 4 passed, 0 failed</div>
+    <table class="test-table">
+      <thead>
+        <tr>
+          <th>&#10003;</th>
+          <th>ID</th>
+          <th>Test Case</th>
+          <th>Steps</th>
+          <th>Expected Result</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-086</td>
+          <td class="col-case">Settings loads with config</td>
+          <td class="col-steps"><ol><li>Navigate to <code>/admin/settings</code></li></ol></td>
+          <td class="col-expected">4 cards: General, Tax, Payment Flow, Receipt.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-087</td>
+          <td class="col-case">Change payment flow</td>
+          <td class="col-steps"><ol><li>Click Pay First</li><li>Save</li></ol></td>
+          <td class="col-expected">Active badge moves. Persists on refresh.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-088</td>
+          <td class="col-case">Receipt header/footer with preview</td>
+          <td class="col-steps"><ol><li>Type header</li><li>Preview updates live</li><li>Save</li></ol></td>
+          <td class="col-expected">Persists.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-089</td>
+          <td class="col-case">Tax rate change</td>
+          <td class="col-steps"><ol><li>Change to 17%</li><li>Save</li></ol></td>
+          <td class="col-expected">Persists. Basis points shown correctly.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════════
+       MODULE 15: Receipts
+       ════════════════════════════════════════════════════════════ -->
+  <section class="module">
+    <div class="module__header">
+      <span class="module__number">Module 15</span>
+      <h2 class="module__title">Receipts</h2>
+    </div>
+    <hr class="module__rule">
+    <div class="module__count">2 test cases &mdash; 2 passed, 0 failed</div>
+    <table class="test-table">
+      <thead>
+        <tr>
+          <th>&#10003;</th>
+          <th>ID</th>
+          <th>Test Case</th>
+          <th>Steps</th>
+          <th>Expected Result</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-090</td>
+          <td class="col-case">Receipt modal all sections</td>
+          <td class="col-steps"><ol><li>Open receipt from Orders page</li></ol></td>
+          <td class="col-expected">Header, items, modifiers, tax, total, payments, footer all present.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-091</td>
+          <td class="col-case">Receipt print window</td>
+          <td class="col-steps"><ol><li>Click Print in modal</li></ol></td>
+          <td class="col-expected">New window opens with 80mm thermal layout. Print dialog.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════════
+       MODULE 16: Cross-Cutting
+       ════════════════════════════════════════════════════════════ -->
+  <section class="module">
+    <div class="module__header">
+      <span class="module__number">Module 16</span>
+      <h2 class="module__title">Cross-Cutting Concerns</h2>
+    </div>
+    <hr class="module__rule">
+    <div class="module__count">5 test cases &mdash; 4 passed, 1 failed</div>
+    <table class="test-table">
+      <thead>
+        <tr>
+          <th>&#10003;</th>
+          <th>ID</th>
+          <th>Test Case</th>
+          <th>Steps</th>
+          <th>Expected Result</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-092</td>
+          <td class="col-case">Toast on success</td>
+          <td class="col-steps"><ol><li>Save settings or create staff</li></ol></td>
+          <td class="col-expected">Green toast auto-dismisses.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-093</td>
+          <td class="col-case">Toast on error</td>
+          <td class="col-steps"><ol><li>Create staff with duplicate email</li></ol></td>
+          <td class="col-expected">Red toast with error detail.</td>
+          <td class="col-status"><span class="badge badge--fail">Fail</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-094</td>
+          <td class="col-case">Integer math (no float errors)</td>
+          <td class="col-steps"><ol><li>Add Rs. 325 item + Rs. 50 modifier, qty 3</li></ol></td>
+          <td class="col-expected">Line = Rs. 1,125. Tax = Rs. 180. Total = Rs. 1,305. No .9999 artifacts.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-095</td>
+          <td class="col-case">PKR formatting everywhere</td>
+          <td class="col-steps"><ol><li>Browse all pages</li></ol></td>
+          <td class="col-expected">All amounts use "Rs." prefix with comma separators.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-096</td>
+          <td class="col-case">Admin nav links</td>
+          <td class="col-steps"><ol><li>Click Orders, Admin in header</li></ol></td>
+          <td class="col-expected">Navigate to <code>/orders</code>, <code>/admin</code>.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════════
+       MODULE 17: Admin Dashboard
+       ════════════════════════════════════════════════════════════ -->
+  <section class="module">
+    <div class="module__header">
+      <span class="module__number">Module 17</span>
+      <h2 class="module__title">Admin Dashboard</h2>
+    </div>
+    <hr class="module__rule">
+    <div class="module__count">3 test cases &mdash; 3 passed, 0 failed</div>
+    <table class="test-table">
+      <thead>
+        <tr>
+          <th>&#10003;</th>
+          <th>ID</th>
+          <th>Test Case</th>
+          <th>Steps</th>
+          <th>Expected Result</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-097</td>
+          <td class="col-case">KPI cards</td>
+          <td class="col-steps"><ol><li>Navigate to <code>/admin</code></li></ol></td>
+          <td class="col-expected">Revenue, Orders, Avg Value, Table Utilization cards.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-098</td>
+          <td class="col-case">Live Operations</td>
+          <td class="col-steps"><ol><li>Scroll to Live Operations</li></ol></td>
+          <td class="col-expected">3 columns: Dine-In, Takeaway, Call Center with active orders.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+        <tr>
+          <td class="col-check"><input type="checkbox"></td>
+          <td class="col-id">UAT-099</td>
+          <td class="col-case">Manual refresh</td>
+          <td class="col-steps"><ol><li>Click refresh icon</li></ol></td>
+          <td class="col-expected">Data reloads. Timestamp updates.</td>
+          <td class="col-status"><span class="badge badge--pass">Pass</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════════
+       APPENDIX: EXECUTION ORDER & STOP CRITERIA
+       ════════════════════════════════════════════════════════════ -->
+  <section class="appendix">
+    <div class="appendix__title">Appendix A &mdash; Recommended Execution Order</div>
+    <hr class="appendix__rule">
+    <ol>
+      <li><strong>Authentication</strong> <code>UAT-001 to 009</code> &mdash; unlocks everything</li>
+      <li><strong>Dine-In</strong> <code>UAT-014 to 022</code> &mdash; creates orders for downstream tests</li>
+      <li><strong>Takeaway</strong> <code>UAT-023 to 025</code> &mdash; more orders</li>
+      <li><strong>Call Center</strong> <code>UAT-026 to 032</code> &mdash; more orders + customer data</li>
+      <li><strong>KDS</strong> <code>UAT-033 to 040</code> &mdash; verify tickets from orders above</li>
+      <li><strong>Orders</strong> <code>UAT-041 to 049</code> &mdash; manage created orders</li>
+      <li><strong>Payments</strong> <code>UAT-050 to 054</code> &mdash; pay for orders</li>
+      <li><strong>Receipts</strong> <code>UAT-090 to 091</code> &mdash; view paid order receipts</li>
+      <li><strong>Reports + Z-Report</strong> <code>UAT-071 to 080</code> &mdash; now has data to display</li>
+      <li><strong>Menu, Floor, Staff, Settings</strong> <code>UAT-055 to 070, 081 to 089</code> &mdash; admin features</li>
+      <li><strong>Cross-cutting + Dashboard</strong> <code>UAT-092 to 099</code> &mdash; verify throughout</li>
+    </ol>
+
+    <div class="stop-criteria">
+      <div class="stop-criteria__title">Stop-UAT Criteria</div>
+      <p style="font-size: 0.85rem; color: var(--ink-secondary); margin-bottom: 10px;">Pause UAT and escalate immediately if any of the following are encountered:</p>
+      <ul>
+        <li>Data integrity bugs (totals do not add up)</li>
+        <li>Auth/role bypass (cashier accessing admin features)</li>
+        <li>Payment or order total mismatches</li>
+        <li>Receipt or report calculation errors</li>
+        <li>Blank pages or unhandled JavaScript errors in console</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════════
+       FOOTER
+       ════════════════════════════════════════════════════════════ -->
+  <footer class="doc-footer">
+    <div class="doc-footer__text">Confidential &mdash; Sitara Infotech | BPO World Limited</div>
+  </footer>
+
+</div>
+
+</body>
+</html>

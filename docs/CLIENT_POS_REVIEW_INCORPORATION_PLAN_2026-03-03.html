@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Client POS Review Response Plan - March 3, 2026</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 28px; color: #111; }
+    h1 { font-size: 20px; margin: 0 0 8px 0; }
+    h2 { font-size: 14px; margin: 18px 0 8px 0; }
+    p, li { font-size: 11px; line-height: 1.35; }
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+    th, td { border: 1px solid #ccc; padding: 6px; vertical-align: top; font-size: 10px; }
+    th { background: #f5f5f5; text-align: left; }
+    .small { font-size: 10px; color: #444; }
+  </style>
+</head>
+<body>
+  <h1>Client POS Review Response Plan</h1>
+  <p class="small">Date: March 3, 2026</p>
+  <p>This plan maps all client POS review points to current status and incorporation actions.</p>
+
+  <h2>Status Legend</h2>
+  <ul>
+    <li><b>Exists</b>: Implemented and usable.</li>
+    <li><b>Partial</b>: Some support exists but not fully aligned with client expectation.</li>
+    <li><b>Missing</b>: Not implemented yet.</li>
+  </ul>
+
+  <h2>21-Point Incorporation Matrix</h2>
+  <table>
+    <thead>
+      <tr><th>#</th><th>Client Review Point</th><th>State</th><th>Incorporation Action</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>1</td><td>Separate rates for extras/add-ons on receipt</td><td>Missing</td><td>Add modifier price adjustments to receipt API and UI (P0).</td></tr>
+      <tr><td>2</td><td>Tax % by payment mode</td><td>Missing</td><td>Add payment-mode tax configuration and logic (P1-A).</td></tr>
+      <tr><td>3</td><td>Correct tax rates (16% cash, 5% card)</td><td>Partial</td><td>Keep single-rate baseline at 16% (P0), then method-specific rates (P1-A).</td></tr>
+      <tr><td>4</td><td>Split payment reflected on bill</td><td>Exists</td><td>Keep current behavior; improve clarity with dual-total flow.</td></tr>
+      <tr><td>5</td><td>Show both cash and card totals</td><td>Missing</td><td>Add dual-total billing preview before payment (P1-A).</td></tr>
+      <tr><td>6</td><td>Discount types (bank promo, ESR, customer, etc.)</td><td>Missing</td><td>Implement typed discount engine and UI (P1-B).</td></tr>
+      <tr><td>7</td><td>One consolidated dine-in final bill</td><td>Missing</td><td>Introduce table sessions and aggregated settlement (P1-B).</td></tr>
+      <tr><td>8</td><td>Support pay-after-eat and pay-before-eat models</td><td>Partial</td><td>Enforce payment flow behavior end-to-end (P3).</td></tr>
+      <tr><td>9</td><td>Show table number clearly on order screen</td><td>Missing</td><td>Expose table label/number in APIs and UI (P0).</td></tr>
+      <tr><td>10</td><td>Assign waiter/server to order</td><td>Missing</td><td>Add waiter assignment field + APIs + UI (P2).</td></tr>
+      <tr><td>11</td><td>Waiter-wise report</td><td>Missing</td><td>Add waiter performance reporting (P2).</td></tr>
+      <tr><td>12</td><td>Customer profile with Walk-in default</td><td>Partial</td><td>Default non-call-center orders to Walk-in Customer (P2).</td></tr>
+      <tr><td>13</td><td>Void transactions in reports with reason</td><td>Partial</td><td>Add dedicated void report with reason analytics (P2).</td></tr>
+      <tr><td>14</td><td>Mandatory comment before void</td><td>Missing</td><td>Require non-empty void reason in UI/API (P1-A).</td></tr>
+      <tr><td>15</td><td>Password authorization before void</td><td>Missing</td><td>Add verify-password re-auth flow (P1-A).</td></tr>
+      <tr><td>16</td><td>Refund option with tracking</td><td>Exists</td><td>Keep and validate in regression/UAT.</td></tr>
+      <tr><td>17</td><td>Shift closing report with reconciliation</td><td>Exists</td><td>Keep and validate in client walkthrough.</td></tr>
+      <tr><td>18</td><td>Access controls for discount/void/refund</td><td>Partial</td><td>Move to fine-grained permission checks (P3).</td></tr>
+      <tr><td>19</td><td>Payment-mode-wise daily sales report</td><td>Partial</td><td>Add dedicated report + export (P2).</td></tr>
+      <tr><td>20</td><td>Item-wise and category-wise reports</td><td>Exists</td><td>Already available; include in rollout validation.</td></tr>
+      <tr><td>21</td><td>Full daily summary (cash+credit, tax, net sale)</td><td>Partial</td><td>Extend summary model/UI/export with payment split and net sale (P2).</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Delivery Sequence</h2>
+  <ul>
+    <li><b>P0 (same day):</b> receipt modifier pricing, tax baseline verification, table number visibility.</li>
+    <li><b>P1-A:</b> dual totals + payment-mode tax preview, mandatory void reason, void password re-auth.</li>
+    <li><b>P1-B:</b> table session consolidation and discount engine.</li>
+    <li><b>P2:</b> waiter assignment/reporting, walk-in default, void report, enhanced daily summary.</li>
+    <li><b>P3:</b> strict payment-flow enforcement and fine-grained permissions.</li>
+  </ul>
+</body>
+</html>

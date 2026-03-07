@@ -22,6 +22,7 @@ from app.schemas.payment import (
     SessionSplitPaymentCreate,
     SplitPaymentCreate,
 )
+from app.services import customer_service
 
 DEFAULT_PAYMENT_METHODS: list[tuple[str, str, bool, int]] = [
     ("cash", "Cash", False, 1),
@@ -856,6 +857,11 @@ async def _sync_order_payment_status(
         order.status = "completed"
 
     await db.flush()
+
+    if order.customer_id is not None:
+        customer = await customer_service.get_customer(db, order.customer_id, tenant_id)
+        if customer is not None:
+            await customer_service.update_customer_stats(db, tenant_id, customer)
 
     # Auto-close table session when all its orders are fully settled.
     # This covers the per-order payment path (session payment endpoints
