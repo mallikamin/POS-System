@@ -114,3 +114,57 @@
     display: none;
   }
 }
+
+/* ===== Print styles ===== */
+@media print {
+  /* Hide app chrome: sidebar, header, nav */
+  nav,
+  aside,
+  header,
+  .print\\:hidden,
+  [data-print-hide] {
+    display: none !important;
+  }
+
+  /* Show print-only elements */
+  .print\\:block {
+    display: block !important;
+  }
+
+  /* Reset layout so content fills page */
+  body {
+    background: white !important;
+    color: black !important;
+    font-size: 11pt;
+    margin: 0;
+    padding: 0;
+  }
+
+  main,
+  [role="main"],
+  .print-content {
+    margin: 0 !important;
+    padding: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+
+  /* Strip card shadows and borders for clean print */
+  .print-clean *,
+  .print-clean [class*="card"],
+  .print-clean [class*="Card"] {
+    box-shadow: none !important;
+    border-color: #d1d5db !important;
+  }
+
+  /* Avoid page breaks inside sections */
+  .print-clean section,
+  .print-clean .print-section {
+    break-inside: avoid;
+  }
+
+  /* Compact spacing */
+  .print-clean {
+    line-height: 1.4;
+  }
+}

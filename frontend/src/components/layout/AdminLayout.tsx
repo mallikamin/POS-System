@@ -50,11 +50,11 @@ function AdminLayout() {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-secondary-50">
+    <div className="flex h-screen overflow-hidden bg-secondary-50 print:block print:h-auto print:overflow-visible print:bg-white">
       {/* Sidebar */}
       <aside
         className={cn(
-          "flex w-64 shrink-0 flex-col border-r border-secondary-200 bg-white transition-all duration-200",
+          "flex w-64 shrink-0 flex-col border-r border-secondary-200 bg-white transition-all duration-200 print:hidden",
           !sidebarOpen && "max-lg:-ml-64"
         )}
       >
@@ -108,16 +108,16 @@ function AdminLayout() {
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/30 lg:hidden"
+          className="fixed inset-0 z-40 bg-black/30 lg:hidden print:hidden"
           onClick={() => setSidebarOpen(false)}
           aria-hidden="true"
         />
       )}
 
       {/* Main area */}
-      <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="flex flex-1 flex-col overflow-hidden print:block print:overflow-visible">
         {/* Header */}
-        <header className="flex h-14 shrink-0 items-center justify-between border-b border-secondary-200 bg-white px-4 shadow-sm">
+        <header className="flex h-14 shrink-0 items-center justify-between border-b border-secondary-200 bg-white px-4 shadow-sm print:hidden">
           <div className="flex items-center gap-3">
             <button
               onClick={() => setSidebarOpen(true)}
@@ -146,7 +146,7 @@ function AdminLayout() {
         </header>
 
         {/* Content */}
-        <main className="flex-1 overflow-auto p-6">
+        <main className="flex-1 overflow-auto p-6 print:overflow-visible print:p-0">
           <Outlet />
         </main>
       </div>
