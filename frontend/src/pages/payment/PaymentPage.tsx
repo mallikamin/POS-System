@@ -18,6 +18,7 @@ import {
   type DiscountBreakdown,
 } from "@/services/discountsApi";
 import type { PaymentPreview } from "@/services/ordersApi";
+import { useAuthStore } from "@/stores/authStore";
 import type {
   CashDrawerSessionResponse,
   PaymentMethodCode,
@@ -48,6 +49,7 @@ function getErrorMessage(err: unknown, fallback: string): string {
 function PaymentPage() {
   const { orderId } = useParams<{ orderId: string }>();
   const navigate = useNavigate();
+  const user = useAuthStore((s) => s.user);
   const [mode, setMode] = useState<Mode>("cash");
   const [summary, setSummary] = useState<PaymentSummary | null>(null);
   const [orderDetail, setOrderDetail] = useState<OrderResponse | null>(null);
@@ -122,6 +124,13 @@ function PaymentPage() {
       return acc;
     }, {});
   }, [summary]);
+  const canIssueRefund = useMemo(
+    () =>
+      user?.role.permissions.some(
+        (permission) => permission.code === "payment.refund"
+      ) ?? false,
+    [user]
+  );
 
   const dueDisplay = useMemo(() => {
     if (!summary) return "--";

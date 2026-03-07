@@ -4,6 +4,7 @@ import {
   Clock,
   ChefHat,
   CheckCircle,
+  RotateCcw,
   XCircle,
   UtensilsCrossed,
   Package,
@@ -31,6 +32,7 @@ import { cn } from "@/lib/utils";
 import { formatPKR } from "@/utils/currency";
 import { ReceiptModal } from "@/components/pos/ReceiptModal";
 import { verifyPassword } from "@/services/ordersApi";
+import { useAuthStore } from "@/stores/authStore";
 import { useConfigStore } from "@/stores/configStore";
 import type { OrderListItem } from "@/types/order";
 
@@ -166,9 +168,14 @@ export function OrderCard({ order, onTransition, onVoid }: OrderCardProps) {
   const [voidPassword, setVoidPassword] = useState("");
   const [voidError, setVoidError] = useState("");
   const [voidSubmitting, setVoidSubmitting] = useState(false);
+  const user = useAuthStore((s) => s.user);
   const paymentFlow = useConfigStore((s) => s.config?.payment_flow);
   const isPayFirst = paymentFlow === "pay_first";
   const isPendingPayment = isPayFirst && order.status === "confirmed" && order.payment_status !== "paid";
+  const permissionCodes = useMemo(
+    () => new Set(user?.role.permissions.map((permission) => permission.code) ?? []),
+    [user]
+  );
   const typeConfig = ORDER_TYPE_CONFIG[order.order_type] ?? { label: "Order", bg: "bg-secondary-100", text: "text-secondary-700", icon: Package };
   const statusConfig = isPendingPayment
     ? { label: "Pending Payment", bg: "bg-amber-100", text: "text-amber-700", dot: "bg-amber-500" }
@@ -177,6 +184,11 @@ export function OrderCard({ order, onTransition, onVoid }: OrderCardProps) {
   const transition = isPendingPayment ? undefined : TRANSITION_ACTIONS[order.status];
   const canVoid = permissionCodes.has("order.void") && VOIDABLE_STATUSES.has(order.status);
   const canPay = order.payment_status !== "paid" && order.status !== "voided" && order.status !== "draft";
+  const canRefund =
+    permissionCodes.has("payment.refund") &&
+    order.status !== "voided" &&
+    order.status !== "draft" &&
+    order.payment_status !== "unpaid";
   const canReceipt = order.status !== "draft";
 
   const TypeIcon = typeConfig.icon;
