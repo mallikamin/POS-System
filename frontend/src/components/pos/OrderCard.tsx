@@ -175,7 +175,7 @@ export function OrderCard({ order, onTransition, onVoid }: OrderCardProps) {
     : STATUS_CONFIG[order.status] ?? { label: "Unknown", bg: "bg-secondary-100", text: "text-secondary-600", dot: "bg-secondary-400" };
   // In pay-first mode, don't show "Send to Kitchen" for unpaid confirmed orders — show Pay instead
   const transition = isPendingPayment ? undefined : TRANSITION_ACTIONS[order.status];
-  const canVoid = VOIDABLE_STATUSES.has(order.status);
+  const canVoid = permissionCodes.has("order.void") && VOIDABLE_STATUSES.has(order.status);
   const canPay = order.payment_status !== "paid" && order.status !== "voided" && order.status !== "draft";
   const canReceipt = order.status !== "draft";
 
@@ -299,7 +299,7 @@ export function OrderCard({ order, onTransition, onVoid }: OrderCardProps) {
         )}
 
         {/* Row 3: Actions */}
-        {(transition || canVoid || canPay || canReceipt) && (
+        {(transition || canVoid || canPay || canRefund || canReceipt) && (
           <div className="flex flex-wrap items-center gap-2 pt-1">
             {transition && (
               <Button
@@ -320,6 +320,17 @@ export function OrderCard({ order, onTransition, onVoid }: OrderCardProps) {
               >
                 <CreditCard className="h-3.5 w-3.5" />
                 {isPendingPayment ? "Pay Now" : "Pay"}
+              </Button>
+            )}
+            {canRefund && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1"
+                onClick={() => navigate(`/payment/${order.id}`)}
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                Refund
               </Button>
             )}
             {canReceipt && (
@@ -408,3 +419,6 @@ export function OrderCard({ order, onTransition, onVoid }: OrderCardProps) {
     </Card>
   );
 }
+
+
+

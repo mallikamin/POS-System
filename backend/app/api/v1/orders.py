@@ -197,13 +197,16 @@ async def void_order(
     db: AsyncSession = Depends(get_db),
 ) -> OrderResponse:
     """Void an order. Requires order.void permission + password re-auth token."""
-    # Validate re-auth token if provided
-    if body.auth_token:
-        verified_user_id = validate_verify_token(body.auth_token)
-        if verified_user_id is None or verified_user_id != str(current_user.id):
-            raise HTTPException(
-                status.HTTP_401_UNAUTHORIZED, "Invalid or expired re-auth token"
-            )
+    if not body.auth_token:
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED,
+            "Re-authentication is required to void orders",
+        )
+    verified_user_id = validate_verify_token(body.auth_token)
+    if verified_user_id is None or verified_user_id != str(current_user.id):
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED, "Invalid or expired re-auth token"
+        )
     try:
         order = await order_service.void_order(
             db, order_id, current_user.tenant_id, current_user.id, body.reason

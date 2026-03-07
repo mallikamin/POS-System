@@ -85,7 +85,6 @@ ROLE_DEFINITIONS: dict[str, dict] = {
             "order.create",
             "order.view",
             "order.edit",
-            "order.void",
             "payment.collect",
             "menu.view",
             "kitchen.view",
@@ -706,22 +705,32 @@ async def seed_roles(
             db.add(role)
             await db.flush()
             print(f"  Created role '{role_name}'")
+        else:
+            role.description = role_def["description"]
+            role.is_active = True
+
+        desired_perm_ids = {
+            perm_map[perm_code].id for perm_code in role_def["permissions"]
+        }
+        existing_role_perms = (
+            await db.execute(select(RolePermission).where(RolePermission.role_id == role.id))
+        ).scalars().all()
+        existing_perm_ids = {rp.permission_id for rp in existing_role_perms}
 
         for perm_code in role_def["permissions"]:
             perm = perm_map[perm_code]
-            existing = await db.execute(
-                select(RolePermission).where(
-                    RolePermission.role_id == role.id,
-                    RolePermission.permission_id == perm.id,
-                )
-            )
-            if existing.scalar_one_or_none() is None:
+            if perm.id not in existing_perm_ids:
                 rp = RolePermission(
                     tenant_id=tenant.id,
                     role_id=role.id,
                     permission_id=perm.id,
                 )
                 db.add(rp)
+                await db.flush()
+
+        for role_permission in existing_role_perms:
+            if role_permission.permission_id not in desired_perm_ids:
+                await db.delete(role_permission)
                 await db.flush()
 
         role_map[role_name] = role
