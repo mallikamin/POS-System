@@ -179,9 +179,12 @@ async def reconcile_table_occupancy(
     """Normalize occupied/available table states from live operational data.
 
     Keeps manual states (`reserved`, `cleaning`) untouched.
-    A table should be occupied if it has:
-    - an open table session, or
-    - non-voided dine-in orders still not fully settled.
+    A table should be occupied only if it has an open table session
+    with non-voided, unsettled orders.
+
+    Legacy dine-in orders that still have `table_id` but no active
+    `table_session_id` are ignored here so stale seed/pre-session data
+    does not keep a table red with nothing to settle in the UI.
     """
     tables_result = await db.execute(
         select(Table).where(Table.tenant_id == tenant_id, Table.is_active == True)  # noqa: E712
@@ -190,10 +193,8 @@ async def reconcile_table_occupancy(
     if not tables:
         return
 
-    # A table is occupied when it has unsettled orders: non-voided,
-    # non-completed orders that are NOT fully paid/refunded.
-    # Once payment is settled the table turns available regardless of
-    # the order's kitchen pipeline status.
+    # Only open sessions with genuinely unsettled orders should keep a table
+    # occupied. This keeps the floor plan aligned with the table-settlement UI.
 
     open_session_result = await db.execute(
         select(TableSession.table_id)
@@ -205,30 +206,15 @@ async def reconcile_table_occupancy(
         .where(
             TableSession.tenant_id == tenant_id,
             TableSession.status == "open",
-            Order.status.notin_(["voided", "completed"]),
+            Order.status != "voided",
             Order.payment_status.notin_(["paid", "refunded"]),
             TableSession.table_id.is_not(None),
         )
         .distinct()
     )
-    open_session_tables = {
+    should_be_occupied = {
         row[0] for row in open_session_result.all() if row[0] is not None
     }
-
-    active_order_result = await db.execute(
-        select(Order.table_id).where(
-            Order.tenant_id == tenant_id,
-            Order.order_type == "dine_in",
-            Order.status.notin_(["voided", "completed"]),
-            Order.payment_status.notin_(["paid", "refunded"]),
-            Order.table_id.is_not(None),
-        )
-    )
-    active_order_tables = {
-        row[0] for row in active_order_result.all() if row[0] is not None
-    }
-
-    should_be_occupied = open_session_tables | active_order_tables
 
     changed = False
     for table in tables:

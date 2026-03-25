@@ -41,7 +41,27 @@
       "Bash(docker-compose exec backend python:*)",
       "Bash(docker-compose exec:*)",
       "Bash(docker-compose restart:*)",
-      "Bash(TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI4Zjk0ZWFlMy1kNWRkLTQ1OTMtYmU4My1iMDk2NTc0ZGU1ZjciLCJ0ZW5hbnRfaWQiOiJkYjE0MWRiNy1kZmIwLTQ2YzEtYWVmNi0yYTAxNTYwNzdmNTMiLCJyb2xlIjoiYWRtaW4iLCJleHAiOjE3NzEwNDYwMzksInR5cGUiOiJhY2Nlc3MiLCJqdGkiOiIzMjRjMDhiZS1hOGExLTQwOGEtYmU3OS1mZjhjMGFkODI0M2EifQ.YbyY_J5sGa7Lq5Pa80RonxG-ZmGMBw-hsq-rwrRWlMc\")"
+      "Bash(TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI4Zjk0ZWFlMy1kNWRkLTQ1OTMtYmU4My1iMDk2NTc0ZGU1ZjciLCJ0ZW5hbnRfaWQiOiJkYjE0MWRiNy1kZmIwLTQ2YzEtYWVmNi0yYTAxNTYwNzdmNTMiLCJyb2xlIjoiYWRtaW4iLCJleHAiOjE3NzEwNDYwMzksInR5cGUiOiJhY2Nlc3MiLCJqdGkiOiIzMjRjMDhiZS1hOGExLTQwOGEtYmU3OS1mZjhjMGFkODI0M2EifQ.YbyY_J5sGa7Lq5Pa80RonxG-ZmGMBw-hsq-rwrRWlMc\")",
+      "Bash(powershell -File scripts/server-preflight.ps1:*)",
+      "Bash(ssh:*)",
+      "Bash(git push:*)",
+      "Bash(git config:*)",
+      "Bash(git commit:*)",
+      "Bash(scp:*)",
+      "Bash(gh run list:*)",
+      "Bash(cmd.exe //c \"where gh\")",
+      "Bash(npx eslint .)",
+      "Bash(pip install:*)",
+      "Bash(powershell:*)",
+      "Bash(TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI1ZjhiNGEzNC03OTcyLTQyNGEtODA4NC01NjUzNjUzZmQzYTUiLCJ0ZW5hbnRfaWQiOiJmZDJjODQxMi1iNGE0LTQ4NWItOTM4Mi1iZDEyZGM2YzI1OTIiLCJyb2xlIjoiYWRtaW4iLCJleHAiOjE3NzI5MjAxMjgsInR5cGUiOiJhY2Nlc3MiLCJqdGkiOiJiZDQ1ZGNjYy1mZmYwLTQ2OTQtYTI5OC02MjAwM2JjODBjNTQifQ.926bgQMAw7iNC7gt9nYyNxfS7eoCg_LW1mYbIQjNFOk:*)",
+      "Bash(nslookup:*)",
+      "Bash(openssl s_client:*)",
+      "Bash(pip show:*)",
+      "Bash(UA=\"Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\) AppleWebKit/537.36 Chrome/134.0.0.0 Safari/537.36\")",
+      "Bash(TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI1ZjhiNGEzNC03OTcyLTQyNGEtODA4NC01NjUzNjUzZmQzYTUiLCJ0ZW5hbnRfaWQiOiJmZDJjODQxMi1iNGE0LTQ4NWItOTM4Mi1iZDEyZGM2YzI1OTIiLCJyb2xlIjoiYWRtaW4iLCJleHAiOjE3NzQzNTk5NjksInR5cGUiOiJhY2Nlc3MiLCJqdGkiOiJhZDJkN2Y3OC00OTdjLTQ1ZTEtODc2OC00MjI1OTI5ZTIyZDUifQ.3q_nMyqRk7bfWWus4d3WaHUfTnGYGGQ3C_TfrcsYnIA\")",
+      "Bash(echo:*)",
+      "Bash(alembic revision:*)",
+      "Bash(alembic upgrade:*)"
     ]
   }
 }

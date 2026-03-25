@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Revenue Split &amp; Partnership Terms — Sitara Infotech &times; BPO World</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+  :root {
+    --sv-primary: #1a1a2e;
+    --sv-accent: #e94560;
+    --sv-blue: #0f3460;
+    --sv-light: #f8f9fc;
+    --sv-border: #e2e6ed;
+    --sv-text: #2d3748;
+    --sv-muted: #718096;
+    --sv-green: #38a169;
+    --sv-gold: #d69e2e;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    color: var(--sv-text);
+    background: #fff;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 48px 56px;
+  }
+
+  /* Header */
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    border-bottom: 3px solid var(--sv-primary);
+    padding-bottom: 24px;
+    margin-bottom: 40px;
+  }
+
+  .header-left h1 {
+    font-size: 26px;
+    font-weight: 700;
+    color: var(--sv-primary);
+    letter-spacing: -0.5px;
+    margin-bottom: 4px;
+  }
+
+  .header-left .subtitle {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--sv-accent);
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+  }
+
+  .header-right {
+    text-align: right;
+    font-size: 12px;
+    color: var(--sv-muted);
+    line-height: 1.8;
+  }
+
+  .header-right strong {
+    color: var(--sv-text);
+  }
+
+  /* Parties */
+  .parties {
+    display: flex;
+    gap: 32px;
+    margin-bottom: 40px;
+  }
+
+  .party-card {
+    flex: 1;
+    background: var(--sv-light);
+    border: 1px solid var(--sv-border);
+    border-radius: 8px;
+    padding: 20px 24px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .party-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 4px;
+    height: 100%;
+  }
+
+  .party-card.tech::before { background: var(--sv-primary); }
+  .party-card.biz::before { background: var(--sv-accent); }
+
+  .party-card .role {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    margin-bottom: 4px;
+  }
+
+  .party-card.tech .role { color: var(--sv-primary); }
+  .party-card.biz .role { color: var(--sv-accent); }
+
+  .party-card .name {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--sv-primary);
+    margin-bottom: 2px;
+  }
+
+  .party-card .rep {
+    font-size: 13px;
+    color: var(--sv-muted);
+  }
+
+  /* Section */
+  .section {
+    margin-bottom: 36px;
+  }
+
+  .section-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--sv-primary);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--sv-accent);
+    margin-bottom: 20px;
+    display: inline-block;
+  }
+
+  /* Tables */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    margin-bottom: 12px;
+  }
+
+  thead th {
+    background: var(--sv-primary);
+    color: #fff;
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    padding: 12px 16px;
+    text-align: left;
+    border: none;
+  }
+
+  thead th:first-child { border-radius: 6px 0 0 0; }
+  thead th:last-child { border-radius: 0 6px 0 0; }
+
+  tbody td {
+    padding: 11px 16px;
+    border-bottom: 1px solid var(--sv-border);
+    vertical-align: top;
+  }
+
+  tbody tr:nth-child(even) { background: var(--sv-light); }
+  tbody tr:hover { background: #edf2f7; }
+
+  tbody tr:last-child td:first-child { border-radius: 0 0 0 6px; }
+  tbody tr:last-child td:last-child { border-radius: 0 0 6px 0; }
+
+  .pct-sv {
+    font-weight: 700;
+    color: var(--sv-blue);
+  }
+
+  .pct-bpo {
+    font-weight: 700;
+    color: var(--sv-accent);
+  }
+
+  .pct-zero {
+    color: var(--sv-muted);
+    font-style: italic;
+  }
+
+  .condition {
+    font-size: 12px;
+    color: var(--sv-muted);
+  }
+
+  /* Example box */
+  .example-box {
+    background: var(--sv-light);
+    border: 1px solid var(--sv-border);
+    border-left: 4px solid var(--sv-blue);
+    border-radius: 0 8px 8px 0;
+    padding: 24px 28px;
+    margin-bottom: 12px;
+  }
+
+  .example-box h4 {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--sv-blue);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-bottom: 16px;
+  }
+
+  .calc-table {
+    width: 100%;
+    font-size: 13px;
+    border-collapse: collapse;
+  }
+
+  .calc-table td {
+    padding: 6px 0;
+    border: none;
+  }
+
+  .calc-table td:last-child {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+    width: 140px;
+  }
+
+  .calc-table .deduction td {
+    color: var(--sv-muted);
+    padding-left: 20px;
+  }
+
+  .calc-table .divider td {
+    border-top: 1px solid var(--sv-border);
+    padding-top: 10px;
+  }
+
+  .calc-table .total td {
+    font-weight: 700;
+    font-size: 14px;
+    border-top: 2px solid var(--sv-primary);
+    padding-top: 10px;
+  }
+
+  .calc-table .share-sv td {
+    color: var(--sv-blue);
+    font-weight: 600;
+  }
+
+  .calc-table .share-bpo td {
+    color: var(--sv-accent);
+    font-weight: 600;
+  }
+
+  /* Responsibilities */
+  .resp-grid {
+    display: flex;
+    gap: 24px;
+    margin-bottom: 12px;
+  }
+
+  .resp-col {
+    flex: 1;
+    border: 1px solid var(--sv-border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .resp-col-header {
+    padding: 12px 20px;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #fff;
+  }
+
+  .resp-col.sv .resp-col-header { background: var(--sv-primary); }
+  .resp-col.bpo .resp-col-header { background: var(--sv-accent); }
+
+  .resp-col ul {
+    list-style: none;
+    padding: 16px 20px;
+  }
+
+  .resp-col ul li {
+    font-size: 13px;
+    padding: 5px 0;
+    padding-left: 18px;
+    position: relative;
+    color: var(--sv-text);
+  }
+
+  .resp-col ul li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 11px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+  }
+
+  .resp-col.sv ul li::before { background: var(--sv-primary); }
+  .resp-col.bpo ul li::before { background: var(--sv-accent); }
+
+  /* Footnotes */
+  .footnotes {
+    margin-top: 32px;
+    padding-top: 20px;
+    border-top: 1px solid var(--sv-border);
+  }
+
+  .footnotes h4 {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--sv-muted);
+    margin-bottom: 12px;
+  }
+
+  .footnotes ol {
+    padding-left: 20px;
+    counter-reset: footnote;
+    list-style: none;
+  }
+
+  .footnotes ol li {
+    font-size: 11.5px;
+    color: var(--sv-muted);
+    line-height: 1.7;
+    padding: 3px 0;
+    padding-left: 8px;
+    position: relative;
+    counter-increment: footnote;
+  }
+
+  .footnotes ol li::before {
+    content: counter(footnote) ".";
+    position: absolute;
+    left: -16px;
+    font-weight: 600;
+    color: var(--sv-text);
+    font-size: 11px;
+  }
+
+  /* Footer */
+  .doc-footer {
+    margin-top: 48px;
+    padding-top: 20px;
+    border-top: 3px solid var(--sv-primary);
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--sv-muted);
+  }
+
+  .doc-footer .confidential {
+    font-weight: 600;
+    color: var(--sv-accent);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  /* Print */
+  @media print {
+    body { background: #fff; }
+    .page { padding: 24px 32px; max-width: 100%; }
+    tbody tr:hover { background: inherit; }
+    .party-card, .example-box, .resp-col { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-left">
+      <h1>Revenue Split &amp; Partnership Terms</h1>
+      <div class="subtitle">Technology Partnership Agreement</div>
+    </div>
+    <div class="header-right">
+      <strong>Document Ref:</strong> SV-BPO/MOU/2026-001<br>
+      <strong>Date:</strong> March 18, 2026<br>
+      <strong>Status:</strong> For Discussion<br>
+      <strong>Version:</strong> 1.0
+    </div>
+  </div>
+
+  <!-- Parties -->
+  <div class="parties">
+    <div class="party-card tech">
+      <div class="role">Technology Partner</div>
+      <div class="name">Sitara Infotech</div>
+      <div class="rep">Mr. Jawad Saleem, CFO</div>
+    </div>
+    <div class="party-card biz">
+      <div class="role">Business Partner</div>
+      <div class="name">BPO World</div>
+      <div class="rep">Mr. Younis Kamran</div>
+    </div>
+  </div>
+
+  <!-- Section 1: Revenue Split -->
+  <div class="section">
+    <div class="section-title">1. Revenue Split by Category</div>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:32%">Revenue Type</th>
+          <th style="width:17%">Sitara Infotech</th>
+          <th style="width:17%">BPO World</th>
+          <th style="width:34%">Condition / Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Monthly SaaS Subscription</strong><br><span class="condition">BPO-sourced clients</span></td>
+          <td><span class="pct-sv">50%</span> of Net Revenue</td>
+          <td><span class="pct-bpo">50%</span> of Net Revenue</td>
+          <td class="condition">Net Revenue = Gross minus hosting, gateway fees, API costs, and taxes. Lifetime share for duration of MOU.</td>
+        </tr>
+        <tr>
+          <td><strong>Monthly SaaS Subscription</strong><br><span class="condition">Sitara-sourced clients</span></td>
+          <td><span class="pct-sv">100%</span></td>
+          <td><span class="pct-zero">0%</span></td>
+          <td class="condition">Clients acquired independently by Sitara Infotech through its own efforts.</td>
+        </tr>
+        <tr>
+          <td><strong>Implementation Fee</strong><br><span class="condition">BPO introduces client only</span></td>
+          <td><span class="pct-sv">100%</span></td>
+          <td><span class="pct-zero">0%</span></td>
+          <td class="condition">BPO World made the introduction; Sitara Infotech handles all discovery, setup, and delivery.</td>
+        </tr>
+        <tr>
+          <td><strong>Implementation Fee</strong><br><span class="condition">BPO does discovery + onboarding</span></td>
+          <td><span class="pct-sv">70%</span></td>
+          <td><span class="pct-bpo">30%</span></td>
+          <td class="condition">BPO World actively handles onsite coordination, discovery sessions, and first-line onboarding.</td>
+        </tr>
+        <tr>
+          <td><strong>QuickBooks Setup</strong><br><span class="condition">PKR 150,000 one-time</span></td>
+          <td><span class="pct-sv">100%</span></td>
+          <td><span class="pct-zero">0%</span></td>
+          <td class="condition">Technical delivery: OAuth connection, account mapping, sync configuration, and testing.</td>
+        </tr>
+        <tr>
+          <td><strong>QuickBooks Monthly Sync</strong><br><span class="condition">PKR 20,000 / month</span></td>
+          <td><span class="pct-sv">50%</span> of Net</td>
+          <td><span class="pct-bpo">50%</span> of Net</td>
+          <td class="condition">Falls into recurring subscription pool. Net after QB API costs deducted.</td>
+        </tr>
+        <tr>
+          <td><strong>Custom Development / SOW</strong><br><span class="condition">Bespoke features, integrations</span></td>
+          <td><span class="pct-sv">100%</span></td>
+          <td><span class="pct-zero">0%</span></td>
+          <td class="condition">Unless a specific SOW expressly agrees a different split. Includes new verticals, custom modules.</td>
+        </tr>
+        <tr>
+          <td><strong>FBR / PRA Tax Integration</strong><br><span class="condition">Separate SOW</span></td>
+          <td><span class="pct-sv">100%</span></td>
+          <td><span class="pct-zero">0%</span></td>
+          <td class="condition">Compliance work scoped and quoted separately per client jurisdiction.</td>
+        </tr>
+        <tr>
+          <td><strong>Data Migration</strong><br><span class="condition">PKR 75,000+ after assessment</span></td>
+          <td><span class="pct-sv">100%</span></td>
+          <td><span class="pct-zero">0%</span></td>
+          <td class="condition">Migration from legacy POS. Priced after data audit. Technical delivery only.</td>
+        </tr>
+        <tr>
+          <td><strong>Onsite Training</strong><br><span class="condition">PKR 35,000 / day</span></td>
+          <td><span class="pct-sv">100%</span></td>
+          <td><span class="pct-zero">0%</span></td>
+          <td class="condition">Unless BPO World delivers the training themselves (to be agreed per engagement).</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Section 2: Standard Pricing -->
+  <div class="section">
+    <div class="section-title">2. Standard Client-Facing Price Card</div>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:55%">Item</th>
+          <th style="width:20%">Type</th>
+          <th style="width:25%; text-align:right">Price (PKR)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Implementation fee (first outlet)</td>
+          <td>One-time</td>
+          <td style="text-align:right; font-weight:600; font-variant-numeric:tabular-nums;">350,000</td>
+        </tr>
+        <tr>
+          <td>Implementation fee (each additional outlet)</td>
+          <td>One-time</td>
+          <td style="text-align:right; font-weight:600; font-variant-numeric:tabular-nums;">100,000</td>
+        </tr>
+        <tr>
+          <td>Monthly subscription (first outlet)</td>
+          <td>Recurring</td>
+          <td style="text-align:right; font-weight:600; font-variant-numeric:tabular-nums;">95,000 / mo</td>
+        </tr>
+        <tr>
+          <td>Monthly subscription (each additional outlet)</td>
+          <td>Recurring</td>
+          <td style="text-align:right; font-weight:600; font-variant-numeric:tabular-nums;">40,000 / mo</td>
+        </tr>
+        <tr>
+          <td>Additional POS terminal (beyond included bundle)</td>
+          <td>Recurring</td>
+          <td style="text-align:right; font-weight:600; font-variant-numeric:tabular-nums;">5,000 / mo</td>
+        </tr>
+        <tr>
+          <td>QuickBooks integration setup + account mapping</td>
+          <td>One-time</td>
+          <td style="text-align:right; font-weight:600; font-variant-numeric:tabular-nums;">150,000</td>
+        </tr>
+        <tr>
+          <td>QuickBooks sync support &amp; maintenance</td>
+          <td>Recurring</td>
+          <td style="text-align:right; font-weight:600; font-variant-numeric:tabular-nums;">20,000 / mo</td>
+        </tr>
+        <tr>
+          <td>Custom integration / feature development</td>
+          <td>Per SOW</td>
+          <td style="text-align:right; font-weight:600; font-variant-numeric:tabular-nums;">7,500 / hr</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Section 3: Net Revenue Example -->
+  <div class="section">
+    <div class="section-title">3. Net Revenue Calculation Example</div>
+    <div class="example-box">
+      <h4>Illustrative: Single Client &mdash; PKR 50,000/month Subscription</h4>
+      <table class="calc-table">
+        <tr>
+          <td>Gross Monthly Subscription</td>
+          <td>PKR 50,000</td>
+        </tr>
+        <tr class="deduction">
+          <td>Less: Cloud hosting (client's proportional share)</td>
+          <td>(3,500)</td>
+        </tr>
+        <tr class="deduction">
+          <td>Less: Payment gateway processing fees</td>
+          <td>(1,000)</td>
+        </tr>
+        <tr class="deduction">
+          <td>Less: QuickBooks API subscription (client share)</td>
+          <td>(500)</td>
+        </tr>
+        <tr class="deduction">
+          <td>Less: SMS gateway charges</td>
+          <td>(200)</td>
+        </tr>
+        <tr class="divider">
+          <td><strong>Total Deductions</strong></td>
+          <td><strong>(5,200)</strong></td>
+        </tr>
+        <tr class="total">
+          <td>Net Revenue</td>
+          <td>PKR 44,800</td>
+        </tr>
+        <tr><td colspan="2" style="padding:8px 0"></td></tr>
+        <tr class="share-sv">
+          <td>Sitara Infotech share (50%)</td>
+          <td>PKR 22,400</td>
+        </tr>
+        <tr class="share-bpo">
+          <td>BPO World share (50%)</td>
+          <td>PKR 22,400</td>
+        </tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- Section 4: Responsibilities -->
+  <div class="section">
+    <div class="section-title">4. Roles &amp; Responsibilities</div>
+    <div class="resp-grid">
+      <div class="resp-col sv">
+        <div class="resp-col-header">Sitara Infotech &mdash; Technology Partner</div>
+        <ul>
+          <li>All software design &amp; development</li>
+          <li>Hosting, infrastructure, DevOps</li>
+          <li>L2/L3 technical support (bugs, fixes)</li>
+          <li>QuickBooks &amp; tax integrations</li>
+          <li>Client onboarding (technical setup)</li>
+          <li>Data security, backups, DR</li>
+          <li>Platform updates &amp; new features</li>
+          <li>Technical documentation</li>
+        </ul>
+      </div>
+      <div class="resp-col bpo">
+        <div class="resp-col-header">BPO World &mdash; Business Partner</div>
+        <ul>
+          <li>Client acquisition &amp; deal closing</li>
+          <li>L1 support (basic user queries)</li>
+          <li>Domain expertise (industry knowledge)</li>
+          <li>Requirements gathering &amp; discovery</li>
+          <li>Client relationship management</li>
+          <li>Product demos &amp; presentations</li>
+          <li>Market intelligence &amp; feedback</li>
+          <li>Regulatory guidance per vertical</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Section 5: Payment Terms -->
+  <div class="section">
+    <div class="section-title">5. Payment Terms</div>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:45%">Term</th>
+          <th style="width:55%">Detail</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Implementation fee collection</td>
+          <td><strong>70%</strong> upfront at project start &nbsp;|&nbsp; <strong>30%</strong> at go-live</td>
+        </tr>
+        <tr>
+          <td>Subscription billing</td>
+          <td>Monthly, billed in advance</td>
+        </tr>
+        <tr>
+          <td>Revenue share settlement</td>
+          <td>Within <strong>15 business days</strong> of client payment receipt</td>
+        </tr>
+        <tr>
+          <td>Minimum client contract term</td>
+          <td><strong>12 months</strong></td>
+        </tr>
+        <tr>
+          <td>Annual price revision</td>
+          <td><strong>10% &ndash; 12%</strong> increase</td>
+        </tr>
+        <tr>
+          <td>Audit rights</td>
+          <td>Annual, 30-day notice, independent CPA. 5% discrepancy threshold for cost recovery.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Footnotes -->
+  <div class="footnotes">
+    <h4>Notes &amp; Disclaimers</h4>
+    <ol>
+      <li><strong>Net Revenue</strong> is defined as gross SaaS subscription payments minus direct hosting costs, payment gateway fees, third-party API/license costs, and applicable taxes/statutory deductions (MOU Section 4.2).</li>
+      <li><strong>IP Ownership:</strong> All intellectual property, source code, architecture, and deployment systems remain the exclusive property of Sitara Infotech. BPO World receives a non-exclusive, non-transferable, revocable license to market and sell (MOU Section 3).</li>
+      <li><strong>Custom Development</strong> (new verticals, bespoke modules, client-specific integrations) is scoped separately via SOW and is 100% payable to Sitara Infotech unless expressly agreed otherwise in the SOW (MOU Section 4.5).</li>
+      <li><strong>Feature Commitments:</strong> BPO World shall not make any representations, warranties, or commitments to clients regarding the Platform's features or capabilities that have not been authorised in writing by Sitara Infotech (MOU Section 13.3c).</li>
+      <li><strong>Revenue share is lifetime</strong> for each BPO World-sourced client, for the duration of the MOU. Upon termination, a 12-month transition period applies with continued revenue share on existing clients (MOU Sections 4.7 and 11).</li>
+      <li><strong>Pricing shown is a baseline</strong> for Pakistan-market restaurant clients. International clients (e.g., Kuwait) and new verticals (e.g., petrol pump) may require adjusted pricing via separate SOW.</li>
+      <li><strong>Deductions are calculated</strong> on actual costs attributable to the specific client's usage, not averaged or estimated. Sitara Infotech provides a detailed monthly statement for each client (MOU Schedule B, Note b).</li>
+      <li><strong>Non-compete:</strong> BPO World agrees to a 2-year non-compete post-termination covering competing POS/SaaS platforms, with non-solicitation of Sitara Infotech personnel (MOU Section 9).</li>
+      <li><strong>Confidentiality</strong> survives 3 years post-termination. Covers pricing structures, client lists, and technical architecture (MOU Section 8).</li>
+      <li>This document is a summary for discussion purposes. The binding terms are set out in the full MOU (Document Ref: SV-BPO/MOU/2026-001).</li>
+    </ol>
+  </div>
+
+  <!-- Footer -->
+  <div class="doc-footer">
+    <div>
+      <span class="confidential">Confidential</span> &mdash; Sitara Infotech &times; BPO World Partnership
+    </div>
+    <div>
+      Ref: SV-BPO/MOU/2026-001 &nbsp;|&nbsp; Page 1 of 1 &nbsp;|&nbsp; March 2026
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,348 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>UAT by Sitara Infotech - POS System | BPO World Limited</title>
+<style>
+  body {
+    font-family: Aptos, Calibri, Arial, sans-serif;
+    color: #18222b;
+    background: #f7f3eb;
+    margin: 0;
+    font-size: 9.3pt;
+    line-height: 1.34;
+  }
+  .sheet {
+    width: 100%;
+    padding: 28px 34px 24px 34px;
+    box-sizing: border-box;
+  }
+  .page-break { page-break-before: always; }
+  .eyebrow {
+    font-size: 8.3pt;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: #57666f;
+    margin-bottom: 14px;
+  }
+  h1 {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 23pt;
+    line-height: 1.08;
+    color: #14202a;
+    margin: 0 0 8px 0;
+  }
+  .subtitle {
+    font-size: 10.4pt;
+    color: #42505a;
+    margin: 0 0 22px 0;
+    max-width: 510px;
+  }
+  .compiled {
+    font-size: 9.4pt;
+    color: #46545c;
+    margin: 0 0 18px 0;
+  }
+  .hero {
+    width: 100%;
+    border-collapse: collapse;
+    background: #203744;
+    margin: 0 0 18px 0;
+  }
+  .hero td {
+    width: 25%;
+    padding: 14px 16px;
+    vertical-align: top;
+    border-right: 1px solid #49616d;
+  }
+  .hero td:last-child { border-right: none; }
+  .hero-label {
+    font-size: 8.1pt;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: #f1f6f8;
+    margin-bottom: 4px;
+    font-weight: bold;
+  }
+  .hero-value {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 18pt;
+    color: #ffffff;
+    margin-bottom: 4px;
+  }
+  .hero-note {
+    font-size: 8.6pt;
+    color: #edf3f5;
+  }
+  .band {
+    border: 1px solid #d6cfc2;
+    background: #fcfaf6;
+    padding: 14px 16px;
+    margin: 0 0 18px 0;
+  }
+  .band-title {
+    font-size: 10pt;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: #243744;
+    margin: 0 0 8px 0;
+    font-weight: bold;
+  }
+  .band p { margin: 0; color: #495660; }
+  .timeline {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+  }
+  .timeline td {
+    width: 25%;
+    vertical-align: top;
+    padding: 8px 10px 0 0;
+    border-top: 2px solid #28414f;
+  }
+  .timeline-step {
+    font-size: 8.1pt;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: #66757d;
+    margin-bottom: 4px;
+    font-weight: bold;
+  }
+  .timeline-title {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 12pt;
+    color: #16222c;
+    margin: 0 0 3px 0;
+  }
+  .timeline-text { color: #4d5a62; }
+  .section-kicker {
+    font-size: 8.2pt;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: #68767d;
+    margin: 0 0 4px 0;
+    font-weight: bold;
+  }
+  h2 {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 16pt;
+    color: #16222c;
+    margin: 0 0 6px 0;
+  }
+  .section-desc {
+    margin: 0 0 10px 0;
+    color: #4d5a62;
+  }
+  table.matrix {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 8px;
+  }
+  table.matrix th {
+    text-align: left;
+    font-size: 7.9pt;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: #4d5b63;
+    background: #eee6d9;
+    border: 1px solid #d7cebf;
+    padding: 7px 6px;
+  }
+  table.matrix td {
+    border: 1px solid #e1d8ca;
+    padding: 7px 6px;
+    vertical-align: top;
+  }
+  .num {
+    width: 5%;
+    text-align: center;
+    font-weight: bold;
+    color: #1d3340;
+  }
+  .req { width: 24%; }
+  .integration { width: 38%; }
+  .trail { width: 23%; }
+  .status { width: 10%; }
+  .req strong { display: block; margin-bottom: 3px; color: #18242d; }
+  .sub { color: #5a666d; font-size: 8.7pt; }
+  .badge {
+    display: inline-block;
+    border: 1px solid #cdbfae;
+    background: #f7f2e8;
+    padding: 1px 5px;
+    margin: 0 4px 4px 0;
+    font-size: 8pt;
+    color: #4d5b63;
+  }
+  .pill {
+    display: inline-block;
+    border: 1px solid #bdd0c2;
+    background: #dce9e0;
+    padding: 2px 6px;
+    font-size: 8pt;
+    letter-spacing: 0.7px;
+    text-transform: uppercase;
+    color: #244937;
+    font-weight: bold;
+  }
+  .evidence-title {
+    font-size: 10pt;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: #223744;
+    margin: 0 0 10px 0;
+    font-weight: bold;
+  }
+  .evidence-card {
+    border: 1px solid #d7cebf;
+    background: #fcfaf6;
+    padding: 8px;
+  }
+  .evidence-card img {
+    width: 440px;
+    height: auto;
+    display: block;
+    margin: 0 auto;
+    border: 1px solid #e4dccf;
+  }
+  .evidence-cap {
+    margin-top: 8px;
+    font-size: 8.8pt;
+    color: #46545d;
+  }
+  .footnote {
+    margin-top: 8px;
+    color: #69777f;
+    font-size: 8.5pt;
+  }
+</style>
+</head>
+<body>
+  <div class="sheet">
+    <div class="eyebrow">BPO World Limited | POS System</div>
+    <h1>UAT by Sitara Infotech</h1>
+    <div class="subtitle">Point-by-point integration report aligned to the POS requirement list, mapped against the implemented product flow and the screenshot-backed UAT trail.</div>
+    <div class="compiled">Compiled by Malik Amin | March 8, 2026</div>
+
+    <table class="hero">
+      <tr>
+        <td>
+          <div class="hero-label">Requirements</div>
+          <div class="hero-value">20</div>
+          <div class="hero-note">Tracked from POS.docx</div>
+        </td>
+        <td>
+          <div class="hero-label">Integrated</div>
+          <div class="hero-value">20</div>
+          <div class="hero-note">Covered in product flow and UAT evidence</div>
+        </td>
+        <td>
+          <div class="hero-label">UAT Cycles</div>
+          <div class="hero-value">4</div>
+          <div class="hero-note">Core execution plus live revalidation</div>
+        </td>
+        <td>
+          <div class="hero-label">Live Status</div>
+          <div class="hero-value">Ready</div>
+          <div class="hero-note">Validated against deployed workflow</div>
+        </td>
+      </tr>
+    </table>
+
+    <div class="band">
+      <div class="band-title">Lean UAT timeline</div>
+      <p>The testing sequence moved from billing accuracy into service operations, then into exception handling, reporting, and final live refinement. Repeated scenarios were collapsed wherever a later test validated the same requirement more completely.</p>
+      <table class="timeline">
+        <tr>
+          <td>
+            <div class="timeline-step">Cycle 1</div>
+            <div class="timeline-title">Billing integrity</div>
+            <div class="timeline-text">Receipts, taxes, split tenders, dual totals and discounts validated.</div>
+          </td>
+          <td>
+            <div class="timeline-step">Cycle 2</div>
+            <div class="timeline-title">Service operations</div>
+            <div class="timeline-text">Table sessions, waiters, customers, pay-first flow and admin reporting validated.</div>
+          </td>
+          <td>
+            <div class="timeline-step">Cycle 3</div>
+            <div class="timeline-title">Control layer</div>
+            <div class="timeline-text">Void authorization, refunds, restricted-user access and Z-report flow validated.</div>
+          </td>
+          <td>
+            <div class="timeline-step">Cycle 4</div>
+            <div class="timeline-title">Live refinement</div>
+            <div class="timeline-text">March 7-8, 2026 updates tightened permissions, refund UX and settlement semantics.</div>
+          </td>
+        </tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="sheet page-break">
+    <div class="section-kicker">Section I</div>
+    <h2>Billing, tax and receipt integrity</h2>
+    <div class="section-desc">Commercial correctness was validated first so every downstream flow rests on accurate pricing, tax treatment and bill presentation.</div>
+    <table class="matrix">
+      <tr><th class="num">#</th><th class="req">Requirement</th><th class="integration">How it is integrated</th><th class="trail">UAT trail</th><th class="status">Status</th></tr>
+      <tr><td class="num">1</td><td class="req"><strong>Separate rates for items and extras on receipt</strong><div class="sub">Receipts show base item price apart from add-ons.</div></td><td>Receipt and order breakdown preserve the base item and each modifier as distinct billable lines.</td><td><span class="badge">Test 1</span><span class="badge">Receipt screenshots</span></td><td><span class="pill">Integrated</span></td></tr>
+      <tr><td class="num">2</td><td class="req"><strong>Payment-mode tax percentages apply by cash and card</strong><div class="sub">Tax treatment changes by tender type.</div></td><td>Billing and settlement views calculate tender-sensitive totals so the operator sees the correct amount before closure.</td><td><span class="badge">Test 3</span><span class="badge">Test 5</span><span class="badge">Test 13</span></td><td><span class="pill">Integrated</span></td></tr>
+      <tr><td class="num">3</td><td class="req"><strong>Corrected tax rates of 16% cash and 5% card</strong><div class="sub">Revised rates must flow into order and reporting outputs.</div></td><td>The configured rate structure is carried from payment through receipt and then into management summaries.</td><td><span class="badge">Test 3</span><span class="badge">Settlement screenshots</span></td><td><span class="pill">Integrated</span></td></tr>
+      <tr><td class="num">4</td><td class="req"><strong>Partial cash and card payment reflected clearly</strong><div class="sub">Split tender remains visible rather than being collapsed.</div></td><td>The payment flow stores split settlement transparently and prints the individual cash and card amounts back on the bill.</td><td><span class="badge">Test 3</span><span class="badge">Bill screenshots</span></td><td><span class="pill">Integrated</span></td></tr>
+      <tr><td class="num">5</td><td class="req"><strong>Bill shows both cash and card options before payment</strong><div class="sub">The operator sees both settlement outcomes up front.</div></td><td>The payment view exposes dual totals by tender, allowing commercial comparison before a method is selected.</td><td><span class="badge">Test 5</span><span class="badge">Payment screenshots</span></td><td><span class="pill">Integrated</span></td></tr>
+      <tr><td class="num">6</td><td class="req"><strong>Different discount types available</strong><div class="sub">Discounting remains configurable and controlled.</div></td><td>Discount controls are applied during billing and reflected into downstream totals while staying role-aware.</td><td><span class="badge">Test 5</span><span class="badge">Test 15</span><span class="badge">Live cashier retest</span></td><td><span class="pill">Integrated</span></td></tr>
+    </table>
+
+    <div style="height:14px"></div>
+
+    <div class="section-kicker">Section II</div>
+    <h2>Dining room workflow, table flow and customer handling</h2>
+    <div class="section-desc">The service layer validated table identity, consolidated dine-in settlement, waiter attribution and customer-linked ordering.</div>
+    <table class="matrix">
+      <tr><th class="num">#</th><th class="req">Requirement</th><th class="integration">How it is integrated</th><th class="trail">UAT trail</th><th class="status">Status</th></tr>
+      <tr><td class="num">7</td><td class="req"><strong>Pay-after-eat dine-in with consolidated table bill</strong><div class="sub">Multiple orders accumulate into a single table settlement.</div></td><td>Dine-in orders attach to an open table session so multiple sends can close on one final bill.</td><td><span class="badge">Test 4</span><span class="badge">Table session screenshots</span></td><td><span class="pill">Integrated</span></td></tr>
+      <tr><td class="num">8</td><td class="req"><strong>Support both pay-after-eat and pay-before-eat models</strong><div class="sub">Commercial mode is configurable.</div></td><td>Admin settings switch the order flow between normal settlement and pay-first enforcement.</td><td><span class="badge">Test 4</span><span class="badge">Test 9</span><span class="badge">March 8 live revalidation</span></td><td><span class="pill">Integrated</span></td></tr>
+      <tr><td class="num">9</td><td class="req"><strong>Order screen shows table number</strong><div class="sub">Table-linked orders remain identifiable during service.</div></td><td>The active order and admin order card retain the table label for operational clarity.</td><td><span class="badge">Test 2</span><span class="badge">Order screen screenshots</span></td><td><span class="pill">Integrated</span></td></tr>
+      <tr><td class="num">10</td><td class="req"><strong>Waiter or server assignment option</strong><div class="sub">Service staff can be linked at order level.</div></td><td>Orders support waiter assignment so accountability and reporting can be tied back to the serving staff member.</td><td><span class="badge">Test 7</span><span class="badge">Receipt and order screenshots</span></td><td><span class="pill">Integrated</span></td></tr>
+      <tr><td class="num">11</td><td class="req"><strong>Waiter-wise report</strong><div class="sub">Reporting shows order count and value by waiter.</div></td><td>Admin reporting includes waiter performance visibility for management review of service output.</td><td><span class="badge">Test 10</span><span class="badge">Reports screenshots</span><span class="badge">Live reporting validation</span></td><td><span class="pill">Integrated</span></td></tr>
+      <tr><td class="num">12</td><td class="req"><strong>Customer profile with walk-in default</strong><div class="sub">Orders may attach to a known customer or remain walk-in.</div></td><td>Order and call-center flows support lookup, creation, history and default walk-in handling.</td><td><span class="badge">Test 8</span><span class="badge">Call center flow</span><span class="badge">Live sync retest</span></td><td><span class="pill">Integrated</span></td></tr>
+    </table>
+  </div>
+
+  <div class="sheet page-break">
+    <div class="section-kicker">Section III</div>
+    <h2>Voids, refunds and controlled actions</h2>
+    <div class="section-desc">This block covers the exception path: why actions are allowed, how they are tracked, and how sensitive actions are contained.</div>
+    <table class="matrix">
+      <tr><th class="num">#</th><th class="req">Requirement</th><th class="integration">How it is integrated</th><th class="trail">UAT trail</th><th class="status">Status</th></tr>
+      <tr><td class="num">13</td><td class="req"><strong>Void transactions appear separately in reports with reason</strong><div class="sub">Void events remain auditable and visible in reporting.</div></td><td>Void handling records the event and its reason, then surfaces it separately from normal sales totals.</td><td><span class="badge">Test 6</span><span class="badge">Test 11</span><span class="badge">Void reason screenshots</span></td><td><span class="pill">Integrated</span></td></tr>
+      <tr><td class="num">14</td><td class="req"><strong>Void requires comment and password authorization</strong><div class="sub">Voiding cannot remain a casual cashier action.</div></td><td>The void path requires comment capture and elevated authorization before execution.</td><td><span class="badge">Test 6</span><span class="badge">Access retest</span><span class="badge">Live permission hardening</span></td><td><span class="pill">Integrated</span></td></tr>
+      <tr><td class="num">15</td><td class="req"><strong>Refund option with complete tracking in pay-before-eat flow</strong><div class="sub">Refunds are available and fully traceable.</div></td><td>Paid orders expose refund handling in the payment flow with refunded amount and transaction history preserved as a distinct audit event.</td><td><span class="badge">Test 14</span><span class="badge">Live refund deployment</span><span class="badge">Refund screenshots</span></td><td><span class="pill">Integrated</span></td></tr>
+      <tr><td class="num">16</td><td class="req"><strong>Proper shift closing report with cash reconciliation</strong><div class="sub">Drawer math and settlement closeout are visible in one flow.</div></td><td>The Z-report behaves as a settlement surface, reconciling cash in, change, refunds and expected balance.</td><td><span class="badge">Test 13</span><span class="badge">Live settlement retest</span><span class="badge">Refund-adjusted closeout</span></td><td><span class="pill">Integrated</span></td></tr>
+      <tr><td class="num">17</td><td class="req"><strong>User access controls for discount, void and refund</strong><div class="sub">Sensitive actions respect role boundaries in UI and execution.</div></td><td>Role-based controls govern discount, void and refund access with restricted-user validation confirming blocked actions.</td><td><span class="badge">Test 15</span><span class="badge">Cashier retest</span><span class="badge">Live role sync</span></td><td><span class="pill">Integrated</span></td></tr>
+    </table>
+
+    <div style="height:14px"></div>
+
+    <div class="section-kicker">Section IV</div>
+    <h2>Management reporting and daily visibility</h2>
+    <div class="section-desc">The final block validates the reporting layer management uses to run the business day to day.</div>
+    <table class="matrix">
+      <tr><th class="num">#</th><th class="req">Requirement</th><th class="integration">How it is integrated</th><th class="trail">UAT trail</th><th class="status">Status</th></tr>
+      <tr><td class="num">18</td><td class="req"><strong>Payment-mode-wise daily sales report</strong><div class="sub">Management sees daily sales by tender type.</div></td><td>Daily reporting presents tender-level visibility with settlement-aware values for cash and card.</td><td><span class="badge">Test 11</span><span class="badge">Test 13</span><span class="badge">Live net-settlement validation</span></td><td><span class="pill">Integrated</span></td></tr>
+      <tr><td class="num">19</td><td class="req"><strong>Item-wise and category-wise sales reports</strong><div class="sub">Management can analyze performance by mix and category.</div></td><td>The reporting layer includes item-level and category-level performance visibility beyond aggregate daily revenue.</td><td><span class="badge">Test 13</span><span class="badge">Reporting screenshots</span></td><td><span class="pill">Integrated</span></td></tr>
+      <tr><td class="num">20</td><td class="req"><strong>Full daily sale summary with cash, credit, tax and net sale</strong><div class="sub">Daily control view remains commercially coherent.</div></td><td>Admin summary and settlement reporting now present a coherent daily view across tender, tax, discounts, refunds and net sale.</td><td><span class="badge">Test 13</span><span class="badge">Test 21</span><span class="badge">Live summary refinement</span></td><td><span class="pill">Integrated</span></td></tr>
+    </table>
+  </div>
+
+  <div class="sheet page-break">
+    <div class="section-kicker">Evidence appendix</div>
+    <h2>Representative screenshots from the Google Doc UAT log</h2>
+    <div class="section-desc">Representative screenshot evidence is embedded below. The full screenshot trail remains in the shared Google Doc.</div>
+
+    <div class="evidence-card">
+      <img src="uat_assets/evidence_collage.png" alt="Representative UAT evidence collage" />
+    </div>
+  </div>
+</body>
+</html>

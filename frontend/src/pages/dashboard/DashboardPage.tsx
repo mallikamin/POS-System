@@ -1,7 +1,13 @@
+import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { UtensilsCrossed, ShoppingBag, Phone } from "lucide-react";
 import { useUIStore } from "@/stores/uiStore";
 import type { OrderType } from "@/types";
+
+/* Preload POS-critical chunks so navigation is instant */
+const preloadDineIn = () => import("@/pages/dine-in/DineInPage");
+const preloadTakeaway = () => import("@/pages/takeaway/TakeawayPage");
+const preloadCallCenter = () => import("@/pages/call-center/CallCenterPage");
 
 interface ChannelCard {
   type: OrderType;
@@ -46,6 +52,13 @@ const channels: ChannelCard[] = [
 function DashboardPage() {
   const navigate = useNavigate();
   const { setCurrentChannel } = useUIStore();
+
+  /* Preload all POS channel chunks on mount so navigation is instant */
+  useEffect(() => {
+    preloadDineIn();
+    preloadTakeaway();
+    preloadCallCenter();
+  }, []);
 
   const handleChannelSelect = (channel: ChannelCard) => {
     setCurrentChannel(channel.type);

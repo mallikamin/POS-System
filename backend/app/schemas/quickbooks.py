@@ -22,12 +22,17 @@ class QBConnectURL(BaseModel):
 
 class QBConnectionStatus(BaseModel):
     is_connected: bool
-    realm_id: str | None = None
+    connection_type: str | None = None  # "online" | "desktop"
+    realm_id: str | None = None  # QB Online only
     company_name: str | None = None
-    connected_at: datetime | None = None
+    connected_at: datetime | None | str = None
     last_sync_at: datetime | None = None
     last_sync_status: str | None = None
-    token_expires_at: datetime | None = None
+    token_expires_at: datetime | None = None  # QB Online only
+    # QB Desktop fields
+    qbwc_username: str | None = None
+    qb_desktop_version: str | None = None
+    last_qbwc_poll_at: datetime | None = None
     model_config = {"from_attributes": True}
 
 

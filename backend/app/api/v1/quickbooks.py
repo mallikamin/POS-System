@@ -878,3 +878,200 @@ async def retry_sync_job(
     await sync_svc.process_job(job)
     await db.refresh(job)
     return QBSyncJobResponse.model_validate(job)
+
+
+# ---------------------------------------------------------------------------
+# QuickBooks Desktop Connection Endpoints
+# ---------------------------------------------------------------------------
+
+
+@router.post(
+    "/desktop/connect",
+    response_model=QBConnectionStatus,
+    dependencies=[Depends(require_role("admin"))],
+)
+async def connect_qb_desktop(
+    password: str = Query(..., description="QBWC password (user sets once)"),
+    company_name: str = Query(..., description="QB company name"),
+    qb_version: str = Query(None, description='QB Desktop version, e.g. "Enterprise 2024"'),
+    company_file_path: str = Query(None, description="QB company file path (optional)"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> QBConnectionStatus:
+    """Create a QuickBooks Desktop connection.
+
+    This generates QBWC credentials and stores them encrypted. The user must then:
+    1. Download the QWC file (GET /desktop/qwc endpoint)
+    2. Install QBWC from Intuit (https://qbwc.qbn.intuit.com/)
+    3. Import the QWC file into QBWC
+    4. QBWC will automatically start syncing every 15 minutes
+
+    NOTE: Only one active QB connection (Online OR Desktop) per tenant.
+    """
+    from app.services.quickbooks.oauth import encrypt_token
+
+    logger.info(
+        "Creating QB Desktop connection for tenant=%s user=%s",
+        current_user.tenant_id,
+        current_user.id,
+    )
+
+    # Check if connection already exists
+    existing_conn = await get_connection(db, current_user.tenant_id)
+    if existing_conn:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"QuickBooks connection already exists (type: {existing_conn.connection_type}). "
+            "Disconnect first to create a new connection.",
+        )
+
+    # Generate QBWC username (unique per tenant)
+    qbwc_username = f"tenant_{str(current_user.tenant_id)[:8]}"
+
+    # Create connection
+    connection = QBConnection(
+        tenant_id=current_user.tenant_id,
+        connection_type="desktop",
+        company_name=company_name,
+        qbwc_username=qbwc_username,
+        qbwc_password_encrypted=encrypt_token(password),
+        qb_desktop_version=qb_version,
+        company_file_path=company_file_path,
+        is_active=True,
+        connected_by=current_user.id,
+        connected_at=datetime.now(timezone.utc),
+    )
+    db.add(connection)
+    await db.flush()
+
+    logger.info(
+        "QB Desktop connection created: id=%s username=%s",
+        connection.id,
+        qbwc_username,
+    )
+
+    return QBConnectionStatus(
+        is_connected=True,
+        connection_type="desktop",
+        company_name=company_name,
+        connected_at=connection.connected_at.isoformat(),
+        qbwc_username=qbwc_username,
+        qb_desktop_version=qb_version,
+        last_sync_at=None,
+        last_sync_status=None,
+    )
+
+
+@router.get(
+    "/desktop/qwc",
+    dependencies=[Depends(require_role("admin"))],
+    response_class=Response,
+)
+async def download_qwc_file(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    """Download QWC file for QuickBooks Web Connector.
+
+    User must:
+    1. Download QBWC from Intuit: https://qbwc.qbn.intuit.com/
+    2. Install QBWC on the PC running QB Desktop
+    3. Import this QWC file into QBWC (File → Add an Application)
+    4. QBWC will prompt for password (same as set during connection)
+    5. QBWC will automatically poll every 15 minutes
+    """
+    from fastapi.responses import Response as FastAPIResponse
+
+    from app.services.quickbooks.qwc import generate_qwc_file, generate_qwc_filename
+
+    conn = await _require_connection(db, current_user.tenant_id)
+
+    if conn.connection_type != "desktop":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="QWC file is only for QuickBooks Desktop connections.",
+        )
+
+    if not conn.qbwc_username or not conn.qbwc_password_encrypted:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Desktop connection is missing QBWC credentials.",
+        )
+
+    # Decrypt password for QWC file (QBWC needs plain text password)
+    from app.services.quickbooks.oauth import decrypt_token
+
+    try:
+        password = decrypt_token(conn.qbwc_password_encrypted)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to decrypt QBWC password.",
+        )
+
+    # Generate QWC XML
+    qwc_xml = generate_qwc_file(
+        tenant_id=conn.tenant_id,
+        connection_id=conn.id,
+        username=conn.qbwc_username,
+        password=password,
+        server_url=f"{settings.BACKEND_URL}/api/v1/qbwc/",
+        app_name="Sitara POS",
+        poll_interval_minutes=15,
+    )
+
+    # Generate filename
+    filename = generate_qwc_filename(conn.company_name, conn.id)
+
+    logger.info(
+        "Generated QWC file for tenant=%s connection=%s",
+        current_user.tenant_id,
+        conn.id,
+    )
+
+    return FastAPIResponse(
+        content=qwc_xml,
+        media_type="application/xml",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+        },
+    )
+
+
+@router.get(
+    "/desktop/status",
+    response_model=dict,
+    dependencies=[Depends(require_role("admin"))],
+)
+async def get_desktop_status(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Get QuickBooks Desktop connection status and sync queue info."""
+    conn = await _require_connection(db, current_user.tenant_id)
+
+    if conn.connection_type != "desktop":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This endpoint is only for Desktop connections.",
+        )
+
+    # Count pending sync jobs
+    pending_result = await db.execute(
+        select(func.count(QBSyncJob.id)).where(
+            QBSyncJob.connection_id == conn.id,
+            QBSyncJob.status == "pending",
+        )
+    )
+    pending_count = pending_result.scalar() or 0
+
+    return {
+        "connection_id": str(conn.id),
+        "company_name": conn.company_name,
+        "qb_version": conn.qb_desktop_version,
+        "last_qbwc_poll": (
+            conn.last_qbwc_poll_at.isoformat() if conn.last_qbwc_poll_at else None
+        ),
+        "pending_sync_jobs": pending_count,
+        "is_active": conn.is_active,
+    }

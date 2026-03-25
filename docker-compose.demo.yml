@@ -99,10 +99,10 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512M
+          memory: 768M
           cpus: "1.0"
         reservations:
-          memory: 256M
+          memory: 384M
     security_opt:
       - no-new-privileges:true
     read_only: true
@@ -132,10 +132,10 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1024M
+          memory: 384M
           cpus: "1.0"
         reservations:
-          memory: 512M
+          memory: 128M
     security_opt:
       - no-new-privileges:true
     logging:
@@ -143,14 +143,14 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-    # PostgreSQL tuning for 2GB RAM server
+    # PostgreSQL tuning for 2GB shared server (POS + Orbit)
     command: >
       postgres
-        -c shared_buffers=512MB
-        -c effective_cache_size=1536MB
-        -c work_mem=10MB
-        -c maintenance_work_mem=256MB
-        -c wal_buffers=16MB
+        -c shared_buffers=96MB
+        -c effective_cache_size=256MB
+        -c work_mem=4MB
+        -c maintenance_work_mem=64MB
+        -c wal_buffers=4MB
         -c max_connections=50
         -c random_page_cost=1.1
         -c effective_io_concurrency=200
@@ -175,10 +175,10 @@ services:
     deploy:
       resources:
         limits:
-          memory: 256M
+          memory: 64M
           cpus: "0.25"
         reservations:
-          memory: 128M
+          memory: 16M
     security_opt:
       - no-new-privileges:true
     read_only: true

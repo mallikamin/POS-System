@@ -31,42 +31,82 @@ from app.models.base import BaseMixin
 
 
 class QBConnection(BaseMixin, Base):
-    """One QuickBooks Online connection per tenant.
+    """QuickBooks connection (Online OR Desktop) per tenant.
 
-    Stores Fernet-encrypted OAuth2 tokens and cached company metadata.
-    realm_id is QuickBooks' unique company identifier.
+    Supports two connection types:
+    - 'online': OAuth2 flow, REST API (realm_id + OAuth tokens required)
+    - 'desktop': QBWC polling, SOAP/QBXML (qbwc_username + password required)
+
+    OAuth fields (access_token_*, refresh_token_*, realm_id) are nullable
+    because Desktop connections don't use them.
     """
 
     __tablename__ = "qb_connections"
     __table_args__ = (
         UniqueConstraint("tenant_id", "realm_id", name="uq_qbconn_tenant_realm"),
         Index("ix_qbconn_tenant_active", "tenant_id", "is_active"),
+        Index("ix_qbconn_qbwc_username", "qbwc_username"),
     )
 
-    realm_id: Mapped[str] = mapped_column(
-        String(50),
+    # Connection type: determines adapter
+    connection_type: Mapped[str] = mapped_column(
+        String(20),
         nullable=False,
-        comment="QuickBooks company ID",
+        default="online",
+        comment="online | desktop",
     )
     company_name: Mapped[str] = mapped_column(String(255), nullable=False)
 
-    access_token_encrypted: Mapped[str] = mapped_column(
+    # --- QB Online fields (OAuth) ---
+    realm_id: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
+        comment="QuickBooks Online company ID (required for Online)",
+    )
+    access_token_encrypted: Mapped[str | None] = mapped_column(
         Text,
-        nullable=False,
-        comment="Fernet-encrypted OAuth2 access token",
+        nullable=True,
+        comment="Fernet-encrypted OAuth2 access token (Online only)",
     )
-    refresh_token_encrypted: Mapped[str] = mapped_column(
+    refresh_token_encrypted: Mapped[str | None] = mapped_column(
         Text,
-        nullable=False,
-        comment="Fernet-encrypted OAuth2 refresh token",
+        nullable=True,
+        comment="Fernet-encrypted OAuth2 refresh token (Online only)",
     )
-    access_token_expires_at: Mapped[datetime] = mapped_column(
+    access_token_expires_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
-        nullable=False,
+        nullable=True,
     )
-    refresh_token_expires_at: Mapped[datetime] = mapped_column(
+    refresh_token_expires_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
-        nullable=False,
+        nullable=True,
+    )
+
+    # --- QB Desktop fields (QBWC) ---
+    qbwc_username: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+        comment="QBWC auth username (Desktop only)",
+    )
+    qbwc_password_encrypted: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+        comment="Fernet-encrypted QBWC password (Desktop only)",
+    )
+    qb_desktop_version: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
+        comment='QB Desktop version, e.g. "Enterprise 2024"',
+    )
+    company_file_path: Mapped[str | None] = mapped_column(
+        String(500),
+        nullable=True,
+        comment="QB Desktop company file path (optional metadata)",
+    )
+    last_qbwc_poll_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="Last time QBWC polled for requests (Desktop only)",
     )
 
     scope: Mapped[str] = mapped_column(
@@ -387,6 +427,23 @@ class QBSyncJob(BaseMixin, Base):
         String(100),
         nullable=True,
         comment="Prevents duplicate syncs",
+    )
+
+    # --- QB Desktop QBWC fields ---
+    request_xml: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+        comment="QBXML request for QB Desktop (Desktop only)",
+    )
+    response_xml: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+        comment="QBXML response from QB Desktop (Desktop only)",
+    )
+    qbwc_fetched_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="When QBWC fetched this request (Desktop only)",
     )
 
     tenant_id: Mapped[uuid.UUID] = mapped_column(

@@ -49,7 +49,7 @@ export function App() {
   return (
     <ErrorBoundary>
     <Toaster />
-    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+    <BrowserRouter future={{ v7_relativeSplatPath: true }}>
       <Suspense fallback={<LoadingFallback />}>
         <Routes>
           {/* Auth */}

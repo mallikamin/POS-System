@@ -41,7 +41,7 @@ function DineInPage() {
   useEffect(() => {
     const interval = setInterval(() => {
       void loadFloors(true);
-    }, 5000);
+    }, 15000);
     return () => clearInterval(interval);
   }, [loadFloors]);
 
