@@ -65,7 +65,10 @@
       "Bash(powershell.exe:*)",
       "Bash(openssl rand:*)",
       "Bash(ping:*)",
-      "Bash(pwsh:*)"
+      "Bash(pwsh:*)",
+      "Bash(npm run build:*)",
+      "Bash(cmd /c start \"\" \"C:\\\\Users\\\\Malik\\\\desktop\\\\POS-Project\\\\docs\\\\QB_ONLINE_ACCOUNT_MAPPING_REVIEW.html\")",
+      "Bash(grep:*)"
     ]
   }
 }

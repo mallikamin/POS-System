@@ -1,0 +1,1067 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QuickBooks Online Account Mapping Review | Sitara Infotech</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --color-primary: #2563EB;
+            --color-primary-dark: #1E40AF;
+            --color-success: #059669;
+            --color-warning: #D97706;
+            --color-danger: #DC2626;
+            --color-text: #1F2937;
+            --color-text-secondary: #6B7280;
+            --color-border: #E5E7EB;
+            --color-bg-light: #F9FAFB;
+            --color-bg-highlight: #EFF6FF;
+            --spacing-unit: 8px;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            color: var(--color-text);
+            background: #FFFFFF;
+            line-height: 1.6;
+            font-size: 10pt;
+        }
+
+        .page {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px;
+        }
+
+        /* Header */
+        .header {
+            border-bottom: 3px solid var(--color-primary);
+            padding-bottom: calc(var(--spacing-unit) * 3);
+            margin-bottom: calc(var(--spacing-unit) * 5);
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .header-content {
+            flex: 1;
+        }
+
+        .company-name {
+            font-size: 18pt;
+            font-weight: 700;
+            color: var(--color-primary);
+            letter-spacing: -0.5px;
+            margin-bottom: calc(var(--spacing-unit) / 2);
+        }
+
+        .doc-title {
+            font-size: 22pt;
+            font-weight: 700;
+            color: var(--color-text);
+            margin-bottom: calc(var(--spacing-unit) * 2);
+            letter-spacing: -0.8px;
+        }
+
+        .doc-meta {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: calc(var(--spacing-unit) * 1);
+            font-size: 9pt;
+        }
+
+        .meta-item {
+            display: flex;
+            gap: calc(var(--spacing-unit) * 1);
+        }
+
+        .meta-label {
+            font-weight: 600;
+            color: var(--color-text-secondary);
+            min-width: 100px;
+        }
+
+        .meta-value {
+            color: var(--color-text);
+            font-weight: 500;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: calc(var(--spacing-unit) * 1);
+            padding: calc(var(--spacing-unit) * 1) calc(var(--spacing-unit) * 2);
+            background: #DCFCE7;
+            color: var(--color-success);
+            border-radius: 6px;
+            font-size: 9pt;
+            font-weight: 600;
+            margin-top: calc(var(--spacing-unit) * 1);
+        }
+
+        /* Summary Box */
+        .summary-box {
+            background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%);
+            border: 2px solid var(--color-primary);
+            border-radius: 8px;
+            padding: calc(var(--spacing-unit) * 3);
+            margin-bottom: calc(var(--spacing-unit) * 5);
+        }
+
+        .summary-title {
+            font-size: 14pt;
+            font-weight: 700;
+            color: var(--color-primary-dark);
+            margin-bottom: calc(var(--spacing-unit) * 2);
+        }
+
+        .summary-stats {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: calc(var(--spacing-unit) * 2);
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 24pt;
+            font-weight: 700;
+            color: var(--color-primary);
+            display: block;
+        }
+
+        .stat-label {
+            font-size: 9pt;
+            color: var(--color-text-secondary);
+            margin-top: calc(var(--spacing-unit) / 2);
+        }
+
+        .summary-next-step {
+            background: #FFFFFF;
+            border-left: 4px solid var(--color-primary);
+            padding: calc(var(--spacing-unit) * 2);
+            margin-top: calc(var(--spacing-unit) * 2);
+            border-radius: 4px;
+        }
+
+        .summary-next-step strong {
+            color: var(--color-primary-dark);
+        }
+
+        /* Section */
+        .section {
+            margin-bottom: calc(var(--spacing-unit) * 5);
+        }
+
+        .section-title {
+            font-size: 14pt;
+            font-weight: 700;
+            color: var(--color-text);
+            margin-bottom: calc(var(--spacing-unit) * 2);
+            padding-bottom: calc(var(--spacing-unit) * 1);
+            border-bottom: 2px solid var(--color-border);
+        }
+
+        .section-subtitle {
+            font-size: 12pt;
+            font-weight: 600;
+            color: var(--color-text);
+            margin-top: calc(var(--spacing-unit) * 3);
+            margin-bottom: calc(var(--spacing-unit) * 2);
+            display: flex;
+            align-items: center;
+            gap: calc(var(--spacing-unit) * 1);
+        }
+
+        /* Table */
+        .table-container {
+            overflow-x: auto;
+            margin-bottom: calc(var(--spacing-unit) * 2);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 9pt;
+            background: white;
+            border: 1px solid var(--color-border);
+            border-radius: 6px;
+        }
+
+        thead {
+            background: var(--color-bg-light);
+        }
+
+        th {
+            text-align: left;
+            padding: calc(var(--spacing-unit) * 1.5);
+            font-weight: 600;
+            color: var(--color-text);
+            border-bottom: 2px solid var(--color-border);
+        }
+
+        td {
+            padding: calc(var(--spacing-unit) * 1.5);
+            border-bottom: 1px solid var(--color-border);
+        }
+
+        tbody tr:nth-child(even) {
+            background: var(--color-bg-light);
+        }
+
+        tbody tr:hover {
+            background: var(--color-bg-highlight);
+        }
+
+        /* Action badges */
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 8pt;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .badge-mapped {
+            background: #F3F4F6;
+            color: #4B5563;
+        }
+
+        .badge-created {
+            background: #DCFCE7;
+            color: var(--color-success);
+            border: 1px solid var(--color-success);
+        }
+
+        /* Notes */
+        .notes-box {
+            background: #FFFBEB;
+            border-left: 4px solid var(--color-warning);
+            padding: calc(var(--spacing-unit) * 2);
+            margin-top: calc(var(--spacing-unit) * 2);
+            border-radius: 4px;
+        }
+
+        .notes-title {
+            font-weight: 600;
+            color: var(--color-text);
+            margin-bottom: calc(var(--spacing-unit) * 1);
+            font-size: 9pt;
+        }
+
+        .notes-box ul {
+            margin-left: 20px;
+            font-size: 9pt;
+            color: var(--color-text-secondary);
+        }
+
+        .notes-box li {
+            margin-bottom: calc(var(--spacing-unit) / 2);
+        }
+
+        /* New accounts box */
+        .new-accounts-box {
+            background: linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%);
+            border: 2px solid var(--color-success);
+            border-radius: 8px;
+            padding: calc(var(--spacing-unit) * 3);
+            margin-top: calc(var(--spacing-unit) * 3);
+        }
+
+        .new-accounts-title {
+            font-size: 12pt;
+            font-weight: 700;
+            color: var(--color-success);
+            margin-bottom: calc(var(--spacing-unit) * 2);
+            display: flex;
+            align-items: center;
+            gap: calc(var(--spacing-unit) * 1);
+        }
+
+        .verify-instruction {
+            background: white;
+            border-left: 4px solid var(--color-success);
+            padding: calc(var(--spacing-unit) * 2);
+            margin-top: calc(var(--spacing-unit) * 2);
+            border-radius: 4px;
+            font-size: 9pt;
+        }
+
+        /* Checklist */
+        .checklist-item {
+            display: flex;
+            align-items: flex-start;
+            gap: calc(var(--spacing-unit) * 1.5);
+            padding: calc(var(--spacing-unit) * 1.5);
+            margin-bottom: calc(var(--spacing-unit) * 1);
+            background: white;
+            border: 1px solid var(--color-border);
+            border-radius: 6px;
+        }
+
+        .checkbox {
+            width: 16px;
+            height: 16px;
+            border: 2px solid var(--color-border);
+            border-radius: 3px;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+
+        .checklist-content {
+            flex: 1;
+        }
+
+        .checklist-title {
+            font-weight: 600;
+            color: var(--color-text);
+            margin-bottom: calc(var(--spacing-unit) / 2);
+            font-size: 10pt;
+        }
+
+        .checklist-description {
+            color: var(--color-text-secondary);
+            font-size: 9pt;
+            margin-left: 20px;
+        }
+
+        .checklist-description li {
+            margin-bottom: calc(var(--spacing-unit) / 2);
+        }
+
+        /* Flagged items */
+        .flagged-item {
+            background: #FEF2F2;
+            border: 2px solid var(--color-danger);
+            border-radius: 8px;
+            padding: calc(var(--spacing-unit) * 2);
+            margin-bottom: calc(var(--spacing-unit) * 2);
+        }
+
+        .flagged-title {
+            font-weight: 700;
+            color: var(--color-danger);
+            margin-bottom: calc(var(--spacing-unit) * 1);
+            font-size: 10pt;
+        }
+
+        .flagged-content {
+            font-size: 9pt;
+            color: var(--color-text-secondary);
+        }
+
+        .flagged-content div {
+            margin-bottom: calc(var(--spacing-unit) * 1);
+        }
+
+        .flagged-content strong {
+            color: var(--color-text);
+        }
+
+        /* Steps */
+        .steps-container {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: calc(var(--spacing-unit) * 3);
+        }
+
+        .step-card {
+            background: white;
+            border: 1px solid var(--color-border);
+            border-radius: 8px;
+            padding: calc(var(--spacing-unit) * 2.5);
+        }
+
+        .step-number {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            background: var(--color-primary);
+            color: white;
+            border-radius: 50%;
+            font-weight: 700;
+            font-size: 12pt;
+            margin-bottom: calc(var(--spacing-unit) * 1.5);
+        }
+
+        .step-title {
+            font-size: 11pt;
+            font-weight: 700;
+            color: var(--color-text);
+            margin-bottom: calc(var(--spacing-unit) * 1);
+        }
+
+        .step-description {
+            font-size: 9pt;
+            color: var(--color-text-secondary);
+            line-height: 1.5;
+        }
+
+        .step-description ul {
+            margin-left: 20px;
+            margin-top: calc(var(--spacing-unit) * 1);
+        }
+
+        .step-description li {
+            margin-bottom: calc(var(--spacing-unit) / 2);
+        }
+
+        /* Technical details */
+        .tech-details {
+            background: var(--color-bg-light);
+            border: 1px solid var(--color-border);
+            border-radius: 8px;
+            padding: calc(var(--spacing-unit) * 3);
+        }
+
+        .tech-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: calc(var(--spacing-unit) * 2);
+            font-size: 9pt;
+        }
+
+        .tech-item {
+            display: flex;
+            gap: calc(var(--spacing-unit) * 1);
+        }
+
+        .tech-label {
+            font-weight: 600;
+            color: var(--color-text-secondary);
+            min-width: 140px;
+        }
+
+        .tech-value {
+            color: var(--color-text);
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 8.5pt;
+        }
+
+        /* Footer */
+        .footer {
+            border-top: 2px solid var(--color-border);
+            padding-top: calc(var(--spacing-unit) * 3);
+            margin-top: calc(var(--spacing-unit) * 6);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 8pt;
+            color: var(--color-text-secondary);
+        }
+
+        .footer-left {
+            font-weight: 600;
+        }
+
+        .footer-right {
+            text-align: right;
+        }
+
+        .confidential {
+            color: var(--color-danger);
+            font-weight: 600;
+        }
+
+        /* Print styles */
+        @media print {
+            body {
+                font-size: 9pt;
+            }
+
+            .page {
+                padding: 20px;
+            }
+
+            .section {
+                page-break-inside: avoid;
+            }
+
+            table {
+                page-break-inside: avoid;
+            }
+
+            .step-card {
+                page-break-inside: avoid;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <div class="company-name">Sitara Infotech</div>
+                <h1 class="doc-title">QuickBooks Account Mapping Review</h1>
+                <div class="doc-meta">
+                    <div class="meta-item">
+                        <span class="meta-label">Date Completed:</span>
+                        <span class="meta-value">2026-03-25</span>
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">Mapped By:</span>
+                        <span class="meta-value">Sitara Infotech (POS System)</span>
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">QB Company:</span>
+                        <span class="meta-value">Younis Kamran</span>
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">Realm ID:</span>
+                        <span class="meta-value">9341456151192096</span>
+                    </div>
+                </div>
+                <div class="status-badge">
+                    <span>✅</span>
+                    <span>Complete — Awaiting Client Review</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Summary -->
+        <div class="summary-box">
+            <div class="summary-title">Mapping Summary</div>
+            <div class="summary-stats">
+                <div class="stat-item">
+                    <span class="stat-value">19</span>
+                    <span class="stat-label">POS Categories Mapped</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-value">6</span>
+                    <span class="stat-label">New QB Accounts Created</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-value">13</span>
+                    <span class="stat-label">Mapped to Existing</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-value">0</span>
+                    <span class="stat-label">Skipped</span>
+                </div>
+            </div>
+            <div class="summary-next-step">
+                <strong>Next Step:</strong> Please review the mappings below and let us know if any changes are needed.
+            </div>
+        </div>
+
+        <!-- What We Did -->
+        <section class="section">
+            <h2 class="section-title">What We Did</h2>
+            <p style="margin-bottom: 16px;">The POS system analyzed your QuickBooks Chart of Accounts (80 accounts) and automatically matched each POS accounting need to the best QB account. Where no suitable match existed, we created new accounts in your QuickBooks.</p>
+            <p><strong>You can verify the new accounts by going to:</strong> Settings → Chart of Accounts in QuickBooks Online.</p>
+        </section>
+
+        <!-- Account Mappings -->
+        <section class="section">
+            <h2 class="section-title">Account Mappings</h2>
+
+            <!-- Revenue -->
+            <h3 class="section-subtitle">✅ Revenue Accounts (Income)</h3>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 30%;">POS Category</th>
+                            <th style="width: 30%;">Mapped To</th>
+                            <th style="width: 15%;">QB Account ID</th>
+                            <th style="width: 25%;">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Food Sales Income</strong></td>
+                            <td>Sales</td>
+                            <td>QB 80</td>
+                            <td><span class="badge badge-mapped">Mapped to existing</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Beverage Sales Income</strong></td>
+                            <td>Beverage Sales Income</td>
+                            <td>QB 82</td>
+                            <td><span class="badge badge-created">🆕 Created new</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Service Charge</strong></td>
+                            <td>Revenue - General</td>
+                            <td>QB 19</td>
+                            <td><span class="badge badge-mapped">Mapped to existing</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Delivery Fee Income</strong></td>
+                            <td>Revenue - General</td>
+                            <td>QB 19</td>
+                            <td><span class="badge badge-mapped">Mapped to existing</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="notes-box">
+                <div class="notes-title">Notes:</div>
+                <ul>
+                    <li>Food and beverage sales are now tracked separately for reporting</li>
+                    <li>Service charges and delivery fees both use "Revenue - General" — let us know if you want separate accounts</li>
+                </ul>
+            </div>
+
+            <!-- COGS -->
+            <h3 class="section-subtitle">✅ Cost of Goods Sold (COGS)</h3>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 30%;">POS Category</th>
+                            <th style="width: 30%;">Mapped To</th>
+                            <th style="width: 15%;">QB Account ID</th>
+                            <th style="width: 25%;">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Cost of Goods Sold</strong></td>
+                            <td>Change in inventory - COS</td>
+                            <td>QB 43</td>
+                            <td><span class="badge badge-mapped">Mapped to existing</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Discounts Given</strong></td>
+                            <td>Discounts given - COS</td>
+                            <td>QB 42</td>
+                            <td><span class="badge badge-mapped">Mapped to existing</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="notes-box">
+                <div class="notes-title">Notes:</div>
+                <ul>
+                    <li>Direct food/ingredient costs go to "Change in inventory - COS"</li>
+                    <li>Customer discounts mapped to "Discounts given - COS" (typically discounts are contra-revenue, not COGS — please confirm if this is correct for your accounting)</li>
+                </ul>
+            </div>
+
+            <!-- Assets -->
+            <h3 class="section-subtitle">✅ Assets (Bank & Cash)</h3>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 30%;">POS Category</th>
+                            <th style="width: 30%;">Mapped To</th>
+                            <th style="width: 15%;">QB Account ID</th>
+                            <th style="width: 25%;">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Bank / Deposit Account</strong></td>
+                            <td>Bank / Deposit Account</td>
+                            <td>QB 84</td>
+                            <td><span class="badge badge-created">🆕 Created new</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Cash on Hand</strong></td>
+                            <td>Cash and cash equivalents</td>
+                            <td>QB 32</td>
+                            <td><span class="badge badge-mapped">Mapped to existing</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Mobile Wallet Account</strong></td>
+                            <td>Mobile Wallet Account</td>
+                            <td>QB 85</td>
+                            <td><span class="badge badge-created">🆕 Created new</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="notes-box">
+                <div class="notes-title">Notes:</div>
+                <ul>
+                    <li>"Bank / Deposit Account" — where card/bank payments are deposited (specify your actual bank name if you'd like us to rename)</li>
+                    <li>"Mobile Wallet Account" — for JazzCash, Easypaisa, SadaPay deposits</li>
+                    <li>"Cash on Hand" — physical cash in register/drawer</li>
+                </ul>
+            </div>
+
+            <!-- Liabilities -->
+            <h3 class="section-subtitle">✅ Liabilities (Money Owed)</h3>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 30%;">POS Category</th>
+                            <th style="width: 30%;">Mapped To</th>
+                            <th style="width: 15%;">QB Account ID</th>
+                            <th style="width: 25%;">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Sales Tax Payable</strong></td>
+                            <td>Sales Tax Payable</td>
+                            <td>QB 83</td>
+                            <td><span class="badge badge-created">🆕 Created new</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Tips / Gratuity</strong></td>
+                            <td>Accrued liabilities</td>
+                            <td>QB 35</td>
+                            <td><span class="badge badge-mapped">Mapped to existing</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Gift Card Liability</strong></td>
+                            <td>Deferred Revenue</td>
+                            <td>QB 81</td>
+                            <td><span class="badge badge-mapped">Mapped to existing</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="notes-box">
+                <div class="notes-title">Notes:</div>
+                <ul>
+                    <li>"Sales Tax Payable" — GST/FBR (17%), PRA/PST (16%) collected from customers</li>
+                    <li>Tips collected from customers, owed to staff</li>
+                    <li>Gift cards — liability until customer redeems</li>
+                </ul>
+            </div>
+
+            <!-- Operating Expenses -->
+            <h3 class="section-subtitle">✅ Operating Expenses</h3>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 30%;">POS Category</th>
+                            <th style="width: 30%;">Mapped To</th>
+                            <th style="width: 15%;">QB Account ID</th>
+                            <th style="width: 25%;">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Platform Commission Expense</strong></td>
+                            <td>Uncategorised Expense</td>
+                            <td>QB 3</td>
+                            <td><span class="badge badge-mapped">Mapped to existing</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Rent / Occupancy</strong></td>
+                            <td>Rent or lease payments</td>
+                            <td>QB 60</td>
+                            <td><span class="badge badge-mapped">Mapped to existing</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Salaries & Wages</strong></td>
+                            <td>Payroll Expenses</td>
+                            <td>QB 75</td>
+                            <td><span class="badge badge-mapped">Mapped to existing</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Utilities</strong></td>
+                            <td>Utilities</td>
+                            <td>QB 66</td>
+                            <td><span class="badge badge-mapped">Mapped to existing</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Packaging & Disposables</strong></td>
+                            <td>Supplies</td>
+                            <td>QB 67</td>
+                            <td><span class="badge badge-mapped">Mapped to existing</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="notes-box">
+                <div class="notes-title">Notes:</div>
+                <ul>
+                    <li>Platform commissions (Foodpanda, Cheetay, etc.) mapped to "Uncategorised Expense" — suggest renaming to "Platform Commissions" or "Delivery Platform Fees" for clarity</li>
+                </ul>
+            </div>
+
+            <!-- Adjustments -->
+            <h3 class="section-subtitle">✅ Adjustments & Variances</h3>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 30%;">POS Category</th>
+                            <th style="width: 30%;">Mapped To</th>
+                            <th style="width: 15%;">QB Account ID</th>
+                            <th style="width: 25%;">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Rounding Adjustment</strong></td>
+                            <td>Rounding Adjustment</td>
+                            <td>QB 86</td>
+                            <td><span class="badge badge-created">🆕 Created new</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Cash Over/Short</strong></td>
+                            <td>Cash Over/Short</td>
+                            <td>QB 87</td>
+                            <td><span class="badge badge-created">🆕 Created new</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="notes-box">
+                <div class="notes-title">Notes:</div>
+                <ul>
+                    <li>Rounding — small differences on cash transactions (paisa rounding)</li>
+                    <li>Cash Over/Short — discrepancies in cash drawer counts</li>
+                </ul>
+            </div>
+        </section>
+
+        <!-- New Accounts Created -->
+        <section class="section">
+            <div class="new-accounts-box">
+                <div class="new-accounts-title">
+                    <span>🆕</span>
+                    <span>New Accounts Created in Your QuickBooks</span>
+                </div>
+                <p style="margin-bottom: 16px; font-size: 9pt;">These 6 accounts were created automatically because no suitable match existed:</p>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="width: 35%;">Account Name</th>
+                                <th style="width: 25%;">Type</th>
+                                <th style="width: 30%;">Detail Type</th>
+                                <th style="width: 10%;">QB ID</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Beverage Sales Income</strong></td>
+                                <td>Income</td>
+                                <td>SalesOfProductIncome</td>
+                                <td>82</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Sales Tax Payable</strong></td>
+                                <td>Other Current Liability</td>
+                                <td>GlobalTaxPayable</td>
+                                <td>83</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Bank / Deposit Account</strong></td>
+                                <td>Bank</td>
+                                <td>CashAndCashEquivalents</td>
+                                <td>84</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Mobile Wallet Account</strong></td>
+                                <td>Bank</td>
+                                <td>CashAndCashEquivalents</td>
+                                <td>85</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Rounding Adjustment</strong></td>
+                                <td>Other Expense</td>
+                                <td>OtherMiscellaneousExpense</td>
+                                <td>86</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Cash Over/Short</strong></td>
+                                <td>Other Expense</td>
+                                <td>OtherMiscellaneousExpense</td>
+                                <td>87</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="verify-instruction">
+                    <strong>To verify:</strong> Log into QuickBooks Online → Settings → Chart of Accounts → Look for these 6 accounts.
+                </div>
+            </div>
+        </section>
+
+        <!-- Review Checklist -->
+        <section class="section">
+            <h2 class="section-title">Review Checklist</h2>
+            <p style="margin-bottom: 24px;">Please review the mappings above and let us know:</p>
+
+            <div class="checklist-item">
+                <div class="checkbox"></div>
+                <div class="checklist-content">
+                    <div class="checklist-title">1. Required Changes (if any)</div>
+                    <ul class="checklist-description">
+                        <li>Any accounts need to be renamed? (e.g., "Bank / Deposit Account" → "Allied Bank - Checking")</li>
+                        <li>Any mappings incorrect? (e.g., Service Charge should go to a different account)</li>
+                        <li>Any accounts should be merged? (e.g., combine Cash on Hand + Mobile Wallet)</li>
+                    </ul>
+                </div>
+            </div>
+
+            <h3 class="section-subtitle" style="margin-top: 32px;">⚠️ Items Flagged for Your Review</h3>
+
+            <div class="flagged-item">
+                <div class="flagged-title">A. Discounts Given → "Discounts given - COS" (COGS account)</div>
+                <div class="flagged-content">
+                    <div><strong>Question:</strong> Are customer discounts part of Cost of Goods Sold in your accounting?</div>
+                    <div><strong>Standard practice:</strong> Discounts are usually "contra-revenue" (reduces sales), not COGS</div>
+                    <div><strong>Action needed:</strong> Confirm this is correct OR suggest alternate mapping</div>
+                </div>
+            </div>
+
+            <div class="flagged-item">
+                <div class="flagged-title">B. Service Charge + Delivery Fee → both use "Revenue - General"</div>
+                <div class="flagged-content">
+                    <div><strong>Question:</strong> Is it OK to combine these, or do you want separate tracking?</div>
+                    <div><strong>If separate:</strong> We can create "Service Charge Income" and "Delivery Fee Income" accounts</div>
+                </div>
+            </div>
+
+            <div class="flagged-item">
+                <div class="flagged-title">C. Platform Commission → "Uncategorised Expense"</div>
+                <div class="flagged-content">
+                    <div><strong>Suggestion:</strong> Rename to "Platform Commissions" or "Delivery Platform Fees" for clearer reporting</div>
+                    <div><strong>Action:</strong> Let us know if you want us to rename this account</div>
+                </div>
+            </div>
+
+            <div class="checklist-item" style="margin-top: 24px;">
+                <div class="checkbox"></div>
+                <div class="checklist-content">
+                    <div class="checklist-title">2. Final Approval</div>
+                    <ul class="checklist-description">
+                        <li><strong>Approve as-is</strong> → We'll proceed to test sync</li>
+                        <li><strong>Request changes</strong> → Share the changes, we'll update mappings</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- What Happens Next -->
+        <section class="section">
+            <h2 class="section-title">What Happens Next</h2>
+            <div class="steps-container">
+                <div class="step-card">
+                    <div class="step-number">1</div>
+                    <div class="step-title">Your Review (This Document)</div>
+                    <div class="step-description">
+                        <ul>
+                            <li>Review mappings above</li>
+                            <li>Check the 6 new accounts in your QuickBooks</li>
+                            <li>Share any requested changes with Sitara Infotech</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="step-card">
+                    <div class="step-number">2</div>
+                    <div class="step-title">Adjustments (if needed)</div>
+                    <div class="step-description">
+                        <ul>
+                            <li>We'll update mappings based on your feedback</li>
+                            <li>Rename/reassign accounts as requested</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="step-card">
+                    <div class="step-number">3</div>
+                    <div class="step-title">Test Sync</div>
+                    <div class="step-description">
+                        <ul>
+                            <li>Create a sample order in POS</li>
+                            <li>Push to QuickBooks as a Sales Receipt</li>
+                            <li>Verify all data appears correctly in QB</li>
+                            <li>Confirm account assignments are accurate</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="step-card">
+                    <div class="step-number">4</div>
+                    <div class="step-title">Go-Live</div>
+                    <div class="step-description">
+                        <ul>
+                            <li>Enable automatic sync for all orders</li>
+                            <li>POS transactions flow to QuickBooks in real-time</li>
+                            <li>Monthly reconciliation support</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Technical Details -->
+        <section class="section">
+            <h2 class="section-title">Technical Details (for reference)</h2>
+            <div class="tech-details">
+                <div class="tech-grid">
+                    <div class="tech-item">
+                        <span class="tech-label">Mapping Method:</span>
+                        <span class="tech-value">Fuzzy matching algorithm</span>
+                    </div>
+                    <div class="tech-item">
+                        <span class="tech-label">Accounts Analyzed:</span>
+                        <span class="tech-value">80 accounts</span>
+                    </div>
+                    <div class="tech-item">
+                        <span class="tech-label">API Integration:</span>
+                        <span class="tech-value">QuickBooks Online API v3</span>
+                    </div>
+                    <div class="tech-item">
+                        <span class="tech-label">Authentication:</span>
+                        <span class="tech-value">OAuth 2.0</span>
+                    </div>
+                    <div class="tech-item">
+                        <span class="tech-label">Sync Frequency:</span>
+                        <span class="tech-value">Real-time (immediate after payment)</span>
+                    </div>
+                    <div class="tech-item">
+                        <span class="tech-label">Data Format:</span>
+                        <span class="tech-value">Sales Receipts / Invoices</span>
+                    </div>
+                    <div class="tech-item">
+                        <span class="tech-label">Database Storage:</span>
+                        <span class="tech-value">qb_account_mappings table</span>
+                    </div>
+                    <div class="tech-item">
+                        <span class="tech-label">Reversible:</span>
+                        <span class="tech-value">Mappings can be changed anytime</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <div class="footer-left">
+                <div><strong>Sitara Infotech</strong></div>
+                <div class="confidential">CONFIDENTIAL</div>
+            </div>
+            <div class="footer-right">
+                <div>Document Version: 1.0</div>
+                <div>Generated: 2026-03-25</div>
+                <div style="margin-top: 8px; font-size: 7pt; color: #9CA3AF;">
+                    File: docs/QB_ONLINE_ACCOUNT_MAPPING_REVIEW.html
+                </div>
+            </div>
+        </footer>
+    </div>
+</body>
+</html>

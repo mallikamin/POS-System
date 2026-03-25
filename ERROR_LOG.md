@@ -94,3 +94,24 @@ Each entry follows:
 - **Root Cause**: `_get_session_receipt_data` passed raw payment records to receipt without consolidation
 - **Fix**: Added consolidation in receipt service — aggregate payments by method name before building `ReceiptPayment` list
 - **Rule**: Session receipts should always consolidate payments by method. The per-order allocation is an internal detail, not customer-facing.
+
+### 2026-03-25 — rsync --delete wiped server files during CI/CD deploy
+- **Error**: GitHub Actions rsync `--delete` flag removed ALL server files (git repo, .env.demo, frontend/, scripts/) — only deploy-package contents survived
+- **Context**: Setting up GitHub Actions CI/CD for the first time. Workflow used `rsync -avz --delete deploy-package/ server:pos-system/`
+- **Root Cause**: `--delete` removes any files on the destination that aren't in the source. The deploy-package only contained frontend-dist, backend, docker, and docker-compose.demo.yml — everything else was deleted.
+- **Fix**: Restored server via `git clone` + .env.demo backup from /tmp. Rewrote workflow to: (1) rsync ONLY frontend dist files, (2) use `git pull` for code sync on server. No more `--delete` flag.
+- **Rule**: NEVER use `rsync --delete` to deploy to a production server unless the source is a complete mirror. For partial deploys, rsync specific directories without `--delete`, and use `git pull` for code sync.
+
+### 2026-03-25 — .dockerignore blocks pre-built dist in CI/CD
+- **Error**: `COPY dist /usr/share/nginx/html` failed with "not found" — Docker couldn't see the dist directory
+- **Context**: CI/CD builds frontend on GitHub, uploads dist to server, then tries to build nginx image with pre-built files
+- **Root Cause**: `frontend/.dockerignore` contains `dist` — Docker build context excludes the directory even though it exists on disk
+- **Fix**: Workflow temporarily removes `dist` from .dockerignore before build (`sed -i '/^dist$/d'`), then restores it after. Created `Dockerfile.prebuilt` that's separate from the full multi-stage Dockerfile.
+- **Rule**: When using pre-built artifacts with Docker, check `.dockerignore` — it can silently exclude files you need. Use a separate Dockerfile for CI/CD pre-built deploys.
+
+### 2026-03-25 — Server OOM during frontend build (2GB droplet)
+- **Error**: SSH disconnects, load average 47.97, 29MB RAM free during `docker compose build frontend`
+- **Context**: TypeScript compilation (tsc --noEmit) consumed 345MB RAM + Vite build needs ~500MB, on a server with 1.9GB total already running 4 containers
+- **Root Cause**: 2GB RAM insufficient for Node.js TypeScript + Vite builds alongside running Docker containers
+- **Fix**: Set up GitHub Actions CI/CD — builds happen on GitHub's 7GB RAM runners. Server only serves pre-built static files via nginx.
+- **Rule**: Never build frontend (TypeScript/Vite/webpack) on a production server with < 4GB RAM. Use CI/CD runners for builds, deploy only artifacts.

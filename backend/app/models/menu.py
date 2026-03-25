@@ -89,6 +89,9 @@ class MenuItem(BaseMixin, Base):
         back_populates="menu_items",
         lazy="selectin",
     )
+    recipe: Mapped["Recipe"] = relationship(
+        "Recipe", back_populates="menu_item", uselist=False
+    )
 
 
 class ModifierGroup(BaseMixin, Base):

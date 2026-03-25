@@ -24,6 +24,13 @@ from app.models.kitchen import KitchenStation, KitchenTicket, KitchenTicketItem
 from app.models.table_session import TableSession
 from app.models.discount import DiscountType, OrderDiscount
 from app.models.audit import AuditLog
+from app.models.inventory import (
+    Ingredient,
+    Recipe,
+    RecipeItem,
+    InventoryTransaction,
+    StockCount,
+)
 
 __all__ = [
     "Base",
@@ -61,4 +68,9 @@ __all__ = [
     "DiscountType",
     "OrderDiscount",
     "AuditLog",
+    "Ingredient",
+    "Recipe",
+    "RecipeItem",
+    "InventoryTransaction",
+    "StockCount",
 ]
