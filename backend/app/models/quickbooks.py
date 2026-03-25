@@ -10,6 +10,7 @@ from datetime import datetime
 from sqlalchemy import (
     Boolean,
     DateTime,
+    Enum,
     ForeignKey,
     Index,
     Integer,
@@ -50,7 +51,7 @@ class QBConnection(BaseMixin, Base):
 
     # Connection type: determines adapter
     connection_type: Mapped[str] = mapped_column(
-        String(20),
+        Enum("online", "desktop", name="qb_connection_type", create_type=False),
         nullable=False,
         default="online",
         comment="online | desktop",
