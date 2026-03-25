@@ -9,7 +9,7 @@ from app.api.v1.orders import router as orders_router
 from app.api.v1.dashboard import router as dashboard_router
 from app.api.v1.reports import router as reports_router
 from app.api.v1.quickbooks import router as quickbooks_router
-from app.api.v1.qbwc import router as qbwc_router
+# from app.api.v1.qbwc import router as qbwc_router  # QB Desktop - not ready yet
 from app.api.v1.payments import router as payments_router
 from app.api.v1.customers import router as customers_router
 from app.api.v1.kitchen import router as kitchen_router
