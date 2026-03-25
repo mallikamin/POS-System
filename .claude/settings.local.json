@@ -64,7 +64,8 @@
       "Bash(alembic upgrade:*)",
       "Bash(powershell.exe:*)",
       "Bash(openssl rand:*)",
-      "Bash(ping:*)"
+      "Bash(ping:*)",
+      "Bash(pwsh:*)"
     ]
   }
 }

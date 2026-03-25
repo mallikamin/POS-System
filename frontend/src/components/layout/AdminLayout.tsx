@@ -26,7 +26,8 @@ const navItems = [
   { to: "/admin/z-report", label: "Z-Report", icon: FileText, end: false },
   { to: "/admin/roles", label: "Roles", icon: Shield, end: false },
   { to: "/admin/discounts", label: "Discounts", icon: Tag, end: false },
-  { to: "/admin/quickbooks", label: "QuickBooks", icon: BookOpen, end: false },
+  { to: "/admin/quickbooks", label: "QuickBooks Online", icon: BookOpen, end: false },
+  { to: "/admin/qb-desktop", label: "QB Desktop", icon: BookOpen, end: false },
 ];
 
 function AdminLayout() {

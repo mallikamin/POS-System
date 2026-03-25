@@ -2,15 +2,14 @@
  * QB Desktop Connection Management Page
  *
  * Features:
- * - Create/edit Desktop connections
+ * - Create Desktop connection
  * - Download QWC file
  * - View sync queue
  * - Monitor connection health
- * - Manual sync triggers
  */
 
 import { useState, useEffect } from 'react';
-import { Plus, Download, RefreshCw, Activity, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Download, RefreshCw, AlertCircle, CheckCircle2, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -48,15 +47,16 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/useToast';
 import api from '@/lib/axios';
 
-interface QBConnection {
-  id: string;
-  connection_type: 'desktop';
-  company_name: string;
-  qbwc_username: string;
-  qb_desktop_version: string;
+interface QBConnectionStatus {
+  is_connected: boolean;
+  connection_type: string | null;
+  company_name: string | null;
+  connected_at: string | null;
+  last_sync_at: string | null;
+  last_sync_status: string | null;
+  qbwc_username: string | null;
+  qb_desktop_version: string | null;
   last_qbwc_poll_at: string | null;
-  is_active: boolean;
-  created_at: string;
 }
 
 interface SyncJob {
@@ -64,22 +64,27 @@ interface SyncJob {
   job_type: string;
   entity_type: string;
   entity_id: string | null;
-  status: 'pending' | 'processing' | 'completed' | 'failed';
+  status: 'pending' | 'processing' | 'completed' | 'failed' | 'dead_letter';
   created_at: string;
+  completed_at: string | null;
   error_message: string | null;
+  retry_count: number;
 }
 
-interface ConnectionHealth {
-  status: 'connected' | 'disconnected';
-  last_poll_at: string | null;
-  pending_requests: number;
-  qb_version: string | null;
+interface SyncStats {
+  total_synced: number;
+  last_24h_synced: number;
+  last_24h_failed: number;
+  pending_jobs: number;
+  failed_jobs: number;
+  dead_letter_jobs: number;
+  last_sync_at: string | null;
 }
 
 export default function QBDesktopPage() {
-  const [connections, setConnections] = useState<QBConnection[]>([]);
+  const [connectionStatus, setConnectionStatus] = useState<QBConnectionStatus | null>(null);
   const [syncJobs, setSyncJobs] = useState<SyncJob[]>([]);
-  const [health, setHealth] = useState<ConnectionHealth | null>(null);
+  const [syncStats, setSyncStats] = useState<SyncStats | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
@@ -87,39 +92,40 @@ export default function QBDesktopPage() {
   // Form state
   const [formData, setFormData] = useState({
     company_name: '',
-    qbwc_username: '',
-    qbwc_password: '',
-    qb_desktop_version: 'Enterprise 2024',
+    password: '',
+    qb_version: 'Enterprise 2024',
+    company_file_path: '',
   });
 
-  // Load connections on mount
+  // Load connection status on mount
   useEffect(() => {
-    loadConnections();
+    loadStatus();
     loadSyncQueue();
-    loadHealth();
+    loadSyncStats();
 
     // Refresh every 30 seconds
     const interval = setInterval(() => {
+      loadStatus();
       loadSyncQueue();
-      loadHealth();
+      loadSyncStats();
     }, 30000);
 
     return () => clearInterval(interval);
   }, []);
 
-  const loadConnections = async () => {
+  const loadStatus = async () => {
     try {
-      const response = await api.get('/integrations/quickbooks/desktop/connections');
-      setConnections(response.data);
+      const response = await api.get('/integrations/quickbooks/status');
+      setConnectionStatus(response.data);
     } catch (error) {
-      console.error('Failed to load connections:', error);
+      console.error('Failed to load status:', error);
     }
   };
 
   const loadSyncQueue = async () => {
     try {
-      const response = await api.get('/integrations/quickbooks/desktop/sync-queue', {
-        params: { limit: 20 },
+      const response = await api.get('/integrations/quickbooks/sync/jobs', {
+        params: { page_size: 20 },
       });
       setSyncJobs(response.data);
     } catch (error) {
@@ -127,12 +133,12 @@ export default function QBDesktopPage() {
     }
   };
 
-  const loadHealth = async () => {
+  const loadSyncStats = async () => {
     try {
-      const response = await api.get('/integrations/quickbooks/desktop/health');
-      setHealth(response.data);
+      const response = await api.get('/integrations/quickbooks/sync/stats');
+      setSyncStats(response.data);
     } catch (error) {
-      console.error('Failed to load health:', error);
+      console.error('Failed to load sync stats:', error);
     }
   };
 
@@ -141,18 +147,25 @@ export default function QBDesktopPage() {
     setIsLoading(true);
 
     try {
-      await api.post('/integrations/quickbooks/desktop/connections', formData);
+      await api.post('/integrations/quickbooks/desktop/connect', null, {
+        params: {
+          password: formData.password,
+          company_name: formData.company_name,
+          qb_version: formData.qb_version,
+          company_file_path: formData.company_file_path || undefined,
+        },
+      });
       toast({
         title: 'Success',
-        description: 'Desktop connection created successfully',
+        description: 'Desktop connection created successfully. Download the QWC file below.',
       });
       setIsDialogOpen(false);
-      loadConnections();
+      loadStatus();
       setFormData({
         company_name: '',
-        qbwc_username: '',
-        qbwc_password: '',
-        qb_desktop_version: 'Enterprise 2024',
+        password: '',
+        qb_version: 'Enterprise 2024',
+        company_file_path: '',
       });
     } catch (error: any) {
       toast({
@@ -165,12 +178,11 @@ export default function QBDesktopPage() {
     }
   };
 
-  const handleDownloadQWC = async (connectionId: string) => {
+  const handleDownloadQWC = async () => {
     try {
-      const response = await api.get(
-        `/integrations/quickbooks/desktop/connections/${connectionId}/download-qwc`,
-        { responseType: 'blob' }
-      );
+      const response = await api.get('/integrations/quickbooks/desktop/qwc', {
+        responseType: 'blob',
+      });
 
       // Create download link
       const url = window.URL.createObjectURL(new Blob([response.data]));
@@ -194,14 +206,38 @@ export default function QBDesktopPage() {
     }
   };
 
-  const handleManualSync = async () => {
+  const handleDisconnect = async () => {
+    if (!confirm('Are you sure you want to disconnect QuickBooks Desktop?')) {
+      return;
+    }
+
     try {
-      await api.post('/integrations/quickbooks/desktop/sync/trigger');
+      await api.post('/integrations/quickbooks/disconnect');
       toast({
         title: 'Success',
-        description: 'Manual sync triggered. QBWC will fetch on next poll.',
+        description: 'QuickBooks Desktop disconnected',
+      });
+      loadStatus();
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to disconnect',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleManualSync = async () => {
+    try {
+      const response = await api.post('/integrations/quickbooks/sync', {
+        sync_type: 'sync_orders',
+      });
+      toast({
+        title: 'Success',
+        description: `Queued ${response.data.jobs_created} sync jobs`,
       });
       loadSyncQueue();
+      loadSyncStats();
     } catch (error) {
       toast({
         title: 'Error',
@@ -217,15 +253,15 @@ export default function QBDesktopPage() {
       processing: 'secondary',
       completed: 'default',
       failed: 'destructive',
+      dead_letter: 'destructive',
     };
 
     return <Badge variant={variants[status] || 'outline'}>{status}</Badge>;
   };
 
   const getHealthIcon = () => {
-    if (!health) return null;
-
-    if (health.status === 'connected') {
+    if (!connectionStatus) return <XCircle className="h-5 w-5 text-gray-400" />;
+    if (connectionStatus.is_connected && connectionStatus.connection_type === 'desktop') {
       return <CheckCircle2 className="h-5 w-5 text-green-600" />;
     }
     return <AlertCircle className="h-5 w-5 text-amber-600" />;
@@ -247,6 +283,8 @@ export default function QBDesktopPage() {
     return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
   };
 
+  const isConnected = connectionStatus?.is_connected && connectionStatus.connection_type === 'desktop';
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -254,241 +292,267 @@ export default function QBDesktopPage() {
         <div>
           <h1 className="text-3xl font-bold">QuickBooks Desktop</h1>
           <p className="text-muted-foreground mt-1">
-            Manage QBWC connections and sync queue
+            Manage QBWC connection and sync queue
           </p>
         </div>
 
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              New Connection
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Create Desktop Connection</DialogTitle>
-              <DialogDescription>
-                Setup a new QuickBooks Desktop connection via QBWC
-              </DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleCreateConnection} className="space-y-4">
-              <div>
-                <Label htmlFor="company_name">Company Name</Label>
-                <Input
-                  id="company_name"
-                  value={formData.company_name}
-                  onChange={(e) =>
-                    setFormData({ ...formData, company_name: e.target.value })
-                  }
-                  placeholder="My Restaurant"
-                  required
-                />
-              </div>
+        {!isConnected ? (
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button>Connect QuickBooks Desktop</Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Connect QuickBooks Desktop</DialogTitle>
+                <DialogDescription>
+                  Create a QBWC connection to sync with QuickBooks Desktop
+                </DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleCreateConnection} className="space-y-4">
+                <div>
+                  <Label htmlFor="company_name">Company Name</Label>
+                  <Input
+                    id="company_name"
+                    value={formData.company_name}
+                    onChange={(e) =>
+                      setFormData({ ...formData, company_name: e.target.value })
+                    }
+                    placeholder="My Restaurant Company"
+                    required
+                  />
+                </div>
 
-              <div>
-                <Label htmlFor="qbwc_username">QBWC Username</Label>
-                <Input
-                  id="qbwc_username"
-                  value={formData.qbwc_username}
-                  onChange={(e) =>
-                    setFormData({ ...formData, qbwc_username: e.target.value })
-                  }
-                  placeholder="pos_admin"
-                  required
-                />
-              </div>
+                <div>
+                  <Label htmlFor="password">QBWC Password</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    value={formData.password}
+                    onChange={(e) =>
+                      setFormData({ ...formData, password: e.target.value })
+                    }
+                    placeholder="Create a strong password"
+                    required
+                  />
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Save this password - you'll need it when importing the QWC file into QBWC
+                  </p>
+                </div>
 
-              <div>
-                <Label htmlFor="qbwc_password">QBWC Password</Label>
-                <Input
-                  id="qbwc_password"
-                  type="password"
-                  value={formData.qbwc_password}
-                  onChange={(e) =>
-                    setFormData({ ...formData, qbwc_password: e.target.value })
-                  }
-                  placeholder="Create a strong password"
-                  required
-                />
-                <p className="text-sm text-muted-foreground mt-1">
-                  Save this password - you'll need it when importing the QWC file
-                </p>
-              </div>
+                <div>
+                  <Label htmlFor="qb_version">QB Desktop Version</Label>
+                  <Select
+                    value={formData.qb_version}
+                    onValueChange={(value) =>
+                      setFormData({ ...formData, qb_version: value })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Enterprise 2024">Enterprise 2024</SelectItem>
+                      <SelectItem value="Enterprise 2023">Enterprise 2023</SelectItem>
+                      <SelectItem value="Premier 2024">Premier 2024</SelectItem>
+                      <SelectItem value="Premier 2023">Premier 2023</SelectItem>
+                      <SelectItem value="Pro 2024">Pro 2024</SelectItem>
+                      <SelectItem value="Pro 2023">Pro 2023</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-              <div>
-                <Label htmlFor="qb_version">QB Desktop Version</Label>
-                <Select
-                  value={formData.qb_desktop_version}
-                  onValueChange={(value) =>
-                    setFormData({ ...formData, qb_desktop_version: value })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Enterprise 2024">Enterprise 2024</SelectItem>
-                    <SelectItem value="Enterprise 2023">Enterprise 2023</SelectItem>
-                    <SelectItem value="Premier 2024">Premier 2024</SelectItem>
-                    <SelectItem value="Premier 2023">Premier 2023</SelectItem>
-                    <SelectItem value="Pro 2024">Pro 2024</SelectItem>
-                    <SelectItem value="Pro 2023">Pro 2023</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+                <div>
+                  <Label htmlFor="company_file_path">Company File Path (Optional)</Label>
+                  <Input
+                    id="company_file_path"
+                    value={formData.company_file_path}
+                    onChange={(e) =>
+                      setFormData({ ...formData, company_file_path: e.target.value })
+                    }
+                    placeholder="C:\Path\To\CompanyFile.QBW"
+                  />
+                </div>
 
-              <div className="flex justify-end gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setIsDialogOpen(false)}
-                >
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={isLoading}>
-                  {isLoading ? 'Creating...' : 'Create Connection'}
-                </Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
+                <div className="flex justify-end gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setIsDialogOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={isLoading}>
+                    {isLoading ? 'Creating...' : 'Create Connection'}
+                  </Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
+        ) : (
+          <Button variant="destructive" onClick={handleDisconnect}>
+            Disconnect
+          </Button>
+        )}
       </div>
 
-      {/* Connection Health */}
-      {health && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              {getHealthIcon()}
-              Connection Health
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+      {/* Connection Status Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            {getHealthIcon()}
+            Connection Status
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {!isConnected ? (
+            <div className="text-center py-8 text-muted-foreground">
+              No Desktop connection configured. Click "Connect QuickBooks Desktop" to get started.
+            </div>
+          ) : (
             <div className="grid grid-cols-4 gap-4">
               <div>
-                <p className="text-sm text-muted-foreground">Status</p>
-                <p className="text-2xl font-bold capitalize">{health.status}</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Last Poll</p>
-                <p className="text-2xl font-bold">{getTimeSince(health.last_poll_at)}</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Pending Requests</p>
-                <p className="text-2xl font-bold">{health.pending_requests}</p>
+                <p className="text-sm text-muted-foreground">Company</p>
+                <p className="text-2xl font-bold">{connectionStatus.company_name}</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">QB Version</p>
-                <p className="text-2xl font-bold">{health.qb_version || 'Unknown'}</p>
+                <p className="text-2xl font-bold">{connectionStatus.qb_desktop_version || 'Unknown'}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Last QBWC Poll</p>
+                <p className="text-2xl font-bold">{getTimeSince(connectionStatus.last_qbwc_poll_at)}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Last Sync</p>
+                <p className="text-2xl font-bold">{getTimeSince(connectionStatus.last_sync_at)}</p>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Download QWC Card */}
+      {isConnected && (
+        <Card>
+          <CardHeader>
+            <CardTitle>QBWC Setup</CardTitle>
+            <CardDescription>
+              Download and import the QWC file into QuickBooks Web Connector
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-start gap-4">
+              <div className="flex-1">
+                <h4 className="font-semibold mb-2">Setup Instructions:</h4>
+                <ol className="list-decimal list-inside space-y-1 text-sm text-muted-foreground">
+                  <li>Download QBWC from Intuit: <a href="https://qbwc.qbn.intuit.com/" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">qbwc.qbn.intuit.com</a></li>
+                  <li>Install QBWC on the PC running QuickBooks Desktop</li>
+                  <li>Click "Download QWC File" below</li>
+                  <li>In QBWC, go to File → Add an Application</li>
+                  <li>Select the downloaded .QWC file</li>
+                  <li>Enter the password you set during connection creation</li>
+                  <li>QBWC will automatically poll every 15 minutes</li>
+                </ol>
+              </div>
+              <Button onClick={handleDownloadQWC}>
+                <Download className="h-4 w-4 mr-2" />
+                Download QWC File
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Sync Stats */}
+      {isConnected && syncStats && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Sync Statistics</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-6 gap-4">
+              <div>
+                <p className="text-sm text-muted-foreground">Total Synced</p>
+                <p className="text-2xl font-bold">{syncStats.total_synced}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Last 24h</p>
+                <p className="text-2xl font-bold text-green-600">{syncStats.last_24h_synced}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Failed (24h)</p>
+                <p className="text-2xl font-bold text-red-600">{syncStats.last_24h_failed}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Pending</p>
+                <p className="text-2xl font-bold text-amber-600">{syncStats.pending_jobs}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Failed</p>
+                <p className="text-2xl font-bold text-red-600">{syncStats.failed_jobs}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Dead Letter</p>
+                <p className="text-2xl font-bold text-red-800">{syncStats.dead_letter_jobs}</p>
               </div>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Connections List */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Desktop Connections</CardTitle>
-          <CardDescription>QBWC connections configured for this tenant</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {connections.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              No connections configured. Click "New Connection" to get started.
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Company Name</TableHead>
-                  <TableHead>Username</TableHead>
-                  <TableHead>QB Version</TableHead>
-                  <TableHead>Last Poll</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {connections.map((conn) => (
-                  <TableRow key={conn.id}>
-                    <TableCell className="font-medium">{conn.company_name}</TableCell>
-                    <TableCell>{conn.qbwc_username}</TableCell>
-                    <TableCell>{conn.qb_desktop_version}</TableCell>
-                    <TableCell>{getTimeSince(conn.last_qbwc_poll_at)}</TableCell>
-                    <TableCell>
-                      <Badge variant={conn.is_active ? 'default' : 'secondary'}>
-                        {conn.is_active ? 'Active' : 'Inactive'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleDownloadQWC(conn.id)}
-                      >
-                        <Download className="h-4 w-4 mr-1" />
-                        QWC
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
-
       {/* Sync Queue */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Sync Queue</CardTitle>
-              <CardDescription>Recent QBXML sync jobs</CardDescription>
+      {isConnected && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Sync Queue</CardTitle>
+                <CardDescription>Recent QBXML sync jobs</CardDescription>
+              </div>
+              <Button onClick={handleManualSync} variant="outline">
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Trigger Sync
+              </Button>
             </div>
-            <Button onClick={handleManualSync} variant="outline">
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Refresh
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {syncJobs.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              No sync jobs yet. Create an order to see it queued here.
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Job Type</TableHead>
-                  <TableHead>Entity</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Created</TableHead>
-                  <TableHead>Error</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {syncJobs.map((job) => (
-                  <TableRow key={job.id}>
-                    <TableCell className="font-medium">
-                      {job.job_type.replace(/_/g, ' ')}
-                    </TableCell>
-                    <TableCell>{job.entity_type}</TableCell>
-                    <TableCell>{getStatusBadge(job.status)}</TableCell>
-                    <TableCell>{getTimeSince(job.created_at)}</TableCell>
-                    <TableCell className="max-w-xs truncate text-red-600">
-                      {job.error_message || '-'}
-                    </TableCell>
+          </CardHeader>
+          <CardContent>
+            {syncJobs.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                No sync jobs yet. Complete an order to see it queued here.
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Job Type</TableHead>
+                    <TableHead>Entity</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Retries</TableHead>
+                    <TableHead>Created</TableHead>
+                    <TableHead>Error</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+                </TableHeader>
+                <TableBody>
+                  {syncJobs.map((job) => (
+                    <TableRow key={job.id}>
+                      <TableCell className="font-medium">
+                        {job.job_type.replace(/_/g, ' ')}
+                      </TableCell>
+                      <TableCell>{job.entity_type}</TableCell>
+                      <TableCell>{getStatusBadge(job.status)}</TableCell>
+                      <TableCell>{job.retry_count}</TableCell>
+                      <TableCell>{getTimeSince(job.created_at)}</TableCell>
+                      <TableCell className="max-w-xs truncate text-red-600">
+                        {job.error_message || '-'}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

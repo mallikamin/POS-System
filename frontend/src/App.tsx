@@ -30,6 +30,7 @@ const StaffManagementPage = lazy(() => import("@/pages/admin/StaffManagementPage
 const SettingsPage = lazy(() => import("@/pages/admin/SettingsPage"));
 const ReportsPage = lazy(() => import("@/pages/admin/ReportsPage"));
 const QuickBooksPage = lazy(() => import("@/pages/admin/QuickBooksPage"));
+const QBDesktopPage = lazy(() => import("@/pages/admin/QBDesktopPage"));
 const ZReportPage = lazy(() => import("@/pages/admin/ZReportPage"));
 const DiscountTypesPage = lazy(() => import("@/pages/admin/DiscountTypesPage"));
 const RoleManagementPage = lazy(() => import("@/pages/admin/RoleManagementPage"));
@@ -79,6 +80,7 @@ export function App() {
             <Route path="reports" element={<ReportsPage />} />
             <Route path="z-report" element={<ZReportPage />} />
             <Route path="quickbooks" element={<QuickBooksPage />} />
+            <Route path="qb-desktop" element={<QBDesktopPage />} />
             <Route path="roles" element={<RoleManagementPage />} />
             <Route path="discounts" element={<DiscountTypesPage />} />
           </Route>
