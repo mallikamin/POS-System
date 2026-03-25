@@ -26,25 +26,11 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Select } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { useToast } from '@/hooks/useToast';
+import { useToast } from '@/hooks/use-toast';
 import api from '@/lib/axios';
 
 interface QBConnectionStatus {
@@ -157,7 +143,7 @@ export default function QBDesktopPage() {
       });
       toast({
         title: 'Success',
-        description: 'Desktop connection created successfully. Download the QWC file below.',
+        description: 'Desktop connection created. Download the QWC file below.',
       });
       setIsDialogOpen(false);
       loadStatus();
@@ -248,15 +234,19 @@ export default function QBDesktopPage() {
   };
 
   const getStatusBadge = (status: string) => {
-    const variants: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
-      pending: 'outline',
-      processing: 'secondary',
-      completed: 'default',
-      failed: 'destructive',
-      dead_letter: 'destructive',
+    const colors: Record<string, string> = {
+      pending: 'bg-gray-200 text-gray-800',
+      processing: 'bg-blue-200 text-blue-800',
+      completed: 'bg-green-200 text-green-800',
+      failed: 'bg-red-200 text-red-800',
+      dead_letter: 'bg-red-600 text-white',
     };
 
-    return <Badge variant={variants[status] || 'outline'}>{status}</Badge>;
+    return (
+      <span className={`px-2 py-1 rounded text-xs font-medium ${colors[status] || colors.pending}`}>
+        {status}
+      </span>
+    );
   };
 
   const getHealthIcon = () => {
@@ -342,22 +332,18 @@ export default function QBDesktopPage() {
                 <div>
                   <Label htmlFor="qb_version">QB Desktop Version</Label>
                   <Select
+                    id="qb_version"
                     value={formData.qb_version}
-                    onValueChange={(value) =>
-                      setFormData({ ...formData, qb_version: value })
+                    onChange={(e) =>
+                      setFormData({ ...formData, qb_version: e.target.value })
                     }
                   >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Enterprise 2024">Enterprise 2024</SelectItem>
-                      <SelectItem value="Enterprise 2023">Enterprise 2023</SelectItem>
-                      <SelectItem value="Premier 2024">Premier 2024</SelectItem>
-                      <SelectItem value="Premier 2023">Premier 2023</SelectItem>
-                      <SelectItem value="Pro 2024">Pro 2024</SelectItem>
-                      <SelectItem value="Pro 2023">Pro 2023</SelectItem>
-                    </SelectContent>
+                    <option value="Enterprise 2024">Enterprise 2024</option>
+                    <option value="Enterprise 2023">Enterprise 2023</option>
+                    <option value="Premier 2024">Premier 2024</option>
+                    <option value="Premier 2023">Premier 2023</option>
+                    <option value="Pro 2024">Pro 2024</option>
+                    <option value="Pro 2023">Pro 2023</option>
                   </Select>
                 </div>
 
@@ -445,7 +431,7 @@ export default function QBDesktopPage() {
               <div className="flex-1">
                 <h4 className="font-semibold mb-2">Setup Instructions:</h4>
                 <ol className="list-decimal list-inside space-y-1 text-sm text-muted-foreground">
-                  <li>Download QBWC from Intuit: <a href="https://qbwc.qbn.intuit.com/" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">qbwc.qbn.intuit.com</a></li>
+                  <li>Download QBWC from <a href="https://qbwc.qbn.intuit.com/" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">Intuit</a></li>
                   <li>Install QBWC on the PC running QuickBooks Desktop</li>
                   <li>Click "Download QWC File" below</li>
                   <li>In QBWC, go to File → Add an Application</li>
@@ -472,7 +458,7 @@ export default function QBDesktopPage() {
           <CardContent>
             <div className="grid grid-cols-6 gap-4">
               <div>
-                <p className="text-sm text-muted-foreground">Total Synced</p>
+                <p className="text-sm text-muted-foreground">Total</p>
                 <p className="text-2xl font-bold">{syncStats.total_synced}</p>
               </div>
               <div>
@@ -480,7 +466,7 @@ export default function QBDesktopPage() {
                 <p className="text-2xl font-bold text-green-600">{syncStats.last_24h_synced}</p>
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Failed (24h)</p>
+                <p className="text-sm text-muted-foreground">Failed</p>
                 <p className="text-2xl font-bold text-red-600">{syncStats.last_24h_failed}</p>
               </div>
               <div>
@@ -492,7 +478,7 @@ export default function QBDesktopPage() {
                 <p className="text-2xl font-bold text-red-600">{syncStats.failed_jobs}</p>
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Dead Letter</p>
+                <p className="text-sm text-muted-foreground">Dead</p>
                 <p className="text-2xl font-bold text-red-800">{syncStats.dead_letter_jobs}</p>
               </div>
             </div>
@@ -521,34 +507,26 @@ export default function QBDesktopPage() {
                 No sync jobs yet. Complete an order to see it queued here.
               </div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Job Type</TableHead>
-                    <TableHead>Entity</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Retries</TableHead>
-                    <TableHead>Created</TableHead>
-                    <TableHead>Error</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {syncJobs.map((job) => (
-                    <TableRow key={job.id}>
-                      <TableCell className="font-medium">
-                        {job.job_type.replace(/_/g, ' ')}
-                      </TableCell>
-                      <TableCell>{job.entity_type}</TableCell>
-                      <TableCell>{getStatusBadge(job.status)}</TableCell>
-                      <TableCell>{job.retry_count}</TableCell>
-                      <TableCell>{getTimeSince(job.created_at)}</TableCell>
-                      <TableCell className="max-w-xs truncate text-red-600">
-                        {job.error_message || '-'}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              <div className="space-y-2">
+                {syncJobs.map((job) => (
+                  <div key={job.id} className="border rounded-lg p-4 flex items-center justify-between">
+                    <div className="flex-1">
+                      <p className="font-medium">{job.job_type.replace(/_/g, ' ')}</p>
+                      <p className="text-sm text-muted-foreground">{job.entity_type}</p>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      {getStatusBadge(job.status)}
+                      <span className="text-sm text-muted-foreground">{getTimeSince(job.created_at)}</span>
+                      {job.retry_count > 0 && (
+                        <span className="text-sm text-amber-600">Retries: {job.retry_count}</span>
+                      )}
+                    </div>
+                    {job.error_message && (
+                      <p className="text-sm text-red-600 mt-2 truncate max-w-md">{job.error_message}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
             )}
           </CardContent>
         </Card>
