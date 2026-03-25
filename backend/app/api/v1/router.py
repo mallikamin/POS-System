@@ -29,7 +29,7 @@ api_v1_router.include_router(orders_router)
 api_v1_router.include_router(dashboard_router)
 api_v1_router.include_router(reports_router)
 api_v1_router.include_router(quickbooks_router)
-api_v1_router.include_router(qbwc_router)
+# api_v1_router.include_router(qbwc_router)  # QB Desktop - not ready yet
 api_v1_router.include_router(payments_router)
 api_v1_router.include_router(customers_router)
 api_v1_router.include_router(kitchen_router)
