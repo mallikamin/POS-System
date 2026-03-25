@@ -34,18 +34,9 @@ jobs:
       - name: Build frontend
         working-directory: frontend
         env:
-          VITE_API_URL: https://pos-demo.duckdns.org/api/v1
-          VITE_WS_URL: wss://pos-demo.duckdns.org/ws
+          VITE_API_URL: /api
+          VITE_WS_URL: /ws
         run: npm run build
-
-      - name: Create deployment package
-        run: |
-          mkdir -p deploy-package
-          cp -r frontend/dist deploy-package/frontend-dist
-          cp -r backend deploy-package/backend
-          cp -r docker deploy-package/docker
-          cp docker-compose.demo.yml deploy-package/
-          cp .env.demo deploy-package/ || echo ".env.demo not in repo, will use server's existing file"
 
       - name: Setup SSH key
         run: |
@@ -54,51 +45,58 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H ${{ env.SERVER_HOST }} >> ~/.ssh/known_hosts
 
-      - name: Upload to server
+      - name: Upload built frontend to server
         run: |
-          rsync -avz --delete \
+          rsync -avz \
             -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
-            deploy-package/ \
-            ${{ env.SERVER_USER }}@${{ env.SERVER_HOST }}:${{ env.DEPLOY_PATH }}/
+            frontend/dist/ \
+            ${{ env.SERVER_USER }}@${{ env.SERVER_HOST }}:${{ env.DEPLOY_PATH }}/frontend-dist/
 
       - name: Deploy on server
         run: |
           ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
             ${{ env.SERVER_USER }}@${{ env.SERVER_HOST }} << 'ENDSSH'
 
-          cd ${{ env.DEPLOY_PATH }}
+          cd /root/pos-system
 
-          # Backup current frontend
-          docker commit pos-system-frontend-1 pos-system-frontend:backup-$(date +%Y%m%d-%H%M%S) || true
+          # Pull latest code from git
+          git pull origin main || true
 
-          # Copy built frontend to nginx container location
+          # Copy pre-built frontend into frontend/dist
           rm -rf frontend/dist
           cp -r frontend-dist frontend/dist
 
-          # Rebuild and restart only frontend (nginx static files)
-          docker compose -f docker-compose.demo.yml --env-file .env.demo build --no-cache frontend
+          # Temporarily allow dist in dockerignore for prebuilt
+          sed -i '/^dist$/d' frontend/.dockerignore
+
+          # Build using lightweight prebuilt Dockerfile (no npm needed)
+          docker build -t pos-system-frontend -f frontend/Dockerfile.prebuilt frontend/
+
+          # Restore dockerignore
+          echo "dist" >> frontend/.dockerignore
+
+          # Recreate frontend container with new image
           docker compose -f docker-compose.demo.yml --env-file .env.demo up -d --no-deps --force-recreate frontend
 
-          # Restart nginx to pick up new static files
-          docker compose -f docker-compose.demo.yml --env-file .env.demo restart nginx || true
+          # Rebuild backend if code changed
+          docker compose -f docker-compose.demo.yml --env-file .env.demo up -d --no-deps --build backend
 
-          # Wait for service to be healthy
+          # Wait for services
           sleep 5
 
           # Check status
           docker compose -f docker-compose.demo.yml --env-file .env.demo ps
 
-          echo "✅ Deployment complete!"
+          echo "Deployment complete!"
           ENDSSH
 
       - name: Verify deployment
         run: |
           sleep 10
           curl -f https://pos-demo.duckdns.org/api/v1/health || exit 1
-          echo "✅ Health check passed!"
+          echo "Health check passed!"
 
       - name: Cleanup
         if: always()
         run: |
           rm -f ~/.ssh/deploy_key
-          rm -rf deploy-package
