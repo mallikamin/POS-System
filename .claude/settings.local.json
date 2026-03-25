@@ -61,7 +61,8 @@
       "Bash(TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI1ZjhiNGEzNC03OTcyLTQyNGEtODA4NC01NjUzNjUzZmQzYTUiLCJ0ZW5hbnRfaWQiOiJmZDJjODQxMi1iNGE0LTQ4NWItOTM4Mi1iZDEyZGM2YzI1OTIiLCJyb2xlIjoiYWRtaW4iLCJleHAiOjE3NzQzNTk5NjksInR5cGUiOiJhY2Nlc3MiLCJqdGkiOiJhZDJkN2Y3OC00OTdjLTQ1ZTEtODc2OC00MjI1OTI5ZTIyZDUifQ.3q_nMyqRk7bfWWus4d3WaHUfTnGYGGQ3C_TfrcsYnIA\")",
       "Bash(echo:*)",
       "Bash(alembic revision:*)",
-      "Bash(alembic upgrade:*)"
+      "Bash(alembic upgrade:*)",
+      "Bash(powershell.exe:*)"
     ]
   }
 }

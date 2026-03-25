@@ -288,21 +288,47 @@ async def _receive_response_xml(
     job.completed_at = datetime.now(timezone.utc)
 
     # Parse response to determine success/failure
-    # TODO: Implement QBXML response parser (Week 2 task)
-    # For now, just check if response contains "statusCode" error
-    if "statusCode" in response and "statusSeverity" in response:
-        # Likely an error
+    from app.services.quickbooks.qbxml.parsers import parse_qbxml_response
+
+    try:
+        parse_result = parse_qbxml_response(response)
+
+        if parse_result.success:
+            job.status = "completed"
+            # Store QB-assigned IDs in result JSON
+            job.result = {
+                "txn_id": parse_result.txn_id,
+                "list_id": parse_result.list_id,
+                "time_created": parse_result.time_created,
+                "status_message": parse_result.status_message,
+            }
+            logger.info(
+                "QBXML response processed successfully for job_id=%s: txn_id=%s list_id=%s",
+                job.id,
+                parse_result.txn_id,
+                parse_result.list_id,
+            )
+        else:
+            job.status = "failed"
+            job.error_message = parse_result.user_message or parse_result.status_message
+            job.error_detail = {
+                "status_code": parse_result.status_code,
+                "status_severity": parse_result.status_severity,
+                "status_message": parse_result.status_message,
+            }
+            logger.warning(
+                "QBXML response error for job_id=%s: code=%s message=%s",
+                job.id,
+                parse_result.status_code,
+                parse_result.status_message,
+            )
+    except Exception as e:
+        # Parser failed (malformed XML or unexpected format)
         job.status = "failed"
-        job.error_message = "QBXML error (see response_xml)"
-        logger.warning(
-            "QBXML response contains error for job_id=%s: %s...",
-            job.id,
-            response[:200],
+        job.error_message = f"Failed to parse QBXML response: {e}"
+        logger.error(
+            "QBXML parser failed for job_id=%s: %s", job.id, e, exc_info=True
         )
-    else:
-        # Assume success
-        job.status = "completed"
-        logger.info("QBXML response processed successfully for job_id=%s", job.id)
 
     await db.commit()
 
