@@ -122,7 +122,6 @@ async def seed_italian_restaurant():
             category = Category(
                 tenant_id=tenant_id,
                 name=cat_name,
-                slug=cat_name.lower().replace(' ', '-').replace('&', 'and'),
                 description=f"{cat_name} items",
                 display_order=i,
                 is_active=True
