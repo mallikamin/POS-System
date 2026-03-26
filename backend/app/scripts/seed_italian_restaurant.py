@@ -74,14 +74,14 @@ async def seed_italian_restaurant():
                     items_data.append({
                         'name': f"{item_name} ({split['label']})",
                         'category': category_name,
-                        'price_paisa': split['price'] * 100  # Convert to paisa
+                        'price': split['price'] * 100  # Convert to paisa
                     })
             elif base_price:
                 try:
                     items_data.append({
                         'name': item_name,
                         'category': category_name,
-                        'price_paisa': int(base_price) * 100  # Convert to paisa
+                        'price': int(base_price) * 100  # Convert to paisa
                     })
                 except (ValueError, TypeError):
                     pass
@@ -148,7 +148,7 @@ async def seed_italian_restaurant():
                 category_id=category_id,
                 name=item_data['name'],
                 description=f"{item_data['name']} from our Italian menu",
-                price_paisa=item_data['price_paisa'],
+                price=item_data['price'],
                 is_active=True,
                 is_available=True,
                 image_url=None  # No images in Excel file
