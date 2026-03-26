@@ -149,7 +149,6 @@ async def seed_italian_restaurant():
                 name=item_data['name'],
                 description=f"{item_data['name']} from our Italian menu",
                 price=item_data['price'],
-                is_active=True,
                 is_available=True,
                 image_url=None  # No images in Excel file
             )
