@@ -34,6 +34,8 @@ const QBDesktopPage = lazy(() => import("@/pages/admin/QBDesktopPage"));
 const ZReportPage = lazy(() => import("@/pages/admin/ZReportPage"));
 const DiscountTypesPage = lazy(() => import("@/pages/admin/DiscountTypesPage"));
 const RoleManagementPage = lazy(() => import("@/pages/admin/RoleManagementPage"));
+const IngredientManagementPage = lazy(() => import("@/pages/admin/IngredientManagementPage"));
+const RecipeBuilderPage = lazy(() => import("@/pages/admin/RecipeBuilderPage"));
 
 function LoadingFallback() {
   return (
@@ -83,6 +85,8 @@ export function App() {
             <Route path="qb-desktop" element={<QBDesktopPage />} />
             <Route path="roles" element={<RoleManagementPage />} />
             <Route path="discounts" element={<DiscountTypesPage />} />
+            <Route path="ingredients" element={<IngredientManagementPage />} />
+            <Route path="recipes" element={<RecipeBuilderPage />} />
           </Route>
         </Routes>
       </Suspense>
