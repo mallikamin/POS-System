@@ -31,13 +31,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 
 import type { MenuItem, Category } from "@/types/menu";
@@ -48,7 +42,7 @@ import type {
 } from "@/types/inventory";
 import * as menuApi from "@/services/menuApi";
 import * as inventoryApi from "@/services/inventoryApi";
-import { formatPKR, paisaToRupees } from "@/utils/currency";
+import { formatPKR } from "@/utils/currency";
 
 export default function RecipeBuilderPage() {
   const { toast } = useToast();
@@ -323,14 +317,14 @@ export default function RecipeBuilderPage() {
         if (itemsChanged) {
           // Create new version
           payload.recipe_items = recipeItems;
-          const updated = await inventoryApi.updateRecipe(recipe.id, payload);
+          await inventoryApi.updateRecipe(recipe.id, payload);
           toast({
             variant: "success",
-            title: `Recipe updated (Version ${updated.version})`,
+            title: "Recipe updated (new version created)",
           });
         } else {
           // Update metadata only (no new version)
-          const updated = await inventoryApi.updateRecipe(recipe.id, payload);
+          await inventoryApi.updateRecipe(recipe.id, payload);
           toast({
             variant: "success",
             title: "Recipe metadata updated",
@@ -402,7 +396,7 @@ export default function RecipeBuilderPage() {
   }
 
   // Get menu item badge
-  function getMenuItemBadge(menuItem: MenuItem) {
+  function getMenuItemBadge(_menuItem: MenuItem) {
     // Check if recipe exists (would need to fetch all recipes or add to menu item)
     // For now, simplified version
     return null;
@@ -427,18 +421,17 @@ export default function RecipeBuilderPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Category filter */}
-            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-              <SelectTrigger className="min-h-[48px]">
-                <SelectValue placeholder="All Categories" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="">All Categories</SelectItem>
-                {categories.map((cat) => (
-                  <SelectItem key={cat.id} value={cat.id}>
-                    {cat.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
+            <Select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="min-h-[48px]"
+            >
+              <option value="">All Categories</option>
+              {categories.map((cat) => (
+                <option key={cat.id} value={cat.id}>
+                  {cat.name}
+                </option>
+              ))}
             </Select>
 
             {/* Menu items list */}
@@ -842,24 +835,25 @@ export default function RecipeBuilderPage() {
             {/* Ingredient dropdown */}
             <div className="space-y-2">
               <Label htmlFor="ingredient">Ingredient *</Label>
-              <Select value={newIngredientId} onValueChange={setNewIngredientId}>
-                <SelectTrigger id="ingredient" className="min-h-[48px]">
-                  <SelectValue placeholder="Select ingredient..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {ingredients
-                    .filter(
-                      (ing) =>
-                        !recipeItems.some(
-                          (item) => item.ingredient_id === ing.id
-                        )
-                    )
-                    .map((ing) => (
-                      <SelectItem key={ing.id} value={ing.id}>
-                        {ing.name} ({ing.unit}) - {formatPKR(ing.cost_per_unit)}
-                      </SelectItem>
-                    ))}
-                </SelectContent>
+              <Select
+                id="ingredient"
+                value={newIngredientId}
+                onChange={(e) => setNewIngredientId(e.target.value)}
+                className="min-h-[48px]"
+              >
+                <option value="">Select ingredient...</option>
+                {ingredients
+                  .filter(
+                    (ing) =>
+                      !recipeItems.some(
+                        (item) => item.ingredient_id === ing.id
+                      )
+                  )
+                  .map((ing) => (
+                    <option key={ing.id} value={ing.id}>
+                      {ing.name} ({ing.unit}) - {formatPKR(ing.cost_per_unit)}
+                    </option>
+                  ))}
               </Select>
             </div>
 
