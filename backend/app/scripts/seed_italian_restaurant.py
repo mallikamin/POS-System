@@ -20,7 +20,7 @@ async def seed_italian_restaurant():
 
     async with async_session_factory() as db:
         # Get or create tenant
-        result = await db.execute(select(Tenant).where(Tenant.slug == "demo"))
+        result = await db.execute(select(Tenant).where(Tenant.slug == "demo-restaurant"))
         tenant = result.scalar_one_or_none()
 
         if not tenant:
@@ -31,7 +31,7 @@ async def seed_italian_restaurant():
         print(f"✅ Using tenant: {tenant.name} ({tenant_id})")
 
         # Parse Excel file
-        excel_path = Path(__file__).parent.parent.parent.parent / "docs" / "Restaurant Menu.xlsm"
+        excel_path = Path(__file__).parent / "Restaurant Menu.xlsm"
         if not excel_path.exists():
             print(f"❌ Excel file not found: {excel_path}")
             return
