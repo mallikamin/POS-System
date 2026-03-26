@@ -10,12 +10,17 @@
 
 export interface QBConnectionStatus {
   is_connected: boolean;
+  connection_type?: string | null; // "online" | "desktop" | null
   realm_id?: string;
   company_name?: string;
   connected_at?: string;
   last_sync_at?: string;
   last_sync_status?: string;
   token_expires_at?: string;
+  // QB Desktop fields
+  qbwc_username?: string;
+  qb_desktop_version?: string;
+  last_qbwc_poll_at?: string;
 }
 
 // ---------------------------------------------------------------------------

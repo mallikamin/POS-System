@@ -59,15 +59,43 @@ async def login_with_password(
     db: AsyncSession = Depends(get_db),
 ) -> AuthResponse:
     """Authenticate with email + password and receive tokens."""
-    tenant_id = await _resolve_tenant_id(db, body.tenant_id)
-    try:
-        user = await authenticate_by_password(db, body.email, body.password, tenant_id)
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=str(exc),
-            headers={"WWW-Authenticate": "Bearer"},
+    if body.tenant_id:
+        # Explicit tenant provided -- scope lookup to that tenant only
+        try:
+            user = await authenticate_by_password(db, body.email, body.password, body.tenant_id)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=str(exc),
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+    else:
+        # No tenant specified -- search ALL active tenants for matching credentials
+        result = await db.execute(
+            select(Tenant.id).where(Tenant.is_active == True)  # noqa: E712
         )
+        tenant_ids = list(result.scalars().all())
+
+        if not tenant_ids:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No active tenant found. Run the seed script first.",
+            )
+
+        user = None
+        for tid in tenant_ids:
+            try:
+                user = await authenticate_by_password(db, body.email, body.password, tid)
+                break
+            except ValueError:
+                continue
+
+        if user is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid email or password",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
 
     tokens = await create_tokens(db, user)
     return AuthResponse(
@@ -82,15 +110,43 @@ async def login_with_pin(
     db: AsyncSession = Depends(get_db),
 ) -> AuthResponse:
     """Authenticate with a numeric PIN (fast POS login)."""
-    tenant_id = await _resolve_tenant_id(db, body.tenant_id)
-    try:
-        user = await authenticate_by_pin(db, body.pin, tenant_id)
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=str(exc),
-            headers={"WWW-Authenticate": "Bearer"},
+    if body.tenant_id:
+        # Explicit tenant provided -- scope lookup to that tenant only
+        try:
+            user = await authenticate_by_pin(db, body.pin, body.tenant_id)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=str(exc),
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+    else:
+        # No tenant specified -- search ALL active tenants for matching PIN
+        result = await db.execute(
+            select(Tenant.id).where(Tenant.is_active == True)  # noqa: E712
         )
+        tenant_ids = list(result.scalars().all())
+
+        if not tenant_ids:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No active tenant found. Run the seed script first.",
+            )
+
+        user = None
+        for tid in tenant_ids:
+            try:
+                user = await authenticate_by_pin(db, body.pin, tid)
+                break
+            except ValueError:
+                continue
+
+        if user is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid PIN",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
 
     tokens = await create_tokens(db, user)
     return AuthResponse(

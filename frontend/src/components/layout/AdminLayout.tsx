@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { Navigate, Outlet, NavLink, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -16,8 +17,9 @@ import { useAuthStore } from "@/stores/authStore";
 import { useUIStore } from "@/stores/uiStore";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import api from "@/lib/axios";
 
-const navItems = [
+const baseNavItems = [
   { to: "/admin", label: "Dashboard", icon: LayoutDashboard, end: true },
   { to: "/admin/menu", label: "Menu", icon: UtensilsCrossed, end: false },
   { to: "/admin/staff", label: "Staff", icon: Users, end: false },
@@ -26,14 +28,42 @@ const navItems = [
   { to: "/admin/z-report", label: "Z-Report", icon: FileText, end: false },
   { to: "/admin/roles", label: "Roles", icon: Shield, end: false },
   { to: "/admin/discounts", label: "Discounts", icon: Tag, end: false },
-  { to: "/admin/quickbooks", label: "QuickBooks Online", icon: BookOpen, end: false },
-  { to: "/admin/qb-desktop", label: "QB Desktop", icon: BookOpen, end: false },
 ];
 
 function AdminLayout() {
   const { isAuthenticated, user, logout } = useAuthStore();
   const { sidebarOpen, setSidebarOpen } = useUIStore();
   const navigate = useNavigate();
+  const [qbConnectionType, setQbConnectionType] = useState<string | null>(null);
+  const [qbLoaded, setQbLoaded] = useState(false);
+
+  // Fetch QB connection type for this tenant
+  useEffect(() => {
+    if (isAuthenticated) {
+      api
+        .get("/integrations/quickbooks/status")
+        .then((res) => {
+          if (res.data.is_connected && res.data.connection_type) {
+            setQbConnectionType(res.data.connection_type);
+          }
+          setQbLoaded(true);
+        })
+        .catch(() => {
+          setQbLoaded(true);
+        });
+    }
+  }, [isAuthenticated]);
+
+  // Build nav items with conditional QB links
+  const navItems = [...baseNavItems];
+  if (qbLoaded) {
+    if (!qbConnectionType || qbConnectionType === "online") {
+      navItems.push({ to: "/admin/quickbooks", label: "QuickBooks Online", icon: BookOpen, end: false });
+    }
+    if (!qbConnectionType || qbConnectionType === "desktop") {
+      navItems.push({ to: "/admin/qb-desktop", label: "QB Desktop", icon: BookOpen, end: false });
+    }
+  }
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;

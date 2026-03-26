@@ -184,12 +184,16 @@ async def get_connection_status(
         return QBConnectionStatus(is_connected=False)
     return QBConnectionStatus(
         is_connected=conn.is_active,
+        connection_type=conn.connection_type,
         realm_id=conn.realm_id,
         company_name=conn.company_name,
         connected_at=conn.connected_at,
         last_sync_at=conn.last_sync_at,
         last_sync_status=conn.last_sync_status,
         token_expires_at=conn.access_token_expires_at,
+        qbwc_username=conn.qbwc_username,
+        qb_desktop_version=conn.qb_desktop_version,
+        last_qbwc_poll_at=conn.last_qbwc_poll_at,
     )
 
 
