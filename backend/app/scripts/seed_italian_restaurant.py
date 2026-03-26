@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import engine, async_session_factory
-from app.models import Tenant, Category, MenuItem
+from app.models import Tenant, Category, MenuItem, Order, OrderItem
 
 
 async def seed_italian_restaurant():
@@ -87,6 +87,14 @@ async def seed_italian_restaurant():
                     pass
 
         print(f"📊 Parsed: {len(category_names)} categories, {len(items_data)} items (after splits)")
+
+        # Delete existing orders first (to avoid FK constraint violations)
+        print("🗑️  Deleting existing orders...")
+        result = await db.execute(select(Order).where(Order.tenant_id == tenant_id))
+        existing_orders = result.scalars().all()
+        for order in existing_orders:
+            await db.delete(order)
+        await db.commit()
 
         # Delete existing menu items and categories
         print("🗑️  Deleting existing menu items...")
