@@ -11,14 +11,14 @@ from pathlib import Path
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import async_engine, AsyncSessionLocal
+from app.database import engine, async_session_factory
 from app.models import Tenant, Category, MenuItem
 
 
 async def seed_italian_restaurant():
     """Seed Italian restaurant menu from Excel file"""
 
-    async with AsyncSessionLocal() as db:
+    async with async_session_factory() as db:
         # Get or create tenant
         result = await db.execute(select(Tenant).where(Tenant.slug == "demo"))
         tenant = result.scalar_one_or_none()
@@ -173,12 +173,12 @@ async def main():
     print("🚀 Starting Italian Restaurant seed...")
     print()
 
-    async with async_engine.begin() as conn:
+    async with engine.begin() as conn:
         await conn.run_sync(lambda _: None)  # Verify connection
 
     await seed_italian_restaurant()
 
-    await async_engine.dispose()
+    await engine.dispose()
     print("\n✅ Seed complete!")
 
 
