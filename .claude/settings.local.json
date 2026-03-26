@@ -68,7 +68,9 @@
       "Bash(pwsh:*)",
       "Bash(npm run build:*)",
       "Bash(cmd /c start \"\" \"C:\\\\Users\\\\Malik\\\\desktop\\\\POS-Project\\\\docs\\\\QB_ONLINE_ACCOUNT_MAPPING_REVIEW.html\")",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(./scripts/server-preflight.ps1)",
+      "Bash(jq:*)"
     ]
   }
 }

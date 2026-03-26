@@ -2,11 +2,25 @@
 
 **Use this checklist for EVERY deployment to production/demo environment.**
 
+> **WARNING (2026-03-26):** This server runs MULTIPLE projects behind a SHARED nginx.
+> nginx serves BOTH pos-demo.duckdns.org AND orbit-voice.duckdns.org.
+> Read `memory/server-deployment-rules.md` BEFORE proceeding.
+> NEVER recreate nginx without inspecting volume mounts first.
+
 ---
 
 ## Pre-Deployment (MUST DO BEFORE ANY CHANGES)
 
-### 1. Backup Current State ⚠️ CRITICAL
+### 0. Audit Server State (MANDATORY - Added 2026-03-26)
+```bash
+# See ALL containers on the server (not just POS)
+ssh root@159.65.158.26 "docker ps -a"
+
+# If you will touch nginx, record ALL volume mounts FIRST
+ssh root@159.65.158.26 "docker inspect pos-system-nginx-1 | grep -A50 Mounts"
+```
+
+### 1. Backup Current State (CRITICAL)
 ```bash
 # Backup database
 ssh root@159.65.158.26 "cd ~/pos-system && docker compose exec -T postgres \
@@ -83,10 +97,16 @@ ssh root@159.65.158.26 "cd ~/pos-system && \
 ```
 
 ### 4. Rebuild & Restart Services
-**If code changed:**
+**If backend code changed:**
 ```bash
 ssh root@159.65.158.26 "cd ~/pos-system && \
-  docker compose -f docker-compose.demo.yml --env-file .env.demo up -d --build"
+  docker compose -f docker-compose.demo.yml --env-file .env.demo up -d --build --no-deps backend"
+```
+
+**If frontend code changed (via CI/CD prebuilt):**
+```bash
+ssh root@159.65.158.26 "cd ~/pos-system && \
+  docker compose -f docker-compose.demo.yml --env-file .env.demo up -d --build --no-deps frontend"
 ```
 
 **If ONLY env vars changed:**
@@ -94,6 +114,10 @@ ssh root@159.65.158.26 "cd ~/pos-system && \
 ssh root@159.65.158.26 "cd ~/pos-system && \
   docker compose -f docker-compose.demo.yml --env-file .env.demo up -d --no-deps backend"
 ```
+
+**IMPORTANT:** After rebuilding backend/frontend, nginx may return 502 (stale DNS cache).
+If so, you MUST recreate nginx -- see "Issue 2: Nginx 502" in Common Issues below.
+Do NOT just restart nginx -- restart does not clear the DNS cache.
 
 ### 5. Watch Logs During Startup
 ```bash
@@ -134,9 +158,9 @@ docker compose logs <service-name> --tail 50
 ```
 
 ### 2. Test Health Endpoint
-```bash
-curl -s https://pos-demo.duckdns.org/api/v1/health | jq .
-```
+**NOTE:** Do NOT use curl -- nginx blocks it (bot filter returns 444). Test from browser.
+
+Open in browser: `https://pos-demo.duckdns.org/api/v1/health`
 
 **Expected Output:**
 ```json
@@ -156,27 +180,37 @@ curl -s https://pos-demo.duckdns.org/api/v1/health | jq .
 - Verify credentials in .env.demo
 
 ### 3. Test Login (Smoke Test)
-```bash
-# Test PIN login
-curl -X POST https://pos-demo.duckdns.org/api/v1/auth/login/pin \
-  -H "Content-Type: application/json" \
-  -d '{"pin": "1234"}' | jq .
+Open browser to `https://pos-demo.duckdns.org` and test login:
+- PIN: 1234 (admin) or 5678 (cashier)
+- Email/Password: admin@demo.com / admin123
 
-# Should return: {"access_token": "...", "token_type": "bearer", ...}
+**If login fails:**
+- Database might be empty -> run seed script
+- Credentials wrong -> check env vars
+
+### 4. Verify orbit-voice (MANDATORY if nginx was touched)
+Open in browser: `https://orbit-voice.duckdns.org`
+- [ ] Page loads without certificate errors
+- [ ] No ERR_CERT_COMMON_NAME_INVALID
+
+**If orbit-voice is down:**
+```bash
+# Check if voice.conf is mounted
+docker exec pos-system-nginx-1 ls /etc/nginx/conf.d/
+# Should include voice.conf
+
+# If missing, check docker-compose.demo.yml for the mount:
+# - /root/orbit-crm/voice.conf:/etc/nginx/conf.d/voice.conf:ro
 ```
 
-**If 400 Bad Request:**
-- Database might be empty → run seed script
-- Credentials wrong → check env vars
-
-### 4. Test Critical Flows
+### 5. Test Critical Flows
 Open browser and manually test:
 
 - [ ] Login with admin@demo.com / admin123
 - [ ] Navigate to Dashboard
-- [ ] Navigate to Dine-In → Table selection works
-- [ ] Navigate to Admin → Menu loads
-- [ ] Navigate to Admin → QuickBooks page loads
+- [ ] Navigate to Dine-In -> Table selection works
+- [ ] Navigate to Admin -> Menu loads
+- [ ] Navigate to Admin -> QuickBooks page loads
 - [ ] WebSocket connection works (check browser console)
 
 ### 5. Check Nginx Access Logs
@@ -260,16 +294,33 @@ docker compose up -d --build --no-deps backend
 ### Issue 2: Nginx 502 Bad Gateway
 **Symptoms:** Frontend loads but API calls return 502
 
-**Cause:** Backend not ready or crashed
+**Cause:** Backend not ready, crashed, OR nginx has cached old container IP (most common after rebuild)
 
 **Fix:**
 ```bash
-# Check backend health
-docker compose exec nginx wget -qO- http://backend:8000/api/v1/health
+# First check if backend is actually running
+docker compose -f docker-compose.demo.yml --env-file .env.demo ps backend
 
-# Restart nginx
-docker compose restart nginx
+# If backend is running but 502 persists, it's stale DNS cache
+# IMPORTANT: "restart" does NOT fix this! Need full recreation.
+# BEFORE recreating, inspect volume mounts:
+docker inspect pos-system-nginx-1 | grep -A50 Mounts
+
+# Then recreate (NOT restart):
+docker rm -f pos-system-nginx-1
+docker compose -f docker-compose.demo.yml --env-file .env.demo up -d nginx
+
+# MANDATORY: Verify BOTH sites from browser:
+# - https://pos-demo.duckdns.org
+# - https://orbit-voice.duckdns.org
 ```
+
+### Issue 2b: Nginx HTTP 444 from curl
+**Symptoms:** curl returns empty response, connection closed, or HTTP 444
+
+**Cause:** nginx bot filter blocks curl/wget user agents. This is INTENTIONAL.
+
+**Fix:** Do NOT debug this. Test from a real browser instead. Never use curl on this server.
 
 ### Issue 3: SSL Certificate Error
 **Symptoms:** Nginx won't start, "cannot load certificate" error
@@ -405,11 +456,12 @@ git push origin main
 
 **Before closing deployment:**
 
-- [ ] All containers healthy
-- [ ] Health endpoint returns "healthy"
-- [ ] Login works
+- [ ] All containers healthy (`docker compose ps` shows all healthy)
+- [ ] Health endpoint returns "healthy" (test from browser, NOT curl)
+- [ ] Login works (test from browser)
 - [ ] Critical flows tested
 - [ ] No errors in logs
+- [ ] **orbit-voice.duckdns.org accessible** (MANDATORY if nginx was touched)
 - [ ] Deployment documented
 - [ ] Team notified
 

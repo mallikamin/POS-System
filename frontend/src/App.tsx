@@ -85,8 +85,9 @@ export function App() {
             <Route path="qb-desktop" element={<QBDesktopPage />} />
             <Route path="roles" element={<RoleManagementPage />} />
             <Route path="discounts" element={<DiscountTypesPage />} />
-            <Route path="ingredients" element={<IngredientManagementPage />} />
-            <Route path="recipes" element={<RecipeBuilderPage />} />
+            {/* BOM routes - hidden for Italian restaurant client */}
+            {/* <Route path="ingredients" element={<IngredientManagementPage />} /> */}
+            {/* <Route path="recipes" element={<RecipeBuilderPage />} /> */}
           </Route>
         </Routes>
       </Suspense>
