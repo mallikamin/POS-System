@@ -86,7 +86,7 @@ function PaymentPage() {
     () => !!preview && !!summary && summary.paid_amount === 0,
     [preview, summary]
   );
-  const splitSubtotal = preview?.subtotal ?? 0;
+  const splitSubtotal = (preview?.subtotal ?? 0) - (discountBreakdown?.total_discount ?? 0);
   const splitCashBasePaisa = useMemo(() => {
     if (!splitCalcEnabled) return 0;
     return Math.min(parseRupees(splitCashBase), splitSubtotal);
@@ -166,7 +166,8 @@ function PaymentPage() {
         const dueRupees = String(paisaToRupees(nextSummary.due_amount));
         setCashAmount(dueRupees);
         setCardAmount(dueRupees);
-        const halfSubtotal = Math.round(nextPreview.subtotal / 2);
+        const postDiscountSubtotal = nextPreview.subtotal - (nextDiscBreakdown?.total_discount ?? 0);
+        const halfSubtotal = Math.round(postDiscountSubtotal / 2);
         setSplitCashBase(String(paisaToRupees(halfSubtotal)));
       }
     } catch (err: unknown) {

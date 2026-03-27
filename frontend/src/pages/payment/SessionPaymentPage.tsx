@@ -92,7 +92,7 @@ function SessionPaymentPage() {
     () => !!preview && !!summary && summary.paid_amount === 0,
     [preview, summary]
   );
-  const splitSubtotal = preview?.subtotal ?? 0;
+  const splitSubtotal = (preview?.subtotal ?? 0) - (discountBreakdown?.total_discount ?? 0);
   const splitCashBasePaisa = useMemo(() => {
     if (!splitCalcEnabled) return 0;
     return Math.min(parseRupees(splitCashBase), splitSubtotal);
@@ -148,7 +148,8 @@ function SessionPaymentPage() {
         const cardDue = Math.max(p.card_total - s.paid_amount, 0);
         setCashAmount(String(paisaToRupees(cashDue)));
         setCardAmount(String(paisaToRupees(cardDue)));
-        const halfSubtotal = Math.round(p.subtotal / 2);
+        const postDiscountSubtotal = p.subtotal - (db?.total_discount ?? 0);
+        const halfSubtotal = Math.round(postDiscountSubtotal / 2);
         setSplitCashBase(String(paisaToRupees(halfSubtotal)));
       }
     } catch (err: unknown) {
