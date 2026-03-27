@@ -34,8 +34,9 @@ const QBDesktopPage = lazy(() => import("@/pages/admin/QBDesktopPage"));
 const ZReportPage = lazy(() => import("@/pages/admin/ZReportPage"));
 const DiscountTypesPage = lazy(() => import("@/pages/admin/DiscountTypesPage"));
 const RoleManagementPage = lazy(() => import("@/pages/admin/RoleManagementPage"));
-const IngredientManagementPage = lazy(() => import("@/pages/admin/IngredientManagementPage"));
-const RecipeBuilderPage = lazy(() => import("@/pages/admin/RecipeBuilderPage"));
+// BOM Phase 3 — routes commented out, uncomment when ready
+// const IngredientManagementPage = lazy(() => import("@/pages/admin/IngredientManagementPage"));
+// const RecipeBuilderPage = lazy(() => import("@/pages/admin/RecipeBuilderPage"));
 
 function LoadingFallback() {
   return (
