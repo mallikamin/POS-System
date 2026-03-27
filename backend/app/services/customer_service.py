@@ -184,7 +184,9 @@ async def update_customer_stats(
     tenant_id: uuid.UUID,
     customer: Customer,
 ) -> Customer:
-    """Recompute denormalized stats from orders table."""
+    """Recompute denormalized stats from orders and payments tables."""
+    from app.models.payment import Payment
+
     # Count all orders
     count_result = await db.execute(
         select(func.count(Order.id)).where(
@@ -194,12 +196,16 @@ async def update_customer_stats(
     )
     customer.order_count = count_result.scalar_one() or 0
 
-    # Sum completed order totals
+    # Sum actual payment amounts (most accurate - handles partial payments correctly)
+    # Only count completed payments, exclude refunds
     spent_result = await db.execute(
-        select(func.coalesce(func.sum(Order.total), 0)).where(
+        select(func.coalesce(func.sum(Payment.amount), 0))
+        .join(Order, Payment.order_id == Order.id)
+        .where(
             Order.tenant_id == tenant_id,
             Order.customer_phone == customer.phone,
-            Order.status == "completed",
+            Payment.kind == "payment",
+            Payment.status == "completed",
         )
     )
     customer.total_spent = spent_result.scalar_one() or 0
