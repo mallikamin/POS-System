@@ -1,5 +1,15 @@
 # POS System — Enhancement Backlog
 
+---
+**⚠️ QUALITY ASSURANCE NOTICE**
+
+All outputs from Claude Code are subject to dual review:
+1. **Codex AI** — Automated accuracy validation
+2. **Senior Personnel** — Manual verification & approval
+
+Every implementation, configuration, deployment, and documentation must be **100% correct** and production-ready. No exceptions.
+---
+
 **Purpose:** Consolidated log of all feature ideas, enhancements, and improvements identified during UAT sessions and development. Items here are earmarked for subsequent phases — not blockers for current UAT/prototype.
 
 **Reference:** See `MASTERPLAN.md` for the full post-prototype roadmap (Tiers 1-6, Waves 1-6).
@@ -135,6 +145,22 @@
 - **Affected:** `backend/app/services/zreport_service.py` (add tax-by-channel and payment-type aggregation), `frontend/src/pages/admin/ZReportPage.tsx` (render in print layout)
 - **Priority:** Medium
 - **Phase:** Post-UAT enhancement
+
+---
+
+## ENH-011: ✅ FIXED — Customer total_spent not syncing with paid orders
+- **Logged:** 2026-03-27
+- **Source:** Production bug — Call Center customer showing Rs. 0 total_spent despite having paid order of Rs. 678
+- **Description:** `update_customer_stats()` was only counting orders with `status == "completed"`, missing orders that were paid but still in_kitchen/ready/served stages. This caused customer spending history to be incorrect until orders reached completed status.
+- **Root Cause:** Query filtered by `Order.status == "completed"` instead of `Order.payment_status == "paid"`.
+- **Fix Applied (2026-03-27):** Changed to sum actual payment amounts from `payments` table where `kind == "payment"` AND `status == "completed"`. This:
+  - ✅ Counts actual money received, not order totals
+  - ✅ Handles partial payments correctly (only counts amount actually paid)
+  - ✅ Excludes refunds automatically (kind='refund')
+  - ✅ Works regardless of order status (in_kitchen, served, etc.)
+- **Affected:** `backend/app/services/customer_service.py` (update_customer_stats function)
+- **Status:** FIXED (commit 0d33822)
+- **Deployment:** Pending production deployment
 
 ---
 
