@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import type { MenuItem, ModifierOption, Variant } from "../types";
 import { imageHero } from "../types";
-import { itemImage } from "../data/menu";
+import { exclusionsFor, itemImage } from "../data/menu";
 import { formatGBP } from "../lib/money";
 import { unitPriceOf, useCart } from "../store/cart";
 
@@ -22,6 +22,10 @@ export default function ItemModal({ item, onClose }: Props) {
   const [variant, setVariant] = useState<Variant>(item.variants[0]!);
   const [selected, setSelected] = useState<Record<string, string[]>>({});
   const [quantity, setQuantity] = useState(1);
+
+  /** "Leave it out" ticks. Free, and only offered where salad and sauce exist. */
+  const [excluded, setExcluded] = useState<string[]>([]);
+  const excludable = exclusionsFor(item);
 
   /** null for items that deliberately have no photo — the modal just omits it. */
   const hero = itemImage(item);
@@ -154,6 +158,38 @@ export default function ItemModal({ item, onClose }: Props) {
               </div>
             </section>
           ))}
+
+          {excludable.length > 0 && (
+            <section>
+              <h3 className="label">Anything to leave out?</h3>
+              <p className="text-sm text-cream/50 mb-2">
+                Optional. Tick anything you don't want and we'll make it without.
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                {excludable.map((what) => {
+                  const on = excluded.includes(what);
+                  return (
+                    <button
+                      key={what}
+                      type="button"
+                      aria-pressed={on}
+                      onClick={() =>
+                        setExcluded((prev) =>
+                          prev.includes(what)
+                            ? prev.filter((x) => x !== what)
+                            : [...prev, what],
+                        )
+                      }
+                      className={`rounded-xl border px-3 py-3 text-left text-sm font-medium
+                        ${on ? "border-flame bg-flame/10" : "border-ink-line hover:border-cream/25"}`}
+                    >
+                      {what}
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          )}
         </div>
 
         <footer className="p-5 border-t border-ink-line space-y-3">
@@ -180,7 +216,7 @@ export default function ItemModal({ item, onClose }: Props) {
             <button
               disabled={unmet.length > 0}
               onClick={() => {
-                add(item, variant, chosenOptions, quantity);
+                add(item, variant, chosenOptions, quantity, excluded);
                 onClose();
               }}
               className="btn-primary tap flex-1 h-12"

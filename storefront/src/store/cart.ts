@@ -22,9 +22,14 @@ function lineKey(
   itemId: string,
   variantId: string,
   modifiers: ModifierOption[],
+  exclusions: string[] = [],
 ): string {
   const mods = modifiers.map((m) => m.id).sort().join("+");
-  return `${itemId}|${variantId}|${mods}`;
+  // Exclusions are part of identity, not decoration. A plain wrap and a
+  // no-onion wrap are two different jobs in the kitchen and must stay two
+  // lines, however identical their price.
+  const without = [...exclusions].sort().join("+");
+  return `${itemId}|${variantId}|${mods}|${without}`;
 }
 
 export function unitPriceOf(variant: Variant, modifiers: ModifierOption[]): Pence {
@@ -33,7 +38,13 @@ export function unitPriceOf(variant: Variant, modifiers: ModifierOption[]): Penc
 
 interface CartState {
   lines: CartLine[];
-  add: (item: MenuItem, variant: Variant, modifiers: ModifierOption[], quantity?: number) => void;
+  add: (
+    item: MenuItem,
+    variant: Variant,
+    modifiers: ModifierOption[],
+    quantity?: number,
+    exclusions?: string[],
+  ) => void;
   setQuantity: (key: string, quantity: number) => void;
   remove: (key: string) => void;
   clear: () => void;
@@ -49,9 +60,9 @@ export const useCart = create<CartState>()(
     (set, get) => ({
       lines: [],
 
-      add: (item, variant, modifiers, quantity = 1) =>
+      add: (item, variant, modifiers, quantity = 1, exclusions = []) =>
         set((state) => {
-          const key = lineKey(item.id, variant.id, modifiers);
+          const key = lineKey(item.id, variant.id, modifiers, exclusions);
           const existing = state.lines.find((l) => l.key === key);
           if (existing) {
             return {
@@ -69,6 +80,7 @@ export const useCart = create<CartState>()(
             modifiers,
             quantity,
             unitPrice: unitPriceOf(variant, modifiers),
+            exclusions,
           };
           return { lines: [...state.lines, line] };
         }),
@@ -166,10 +178,12 @@ export const useCart = create<CartState>()(
     }),
     {
       name: "chick-shack-cart",
-      // Bumped when basket ids moved from menu.ts slugs to database UUIDs.
-      // `reconcile` would catch those lines anyway, but discarding them once at
-      // the version boundary is deterministic and needs no menu to be loaded.
-      version: 2,
+      // v2: basket ids moved from menu.ts slugs to database UUIDs.
+      // v3: lines gained `exclusions`, which is part of the line key. A basket
+      //     persisted under v2 has neither the field nor the key format, and
+      //     `reconcile` would keep it happily. Discarding once at the version
+      //     boundary is deterministic and needs no menu to be loaded.
+      version: 3,
       partialize: (state) => ({ lines: state.lines }),
       migrate: () => ({ lines: [] }),
     },
@@ -195,6 +209,11 @@ export function orderLinesOf(lines: CartLine[]): ApiOrderLineRequest[] {
       ...(line.variantId === NO_VARIANT ? [] : [line.variantId]),
       ...line.modifiers.map((modifier) => modifier.id),
     ],
+    // One per line: `print_service` splits notes on newlines and prints each
+    // in bold, so the kitchen gets "** No onion" on its own row rather than a
+    // sentence to parse. Omitted entirely when nothing was ticked, so an
+    // untouched order carries no empty notes field.
+    ...(line.exclusions?.length ? { notes: line.exclusions.join("\n") } : {}),
   }));
 }
 

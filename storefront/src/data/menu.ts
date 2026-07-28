@@ -465,3 +465,54 @@ export function hasMealUpgrade(item: MenuItem): boolean {
 export function areaById(id: string) {
   return SHOP.deliveryAreas.find((a) => a.id === id);
 }
+
+/**
+ * "Leave it out" ticks, offered on anything that is built with salad and sauce.
+ *
+ * Imran asked for these directly, 2026-07-29: *"a notes option whether if they
+ * don't want any like no onion or lettuce, no salsa, no Algerian sauce, no
+ * ketchup… They want just a plain, only with chicken and a wrap… And make our
+ * life a lot easier if that was to happen."*
+ *
+ * These are deliberately **not** modifier rows in the database. They carry no
+ * price, they change nothing the server has to validate, and modelling them as
+ * modifiers would mean a schema-shaped change and a production re-seed to
+ * deliver a tick-box. They travel instead on the line's `notes` field, which
+ * the API already accepts and which `print_service` already prints **in bold**
+ * on the kitchen ticket — which is exactly where a "no onion" needs to shout.
+ *
+ * A closed tick-list rather than free text, on purpose: a kitchen ticket is
+ * read by a person at speed in a hot room, and free text invites "no unions"
+ * and worse.
+ */
+export const EXCLUSIONS = [
+  "No onion",
+  "No lettuce",
+  "No tomato",
+  "No salad",
+  "No mayo",
+  "No ketchup",
+  "No salsa",
+  "No Algerian sauce",
+] as const;
+
+/**
+ * Which categories get the ticks.
+ *
+ * Salad and sauce only exist on the things you build: burgers, wraps and the
+ * chicken plates. Offering "no lettuce" on a can of Irn Bru is noise, and noise
+ * on an ordering screen costs conversions.
+ *
+ * ⚠️ The category list is **our** inference from his wording ("only with chicken
+ * and a wrap"), not something he enumerated. Confirm it with him.
+ */
+const EXCLUDABLE_CATEGORIES = new Set([
+  "burgers",
+  "wraps",
+  "peri-grilled",
+  "fried-chicken",
+]);
+
+export function exclusionsFor(item: MenuItem): readonly string[] {
+  return EXCLUDABLE_CATEGORIES.has(item.categoryId) ? EXCLUSIONS : [];
+}

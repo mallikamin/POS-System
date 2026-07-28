@@ -140,6 +140,15 @@ export interface CartLine {
   quantity: number;
   /** Variant price + sum of modifier deltas. Per single unit. */
   unitPrice: Pence;
+  /**
+   * "Leave it out" ticks — "No onion", "No Algerian sauce".
+   *
+   * Free of charge and invisible to pricing. They travel to the server on the
+   * line's `notes` field and print in bold on the kitchen ticket. Part of the
+   * line's identity: a plain wrap and a no-onion wrap are two different things
+   * to whoever is making them, so they must not merge into one line of two.
+   */
+  exclusions: string[];
 }
 
 /**
