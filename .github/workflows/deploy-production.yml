@@ -108,6 +108,32 @@ jobs:
           docker compose -f docker-compose.demo.yml --env-file .env.demo \
             exec -T backend alembic upgrade head
 
+          # --- nginx: recreate LAST, and only after proving its mounts --------
+          # Recreating frontend and backend above gives them NEW container IPs.
+          # nginx resolved the old ones at startup and caches them, so without
+          # this step every deploy ends in a 502 that someone has to fix by
+          # hand -- which is exactly what happened after each previous deploy.
+          # `restart` does NOT clear that cache; only a new container does.
+          #
+          # nginx here is SHARED INFRASTRUCTURE. It serves Orbit CRM as well as
+          # the POS, and on 2026-03-26 recreating it without its voice.conf
+          # mount took orbit-voice down for ~20 minutes. Compose recreation is
+          # safe because every mount is declared in docker-compose.demo.yml --
+          # but a missing voice.conf on the HOST would make Docker helpfully
+          # create a DIRECTORY at that path, and nginx would then refuse to
+          # start and take BOTH sites down. So prove it is a file, first.
+          if [ ! -f /root/orbit-crm/voice.conf ]; then
+            echo "REFUSING to recreate nginx: /root/orbit-crm/voice.conf is missing."
+            echo "Recreating now would drop Orbit CRM's config and 502 both sites."
+            exit 1
+          fi
+
+          docker compose -f docker-compose.demo.yml --env-file .env.demo \
+            up -d --no-deps --force-recreate nginx
+
+          # Fail loudly on a bad config rather than leaving a dead proxy up.
+          docker exec pos-system-nginx-1 nginx -t
+
           # Check status
           docker compose -f docker-compose.demo.yml --env-file .env.demo ps
 
@@ -117,8 +143,48 @@ jobs:
       - name: Verify deployment
         run: |
           sleep 10
-          curl -f https://pos-demo.duckdns.org/api/v1/health || exit 1
-          echo "Health check passed!"
+
+          # ⚠️ The User-Agent is NOT optional. nginx.demo.conf blocks bad bots
+          # at SERVER level -- above every location, including /api/ -- and its
+          # pattern matches `curl/`. A bare `curl` gets 444 (connection dropped,
+          # no response), so this step failed on EVERY deploy regardless of
+          # whether the deploy was actually fine. A red tick nobody believes is
+          # worse than no tick at all.
+          UA="Mozilla/5.0 (compatible; deploy-verify)"
+
+          # Every hostname this box serves, not just the POS demo. The client's
+          # tablet uses eats.sitaratech.info, and Orbit is a different project
+          # sharing this nginx -- a deploy that quietly breaks either is a
+          # failed deploy.
+          for host in \
+            pos-demo.duckdns.org \
+            eats.sitaratech.info \
+            orbit-voice.duckdns.org
+          do
+            code=$(curl -s -o /dev/null -w '%{http_code}' -A "$UA" \
+              --max-time 20 "https://$host/" || echo 000)
+            echo "$host -> $code"
+            case "$code" in
+              200|301|302|401|403) ;;
+              *) echo "FAILED: $host returned $code"; exit 1 ;;
+            esac
+
+            # A hostname must present its OWN certificate. eats.sitaratech.info
+            # silently served the pos-demo cert for two weeks because nothing
+            # ever checked this.
+            subject=$(echo | openssl s_client -connect "$host:443" \
+              -servername "$host" 2>/dev/null \
+              | openssl x509 -noout -subject 2>/dev/null || echo "none")
+            echo "   cert: $subject"
+            case "$subject" in
+              *"$host"*) ;;
+              *) echo "FAILED: $host is not serving its own certificate"; exit 1 ;;
+            esac
+          done
+
+          curl -fsS -A "$UA" --max-time 20 \
+            https://pos-demo.duckdns.org/api/v1/health > /dev/null || exit 1
+          echo "All hosts healthy, all certificates correct."
 
       - name: Cleanup
         if: always()
