@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Chick Shack UK — Proposal</title>
+<style>
+  @page { size: A4; margin: 17mm 15mm 15mm 15mm; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: "Segoe UI", Calibri, Arial, sans-serif;
+    font-size: 10.5pt; line-height: 1.5; color: #1a1a1a;
+    margin: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+  h1 { font-size: 19pt; margin: 0 0 2px; letter-spacing: -.3px; }
+  h1 + .sub { font-size: 12pt; color: #555; margin: 0 0 16px; font-weight: 400; }
+  h2 {
+    font-size: 12.5pt; margin: 22px 0 8px; padding-bottom: 4px;
+    border-bottom: 1.5px solid #c8102e; page-break-after: avoid;
+  }
+  h3 { font-size: 10.8pt; margin: 14px 0 5px; color: #000; page-break-after: avoid; }
+  p { margin: 0 0 8px; }
+  ul { margin: 0 0 9px; padding-left: 18px; }
+  li { margin-bottom: 3.5px; }
+  ol { margin: 0 0 9px; padding-left: 18px; }
+  .head {
+    border-bottom: 2.5px solid #c8102e; padding-bottom: 10px; margin-bottom: 16px;
+    display: flex; justify-content: space-between; align-items: flex-end;
+  }
+  .brand { font-size: 14pt; font-weight: 700; letter-spacing: .3px; }
+  .brand span { color: #c8102e; }
+  .meta { text-align: right; font-size: 8.8pt; color: #666; line-height: 1.5; }
+  table { width: 100%; border-collapse: collapse; margin: 10px 0 12px; font-size: 10.2pt; }
+  th, td { text-align: left; padding: 7px 9px; border-bottom: 1px solid #ddd; vertical-align: top; }
+  th { background: #f4f4f4; font-weight: 600; border-bottom: 1.5px solid #bbb; }
+  .price-table td { padding: 10px 9px; }
+  .price-table td:last-child { text-align: right; font-weight: 700; white-space: nowrap; }
+  .price-table .amt { font-size: 13pt; color: #c8102e; }
+  .box {
+    background: #f7f7f7; border-left: 3px solid #c8102e;
+    padding: 10px 13px; margin: 11px 0; page-break-inside: avoid;
+  }
+  .box p:last-child { margin-bottom: 0; }
+  .note { font-size: 9.6pt; color: #555; }
+  strong { font-weight: 600; }
+  .avoid { page-break-inside: avoid; }
+  .foot {
+    margin-top: 28px; padding-top: 10px; border-top: 1px solid #ccc;
+    font-size: 9.5pt; color: #444; line-height: 1.6;
+  }
+  .foot .nm { font-weight: 700; color: #000; }
+</style>
+</head>
+<body>
+
+<div class="head">
+  <div class="brand">SITARA <span>INFOTECH</span></div>
+  <div class="meta">
+    Prepared for: <strong>Imran R</strong><br>
+    Chick Shack UK &nbsp;|&nbsp; +44 7909 313456<br>
+    27 July 2026 &nbsp;|&nbsp; Valid until 27 August 2026
+  </div>
+</div>
+
+<h1>Online Ordering Website + Order Management</h1>
+<p class="sub">Proposal and Scope of Work</p>
+
+<h2>1. What you asked for</h2>
+<p>You want online ordering for the takeaway, running alongside your existing EposNow system rather than replacing it.</p>
+<p>Customers order from your website. Orders arrive on a tablet in the shop. You accept or reject each one and tell the customer how long it will take. Customers pay by card online, or cash on delivery. Their choice.</p>
+<p>EposNow stays exactly as it is for everything in-house. Nothing changes for your staff on the counter. The two systems stay separate, as you asked.</p>
+
+<h2>2. What we will build</h2>
+
+<h3>The ordering website</h3>
+<ul>
+  <li>Your full menu online, with categories, item options and prices.</li>
+  <li>Cart and checkout that works properly on a phone. That is where most orders come from.</li>
+  <li>Card payment through Stripe, using the account you already have. Money goes straight to your bank.</li>
+  <li>Cash on delivery as an alternative. The customer picks at checkout.</li>
+  <li>Collection or delivery. For delivery we capture the address and apply your delivery area, delivery charge and minimum order.</li>
+  <li>Order confirmation on screen and by email, including the time you quote.</li>
+</ul>
+<p>Built on the second domain you already own. Your main information site is untouched.</p>
+
+<h3>The order screen</h3>
+<ul>
+  <li>Opens as a link on any basic Android tablet. Nothing to install.</li>
+  <li>New orders appear on screen as they come in, with an alert.</li>
+  <li><strong>Accept or reject</strong> each order with one tap.</li>
+  <li>On accepting, set the lead time: 30 minutes, 45 minutes, whatever it is. The customer is told automatically.</li>
+  <li>Orders stay on screen until they are done, so nothing gets missed on a busy night.</li>
+  <li>Prints the order ticket to a receipt printer if you want one. We will set up the spare printer you have.</li>
+</ul>
+
+<h3>Your reporting login</h3>
+<p>A separate web link, just for you:</p>
+<ul>
+  <li>Sales for the day, week and month.</li>
+  <li>Number of orders, and average order value.</li>
+  <li>Best and worst selling items.</li>
+  <li>Full order history, searchable by phone number, so you can see repeat customers and what they ordered before.</li>
+</ul>
+<p>This is the backend you described from your previous restaurant. It covers online orders only. It does not touch or read anything in EposNow.</p>
+
+<h2>3. Cost</h2>
+<table class="price-table avoid">
+  <tr><td>Website build and setup</td><td class="amt">£300</td></tr>
+  <tr><td>Ongoing service</td><td class="amt">£35 / month</td></tr>
+</table>
+
+<div class="box avoid">
+  <p><strong>The £300 covers:</strong> the ordering website, checkout, Stripe connection, the order screen, your reporting login, loading your menu, connecting your domain, and setting up the tablet and printer.</p>
+  <p><strong>The £35 a month covers:</strong> running the ordering system, backups, all software updates, and ongoing support.</p>
+  <p><strong>Payment terms:</strong> nothing to pay upfront. The £300 is due when the site goes live and you are happy with it. The monthly starts from go-live.</p>
+</div>
+
+<p class="note"><strong>Not included:</strong> Stripe's own card processing fees. Those are charged by Stripe directly to you at their standard rates, the same as any other website.</p>
+
+<h2>4. Support</h2>
+<p>Support is included in the monthly fee. It works the way you described:</p>
+<ul>
+  <li><strong>WhatsApp.</strong> Message us and we will deal with it. No ticket system, no call centre.</li>
+  <li><strong>Menu changes, price changes, new items, seasonal offers.</strong> Send them over and we make the change. No charge.</li>
+  <li><strong>Anything broken,</strong> we fix it, priority.</li>
+  <li><strong>Setup help.</strong> We will get the tablet working, connect the printer, sort the domain and help you configure Stripe. You do not need to figure any of it out yourself.</li>
+</ul>
+<p>New features beyond what is listed in this document are quoted separately before any work starts. You will never get an unexpected bill.</p>
+
+<h2>5. What we need from you</h2>
+<ol>
+  <li><strong>Your menu:</strong> items, prices, options and sizes. A photo of the printed menu or a spreadsheet is fine.</li>
+  <li><strong>Your FastHost login</strong> for the domain and hosting, so we can put the site up for you.</li>
+  <li><strong>Delivery rules:</strong> how far you deliver, delivery charge, and minimum order value.</li>
+  <li><strong>Opening hours</strong>, and whether you want customers to be able to order ahead for later.</li>
+  <li><strong>Your Stripe account</strong> connected. We will walk you through it, it takes a few minutes.</li>
+  <li><strong>Logo and any photos</strong> you want on the site.</li>
+  <li><strong>The spare tablet and printer</strong> you mentioned, so we can check they will do the job.</li>
+</ol>
+
+<h2>6. Timeline</h2>
+<p>Two weeks from the day we have your menu and hosting access.</p>
+<table class="avoid">
+  <tr><th style="width:70px">Week</th><th>What happens</th></tr>
+  <tr><td>1</td><td>Website built, your menu loaded, checkout and Stripe connected. You get a link to look at and place a test order.</td></tr>
+  <tr><td>2</td><td>Order screen, accept and reject, lead times, printer and reporting login. Testing with you, then go live.</td></tr>
+</table>
+
+<div class="foot">
+  <span class="nm">Malik Amin</span><br>
+  Sitara Infotech<br>
+  amin@sitaratech.info
+</div>
+
+</body>
+</html>
