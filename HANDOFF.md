@@ -43,6 +43,34 @@ Quality first. No scope drift.
   checkout and surface ready/completed/paid on `OrderConfirmation.tsx`. Then run the
   backend test suite, which has not been run against any of this.
 
+## 4. New client request, received 2026-07-29 03:08 (after the checkpoint was written)
+
+Imran, on WhatsApp, verbatim:
+> "In the menu the make it a meal needs modifiers"
+> "For each make it a meal item"
+
+Today "Make it a meal" is a single flat +£3.00 tick (`MEAL` in `storefront/src/data/menu.ts`,
+one option, `min 0 / max 1`). He wants choosing it to then ask **what comes in the meal** -
+almost certainly the drink, probably the side - per item.
+
+**Ask him to confirm before building**, because it decides the data model:
+1. Which choices does a meal include - drink only, or drink **and** side?
+2. Which drinks are included at the £3.00 price, and are any an upcharge (the board lists
+   cans at £1.79, so a bottle may cost more)?
+3. Is the side always chips, or is there a choice?
+
+Note this is **not** just a storefront change. The choices have to exist as rows so the
+order endpoint accepts them, so it means new modifier groups in `seed_chick_shack.py` and a
+re-seed. The awkward part is conditionality: the POS modifier model has no concept of a
+group that only applies **when another modifier is selected**, and this needs exactly that
+(no drink choice unless the meal upgrade is taken). Options are (a) fold it into one
+required "Meal choice" group whose first option is "No meal" - simple, no schema change, and
+the customer sees one list; or (b) add real conditional groups - correct, but a schema and
+UI change on both front ends. **(a) is the recommendation**; do not start (b) without
+Malik agreeing to the cost.
+
+Tracked as **OI-45** in `_state/open-items.md`.
+
 ## Guardrails
 - No scope drift. Same goal, nothing new.
 - No compromise on quality.

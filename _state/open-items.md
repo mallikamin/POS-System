@@ -38,6 +38,23 @@ collection"), and Imran asked directly whether the button is worth having — **
 for the notification: it is the only thing that closes an order.** Still to ask him: does the final
 tap also mark a cash order paid, or is that a second tap?
 
+**OI-45 · "Make it a meal" needs to ask what is IN the meal.**
+Imran, 2026-07-29 03:08: *"In the menu the make it a meal needs modifiers. For each make it a
+meal item."* Today it is a single flat +£3.00 tick with one option. He wants the drink (and
+probably the side) chosen when the upgrade is taken.
+**Confirm with him first** — it decides the model: drink only or drink and side; which drinks
+are included at £3.00 and which are an upcharge (cans are £1.79 on the board); is the side
+always chips.
+⚠️ **The hard part is conditionality.** The POS modifier model has no notion of a group that
+applies only when another modifier is selected, and that is exactly what "choose a drink, but
+only if you took the meal" needs. Two ways:
+(a) **one required "Meal choice" group whose first option is "No meal"** — no schema change,
+one list for the customer, works with the existing engine. **Recommended.**
+(b) real conditional modifier groups — correct, but a schema change plus UI work on the
+storefront and the POS admin. Do not start (b) without Malik pricing it.
+Either way this is **not storefront-only**: the choices must exist as rows or the order
+endpoint will refuse them, so it means new groups in `seed_chick_shack.py` and a re-seed.
+
 **OI-20 · Stripe account not connected.**
 Imran says he has one. Unknown whether it is verified and live or newly created. **Gates the entire
 payment path**, which is the remaining bulk of the build. Ask before starting Stripe work.
