@@ -22,6 +22,9 @@ const OrdersPage = lazy(() => import("@/pages/orders/OrdersPage"));
 
 /* ---------- Kitchen ---------- */
 const KitchenPage = lazy(() => import("@/pages/kitchen/KitchenPage"));
+const OnlineOrdersPage = lazy(
+  () => import("@/pages/online-orders/OnlineOrdersPage"),
+);
 
 /* ---------- Admin Pages ---------- */
 const AdminDashboard = lazy(() => import("@/pages/admin/AdminDashboard"));
@@ -73,6 +76,11 @@ export function App() {
 
           {/* Kitchen (standalone, protected) */}
           <Route path="/kitchen" element={<KitchenPage />} />
+
+          {/* Online order queue — the shop's tablet. Standalone and
+              fullscreen like the KDS: it runs on a tablet propped up in a
+              takeaway, not inside the POS chrome. */}
+          <Route path="/online-orders" element={<OnlineOrdersPage />} />
 
           {/* Admin Routes (protected, manager+) */}
           <Route path="/admin" element={<AdminLayout />}>
