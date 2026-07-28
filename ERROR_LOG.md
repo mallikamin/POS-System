@@ -226,3 +226,31 @@ Each entry follows:
 - **Root Cause**: The project uses a composite/referenced config (`tsconfig.app.json`); a bare `tsc` resolves the wrong project
 - **Fix**: Use `npm run type-check` (or `tsc --noEmit -p tsconfig.app.json`). `npm run build` already chains the correct invocation
 - **Rule**: In a project with TypeScript project references, never invoke bare `tsc` — always go through the package script or pass `-p` explicitly.
+
+### 2026-07-29 — Local type-check passed, CI build failed on a missing export
+- **Error**: `Module '"@/utils/currency"' has no exported member 'formatMoney'` — GitHub Actions build step
+- **Context**: Committed the order-queue tablet view and pushed to main to deploy
+- **Root Cause**: `frontend/src/utils/currency.ts` was **tracked but modified**. The new page imported `formatMoney`, which existed only in the working tree. Local `npm run type-check` passed because it type-checks the working tree; CI builds the commit.
+- **Fix**: Committed `currency.ts` and `configStore.ts` alongside it
+- **Rule**: Staging deliberately is right, but a partial stage can break the build in a way local checks cannot see. Before pushing a deploy commit, confirm nothing staged imports from a file left dirty — `git status` the whole subtree, not just the files you touched.
+
+### 2026-07-29 — HTTPS host served the wrong certificate for two weeks
+- **Error**: `ERR_CERT_COMMON_NAME_INVALID` on `https://eats.sitaratech.info`
+- **Context**: About to hand a client-facing URL to Imran
+- **Root Cause**: The 2026-07-15 change added the hostname to nginx `server_name` but **never issued a certificate for it**. Both hostnames shared one 443 block, and a server block can only present one certificate — so every visitor got the `pos-demo.duckdns.org` cert. The domain resolves straight to the origin, so there was no CDN to mask it.
+- **Fix**: Issued a certificate via certbot webroot, split the shared block into two, each with its own certificate. Applied with `nginx -s reload` — **not** a container recreation, so volume mounts were never at risk. Verified per hostname with `openssl s_client -servername`.
+- **Rule**: Adding a hostname to `server_name` is half a migration; the certificate is the other half, and nothing fails until a human opens a browser. After any domain change, verify with `openssl s_client -connect host:443 -servername <name> | openssl x509 -noout -subject` for **every** name on that box.
+
+### 2026-07-29 — Seed script wrote 11 delivery areas to the wrong tenant
+- **Error**: `We do not deliver to that area.` (409) when placing a Chick Shack order
+- **Context**: Running the end-to-end order flow against the local stack
+- **Root Cause**: `seed_chick_shack_delivery.py` was run on 2026-07-27, before the `chick-shack` tenant existed. It resolved to the only tenant present and wrote Garelochhead £3 through Arrochar £15 onto `demo-restaurant`.
+- **Fix**: Re-ran with `--tenant-slug chick-shack`. The stray rows remain on the demo tenant locally (OI-39); production was never affected.
+- **Rule**: A seed script must never resolve "the tenant" implicitly. Pass the slug explicitly and refuse to guess — and after seeding, verify the row counts **per tenant**, not in total.
+
+### 2026-07-29 — Self-referencing tenant row inserted with a NULL tenant_id
+- **Error**: `null value in column "tenant_id" of relation "tenants" violates not-null constraint`
+- **Context**: Creating the `chick-shack` tenant in a new seed script
+- **Root Cause**: `tenants.tenant_id` self-references `tenants.id`. Setting `tenant.tenant_id = tenant.id` after construction reads `None`, because the model default has not fired before flush.
+- **Fix**: Generate the UUID explicitly and pass it to both fields, as `conftest.py` already did
+- **Rule**: For any self-referencing FK, mint the id in application code rather than relying on a column default you then read back.
