@@ -1,6 +1,8 @@
 # Open items register
 
-**Last updated:** 2026-07-28 (19:45 PKT) — printer self-test slip received; OI-33 halved.
+**Last updated:** 2026-07-29 — storefront checkout wired (OI-28, OI-37 closed) and the CORS blocker
+found and fixed on the server (OI-40). New: OI-41 (card payment gated on Stripe), OI-42 (local test
+orders). **The only step left before UAT is publishing the storefront.**
 
 Numbered so they can be referenced across sessions. **Numbers are never reused.** Closed items stay
 here with their outcome for one cycle, then move to the bottom.
@@ -50,11 +52,25 @@ op on a tenant we were not asked to touch, so it is left for Malik to call. Back
 `logs/backups/pre_chick_shack_seed_2026-07-28.sql`.
 *This is precisely the failure D-10 is about: a script that resolves "the tenant" loosely.*
 
-**OI-37 · The storefront should fetch its menu from the API, not `menu.ts`.**
-The menu now exists as rows (D-11), but `storefront/src/data/menu.ts` is still what the site renders,
-so there are two sources of truth and they will drift. Switching the storefront to
-`GET /public/chick-shack/menu` also means Imran can change a price from the admin screen instead of
-waiting for a redeploy — which is most of what "manage my own menu" means to him.
+**OI-37 ✅ RESOLVED 2026-07-29 · The storefront now fetches its menu from the API.**
+`GET /public/chick-shack/menu` is the source of ids, names and prices, so a price Imran edits in the
+admin screen reaches the website without a redeploy. `menu.ts` is retained **only** for what the
+database does not hold: food photos, the deliberate no-photo opt-outs, and the delivery-area list.
+Photos are joined back on by **item name**, which is the same key `seed_chick_shack.py` matched on.
+Parity was verified rather than assumed: 37 items had a photo before and 37 after, and all 62 API
+item names join. If anyone renames an item on one side only, the item keeps working and silently
+loses its photo — the harness check for that is worth keeping.
+
+**OI-40 ✅ RESOLVED 2026-07-29 · The API refused calls from the storefront's own domain.**
+`CORS_ORIGINS` in `.env.demo` was `https://pos-demo.duckdns.org` only. The menu fetch from
+`chickshackg84.com` returned 200 with **no `access-control-allow-origin` header**, so every browser
+would have discarded it — the site would have silently fallen back to "ring us" and nobody would
+have seen an error. Now set to `pos-demo.duckdns.org, eats.sitaratech.info, chickshackg84.com,
+www.chickshackg84.com`; backend and nginx recreated, all four sites on the box verified with their
+own certificates. Preflight `OPTIONS` confirmed; an unknown origin still gets no header, so it is
+not a wildcard. `.env.demo` backed up first as `.env.demo.bak.20260728-201748`.
+*This is the failure mode that has no error message. Test CORS with an `Origin` header, not by
+whether the endpoint returns 200.*
 
 **OI-38 · Is Chick Shack VAT registered?** The seed sets tax to **0**, deliberately, rather than
 assuming 20% UK VAT. Totals match the printed board either way under `tax_inclusive`, so nothing is
@@ -113,8 +129,24 @@ and all 8 order columns verified against the live schema. **Not yet applied on t
 retires removed areas rather than deleting, so it is safe to re-run after a price change.
 **Not yet run on the server.**
 
-**OI-28 · Storefront checkout still posts to nothing.** `place()` in `Checkout.tsx` fabricates a
-reference and clears the basket. Wiring it to `POST /public/orders` is the next frontend job.
+**OI-28 ✅ RESOLVED 2026-07-29 · Storefront checkout posts a real order.**
+`place()` now posts to `POST /public/chick-shack/orders` with **ids and quantities only**, and the
+confirmation screen polls `orders/{id}/status` until the shop accepts or rejects. The chosen variant
+travels as a modifier id, because in the database that is what it is (D-11). Verified three ways
+against the running stack: the server contract, the real storefront TypeScript driven from node, and
+the merchant half (queue → accept 45 min → the customer's status showing the ETA → an 822-byte
+ticket with a `rawbt:` URL). Basket subtotal and server subtotal agreed exactly.
+**Committed on `feat/storefront-checkout-wiring`; not merged, not published.**
+
+**OI-41 · Card payment is hidden until Stripe exists.** `SHOP.cardPaymentEnabled = false`, so
+checkout offers only "pay on collection/delivery". The order endpoint creates every order **unpaid**
+and nothing behind it takes money, so a "Pay now by card" button would tell a customer they had paid
+when they had not. Flip it only with Stripe Checkout **and** its signature-verified webhook live.
+
+**OI-42 · Test orders left on the LOCAL chick-shack tenant.** Four orders named "Wiring Test" /
+"TS Wiring Test" sit in the local pending/active queue from this session's verification; one was
+accepted with a 45-minute ETA. Local only — **production was never written to.** Harmless, but they
+will show on a local tablet demo. Deleting them is a destructive DB op, so it is left for Malik.
 
 **OI-29 · How the ETA reaches the customer is undecided.** Never discussed with the client. The API
 returns it and there is a status-poll endpoint, but nothing pushes it. Recommended default: on-screen
