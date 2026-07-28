@@ -5,6 +5,14 @@ and reopened the printing question. See `printing.md` and OI-31 / OI-32.
 **Stage:** Building. Storefront live on the client's real domain; ordering deliberately disabled.
 **Reference material** (transcript, proposal, menu, DNS dump): `_context/clients/chick-shack-uk/`
 
+> ⚠️ **CORRECTION 2026-07-29 — the "Build status" table below is two days stale. Do not trust it.**
+> Overtaken on 07-28 and 07-29: **printing is proven on the client's own printer** (item 11),
+> the **order-queue tablet view is built and deployed** (item 10), the **public API is migrated,
+> tenant-scoped and deployed to production** (item 5), and the **62-item menu + 11 delivery areas
+> are seeded on production**. Item 8 (storefront wired to the real API) is the only one of these
+> still genuinely open, and it is the current priority.
+> `STATE.md` and `PAUSE_CHECKPOINT_2026-07-29.md` are authoritative until this file is rewritten.
+
 ---
 
 ## The deal in one paragraph

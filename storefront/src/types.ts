@@ -67,6 +67,16 @@ export interface Variant {
   price: Pence;
 }
 
+/**
+ * A variant id that means "this item has only one price, so there is nothing to
+ * choose". Used when the menu comes from the API: the POS has no variant
+ * concept, so a real variant's id is the UUID of a modifier in that item's
+ * required "Choice" group, and an item without such a group gets this instead.
+ *
+ * It must never be sent to the server as a modifier id — see `orderLinesOf`.
+ */
+export const NO_VARIANT = "";
+
 /** A choice within a modifier group. Price here IS an increment on the line. */
 export interface ModifierOption {
   id: string;
@@ -83,6 +93,15 @@ export interface ModifierGroup {
   /** Maximum selections. 1 = radio, >1 = checkboxes. */
   max: number;
   options: ModifierOption[];
+  /**
+   * Stable slug identifying a well-known group across both menu sources.
+   *
+   * When the menu is hardcoded, `id` IS the slug ("meal", "heat", "dips"). When
+   * it comes from the API, `id` is a UUID and the slug is recovered by name.
+   * Presentation code that needs to recognise one specific group must match on
+   * this rather than on `id` — see `hasMealUpgrade`.
+   */
+  slug?: string;
 }
 
 export interface MenuItem {
@@ -121,6 +140,15 @@ export interface CartLine {
   quantity: number;
   /** Variant price + sum of modifier deltas. Per single unit. */
   unitPrice: Pence;
+  /**
+   * "Leave it out" ticks — "No onion", "No Algerian sauce".
+   *
+   * Free of charge and invisible to pricing. They travel to the server on the
+   * line's `notes` field and print in bold on the kitchen ticket. Part of the
+   * line's identity: a plain wrap and a no-onion wrap are two different things
+   * to whoever is making them, so they must not merge into one line of two.
+   */
+  exclusions: string[];
 }
 
 /**
@@ -150,6 +178,15 @@ export interface ShopConfig {
   openTime: string;
   closeTime: string;
   /**
+   * Earliest an order may be PLACED, 24h "HH:MM". Pre-orders are allowed from
+   * here until `closeTime`; outside that window checkout is refused.
+   *
+   * Not the same as `openTime`: the client accepts pre-orders before service
+   * (his own example is a 14:00 order for a 16:00 opening). What this stops is
+   * a 3am order landing on a tablet nobody is watching.
+   */
+  orderFromTime: string;
+  /**
    * Master switch for taking orders online.
    *
    * FALSE until the public order endpoint and Stripe webhook are live. While
@@ -159,6 +196,17 @@ export interface ShopConfig {
    * a fake confirmation would be worse than either.
    */
   orderingEnabled: boolean;
+  /**
+   * Whether to offer paying by card on the website.
+   *
+   * Separate from `orderingEnabled` because the two arrived separately: orders
+   * can be taken and settled in the shop long before Stripe exists. The order
+   * endpoint creates every order `unpaid` and nothing behind it takes money, so
+   * while this is false the checkout must not offer to charge a card.
+   *
+   * Flip only once Stripe Checkout AND its signature-verified webhook are live.
+   */
+  cardPaymentEnabled: boolean;
   /** Which service types the shop currently offers. */
   services: ServiceType[];
   collectionMinutes: number;

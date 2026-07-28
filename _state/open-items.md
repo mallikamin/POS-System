@@ -1,6 +1,8 @@
 # Open items register
 
-**Last updated:** 2026-07-28 (19:45 PKT) — printer self-test slip received; OI-33 halved.
+**Last updated:** 2026-07-29 — storefront checkout wired (OI-28, OI-37 closed) and the CORS blocker
+found and fixed on the server (OI-40). New: OI-41 (card payment gated on Stripe), OI-42 (local test
+orders). **The only step left before UAT is publishing the storefront.**
 
 Numbered so they can be referenced across sessions. **Numbers are never reused.** Closed items stay
 here with their outcome for one cycle, then move to the bottom.
@@ -10,6 +12,99 @@ Priority: 🔴 blocks the current goal · 🟠 needed before go-live · 🟡 rea
 ---
 
 ## 🔴 Blocking
+
+**OI-43 · No email exists anywhere in this system, and the client's main scenario needs it.**
+Raised by Imran 2026-07-29 (OI-29). He wants two emails: on placement, and on accept carrying the
+lead time. **This is a go-live blocker rather than a refinement**, because his own worked example is
+a pre-order placed at 14:00 and accepted at 15:30 — the confirmation screen learns the ETA by
+polling and gives up after 20 minutes, so that customer would never find out they had been accepted.
+Three parts, in order:
+1. **Persist the address.** `customer_email` is accepted by `POST /public/{tenant}/orders` and then
+   **discarded** — `Order` has no email column and `_link_customer` never sets `Customer.email`,
+   though that column exists. Nothing is sendable today.
+2. **Make email required at checkout.** It is currently optional (`contactOk` needs only name and
+   phone) and labelled "for your receipt". If it is the notification channel it cannot be optional.
+3. **A sender.** No transactional email provider is configured. Needs an account and a domain — and
+   `chickshackg84.com` carries the client's live business email, so any DNS record for sending must
+   be added additively and verified, per the DKIM near-miss on 2026-07-27.
+
+**OI-44 · The order stops dead at `in_kitchen` — "Out for delivery" does not exist.**
+Independently raised by Imran 2026-07-29 and by Malik before him, which is about as strong a signal
+as a gap gets. An accepted order never leaves the Active tab, so the queue grows forever and the day
+never settles. The state machine **already** supports it (`ready → served → completed` plus
+`PATCH /orders/{id}`); what is missing is the tablet UI and the customer-facing status.
+Two notes on scope: the label must follow the service type ("Out for delivery" vs "Ready for
+collection"), and Imran asked directly whether the button is worth having — **it is, and not mainly
+for the notification: it is the only thing that closes an order.** Still to ask him: does the final
+tap also mark a cash order paid, or is that a second tap?
+
+**OI-45 · Menu items need real modifier prompts. TWO separate asks, do not conflate them.**
+
+⏸️ **Parked until the QC pass by Malik's own reply to Imran, 2026-07-29 03:09:** *"we'll get to
+the fine details in the QC part... i'll get to those as the backend plumbing is finished."*
+Do not build this before the lifecycle/email plumbing lands. Imran was still mid-list at 03:10,
+so **the requirement is not yet fully captured** — collect the rest before designing.
+
+**(45a) Required heat-level choice — EASY, no schema change.**
+Imran 03:10: *"Such as: for peri burgers, peri wraps, both single and double and peri wings and
+peri tenders. Needs to have the following."* + a photo of his **EposNow till** showing a modal
+titled **"Peri-Peri Heat"** with exactly two options, **Hot Heat** and **Mild Heat**, and the
+validation text **"Please choose 1"** (screenshot taken on Peri Peri Wings Solo, £7.99).
+So: a **required single-select** group on the peri items. That is `min_selections=1,
+max_selections=1` with two £0.00 options — the existing modifier engine does this natively on
+both front ends. **No schema change, no conditionality.** Cost is a seeder change and a re-seed.
+Still to confirm: the exact item list, and whether Hot/Mild is the full set (his board may also
+have Medium/Extra Hot — the photo shows only two).
+
+**(45b) "Make it a meal" needs to ask what is IN the meal — HARD.**
+Imran 03:08: *"In the menu the make it a meal needs modifiers. For each make it a meal item."*
+Today it is a single flat +£3.00 tick with one option. He wants the drink (and probably the
+side) chosen when the upgrade is taken.
+**Confirm with him first** — it decides the model: drink only or drink and side; which drinks
+are included at £3.00 and which are an upcharge (cans are £1.79 on the board); is the side
+always chips.
+✅ **The conditionality problem is DEAD — settled by his own screen recording, 03:15.**
+Both previously-considered options (a "No meal" first option, or a conditional-group schema
+change) are **withdrawn.** Neither is needed and neither should be built.
+
+**EposNow makes Solo and Meal SEPARATE PRODUCTS** in sibling sub-categories
+(`PERI PERI WING MEALS` vs `PERI PERI WINGS SOLO`). The meal product simply *has* the drink
+and chips groups attached; the solo product does not. The question "should I ask about a
+drink?" never arises, so nothing conditional is required. **Zero schema change** — our
+`ModifierGroup` already carries `required` / `min_selections` / `max_selections` and groups
+attach per item. It is also the model Imran already trains his staff on.
+
+**The exact configuration, transcribed and frame-verified**, is in
+`_context/clients/chick-shack-uk/voice-notes/2026-07-29_imran_eposnow-menu-walkthrough.md`
+(+ archived frames in `refs/eposnow-menu/`). Summary:
+- `Peri-Peri Heat` — **required, choose 1**: Hot £0.00 / Mild £0.00
+- `Adults Meal Deal Drink` — **required, choose 1**, all £0.00: 7UP, Fanta Orange, Levi Roots
+  Caribbean Crush, Pepsi Max, Water, Diet Irn Bru, Irn Bru, Pepsi, Rubicon Passion Fruit
+- `Kids Meal Deal Drink` — **required, choose 1**, two options ONLY: Fruit Shoot Blackcurrant,
+  Fruit Shoot Orange. He was emphatic: *"no other option of any fizzy drinks or canned drinks."*
+- `Meal Deal Upgrade` — **optional, up to 1**: Regular Chips £0.00 (included), Large Fries
+  £0.79, Peri Peri Fries £0.99, Large Peri Peri Fries £1.19, Wedges £1.39, Peri Peri Wedges £1.59
+- Meal uplift **+£3.00**; kids solo £3.99
+
+🔺 **He wants the website to BEAT his till on one point.** His EposNow does *not* prompt for
+heat on the double peri peri burger and he calls that out as wrong: *"it should ask you… so on
+the website I'm asking if you could add on."* Heat is wanted on **peri burgers, peri wraps
+(single and double), peri wings, peri tenders.**
+
+**(45c) Per-line notes / exclusions — he asked for this explicitly and it is not built.**
+*"a notes option whether if they don't want any like no onion or lettuce, no salsa, no Algerian
+sauce, no ketchup… make our life a lot easier."* His till has free text plus "Popular Notes"
+quick-picks (No Onion / No Lettuce / No Tomato / No Mayo).
+**The backend already supports this end to end** — `order_items.notes` exists, and
+`ApiOrderLineRequest.notes` is accepted and persisted. **The gap is storefront UI only**: the
+cart line does not carry a note. Recommend a **tick-list of £0.00 modifiers** over free text,
+because a kitchen ticket is read by a human at speed and free text invites ambiguity.
+
+⬜ **Five things still unanswered — do not invent them.** Full list at the bottom of the
+walkthrough note: exact meal-variant product list, whether +£3.00 is uniform, whether Hot/Mild
+is the whole heat scale, kids upgrade prices, and tick-list vs free text.
+Either way this is **not storefront-only**: the choices must exist as rows or the order
+endpoint will refuse them, so it means new groups in `seed_chick_shack.py` and a re-seed.
 
 **OI-20 · Stripe account not connected.**
 Imran says he has one. Unknown whether it is verified and live or newly created. **Gates the entire
@@ -50,11 +145,25 @@ op on a tenant we were not asked to touch, so it is left for Malik to call. Back
 `logs/backups/pre_chick_shack_seed_2026-07-28.sql`.
 *This is precisely the failure D-10 is about: a script that resolves "the tenant" loosely.*
 
-**OI-37 · The storefront should fetch its menu from the API, not `menu.ts`.**
-The menu now exists as rows (D-11), but `storefront/src/data/menu.ts` is still what the site renders,
-so there are two sources of truth and they will drift. Switching the storefront to
-`GET /public/chick-shack/menu` also means Imran can change a price from the admin screen instead of
-waiting for a redeploy — which is most of what "manage my own menu" means to him.
+**OI-37 ✅ RESOLVED 2026-07-29 · The storefront now fetches its menu from the API.**
+`GET /public/chick-shack/menu` is the source of ids, names and prices, so a price Imran edits in the
+admin screen reaches the website without a redeploy. `menu.ts` is retained **only** for what the
+database does not hold: food photos, the deliberate no-photo opt-outs, and the delivery-area list.
+Photos are joined back on by **item name**, which is the same key `seed_chick_shack.py` matched on.
+Parity was verified rather than assumed: 37 items had a photo before and 37 after, and all 62 API
+item names join. If anyone renames an item on one side only, the item keeps working and silently
+loses its photo — the harness check for that is worth keeping.
+
+**OI-40 ✅ RESOLVED 2026-07-29 · The API refused calls from the storefront's own domain.**
+`CORS_ORIGINS` in `.env.demo` was `https://pos-demo.duckdns.org` only. The menu fetch from
+`chickshackg84.com` returned 200 with **no `access-control-allow-origin` header**, so every browser
+would have discarded it — the site would have silently fallen back to "ring us" and nobody would
+have seen an error. Now set to `pos-demo.duckdns.org, eats.sitaratech.info, chickshackg84.com,
+www.chickshackg84.com`; backend and nginx recreated, all four sites on the box verified with their
+own certificates. Preflight `OPTIONS` confirmed; an unknown origin still gets no header, so it is
+not a wildcard. `.env.demo` backed up first as `.env.demo.bak.20260728-201748`.
+*This is the failure mode that has no error message. Test CORS with an `Origin` header, not by
+whether the endpoint returns 200.*
 
 **OI-38 · Is Chick Shack VAT registered?** The seed sets tax to **0**, deliberately, rather than
 assuming 20% UK VAT. Totals match the printed board either way under `tax_inclusive`, so nothing is
@@ -113,12 +222,29 @@ and all 8 order columns verified against the live schema. **Not yet applied on t
 retires removed areas rather than deleting, so it is safe to re-run after a price change.
 **Not yet run on the server.**
 
-**OI-28 · Storefront checkout still posts to nothing.** `place()` in `Checkout.tsx` fabricates a
-reference and clears the basket. Wiring it to `POST /public/orders` is the next frontend job.
+**OI-28 ✅ RESOLVED 2026-07-29 · Storefront checkout posts a real order.**
+`place()` now posts to `POST /public/chick-shack/orders` with **ids and quantities only**, and the
+confirmation screen polls `orders/{id}/status` until the shop accepts or rejects. The chosen variant
+travels as a modifier id, because in the database that is what it is (D-11). Verified three ways
+against the running stack: the server contract, the real storefront TypeScript driven from node, and
+the merchant half (queue → accept 45 min → the customer's status showing the ETA → an 822-byte
+ticket with a `rawbt:` URL). Basket subtotal and server subtotal agreed exactly.
+**Committed on `feat/storefront-checkout-wiring`; not merged, not published.**
 
-**OI-29 · How the ETA reaches the customer is undecided.** Never discussed with the client. The API
-returns it and there is a status-poll endpoint, but nothing pushes it. Recommended default: on-screen
-confirmation plus email, which adds no recurring cost. **Ask Imran.**
+**OI-41 · Card payment is hidden until Stripe exists.** `SHOP.cardPaymentEnabled = false`, so
+checkout offers only "pay on collection/delivery". The order endpoint creates every order **unpaid**
+and nothing behind it takes money, so a "Pay now by card" button would tell a customer they had paid
+when they had not. Flip it only with Stripe Checkout **and** its signature-verified webhook live.
+
+**OI-42 · Test orders left on the LOCAL chick-shack tenant.** Four orders named "Wiring Test" /
+"TS Wiring Test" sit in the local pending/active queue from this session's verification; one was
+accepted with a 45-minute ETA. Local only — **production was never written to.** Harmless, but they
+will show on a local tablet demo. Deleting them is a destructive DB op, so it is left for Malik.
+
+**OI-29 ✅ ANSWERED BY THE CLIENT 2026-07-29 · The channel is EMAIL.** Imran described it unprompted
+in a voice note and said "email" every time, never SMS. He wants **two**: one the moment the order is
+placed, one when the shop accepts, carrying the lead time. Now tracked as OI-43.
+See `_context/clients/chick-shack-uk/voice-notes/2026-07-29_imran_order-lifecycle-and-emails.md`.
 
 **OI-30 ✅ RESOLVED 2026-07-27 · The test suite runs again, and it had been dead for four months.**
 Docker started; the suite then errored on *every* DB-backed test because `stock_counts` (JSONB, added

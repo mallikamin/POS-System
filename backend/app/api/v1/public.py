@@ -148,6 +148,10 @@ async def create_public_order(
 
     await db.commit()
 
+    # After the commit, never before: an email announcing an order that then
+    # failed to commit cannot be recalled. Never raises.
+    await public_order_service.notify_customer(db, tenant_id, order, "received")
+
     currency = await public_order_service.get_currency(db, tenant_id)
     return _to_public_response(order, currency)
 
@@ -183,6 +187,13 @@ async def get_public_order_status(
         rejected=order.rejected_at is not None,
         rejection_reason=order.rejection_reason,
         eta_minutes=order.eta_minutes,
+        service_type=order.service_type or "collection",
+        # `ready` stays true once reached: the later states are downstream of
+        # it, and a page that flipped back to "being prepared" on completion
+        # would read as the order going backwards.
+        ready=order.status in ("ready", "served", "completed"),
+        completed=order.status == "completed",
+        paid=order.payment_status == "paid",
     )
 
 
@@ -242,6 +253,109 @@ async def accept_online_order(
         ) from exc
 
     await db.commit()
+    await public_order_service.notify_customer(
+        db, current_user.tenant_id, order, "accepted"
+    )
+    currency = await public_order_service.get_currency(db, current_user.tenant_id)
+    return _to_public_response(order, currency)
+
+
+@router.post("/manage/orders/{order_id}/ready", response_model=PublicOrderResponse)
+async def mark_online_order_ready(
+    order_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> PublicOrderResponse:
+    """The food is made: out for delivery, or waiting on the counter.
+
+    One button, two meanings, decided by the order's own service type. The shop
+    taps the same thing either way; the customer is told the right thing.
+    """
+    try:
+        order = await public_order_service.advance_order(
+            db, current_user.tenant_id, order_id, current_user.id, "ready"
+        )
+    except PublicOrderError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=str(exc)
+        ) from exc
+
+    await db.commit()
+    await public_order_service.notify_customer(
+        db, current_user.tenant_id, order, "on_the_way"
+    )
+    currency = await public_order_service.get_currency(db, current_user.tenant_id)
+    return _to_public_response(order, currency)
+
+
+@router.post("/manage/orders/{order_id}/complete", response_model=PublicOrderResponse)
+async def complete_online_order(
+    order_id: uuid.UUID,
+    mark_paid: bool = Body(
+        False,
+        embed=True,
+        description="Also record the balance as settled in cash. This is the "
+        "handover moment for a cash order, so the two usually happen together.",
+    ),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> PublicOrderResponse:
+    """Handed over. The order is done and leaves the queue.
+
+    `mark_paid` is a flag rather than a separate mandatory step because for a
+    cash takeaway the money and the food change hands at the same instant.
+    Keeping it optional still allows the shop to settle payment separately when
+    a driver returns with the cash later.
+    """
+    try:
+        if mark_paid:
+            # Settle BEFORE completing. `_maybe_send_to_kitchen_after_payment`
+            # and the payment status sync both look at a live order, and a
+            # completed order is a worse thing to be mutating.
+            await public_order_service.mark_order_paid(
+                db, current_user.tenant_id, order_id, current_user.id
+            )
+        order = await public_order_service.advance_order(
+            db, current_user.tenant_id, order_id, current_user.id, "completed"
+        )
+    except PublicOrderError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=str(exc)
+        ) from exc
+
+    await db.commit()
+    currency = await public_order_service.get_currency(db, current_user.tenant_id)
+    return _to_public_response(order, currency)
+
+
+@router.post("/manage/orders/{order_id}/paid", response_model=PublicOrderResponse)
+async def mark_online_order_paid(
+    order_id: uuid.UUID,
+    method_code: str = Body(
+        "cash",
+        embed=True,
+        pattern=r"^(cash|card|mobile_wallet|bank_transfer)$",
+        description="How the customer actually paid at the door or the counter",
+    ),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> PublicOrderResponse:
+    """Record payment for an online order settled on handover.
+
+    Writes a real `Payment` row rather than flipping a flag, because the
+    Z-report, the drawer session and every sales report read payments. A status
+    change alone would show money that no report could account for.
+    """
+    try:
+        order = await public_order_service.mark_order_paid(
+            db, current_user.tenant_id, order_id, current_user.id, method_code
+        )
+    except PublicOrderError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=str(exc)
+        ) from exc
+
+    await db.commit()
     currency = await public_order_service.get_currency(db, current_user.tenant_id)
     return _to_public_response(order, currency)
 
@@ -264,6 +378,9 @@ async def reject_online_order(
         ) from exc
 
     await db.commit()
+    await public_order_service.notify_customer(
+        db, current_user.tenant_id, order, "rejected"
+    )
     currency = await public_order_service.get_currency(db, current_user.tenant_id)
     return _to_public_response(order, currency)
 

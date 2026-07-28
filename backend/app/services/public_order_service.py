@@ -29,8 +29,9 @@ from app.models.menu import Category, MenuItem, Modifier
 from app.models.order import Order, OrderItem, OrderItemModifier, OrderStatusLog
 from app.models.restaurant_config import RestaurantConfig
 from app.models.user import Role, User
+from app.models.tenant import Tenant
 from app.schemas.public_order import PublicOrderCreate
-from app.services import order_service
+from app.services import email_service, order_service
 from app.utils.security import hash_password
 
 logger = logging.getLogger(__name__)
@@ -86,6 +87,28 @@ async def get_currency(db: AsyncSession, tenant_id: uuid.UUID) -> str:
         )
     )
     return result.scalar_one_or_none() or "PKR"
+
+
+async def get_shop_name(db: AsyncSession, tenant_id: uuid.UUID) -> str:
+    """Display name for customer-facing email. The tenant's own name."""
+    result = await db.execute(select(Tenant.name).where(Tenant.id == tenant_id))
+    return result.scalar_one_or_none() or "Your restaurant"
+
+
+async def notify_customer(
+    db: AsyncSession, tenant_id: uuid.UUID, order: Order, event: str
+) -> bool:
+    """Email the customer about their order. Never raises.
+
+    ⚠️ **Call this AFTER `db.commit()`, never before.** An email announcing an
+    order that then failed to commit cannot be recalled, and the customer would
+    be holding a confirmation for something that does not exist.
+    """
+    currency = await get_currency(db, tenant_id)
+    shop_name = await get_shop_name(db, tenant_id)
+    return await email_service.send_order_email(
+        order, event, shop_name=shop_name, currency=currency
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -326,7 +349,8 @@ async def create_public_order(
     system_user = await _get_or_create_online_user(db, tenant_id)
 
     phone = "".join(c for c in data.customer_phone if c.isdigit()) or None
-    customer_id = await _link_customer(db, tenant_id, data.customer_name, phone)
+    email = (data.customer_email or "").strip() or None
+    customer_id = await _link_customer(db, tenant_id, data.customer_name, phone, email)
 
     order_items: list[OrderItem] = []
     for line in lines:
@@ -359,6 +383,7 @@ async def create_public_order(
         payment_status="unpaid",
         customer_name=data.customer_name,
         customer_phone=phone,
+        customer_email=email,
         customer_id=customer_id,
         subtotal=subtotal,
         tax_amount=tax_amount,
@@ -390,13 +415,22 @@ async def create_public_order(
 
 
 async def _link_customer(
-    db: AsyncSession, tenant_id: uuid.UUID, name: str, phone: str | None
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    name: str,
+    phone: str | None,
+    email: str | None = None,
 ) -> uuid.UUID | None:
     """Attach to an existing customer by phone, or create one.
 
     Phone is normalised to digits here because `create_customer` and
     `update_customer` both do the same -- a mismatch would silently break order
     history joins, which has happened before on this codebase.
+
+    An email supplied at checkout fills a BLANK customer email but never
+    overwrites one that is already there: a shared household phone number would
+    otherwise let one person's order quietly rewrite another's contact details.
+    The order keeps its own copy regardless, which is what confirmations use.
     """
     if not phone:
         return None
@@ -408,9 +442,12 @@ async def _link_customer(
     )
     existing = result.scalar_one_or_none()
     if existing is not None:
+        if email and not existing.email:
+            existing.email = email
+            await db.flush()
         return existing.id
 
-    customer = Customer(tenant_id=tenant_id, name=name, phone=phone)
+    customer = Customer(tenant_id=tenant_id, name=name, phone=phone, email=email)
     db.add(customer)
     await db.flush()
     return customer.id
@@ -450,6 +487,135 @@ async def accept_order(
 
     await order_service._auto_create_kitchen_ticket(db, tenant_id, order)
     return await order_service.get_order(db, order.id, tenant_id)  # type: ignore[return-value]
+
+
+async def advance_order(
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    order_id: uuid.UUID,
+    user_id: uuid.UUID,
+    to_status: str,
+) -> Order:
+    """Move an accepted online order along the rest of its life.
+
+    This is the half that was missing. Accept moved an order to `in_kitchen`
+    and nothing moved it again, so the shop's Active tab grew forever and a
+    day's takings never settled. The client raised it independently
+    ("a button ... that would say out for delivery").
+
+    No new state machine: `ready -> served -> completed` already exists and is
+    what the dine-in floor uses. Only two steps are exposed here, because only
+    two mean anything to a takeaway:
+
+      `ready`      food is made. Out for delivery, or ready on the counter.
+      `completed`  handed over. The order is done and leaves the queue.
+
+    `served` is passed through on the way to `completed` rather than being a
+    button of its own -- for a delivery there is no moment between "handed to
+    the driver" and "done" that the shop would ever tap.
+    """
+    if to_status not in ("ready", "completed"):
+        raise PublicOrderError(f"Cannot move an online order to '{to_status}'.")
+
+    order = await order_service.get_order(db, order_id, tenant_id)
+    if order is None or order.order_type != "online":
+        raise PublicOrderError("Order not found.")
+    if order.accepted_at is None:
+        raise PublicOrderError("Accept the order before moving it along.")
+    if order.rejected_at is not None:
+        raise PublicOrderError("This order was rejected.")
+    if order.status == to_status:
+        raise PublicOrderError(f"Order is already {to_status}.")
+
+    # `completed` is two hops from `in_kitchen`. Walk them rather than jumping,
+    # so the status log tells the truth and every guard in transition_order runs.
+    path = {
+        ("in_kitchen", "ready"): ["ready"],
+        ("in_kitchen", "completed"): ["ready", "served", "completed"],
+        ("ready", "completed"): ["served", "completed"],
+        ("served", "completed"): ["completed"],
+    }.get((order.status, to_status))
+
+    if path is None:
+        raise PublicOrderError(
+            f"Cannot move an order from '{order.status}' to '{to_status}'."
+        )
+
+    for step in path:
+        try:
+            order = await order_service.transition_order(
+                db, order_id, tenant_id, user_id, step
+            )
+        except ValueError as exc:
+            raise PublicOrderError(str(exc)) from exc
+
+    return order
+
+
+async def mark_order_paid(
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    order_id: uuid.UUID,
+    user_id: uuid.UUID,
+    method_code: str = "cash",
+) -> Order:
+    """Record that a cash-on-handover order has been settled.
+
+    Online orders are created `unpaid` and there is no Stripe yet, so the money
+    arrives at the door or the counter. Without this the order stays unpaid
+    forever, the Z-report understates the day's takings, and the tablet keeps
+    showing the unpaid banner on an order that was paid in full.
+
+    A real `Payment` row is written through the normal payment service rather
+    than by flipping `payment_status` directly -- reports, the drawer session
+    and the Z-report all read payments, so a status flag alone would show money
+    that no report could find.
+    """
+    order = await order_service.get_order(db, order_id, tenant_id)
+    if order is None or order.order_type != "online":
+        raise PublicOrderError("Order not found.")
+    if order.payment_status == "paid":
+        raise PublicOrderError("Order is already paid.")
+    if order.rejected_at is not None:
+        raise PublicOrderError("This order was rejected.")
+
+    from app.schemas.payment import PaymentCreate
+    from app.services import payment_service
+
+    # A tenant seeded purely for online ordering has no payment methods at all
+    # -- `seed_chick_shack.py` creates the menu and users but never touches the
+    # payments domain, so `chick-shack` had zero rows and this would have failed
+    # with "payment method not found" the first time anyone tapped Paid.
+    # Idempotent, so it costs one indexed read on every later call.
+    await payment_service.ensure_default_payment_methods(db, tenant_id)
+
+    paid, refunded = await payment_service._get_order_payment_totals(
+        db, tenant_id, order.id
+    )
+    due = max(order.total - paid + refunded, 0)
+    if due <= 0:
+        raise PublicOrderError("Order is already paid.")
+
+    try:
+        await payment_service.create_payment(
+            db,
+            tenant_id,
+            user_id,
+            PaymentCreate(
+                order_id=order.id,
+                method_code=method_code,
+                amount=due,
+                tendered_amount=due if method_code == "cash" else None,
+                note="Online order settled on handover",
+            ),
+        )
+    except ValueError as exc:
+        raise PublicOrderError(str(exc)) from exc
+
+    refreshed = await order_service.get_order(db, order_id, tenant_id)
+    if refreshed is None:
+        raise PublicOrderError("Order not found.")
+    return refreshed
 
 
 async def reject_order(

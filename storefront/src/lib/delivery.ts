@@ -49,6 +49,30 @@ export function isOpenNow(now: Date = new Date()): boolean {
   return minutes >= oh! * 60 + om! && minutes < ch! * 60 + cm!;
 }
 
+/**
+ * May an order be PLACED right now?
+ *
+ * Distinct from `isOpenNow`, and the difference is the whole point. The shop
+ * opens at 16:00, but Imran's own worked example is an order **placed at
+ * 14:00** and accepted at 15:30 — so he takes pre-orders before service, and
+ * refusing them would remove behaviour he already relies on.
+ *
+ * What must NOT happen is an order at 03:00. Nobody is at the tablet, the
+ * customer's confirmation screen gives up after twenty minutes, and the shop
+ * opens to stale orders it never agreed to. Before this existed, `isOpenNow`
+ * only drew a banner and checkout was reachable around the clock.
+ *
+ * ⚠️ `orderFromTime` is inferred from that 14:00 example, not stated by the
+ * client. Confirm it before relying on it commercially.
+ */
+export function canOrderNow(now: Date = new Date()): boolean {
+  const uk = new Date(now.toLocaleString("en-GB", { timeZone: "Europe/London" }));
+  const minutes = uk.getHours() * 60 + uk.getMinutes();
+  const [fh, fm] = (SHOP.orderFromTime || SHOP.openTime).split(":").map(Number);
+  const [ch, cm] = SHOP.closeTime.split(":").map(Number);
+  return minutes >= fh! * 60 + fm! && minutes < ch! * 60 + cm!;
+}
+
 export function deliveryOffered(): boolean {
   return SHOP.services.includes("delivery");
 }

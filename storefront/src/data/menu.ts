@@ -386,9 +386,18 @@ export const SHOP: ShopConfig = {
   currency: "GBP",
   openTime: "16:00",
   closeTime: "22:00",
-  // Flip to true only once POST /public/orders and the Stripe webhook are live
-  // and tested end to end. See Checkout.tsx.
-  orderingEnabled: false,
+  // Pre-orders open two hours before service, matching Imran's own worked
+  // example (placed 14:00, accepted 15:30, opens 16:00). INFERRED — confirm.
+  orderFromTime: "14:00",
+  // Orders are placed against POST /public/{tenant}/orders and appear on the
+  // shop's tablet for accept/reject. Ordering additionally requires the menu to
+  // have loaded from the API — see `canOrder` in store/menu.ts — so this flag
+  // alone cannot produce an order the server would refuse.
+  orderingEnabled: true,
+  // ⚠️ Stays false until Stripe Checkout and its signature-verified webhook are
+  // live. Orders are created unpaid and settled in the shop. Flipping this
+  // without Stripe means telling a customer they have paid when they have not.
+  cardPaymentEnabled: false,
   services: ["collection", "delivery"],
   collectionMinutes: 20,
   deliveryMinutes: 45,
@@ -444,6 +453,69 @@ export function fromPrice(item: MenuItem): number {
   return Math.min(...item.variants.map((v) => v.price));
 }
 
+/**
+ * Does this item offer the board's "MAKE IT MEAL £3.00 EXTRA" upgrade?
+ *
+ * Matches on `slug`, falling back to `id`, so it works for both menu sources:
+ * in this file the id IS the slug, while a menu from the API has UUID ids and
+ * carries the slug separately. Matching on `id` alone silently stopped finding
+ * anything the moment the menu started coming from the database.
+ */
+export function hasMealUpgrade(item: MenuItem): boolean {
+  return item.modifierGroups.some((group) => (group.slug ?? group.id) === "meal");
+}
+
 export function areaById(id: string) {
   return SHOP.deliveryAreas.find((a) => a.id === id);
+}
+
+/**
+ * "Leave it out" ticks, offered on anything that is built with salad and sauce.
+ *
+ * Imran asked for these directly, 2026-07-29: *"a notes option whether if they
+ * don't want any like no onion or lettuce, no salsa, no Algerian sauce, no
+ * ketchup… They want just a plain, only with chicken and a wrap… And make our
+ * life a lot easier if that was to happen."*
+ *
+ * These are deliberately **not** modifier rows in the database. They carry no
+ * price, they change nothing the server has to validate, and modelling them as
+ * modifiers would mean a schema-shaped change and a production re-seed to
+ * deliver a tick-box. They travel instead on the line's `notes` field, which
+ * the API already accepts and which `print_service` already prints **in bold**
+ * on the kitchen ticket — which is exactly where a "no onion" needs to shout.
+ *
+ * A closed tick-list rather than free text, on purpose: a kitchen ticket is
+ * read by a person at speed in a hot room, and free text invites "no unions"
+ * and worse.
+ */
+export const EXCLUSIONS = [
+  "No onion",
+  "No lettuce",
+  "No tomato",
+  "No salad",
+  "No mayo",
+  "No ketchup",
+  "No salsa",
+  "No Algerian sauce",
+] as const;
+
+/**
+ * Which categories get the ticks.
+ *
+ * Salad and sauce only exist on the things you build: burgers, wraps and the
+ * chicken plates. Offering "no lettuce" on a can of Irn Bru is noise, and noise
+ * on an ordering screen costs conversions.
+ *
+ * ⚠️ The category list is **our** inference from his wording ("only with chicken
+ * and a wrap"), not something he enumerated. Confirm it with him.
+ */
+const EXCLUDABLE_CATEGORIES = new Set([
+  "burgers",
+  "wraps",
+  "peri-grilled",
+  "fried-chicken",
+]);
+
+export function exclusionsFor(item: MenuItem): readonly string[] {
+  return EXCLUDABLE_CATEGORIES.has(item.categoryId) ? EXCLUSIONS : [];
 }

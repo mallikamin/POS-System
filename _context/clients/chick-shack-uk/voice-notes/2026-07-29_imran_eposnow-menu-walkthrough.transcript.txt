@@ -1,0 +1,47 @@
+[00:00] So I'm just giving you an example of what I'm talking about so for example, let's say
+[00:06] someone wants to order
+[00:08] Perry wings on their own so you'll need to click on Perry wings solo and then three pieces
+[00:17] Milder hop simple and it gets added to the
+[00:20] Added to a system right?
+[00:22] Let's say that same person wants to order Perry wings as a meal
+[00:26] So we click on meal ask it asks how hot they want it hot or mild
+[00:31] Let's say click a mile. What drink would they like?
+[00:33] Let's say seven up and then it comes with regular chips
+[00:38] At the cost of the three pound make it meal
+[00:40] But if they want upgrade to large chip fries to large Perry fries or to Perry Perry fries or to
+[00:48] Perry Perry wedges or
+[00:51] Normal wedges it obviously the it's an additional price for that
+[00:55] So let's say they want to upgrade to large Perry Perry fries
+[00:59] That that's what the it would come up as on the e-posts
+[01:03] But the website would need to be kind of configured
+[01:07] So it's similar now. Let's say in burgers
+[01:11] You go into a double Perry Perry burger
+[01:15] It should ask you if it's mild or hot
+[01:19] But obviously this this configuration doesn't ask you but it would usually should ask you so on the website
+[01:25] I'm asking if you could add on if you want a milder hot at no extra cost
+[01:29] And if if you can choose one of these drinks at no extra cost and then for
+[01:37] Regular chips is no no extra cost but to upgrade then it will be one of these
+[01:43] So like on the wraps it does work
+[01:46] So let's say if I go and wraps and I click on double Perry wrap
+[01:49] It comes up as hot or mild. So let's say mild
+[01:53] 7-up regular chips. Yeah
+[01:56] They need to have this option
+[01:58] Like a notes option whether if they don't want any like no onion or lettuce no salsa no Algerian sauce no ketchup
+[02:07] So all these options. They want just a plain
+[02:11] plain only with chicken and a wrap or no salad no sauce and
+[02:15] And make our life a lot easier if that if that was to happen
+[02:19] Now like for example, let's say even in the kids meal
+[02:24] The the items shown on here. These are solo items without making it meal. So if you click on mozzarella sticks
+[02:33] Comes up as just solo item, but when you click on a meal
+[02:37] What any of the kids section this is applicable to so all these items here
+[02:43] These are all applicable to kids section
+[02:46] So if you click on kids kids for nuggets it needs to we only give the kids an option between
+[02:52] Fruit shoot black currant or fruit shoot orange
+[02:55] There's no other option of any fizzy drinks or any like canned drinks. So let's say fruit shoot black currant really
+[03:03] We need to offer this chips option because some kids here they want to upgrade to Perry Perry
+[03:08] But usually like I said, it will come with regular chips anyway, so we click on regular chips
+[03:13] and then that's the
+[03:15] That's the
+[03:17] three pound added
+[03:19] For the meal because without the meal it's 3.99
+[03:22] Hope that makes sense. Thanks

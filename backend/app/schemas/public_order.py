@@ -177,6 +177,12 @@ class PublicOrderStatusResponse(BaseModel):
     rejected: bool
     rejection_reason: str | None = None
     eta_minutes: int | None = None
+    # The rest of the journey, so the page can say "on its way" rather than
+    # sitting on "confirmed" until the food arrives.
+    service_type: str = "collection"
+    ready: bool = False
+    completed: bool = False
+    paid: bool = False
 
 
 # ---------------------------------------------------------------------------

@@ -55,6 +55,15 @@ export default function CartPanel({ onClose, onCheckout }: Props) {
                       {line.modifiers.map((m) => m.name).join(", ")}
                     </p>
                   )}
+                  {/* Shown in the shop's warning colour, not grey: this is the
+                      one part of the line the kitchen must not miss, and it is
+                      also the only way the customer can tell two otherwise
+                      identical lines apart. */}
+                  {line.exclusions?.length > 0 && (
+                    <p className="text-sm text-flame-light mt-0.5">
+                      {line.exclusions.join(", ")}
+                    </p>
+                  )}
                 </div>
                 <span className="font-semibold shrink-0">
                   {formatGBP(line.unitPrice * line.quantity)}

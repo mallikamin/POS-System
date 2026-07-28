@@ -81,6 +81,52 @@ export async function rejectOnlineOrder(
 }
 
 /**
+ * The food is made: out for delivery, or waiting on the counter.
+ *
+ * One call for both meanings. The server decides what the customer is told
+ * from the order's own `service_type`, so the shop taps the same thing either
+ * way and cannot pick the wrong one.
+ */
+export async function markOnlineOrderReady(orderId: string): Promise<OnlineOrder> {
+  const { data } = await api.post(`/public/manage/orders/${orderId}/ready`, {});
+  return data;
+}
+
+/**
+ * Handed over. The order is done and leaves the Active tab.
+ *
+ * `markPaid` settles the balance in the same call, because for a cash takeaway
+ * the money and the food change hands at the same instant. It is passed
+ * explicitly rather than inferred here — the caller knows whether the order was
+ * already paid, and a button that silently took payment would be dishonest.
+ */
+export async function completeOnlineOrder(
+  orderId: string,
+  markPaid = false,
+): Promise<OnlineOrder> {
+  const { data } = await api.post(`/public/manage/orders/${orderId}/complete`, {
+    mark_paid: markPaid,
+  });
+  return data;
+}
+
+/**
+ * Record payment separately, for when a driver comes back with the cash later.
+ *
+ * Writes a real payment row server-side, not a status flag, so the money shows
+ * up in the Z-report and the sales reports.
+ */
+export async function markOnlineOrderPaid(
+  orderId: string,
+  methodCode = "cash",
+): Promise<OnlineOrder> {
+  const { data } = await api.post(`/public/manage/orders/${orderId}/paid`, {
+    method_code: methodCode,
+  });
+  return data;
+}
+
+/**
  * Fetch the kitchen ticket as a `rawbt:` URL and hand it to the printer.
  *
  * ⚠️ **The server does not print.** It cannot: our API is on a box in

@@ -248,6 +248,49 @@ Each entry follows:
 - **Fix**: Re-ran with `--tenant-slug chick-shack`. The stray rows remain on the demo tenant locally (OI-39); production was never affected.
 - **Rule**: A seed script must never resolve "the tenant" implicitly. Pass the slug explicitly and refuse to guess — and after seeding, verify the row counts **per tenant**, not in total.
 
+### 2026-07-29 — A tenant seeded for online ordering had no payment methods at all
+- **Error**: Not hit in production — caught while wiring "mark paid". `chick-shack` had
+  **zero rows** in `payment_methods`, so `payment_service._get_method_or_raise` would have
+  failed the first time anyone tapped Paid on the tablet
+- **Context**: Adding the order lifecycle (out for delivery / delivered / paid) that the
+  client asked for
+- **Root Cause**: `seed_chick_shack.py` seeds the tenant, config, roles, users and the menu.
+  It never touches the payments domain, because online orders are created `unpaid` and
+  nothing had ever needed to settle one. `demo-restaurant` has 4 methods only because the
+  original demo seeder called `ensure_default_payment_methods`
+- **Fix**: `mark_order_paid` calls `ensure_default_payment_methods` before creating the
+  payment. It is idempotent, so the cost is one indexed read per call
+- **Rule**: A tenant seeder that creates a *partial* tenant leaves landmines for whichever
+  feature is built next. When adding a seeder, either seed every domain the app can reach or
+  make the consuming service self-heal. Check row counts **per tenant** (`GROUP BY
+  tenant_id`), never in total — a healthy global count hid this completely.
+
+### 2026-07-29 — The API would have refused the storefront's own domain, with no error anywhere
+- **Error**: None. That is the entry. `GET /public/chick-shack/menu` returned **HTTP 200** to a
+  request carrying `Origin: https://chickshackg84.com`, but with **no `access-control-allow-origin`
+  header**, so every browser would have silently discarded a perfectly good response
+- **Context**: Wiring the storefront checkout to the live ordering API, before publishing
+- **Root Cause**: `CORS_ORIGINS` in `.env.demo` on the server was `https://pos-demo.duckdns.org`
+  only. It had never needed anything else, because until now nothing called the API from another
+  origin — the POS frontend is served from the same host as the API, so it is same-origin and CORS
+  never applied
+- **Why it would have been expensive**: the storefront falls back to its hardcoded menu when the
+  fetch fails, and ordering is gated on the menu having come from the API. So the site would have
+  looked completely normal and simply carried on saying "ring us". No console error visible to us,
+  no failed request in any server log, no alert. It would have been discovered by Imran during UAT,
+  or worse, not at all
+- **Fix**: Backed up `.env.demo` first (`.env.demo.bak.<timestamp>`), added
+  `eats.sitaratech.info`, `chickshackg84.com` and `www.chickshackg84.com`. Env changes are not
+  hot-reloaded, so the backend was recreated; that gives it a new IP, so nginx was recreated too
+  after confirming all four of its volume mounts (including `/root/orbit-crm/voice.conf`) are
+  declared in `docker-compose.demo.yml`. All four hostnames on the box then verified serving their
+  own certificates
+- **Rule**: **A 200 does not mean CORS works.** Test a cross-origin endpoint with an actual
+  `Origin:` header and assert `access-control-allow-origin` comes back, plus an `OPTIONS` preflight
+  for anything that POSTs JSON. Also assert an unknown origin gets **no** header, or you have proved
+  nothing except that you set a wildcard. And whenever a browser app starts calling an API on a
+  different hostname than it is served from, `CORS_ORIGINS` is a deployment step, not an afterthought.
+
 ### 2026-07-29 — Self-referencing tenant row inserted with a NULL tenant_id
 - **Error**: `null value in column "tenant_id" of relation "tenants" violates not-null constraint`
 - **Context**: Creating the `chick-shack` tenant in a new seed script
