@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import api from "@/lib/axios";
+import { setActiveCurrency } from "@/utils/currency";
 import type { RestaurantConfig } from "@/types";
 
 interface ConfigState {
@@ -22,6 +23,9 @@ export const useConfigStore = create<ConfigState>()((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const { data } = await api.get<RestaurantConfig>("/config/restaurant");
+      // Drive display formatting from the tenant's configured currency before
+      // any component renders a price.
+      setActiveCurrency(data.currency);
       set({ config: data, isLoading: false });
     } catch (err) {
       const message =
