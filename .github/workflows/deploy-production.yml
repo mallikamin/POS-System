@@ -54,91 +54,13 @@ jobs:
 
       - name: Deploy on server
         run: |
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
-            ${{ env.SERVER_USER }}@${{ env.SERVER_HOST }} << 'ENDSSH'
+          # The remote script is a FILE, executed by path. It must never be fed
+          # to ssh on stdin: `docker compose exec` reads stdin too, and would
+          # swallow the rest of the script -- which is exactly how the migration
+          # and nginx steps silently stopped running. `ssh -n` keeps stdin shut.
+          scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no             scripts/deploy-remote.sh             ${{ env.SERVER_USER }}@${{ env.SERVER_HOST }}:/tmp/deploy-remote.sh
 
-          cd /root/pos-system
-
-          # Pull latest code from git
-          git pull origin main || true
-
-          # Copy pre-built frontend into frontend/dist
-          rm -rf frontend/dist
-          cp -r frontend-dist frontend/dist
-
-          # Temporarily allow dist in dockerignore for prebuilt
-          sed -i '/^dist$/d' frontend/.dockerignore
-
-          # Build using lightweight prebuilt Dockerfile (no npm needed)
-          docker build -t pos-system-frontend -f frontend/Dockerfile.prebuilt frontend/
-
-          # Restore dockerignore
-          echo "dist" >> frontend/.dockerignore
-
-          # Recreate frontend container with new image
-          docker compose -f docker-compose.demo.yml --env-file .env.demo up -d --no-deps --force-recreate frontend
-
-          # Rebuild backend if code changed
-          docker compose -f docker-compose.demo.yml --env-file .env.demo up -d --no-deps --build backend
-
-          # Wait for services
-          sleep 5
-
-          # --- Database migrations -------------------------------------------
-          # Previously absent, which meant a deploy carrying a migration shipped
-          # new code against an old schema and failed at runtime rather than at
-          # deploy time.
-          #
-          # Back up first, without exception. This database has been lost once
-          # already (2026-03-26) -- see memory/data-integrity.md.
-          mkdir -p backups
-          docker compose -f docker-compose.demo.yml --env-file .env.demo \
-            exec -T postgres pg_dump -U pos_admin -d pos_system \
-            > "backups/pre_migrate_$(date +%Y-%m-%d_%H%M%S).sql"
-
-          # Fail the deploy loudly if the dump is empty -- an unusable backup is
-          # worse than a known-missing one, because it is trusted.
-          LATEST_DUMP=$(ls -t backups/pre_migrate_*.sql | head -1)
-          if [ ! -s "$LATEST_DUMP" ]; then
-            echo "Backup is empty ($LATEST_DUMP). Refusing to migrate."
-            exit 1
-          fi
-          echo "Backup OK: $LATEST_DUMP ($(wc -c < "$LATEST_DUMP") bytes)"
-
-          docker compose -f docker-compose.demo.yml --env-file .env.demo \
-            exec -T backend alembic upgrade head
-
-          # --- nginx: recreate LAST, and only after proving its mounts --------
-          # Recreating frontend and backend above gives them NEW container IPs.
-          # nginx resolved the old ones at startup and caches them, so without
-          # this step every deploy ends in a 502 that someone has to fix by
-          # hand -- which is exactly what happened after each previous deploy.
-          # `restart` does NOT clear that cache; only a new container does.
-          #
-          # nginx here is SHARED INFRASTRUCTURE. It serves Orbit CRM as well as
-          # the POS, and on 2026-03-26 recreating it without its voice.conf
-          # mount took orbit-voice down for ~20 minutes. Compose recreation is
-          # safe because every mount is declared in docker-compose.demo.yml --
-          # but a missing voice.conf on the HOST would make Docker helpfully
-          # create a DIRECTORY at that path, and nginx would then refuse to
-          # start and take BOTH sites down. So prove it is a file, first.
-          if [ ! -f /root/orbit-crm/voice.conf ]; then
-            echo "REFUSING to recreate nginx: /root/orbit-crm/voice.conf is missing."
-            echo "Recreating now would drop Orbit CRM's config and 502 both sites."
-            exit 1
-          fi
-
-          docker compose -f docker-compose.demo.yml --env-file .env.demo \
-            up -d --no-deps --force-recreate nginx
-
-          # Fail loudly on a bad config rather than leaving a dead proxy up.
-          docker exec pos-system-nginx-1 nginx -t
-
-          # Check status
-          docker compose -f docker-compose.demo.yml --env-file .env.demo ps
-
-          echo "Deployment complete!"
-          ENDSSH
+          ssh -n -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no             ${{ env.SERVER_USER }}@${{ env.SERVER_HOST }}             'bash /tmp/deploy-remote.sh'
 
       - name: Verify deployment
         run: |
