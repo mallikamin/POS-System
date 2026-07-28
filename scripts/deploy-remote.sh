@@ -36,17 +36,38 @@ ENV_FILE=".env.demo"
 dc() { docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" "$@"; }
 
 echo "==> Pulling code"
-git pull origin main || true
+# NEVER `|| true` here. That single suppression hid a stale backend on this
+# box: `git pull` had been failing on a locally-modified nginx.demo.conf while
+# the deploy reported success, so the frontend kept shipping (it is rsync'd,
+# not pulled) and the backend silently stayed on an old commit. Discovered
+# 2026-07-28 when a migration that had "deployed" was not in the database.
+#
+# A deploy that cannot get the code it was asked to deploy has failed. Say so.
+if ! git pull origin main; then
+  echo
+  echo "FAILED: git pull was refused. The server has local changes to a file"
+  echo "the incoming commits also touch. Resolve it deliberately -- do NOT"
+  echo "'git checkout --' blindly: .env.demo is tracked here and holds the"
+  echo "live credentials. Compare with 'git diff FETCH_HEAD -- <file>' first;"
+  echo "if the working tree already matches the incoming version, stash that"
+  echo "one path, pull, and drop the stash."
+  exit 1
+fi
 
 echo "==> Installing pre-built frontend"
 rm -rf frontend/dist
 cp -r frontend-dist frontend/dist
 
 # .dockerignore lists `dist`, which would exclude the very artifact we just
-# uploaded. Drop the line for the build, then restore it.
+# uploaded. Drop the line for the build, then restore it FROM GIT.
+#
+# It used to be restored with `echo dist >>`, which does not necessarily
+# reproduce the original file -- and left it permanently dirty in git. That
+# matters: a dirty tracked file is exactly what blocks `git pull` and stalls
+# every future deploy. Restoring from git leaves no drift behind.
 sed -i '/^dist$/d' frontend/.dockerignore
 docker build -t pos-system-frontend -f frontend/Dockerfile.prebuilt frontend/
-echo "dist" >> frontend/.dockerignore
+git checkout -- frontend/.dockerignore
 
 echo "==> Recreating frontend"
 dc up -d --no-deps --force-recreate frontend
