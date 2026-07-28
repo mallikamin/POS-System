@@ -22,6 +22,16 @@ const POLL_INTERVAL_MS = 10_000;
 const POLL_WINDOW_MS = 20 * 60 * 1000;
 
 /**
+ * Once the shop has accepted, keep watching for longer.
+ *
+ * The twenty-minute window above answers "has anyone looked at this yet". After
+ * an accept the remaining question is "has it left the shop", and the shop can
+ * legitimately promise up to 90 minutes. Giving up at 20 would blank the page
+ * exactly when the customer starts checking it.
+ */
+const ACCEPTED_POLL_WINDOW_MS = 2 * 60 * 60 * 1000;
+
+/**
  * What the customer sees after placing an order.
  *
  * The order is real by this point: it exists in the POS and is sitting on the
@@ -41,6 +51,7 @@ export default function OrderConfirmation({ order, onDone }: Props) {
   useEffect(() => {
     let cancelled = false;
     let timer: number | undefined;
+    let accepted = false;
     const startedAt = Date.now();
 
     async function poll(): Promise<void> {
@@ -48,16 +59,24 @@ export default function OrderConfirmation({ order, onDone }: Props) {
         const next = await fetchOrderStatus(order.id);
         if (cancelled) return;
         setStatus(next);
-        // Accept and reject are both terminal. Nothing further will change.
-        if (next.accepted || next.rejected) return;
+
+        // Only rejection and completion are terminal. Accept is NOT: the order
+        // still has to be made and handed over, and those are the updates the
+        // customer actually waits for.
+        if (next.rejected || next.completed) return;
+
+        accepted = next.accepted;
       } catch {
         // A failed poll is not worth showing the customer: their order was
         // accepted by the server, only this status check failed. Keep trying.
         if (cancelled) return;
       }
 
-      if (Date.now() - startedAt > POLL_WINDOW_MS) {
-        setGaveUp(true);
+      const budget = accepted ? ACCEPTED_POLL_WINDOW_MS : POLL_WINDOW_MS;
+      if (Date.now() - startedAt > budget) {
+        // Only ever surfaced while still unanswered. Once accepted, the last
+        // known state stays on screen rather than being replaced by a warning.
+        if (!accepted) setGaveUp(true);
         return;
       }
       timer = window.setTimeout(() => void poll(), POLL_INTERVAL_MS);
@@ -76,6 +95,10 @@ export default function OrderConfirmation({ order, onDone }: Props) {
   const rejected = status?.rejected === true;
   const eta = status?.eta_minutes ?? order.eta_minutes;
 
+  // The shop has made the food: it is on the counter, or with the driver.
+  const ready = status?.ready === true;
+  const completed = status?.completed === true;
+
   return (
     <div className="px-4 py-16 max-w-md mx-auto text-center space-y-5">
       <div className="text-5xl">{rejected ? "😔" : "🍗"}</div>
@@ -83,9 +106,17 @@ export default function OrderConfirmation({ order, onDone }: Props) {
       <h1 className="font-display text-2xl">
         {rejected
           ? "We couldn't take this one"
-          : accepted
-            ? "Order confirmed"
-            : "Order received"}
+          : completed
+            ? collecting
+              ? "Enjoy your food"
+              : "Delivered"
+            : ready
+              ? collecting
+                ? "Ready to collect"
+                : "On its way"
+              : accepted
+                ? "Order confirmed"
+                : "Order received"}
       </h1>
 
       <p className="text-cream/70">
@@ -104,16 +135,43 @@ export default function OrderConfirmation({ order, onDone }: Props) {
             Nothing has been charged. Give us a ring and we'll sort it out.
           </p>
         </div>
-      ) : accepted ? (
+      ) : completed ? (
         <div className="card p-4 border-emerald-500/40">
           <p className="font-semibold text-emerald-400">
-            {collecting ? "Ready for collection" : "Out for delivery"}
-            {eta ? ` in about ${eta} minutes` : ""}
+            {collecting ? "Collected — thanks!" : "Delivered — thanks!"}
+          </p>
+          <p className="text-sm text-cream/60 mt-1">
+            We hope it was good. See you again soon.
+          </p>
+        </div>
+      ) : ready ? (
+        <div className="card p-4 border-emerald-500/40">
+          <p className="font-semibold text-emerald-400">
+            {collecting
+              ? "Your order is ready and waiting"
+              : "Your order has left the shop"}
           </p>
           <p className="text-sm text-cream/60 mt-1">
             {collecting
               ? `Come to ${SHOP.addressLines.join(", ")}.`
-              : "We'll bring it to the address you gave us."}
+              : "The driver is on the way to the address you gave us."}
+          </p>
+        </div>
+      ) : accepted ? (
+        <div className="card p-4 border-emerald-500/40">
+          {/* "Confirmed", never "ready" — the food has not been made yet. Telling
+              a customer their order is ready and having it not be there is worse
+              than telling them nothing at all. */}
+          <p className="font-semibold text-emerald-400">
+            Confirmed
+            {eta
+              ? ` — ${collecting ? "ready to collect" : "with you"} in about ${eta} minutes`
+              : ""}
+          </p>
+          <p className="text-sm text-cream/60 mt-1">
+            {collecting
+              ? `We'll let you know when it's ready. Come to ${SHOP.addressLines.join(", ")}.`
+              : "We'll let you know the moment it leaves the shop."}
           </p>
         </div>
       ) : (

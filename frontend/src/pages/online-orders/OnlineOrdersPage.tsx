@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   acceptOnlineOrder,
+  completeOnlineOrder,
   listOnlineOrders,
+  markOnlineOrderPaid,
+  markOnlineOrderReady,
   printTicket,
   rejectOnlineOrder,
   type OnlineOrder,
@@ -28,6 +31,11 @@ import { useToast } from "@/hooks/use-toast";
  *     thumb, in a hurry, sometimes with greasy hands.
  *   - **Unpaid is shouted, not whispered.** A driver who assumes an order is
  *     prepaid does not come back with the money.
+ *   - **An order must be able to finish.** Accept alone left every order in the
+ *     Active tab forever and the day's takings never settled. The card now
+ *     carries the rest of the life: made → handed over, and paid. The handover
+ *     button settles an unpaid order in the same tap, and says so on its face
+ *     rather than doing it quietly.
  */
 
 const POLL_MS = 10_000;
@@ -40,8 +48,40 @@ const REJECT_REASONS = [
   "Closing soon",
 ];
 
+/** Made, and either on its way or waiting on the counter. */
+const MADE = ["ready", "served"];
+/** Off the queue for good. */
+const CLOSED = ["completed", "voided"];
+
 function minutesSince(iso: string): number {
   return Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 60000));
+}
+
+function isPaid(order: OnlineOrder): boolean {
+  return ["paid", "refunded"].includes((order.payment_status || "").toLowerCase());
+}
+
+/**
+ * One button, two meanings — and the order's own service type decides which,
+ * never the person tapping. A collecting customer must never be told their
+ * food is driving to them.
+ */
+function readyLabel(order: OnlineOrder): string {
+  return order.service_type === "delivery"
+    ? "Out for delivery"
+    : "Ready for collection";
+}
+
+function handoverLabel(order: OnlineOrder): string {
+  return order.service_type === "delivery" ? "Delivered" : "Collected";
+}
+
+/** Where the order actually is now, rather than what was promised when it was accepted. */
+function stageLabel(order: OnlineOrder): string {
+  if (order.status === "voided") return "Voided";
+  if (order.status === "completed") return handoverLabel(order);
+  if (MADE.includes(order.status)) return readyLabel(order);
+  return order.eta_minutes ? `Accepted · ${order.eta_minutes} min` : "Accepted";
 }
 
 /** Older than this and the card starts shouting. A waiting customer is a lost one. */
@@ -167,6 +207,80 @@ export default function OnlineOrdersPage() {
     }
   }
 
+  /**
+   * Shared plumbing for the three lifecycle taps.
+   *
+   * They differ only in which call they make and what they say afterwards.
+   * Three copies of the same try/catch/refresh would drift apart the first time
+   * one of them changed.
+   *
+   * The refresh runs on failure as well as success, deliberately: if the server
+   * refused the move, our card is showing a status the server disagrees with,
+   * and that is exactly when a stale view is most dangerous.
+   */
+  async function runLifecycle(
+    order: OnlineOrder,
+    action: () => Promise<unknown>,
+    success: { title: string; description?: string },
+    failTitle: string,
+  ) {
+    setBusyId(order.id);
+    try {
+      await action();
+      toast(success);
+    } catch (err) {
+      const detail =
+        (err as { response?: { data?: { detail?: string } } })?.response?.data
+          ?.detail ?? "Please try again.";
+      toast({ title: failTitle, description: detail, variant: "destructive" });
+    } finally {
+      await refresh(state);
+      setBusyId(null);
+    }
+  }
+
+  function onReady(order: OnlineOrder) {
+    return runLifecycle(
+      order,
+      () => markOnlineOrderReady(order.id),
+      { title: `Order ${order.order_number} — ${readyLabel(order).toLowerCase()}` },
+      "Could not update this order",
+    );
+  }
+
+  /**
+   * The handover tap. For an unpaid order this also settles it in cash, because
+   * at a door the money and the food change hands in the same movement — but
+   * the button says so rather than doing it quietly.
+   */
+  function onHandover(order: OnlineOrder) {
+    const settle = !isPaid(order);
+    return runLifecycle(
+      order,
+      () => completeOnlineOrder(order.id, settle),
+      {
+        title: `Order ${order.order_number} ${handoverLabel(order).toLowerCase()}`,
+        description: settle
+          ? `${formatMoney(order.total, order.currency)} recorded as cash.`
+          : "Order closed.",
+      },
+      "Could not close this order",
+    );
+  }
+
+  /** For the driver who comes back with the cash after the order was closed. */
+  function onMarkPaid(order: OnlineOrder) {
+    return runLifecycle(
+      order,
+      () => markOnlineOrderPaid(order.id),
+      {
+        title: `Order ${order.order_number} marked paid`,
+        description: `${formatMoney(order.total, order.currency)} recorded as cash.`,
+      },
+      "Could not mark this order paid",
+    );
+  }
+
   return (
     <div className="min-h-screen bg-secondary-100 p-4">
       <header className="mb-4 flex items-center justify-between gap-4">
@@ -220,10 +334,10 @@ export default function OnlineOrdersPage() {
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {orders.map((order) => {
             const waited = minutesSince(order.placed_at);
-            const unpaid = !["paid", "refunded"].includes(
-              (order.payment_status || "").toLowerCase(),
-            );
+            const unpaid = !isPaid(order);
             const isPending = !order.accepted_at && !order.rejected_at;
+            const closed = CLOSED.includes(order.status);
+            const made = MADE.includes(order.status);
 
             return (
               <article
@@ -321,16 +435,59 @@ export default function OnlineOrdersPage() {
                 </div>
 
                 {order.accepted_at ? (
-                  <div className="mt-3 flex items-center justify-between rounded-lg bg-green-100 px-3 py-2">
-                    <span className="font-semibold text-green-900">
-                      Accepted · {order.eta_minutes} min
-                    </span>
-                    <button
-                      onClick={() => void printTicket(order.id)}
-                      className="h-11 rounded-lg bg-white px-4 font-semibold text-secondary-800 shadow-sm"
+                  <div className="mt-3 space-y-2">
+                    <div
+                      className={`flex items-center justify-between rounded-lg px-3 py-2 ${
+                        closed ? "bg-secondary-200" : "bg-green-100"
+                      }`}
                     >
-                      Print again
-                    </button>
+                      <span
+                        className={`font-semibold ${
+                          closed ? "text-secondary-700" : "text-green-900"
+                        }`}
+                      >
+                        {stageLabel(order)}
+                      </span>
+                      <button
+                        onClick={() => void printTicket(order.id)}
+                        className="h-11 rounded-lg bg-white px-4 font-semibold text-secondary-800 shadow-sm"
+                      >
+                        Print again
+                      </button>
+                    </div>
+
+                    {closed ? null : made ? (
+                      <button
+                        disabled={busyId === order.id}
+                        onClick={() => void onHandover(order)}
+                        className="h-16 w-full rounded-xl bg-green-700 text-lg font-bold text-white disabled:opacity-50"
+                      >
+                        {handoverLabel(order)}
+                        {unpaid ? (
+                          <span className="block text-sm font-normal">
+                            take {formatMoney(order.total, order.currency)}
+                          </span>
+                        ) : null}
+                      </button>
+                    ) : (
+                      <button
+                        disabled={busyId === order.id}
+                        onClick={() => void onReady(order)}
+                        className="h-16 w-full rounded-xl bg-blue-600 text-lg font-bold text-white disabled:opacity-50"
+                      >
+                        {readyLabel(order)}
+                      </button>
+                    )}
+
+                    {unpaid ? (
+                      <button
+                        disabled={busyId === order.id}
+                        onClick={() => void onMarkPaid(order)}
+                        className="h-14 w-full rounded-xl border-2 border-secondary-300 font-semibold text-secondary-700 disabled:opacity-50"
+                      >
+                        Mark paid
+                      </button>
+                    ) : null}
                   </div>
                 ) : order.rejected_at ? (
                   <p className="mt-3 rounded-lg bg-secondary-200 px-3 py-2 text-sm text-secondary-700">

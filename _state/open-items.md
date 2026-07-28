@@ -38,20 +38,71 @@ collection"), and Imran asked directly whether the button is worth having — **
 for the notification: it is the only thing that closes an order.** Still to ask him: does the final
 tap also mark a cash order paid, or is that a second tap?
 
-**OI-45 · "Make it a meal" needs to ask what is IN the meal.**
-Imran, 2026-07-29 03:08: *"In the menu the make it a meal needs modifiers. For each make it a
-meal item."* Today it is a single flat +£3.00 tick with one option. He wants the drink (and
-probably the side) chosen when the upgrade is taken.
+**OI-45 · Menu items need real modifier prompts. TWO separate asks, do not conflate them.**
+
+⏸️ **Parked until the QC pass by Malik's own reply to Imran, 2026-07-29 03:09:** *"we'll get to
+the fine details in the QC part... i'll get to those as the backend plumbing is finished."*
+Do not build this before the lifecycle/email plumbing lands. Imran was still mid-list at 03:10,
+so **the requirement is not yet fully captured** — collect the rest before designing.
+
+**(45a) Required heat-level choice — EASY, no schema change.**
+Imran 03:10: *"Such as: for peri burgers, peri wraps, both single and double and peri wings and
+peri tenders. Needs to have the following."* + a photo of his **EposNow till** showing a modal
+titled **"Peri-Peri Heat"** with exactly two options, **Hot Heat** and **Mild Heat**, and the
+validation text **"Please choose 1"** (screenshot taken on Peri Peri Wings Solo, £7.99).
+So: a **required single-select** group on the peri items. That is `min_selections=1,
+max_selections=1` with two £0.00 options — the existing modifier engine does this natively on
+both front ends. **No schema change, no conditionality.** Cost is a seeder change and a re-seed.
+Still to confirm: the exact item list, and whether Hot/Mild is the full set (his board may also
+have Medium/Extra Hot — the photo shows only two).
+
+**(45b) "Make it a meal" needs to ask what is IN the meal — HARD.**
+Imran 03:08: *"In the menu the make it a meal needs modifiers. For each make it a meal item."*
+Today it is a single flat +£3.00 tick with one option. He wants the drink (and probably the
+side) chosen when the upgrade is taken.
 **Confirm with him first** — it decides the model: drink only or drink and side; which drinks
 are included at £3.00 and which are an upcharge (cans are £1.79 on the board); is the side
 always chips.
-⚠️ **The hard part is conditionality.** The POS modifier model has no notion of a group that
-applies only when another modifier is selected, and that is exactly what "choose a drink, but
-only if you took the meal" needs. Two ways:
-(a) **one required "Meal choice" group whose first option is "No meal"** — no schema change,
-one list for the customer, works with the existing engine. **Recommended.**
-(b) real conditional modifier groups — correct, but a schema change plus UI work on the
-storefront and the POS admin. Do not start (b) without Malik pricing it.
+✅ **The conditionality problem is DEAD — settled by his own screen recording, 03:15.**
+Both previously-considered options (a "No meal" first option, or a conditional-group schema
+change) are **withdrawn.** Neither is needed and neither should be built.
+
+**EposNow makes Solo and Meal SEPARATE PRODUCTS** in sibling sub-categories
+(`PERI PERI WING MEALS` vs `PERI PERI WINGS SOLO`). The meal product simply *has* the drink
+and chips groups attached; the solo product does not. The question "should I ask about a
+drink?" never arises, so nothing conditional is required. **Zero schema change** — our
+`ModifierGroup` already carries `required` / `min_selections` / `max_selections` and groups
+attach per item. It is also the model Imran already trains his staff on.
+
+**The exact configuration, transcribed and frame-verified**, is in
+`_context/clients/chick-shack-uk/voice-notes/2026-07-29_imran_eposnow-menu-walkthrough.md`
+(+ archived frames in `refs/eposnow-menu/`). Summary:
+- `Peri-Peri Heat` — **required, choose 1**: Hot £0.00 / Mild £0.00
+- `Adults Meal Deal Drink` — **required, choose 1**, all £0.00: 7UP, Fanta Orange, Levi Roots
+  Caribbean Crush, Pepsi Max, Water, Diet Irn Bru, Irn Bru, Pepsi, Rubicon Passion Fruit
+- `Kids Meal Deal Drink` — **required, choose 1**, two options ONLY: Fruit Shoot Blackcurrant,
+  Fruit Shoot Orange. He was emphatic: *"no other option of any fizzy drinks or canned drinks."*
+- `Meal Deal Upgrade` — **optional, up to 1**: Regular Chips £0.00 (included), Large Fries
+  £0.79, Peri Peri Fries £0.99, Large Peri Peri Fries £1.19, Wedges £1.39, Peri Peri Wedges £1.59
+- Meal uplift **+£3.00**; kids solo £3.99
+
+🔺 **He wants the website to BEAT his till on one point.** His EposNow does *not* prompt for
+heat on the double peri peri burger and he calls that out as wrong: *"it should ask you… so on
+the website I'm asking if you could add on."* Heat is wanted on **peri burgers, peri wraps
+(single and double), peri wings, peri tenders.**
+
+**(45c) Per-line notes / exclusions — he asked for this explicitly and it is not built.**
+*"a notes option whether if they don't want any like no onion or lettuce, no salsa, no Algerian
+sauce, no ketchup… make our life a lot easier."* His till has free text plus "Popular Notes"
+quick-picks (No Onion / No Lettuce / No Tomato / No Mayo).
+**The backend already supports this end to end** — `order_items.notes` exists, and
+`ApiOrderLineRequest.notes` is accepted and persisted. **The gap is storefront UI only**: the
+cart line does not carry a note. Recommend a **tick-list of £0.00 modifiers** over free text,
+because a kitchen ticket is read by a human at speed and free text invites ambiguity.
+
+⬜ **Five things still unanswered — do not invent them.** Full list at the bottom of the
+walkthrough note: exact meal-variant product list, whether +£3.00 is uniform, whether Hot/Mild
+is the whole heat scale, kids upgrade prices, and tick-list vs free text.
 Either way this is **not storefront-only**: the choices must exist as rows or the order
 endpoint will refuse them, so it means new groups in `seed_chick_shack.py` and a re-seed.
 

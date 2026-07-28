@@ -127,6 +127,13 @@ export interface ApiOrderStatus {
   rejected: boolean;
   rejection_reason: string | null;
   eta_minutes: number | null;
+
+  /** The rest of the journey, so the page can say "on its way" rather than
+   *  sitting on "confirmed" until the food physically arrives. */
+  service_type: string;
+  ready: boolean;
+  completed: boolean;
+  paid: boolean;
 }
 
 // ---------------------------------------------------------------------------

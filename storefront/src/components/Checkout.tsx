@@ -52,7 +52,15 @@ export default function Checkout({ onBack, onPlaced }: Props) {
   const deliveryFee = delivery?.ok ? delivery.fee : 0;
   const total = subtotal + deliveryFee;
 
-  const contactOk = name.trim().length > 1 && phone.trim().length >= 7;
+  // Email is REQUIRED, not a nicety. It is the channel the shop uses to tell the
+  // customer their order was accepted and how long it will be — and Imran's own
+  // worked example is an order placed at 14:00 and accepted at 15:30, long after
+  // the confirmation screen has stopped polling. Without an address that
+  // customer never finds out. Deliberately a shape check only: anything
+  // stricter rejects real addresses, and the real proof is the mail arriving.
+  const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+  const contactOk =
+    name.trim().length > 1 && phone.trim().length >= 7 && emailOk;
   const addressOk =
     service === "collection" || (address.trim().length > 4 && delivery?.ok === true);
   const canPlace = lines.length > 0 && contactOk && addressOk && !submitting;
@@ -186,12 +194,17 @@ export default function Checkout({ onBack, onPlaced }: Props) {
         />
         <input
           className="field"
-          placeholder="Email (for your receipt)"
+          placeholder="Email address"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           type="email"
           autoComplete="email"
+          required
+          aria-invalid={email.trim().length > 0 && !emailOk}
         />
+        <p className="text-xs text-white/60">
+          We'll email you when the shop confirms your order and how long it will be.
+        </p>
       </section>
 
       {service === "delivery" && (

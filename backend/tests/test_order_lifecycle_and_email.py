@@ -1,0 +1,296 @@
+"""The rest of the online order's life, and the emails that announce it.
+
+Two things are defended here, and both were shipped untested:
+
+    1. `advance_order` -- the only path that lets an online order finish.
+       Before it existed an accepted order sat in the shop's Active tab
+       forever and the day's takings never settled.
+
+    2. `email_service` -- a courtesy that must NEVER be able to fail an order.
+
+The second is the one worth being paranoid about. By the time an email is sent
+the customer has already been told yes or no, so an exception escaping this
+module would roll back an accepted order because a mail server hiccuped. Every
+test below that asserts "returns False" is really asserting "did not raise".
+"""
+
+from __future__ import annotations
+
+import uuid
+from unittest.mock import patch
+
+import pytest
+import pytest_asyncio
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.order import Order
+from app.models.tenant import Tenant
+from app.models.user import User
+from app.services import email_service, public_order_service
+from app.services.public_order_service import PublicOrderError
+
+
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
+
+
+def _online_order(tenant: Tenant, user: User, **overrides) -> Order:
+    fields = {
+        "tenant_id": tenant.id,
+        "order_number": "L250101-001",
+        "order_type": "online",
+        "status": "in_kitchen",
+        "payment_status": "unpaid",
+        "service_type": "delivery",
+        "subtotal": 1000,
+        "tax_amount": 0,
+        "discount_amount": 0,
+        "total": 1000,
+        "created_by": user.id,
+        "accepted_at": None,
+        "customer_name": "Test Customer",
+    }
+    fields.update(overrides)
+    return Order(**fields)
+
+
+@pytest_asyncio.fixture
+async def accepted_order(db: AsyncSession, tenant: Tenant, admin_user: User) -> Order:
+    """An online order the shop has accepted and is cooking."""
+    from datetime import datetime, timezone
+
+    order = _online_order(
+        tenant, admin_user, accepted_at=datetime.now(timezone.utc), eta_minutes=30
+    )
+    db.add(order)
+    await db.flush()
+    await db.commit()
+    return order
+
+
+# ---------------------------------------------------------------------------
+# advance_order -- the guards
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("target", ["draft", "confirmed", "in_kitchen", "voided", ""])
+async def test_only_ready_and_completed_are_reachable(
+    db: AsyncSession, tenant: Tenant, admin_user: User, accepted_order: Order, target: str
+) -> None:
+    """The public lifecycle exposes exactly two moves and no others.
+
+    This endpoint is driven by a tablet in a shop, not by staff who understand
+    the state machine. Letting it name any status would make it a back door
+    into transitions the POS deliberately guards, `voided` above all.
+    """
+    with pytest.raises(PublicOrderError):
+        await public_order_service.advance_order(
+            db, tenant.id, accepted_order.id, admin_user.id, target
+        )
+
+
+@pytest.mark.asyncio
+async def test_cannot_advance_an_order_that_was_never_accepted(
+    db: AsyncSession, tenant: Tenant, admin_user: User
+) -> None:
+    """No skipping the accept. The customer has not been told anything yet."""
+    order = _online_order(tenant, admin_user, order_number="L250101-002")
+    db.add(order)
+    await db.flush()
+    await db.commit()
+
+    with pytest.raises(PublicOrderError, match="Accept the order"):
+        await public_order_service.advance_order(
+            db, tenant.id, order.id, admin_user.id, "ready"
+        )
+
+
+@pytest.mark.asyncio
+async def test_cannot_advance_a_rejected_order(
+    db: AsyncSession, tenant: Tenant, admin_user: User
+) -> None:
+    """Rejection is terminal. The customer has already been told no."""
+    from datetime import datetime, timezone
+
+    now = datetime.now(timezone.utc)
+    order = _online_order(
+        tenant,
+        admin_user,
+        order_number="L250101-003",
+        accepted_at=now,
+        rejected_at=now,
+    )
+    db.add(order)
+    await db.flush()
+    await db.commit()
+
+    with pytest.raises(PublicOrderError, match="rejected"):
+        await public_order_service.advance_order(
+            db, tenant.id, order.id, admin_user.id, "ready"
+        )
+
+
+@pytest.mark.asyncio
+async def test_unknown_order_is_refused(
+    db: AsyncSession, tenant: Tenant, admin_user: User
+) -> None:
+    with pytest.raises(PublicOrderError, match="not found"):
+        await public_order_service.advance_order(
+            db, tenant.id, uuid.uuid4(), admin_user.id, "ready"
+        )
+
+
+@pytest.mark.asyncio
+async def test_a_non_online_order_is_not_reachable_from_here(
+    db: AsyncSession, tenant: Tenant, admin_user: User, order: Order
+) -> None:
+    """The public routes must never be able to touch a till order.
+
+    `order` is a takeaway created at the POS. An online endpoint reaching it
+    would be a tenant-scoped but channel-crossing write.
+    """
+    with pytest.raises(PublicOrderError, match="not found"):
+        await public_order_service.advance_order(
+            db, tenant.id, order.id, admin_user.id, "ready"
+        )
+
+
+# ---------------------------------------------------------------------------
+# email_service -- it must never raise
+# ---------------------------------------------------------------------------
+
+
+def _emailable(**overrides) -> Order:
+    """A detached Order, good enough to render a body. Never persisted."""
+    fields = {
+        "order_number": "L250101-009",
+        "customer_name": "Test Customer",
+        "customer_email": "customer@example.com",
+        "service_type": "delivery",
+        "delivery_address": "1 Test Street",
+        "payment_status": "unpaid",
+        "status": "in_kitchen",
+        "subtotal": 1499,
+        "tax_amount": 0,
+        "delivery_fee": 0,
+        "total": 1499,
+        "eta_minutes": 45,
+        "rejection_reason": None,
+    }
+    fields.update(overrides)
+    order = Order(**fields)
+    order.items = []
+    return order
+
+
+@pytest.mark.asyncio
+async def test_no_email_address_is_not_an_error() -> None:
+    """Phone-only customers are normal, and predate email being collected."""
+    sent = await email_service.send_order_email(_emailable(customer_email=None), "received")
+    assert sent is False
+
+
+@pytest.mark.asyncio
+async def test_unknown_event_is_refused_not_raised() -> None:
+    sent = await email_service.send_order_email(_emailable(), "nonsense_event")
+    assert sent is False
+
+
+@pytest.mark.asyncio
+async def test_nothing_is_sent_while_unconfigured() -> None:
+    """The default state of this system. It must be silent, not broken."""
+    with patch.object(type(email_service.settings), "email_configured", property(lambda _: False)):
+        sent = await email_service.send_order_email(_emailable(), "received")
+    assert sent is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("event", ["received", "accepted", "rejected", "on_the_way"])
+async def test_a_dead_mail_server_never_raises(event: str) -> None:
+    """The whole point of the module.
+
+    If this test ever fails, an accepted order can be rolled back by a mail
+    server outage -- the customer is told yes, then the order vanishes.
+    """
+    with patch.object(
+        type(email_service.settings), "email_configured", property(lambda _: True)
+    ), patch.object(
+        email_service, "_send_blocking", side_effect=OSError("connection refused")
+    ):
+        sent = await email_service.send_order_email(_emailable(), event)
+    assert sent is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("event", ["received", "accepted", "rejected", "on_the_way"])
+async def test_every_event_builds_and_sends(event: str) -> None:
+    captured: dict[str, str] = {}
+
+    def _capture(to: str, subject: str, body: str) -> None:
+        captured.update(to=to, subject=subject, body=body)
+
+    with patch.object(
+        type(email_service.settings), "email_configured", property(lambda _: True)
+    ), patch.object(email_service, "_send_blocking", side_effect=_capture):
+        sent = await email_service.send_order_email(_emailable(), event)
+
+    assert sent is True
+    assert captured["to"] == "customer@example.com"
+    assert "L250101-009" in captured["subject"]
+    assert captured["body"].strip()
+
+
+# ---------------------------------------------------------------------------
+# Wording -- a collecting customer must never be told their food is driving
+# ---------------------------------------------------------------------------
+
+
+def test_accepted_email_carries_the_lead_time() -> None:
+    """Imran's whole reason for wanting email: a 14:00 order accepted at 15:30."""
+    _, body = email_service._body_accepted(_emailable(eta_minutes=45), "Chick Shack", "GBP")
+    assert "45 minutes" in body
+
+
+def test_collection_is_never_described_as_delivery() -> None:
+    subject, body = email_service._body_on_the_way(
+        _emailable(service_type="collection"), "Chick Shack", "GBP"
+    )
+    assert "ready to collect" in subject.lower()
+    assert "on its way" not in body.lower()
+
+
+def test_delivery_is_never_described_as_collection() -> None:
+    subject, body = email_service._body_on_the_way(
+        _emailable(service_type="delivery"), "Chick Shack", "GBP"
+    )
+    assert "on its way" in subject.lower()
+    assert "waiting for you at the shop" not in body.lower()
+
+
+def test_rejection_falls_back_to_a_civil_reason() -> None:
+    """A blank reason must never render as an empty accusation."""
+    _, body = email_service._body_rejected(
+        _emailable(rejection_reason="   "), "Chick Shack", "GBP"
+    )
+    assert "unable to take this order" in body.lower()
+
+
+# ---------------------------------------------------------------------------
+# Money -- this is a GBP client and the POS was born in paisa
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("amount", "currency", "expected"),
+    [
+        (1499, "GBP", "£14.99"),
+        (300, "GBP", "£3.00"),
+        (0, "GBP", "£0.00"),
+        (123456, "GBP", "£1,234.56"),
+        (1000, "PKR", "Rs.10.00"),
+    ],
+)
+def test_money_renders_minor_units(amount: int, currency: str, expected: str) -> None:
+    assert email_service._money(amount, currency) == expected
