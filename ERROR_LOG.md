@@ -248,6 +248,23 @@ Each entry follows:
 - **Fix**: Re-ran with `--tenant-slug chick-shack`. The stray rows remain on the demo tenant locally (OI-39); production was never affected.
 - **Rule**: A seed script must never resolve "the tenant" implicitly. Pass the slug explicitly and refuse to guess — and after seeding, verify the row counts **per tenant**, not in total.
 
+### 2026-07-29 — A tenant seeded for online ordering had no payment methods at all
+- **Error**: Not hit in production — caught while wiring "mark paid". `chick-shack` had
+  **zero rows** in `payment_methods`, so `payment_service._get_method_or_raise` would have
+  failed the first time anyone tapped Paid on the tablet
+- **Context**: Adding the order lifecycle (out for delivery / delivered / paid) that the
+  client asked for
+- **Root Cause**: `seed_chick_shack.py` seeds the tenant, config, roles, users and the menu.
+  It never touches the payments domain, because online orders are created `unpaid` and
+  nothing had ever needed to settle one. `demo-restaurant` has 4 methods only because the
+  original demo seeder called `ensure_default_payment_methods`
+- **Fix**: `mark_order_paid` calls `ensure_default_payment_methods` before creating the
+  payment. It is idempotent, so the cost is one indexed read per call
+- **Rule**: A tenant seeder that creates a *partial* tenant leaves landmines for whichever
+  feature is built next. When adding a seeder, either seed every domain the app can reach or
+  make the consuming service self-heal. Check row counts **per tenant** (`GROUP BY
+  tenant_id`), never in total — a healthy global count hid this completely.
+
 ### 2026-07-29 — The API would have refused the storefront's own domain, with no error anywhere
 - **Error**: None. That is the entry. `GET /public/chick-shack/menu` returned **HTTP 200** to a
   request carrying `Origin: https://chickshackg84.com`, but with **no `access-control-allow-origin`
