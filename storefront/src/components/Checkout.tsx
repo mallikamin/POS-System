@@ -3,11 +3,14 @@ import { SHOP } from "../data/menu";
 import type { ServiceType } from "../types";
 import { formatGBP } from "../lib/money";
 import { checkDelivery, collectionOffered, deliveryOffered } from "../lib/delivery";
-import { subtotalOf, useCart } from "../store/cart";
+import { orderLinesOf, subtotalOf, useCart } from "../store/cart";
+import { canOrder, useMenu } from "../store/menu";
+import { ApiError, placeOrder } from "../lib/api";
+import type { ApiOrderResponse } from "../lib/api";
 
 interface Props {
   onBack: () => void;
-  onPlaced: (ref: string) => void;
+  onPlaced: (order: ApiOrderResponse) => void;
 }
 
 type PaymentMethod = "card" | "cash";
@@ -15,7 +18,12 @@ type PaymentMethod = "card" | "cash";
 export default function Checkout({ onBack, onPlaced }: Props) {
   const lines = useCart((s) => s.lines);
   const clear = useCart((s) => s.clear);
+  const reconcile = useCart((s) => s.reconcile);
   const subtotal = subtotalOf(lines);
+
+  const menuItems = useMenu((s) => s.items);
+  const menuSource = useMenu((s) => s.source);
+  const orderingLive = canOrder(menuSource);
 
   const [service, setService] = useState<ServiceType>(
     collectionOffered() ? "collection" : "delivery",
@@ -27,8 +35,14 @@ export default function Checkout({ onBack, onPlaced }: Props) {
   const [areaId, setAreaId] = useState("");
   const [postcode, setPostcode] = useState("");
   const [notes, setNotes] = useState("");
-  const [payment, setPayment] = useState<PaymentMethod>("card");
+  // Card is only offered once Stripe exists. Until then the order is created
+  // unpaid and settled in the shop, so cash is not merely the default, it is
+  // the only truthful option. See the Payment section below.
+  const [payment, setPayment] = useState<PaymentMethod>(
+    SHOP.cardPaymentEnabled ? "card" : "cash",
+  );
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const delivery = useMemo(
     () => (service === "delivery" ? checkDelivery(areaId, subtotal) : null),
@@ -44,15 +58,59 @@ export default function Checkout({ onBack, onPlaced }: Props) {
   const canPlace = lines.length > 0 && contactOk && addressOk && !submitting;
 
   async function place() {
+    if (!canPlace) return;
     setSubmitting(true);
-    // NOT WIRED TO THE BACKEND YET. Items 3-4 of the build add the public order
-    // endpoint and Stripe. Until then this is a front-end preview only — no
-    // order is created, no payment is taken. Do not present this as working.
-    await new Promise((r) => setTimeout(r, 600));
-    const ref = `CS${Date.now().toString().slice(-6)}`;
-    clear();
-    setSubmitting(false);
-    onPlaced(ref);
+    setError(null);
+
+    // Re-check the basket against the live menu before sending anything. The
+    // basket is persisted and outlives the page, so this is the last point at
+    // which a withdrawn item can be caught without the customer discovering it
+    // as a failed order after they have typed their address.
+    const dropped = reconcile(menuItems);
+    if (dropped > 0) {
+      setSubmitting(false);
+      setError(
+        dropped === 1
+          ? "One item in your basket is no longer on the menu, so we've removed it. Please check your order before continuing."
+          : `${dropped} items in your basket are no longer on the menu, so we've removed them. Please check your order before continuing.`,
+      );
+      return;
+    }
+
+    try {
+      // IDs and quantities only. Every amount on the resulting order — line
+      // prices, tax and the delivery fee — is recomputed by the server from
+      // its own menu. Sending a price here is a 422 by design.
+      const order = await placeOrder({
+        service_type: service,
+        customer_name: name.trim(),
+        customer_phone: phone.trim(),
+        ...(email.trim() ? { customer_email: email.trim() } : {}),
+        items: orderLinesOf(useCart.getState().lines),
+        ...(notes.trim() ? { notes: notes.trim() } : {}),
+        ...(service === "delivery"
+          ? {
+              delivery_area_id: areaId,
+              delivery_address: [address.trim(), postcode.trim().toUpperCase()]
+                .filter(Boolean)
+                .join(", "),
+            }
+          : {}),
+      });
+
+      clear();
+      setSubmitting(false);
+      onPlaced(order);
+    } catch (cause) {
+      // A 409 carries a sentence written for the customer ("We do not deliver
+      // to that area."). Anything else gets the generic line.
+      setError(
+        cause instanceof ApiError
+          ? cause.customerMessage
+          : "Something went wrong placing your order. Please try again, or give us a ring.",
+      );
+      setSubmitting(false);
+    }
   }
 
   function deliveryMessage() {
@@ -178,28 +236,44 @@ export default function Checkout({ onBack, onPlaced }: Props) {
 
       <section>
         <h2 className="label">Payment</h2>
-        <div className="space-y-2">
-          <button
-            onClick={() => setPayment("card")}
-            className={`w-full rounded-xl border px-4 py-3 text-left
-              ${payment === "card" ? "border-flame bg-flame/10" : "border-ink-line"}`}
-          >
-            <span className="font-semibold">Pay now by card</span>
-            <span className="block text-xs text-cream/50">
-              Secure payment by Stripe
-            </span>
-          </button>
-          <button
-            onClick={() => setPayment("cash")}
-            className={`w-full rounded-xl border px-4 py-3 text-left
-              ${payment === "cash" ? "border-flame bg-flame/10" : "border-ink-line"}`}
-          >
-            <span className="font-semibold">
+        {/* Card is hidden, not merely unselected, until Stripe is built. The
+            order endpoint creates every order `unpaid` and there is no payment
+            step behind it, so offering "Pay now by card" would take no money
+            while telling the customer it had. Showing one honest option is
+            better than two where one is a lie. */}
+        {SHOP.cardPaymentEnabled ? (
+          <div className="space-y-2">
+            <button
+              onClick={() => setPayment("card")}
+              className={`w-full rounded-xl border px-4 py-3 text-left
+                ${payment === "card" ? "border-flame bg-flame/10" : "border-ink-line"}`}
+            >
+              <span className="font-semibold">Pay now by card</span>
+              <span className="block text-xs text-cream/50">
+                Secure payment by Stripe
+              </span>
+            </button>
+            <button
+              onClick={() => setPayment("cash")}
+              className={`w-full rounded-xl border px-4 py-3 text-left
+                ${payment === "cash" ? "border-flame bg-flame/10" : "border-ink-line"}`}
+            >
+              <span className="font-semibold">
+                Pay on {service === "delivery" ? "delivery" : "collection"}
+              </span>
+              <span className="block text-xs text-cream/50">Cash</span>
+            </button>
+          </div>
+        ) : (
+          <div className="card p-4">
+            <p className="font-semibold">
               Pay on {service === "delivery" ? "delivery" : "collection"}
-            </span>
-            <span className="block text-xs text-cream/50">Cash</span>
-          </button>
-        </div>
+            </p>
+            <p className="text-sm text-cream/60 mt-1">
+              Cash, or card in the shop. Online card payment is coming soon.
+            </p>
+          </div>
+        )}
       </section>
 
       <section>
@@ -229,7 +303,16 @@ export default function Checkout({ onBack, onPlaced }: Props) {
         </div>
       </section>
 
-      {SHOP.orderingEnabled ? (
+      {error && (
+        <p
+          role="alert"
+          className="card p-3 text-sm text-ember border-ember/40"
+        >
+          {error}
+        </p>
+      )}
+
+      {orderingLive ? (
         <button onClick={place} disabled={!canPlace} className="btn-primary tap w-full h-14">
           {submitting
             ? "Placing order…"

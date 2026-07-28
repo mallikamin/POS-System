@@ -1,23 +1,45 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { SHOP } from "./data/menu";
 import { formatGBP } from "./lib/money";
 import { isOpenNow } from "./lib/delivery";
 import { itemCountOf, subtotalOf, useCart } from "./store/cart";
+import { useMenu } from "./store/menu";
+import type { ApiOrderResponse } from "./lib/api";
 import MenuBrowser from "./components/MenuBrowser";
 import CartPanel from "./components/CartPanel";
 import Checkout from "./components/Checkout";
+import OrderConfirmation from "./components/OrderConfirmation";
 
 type View = "menu" | "checkout" | "done";
 
 export default function App() {
   const [view, setView] = useState<View>("menu");
   const [cartOpen, setCartOpen] = useState(false);
-  const [reference, setReference] = useState("");
+  const [placed, setPlaced] = useState<ApiOrderResponse | null>(null);
 
   const lines = useCart((s) => s.lines);
+  const reconcile = useCart((s) => s.reconcile);
   const count = itemCountOf(lines);
   const subtotal = subtotalOf(lines);
   const open = isOpenNow();
+
+  const loadMenu = useMenu((s) => s.load);
+  const menuItems = useMenu((s) => s.items);
+  const menuSource = useMenu((s) => s.source);
+
+  // Fetch the live menu once on mount. Until it arrives the hardcoded menu is
+  // on screen and ordering is off, so there is no window where a customer can
+  // build a basket the server would reject.
+  useEffect(() => {
+    void loadMenu();
+  }, [loadMenu]);
+
+  // The basket is persisted to localStorage, so it can hold items from before
+  // the menu changed — or from another environment entirely. Prune it against
+  // whatever menu is now live, and refresh the prices of what survives.
+  useEffect(() => {
+    if (menuSource === "api") reconcile(menuItems);
+  }, [menuSource, menuItems, reconcile]);
 
   return (
     <div className="min-h-screen">
@@ -64,28 +86,21 @@ export default function App() {
       {view === "checkout" && (
         <Checkout
           onBack={() => setView("menu")}
-          onPlaced={(ref) => {
-            setReference(ref);
+          onPlaced={(order) => {
+            setPlaced(order);
             setView("done");
           }}
         />
       )}
 
-      {view === "done" && (
-        <div className="px-4 py-20 max-w-md mx-auto text-center space-y-4">
-          <div className="text-5xl">🍗</div>
-          <h1 className="font-display text-2xl">Order received</h1>
-          <p className="text-cream/70">
-            Your reference is <strong className="text-flame-light">{reference}</strong>.
-            We'll confirm your order and text you a collection time shortly.
-          </p>
-          <p className="text-sm text-cream/50">
-            Any problems, call {SHOP.phones[0]}.
-          </p>
-          <button onClick={() => setView("menu")} className="btn-ghost tap h-12">
-            Back to menu
-          </button>
-        </div>
+      {view === "done" && placed && (
+        <OrderConfirmation
+          order={placed}
+          onDone={() => {
+            setPlaced(null);
+            setView("menu");
+          }}
+        />
       )}
 
       {/* Persistent basket bar. Hidden once you're past the menu. */}

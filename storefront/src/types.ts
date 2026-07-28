@@ -67,6 +67,16 @@ export interface Variant {
   price: Pence;
 }
 
+/**
+ * A variant id that means "this item has only one price, so there is nothing to
+ * choose". Used when the menu comes from the API: the POS has no variant
+ * concept, so a real variant's id is the UUID of a modifier in that item's
+ * required "Choice" group, and an item without such a group gets this instead.
+ *
+ * It must never be sent to the server as a modifier id — see `orderLinesOf`.
+ */
+export const NO_VARIANT = "";
+
 /** A choice within a modifier group. Price here IS an increment on the line. */
 export interface ModifierOption {
   id: string;
@@ -83,6 +93,15 @@ export interface ModifierGroup {
   /** Maximum selections. 1 = radio, >1 = checkboxes. */
   max: number;
   options: ModifierOption[];
+  /**
+   * Stable slug identifying a well-known group across both menu sources.
+   *
+   * When the menu is hardcoded, `id` IS the slug ("meal", "heat", "dips"). When
+   * it comes from the API, `id` is a UUID and the slug is recovered by name.
+   * Presentation code that needs to recognise one specific group must match on
+   * this rather than on `id` — see `hasMealUpgrade`.
+   */
+  slug?: string;
 }
 
 export interface MenuItem {
@@ -159,6 +178,17 @@ export interface ShopConfig {
    * a fake confirmation would be worse than either.
    */
   orderingEnabled: boolean;
+  /**
+   * Whether to offer paying by card on the website.
+   *
+   * Separate from `orderingEnabled` because the two arrived separately: orders
+   * can be taken and settled in the shop long before Stripe exists. The order
+   * endpoint creates every order `unpaid` and nothing behind it takes money, so
+   * while this is false the checkout must not offer to charge a card.
+   *
+   * Flip only once Stripe Checkout AND its signature-verified webhook are live.
+   */
+  cardPaymentEnabled: boolean;
   /** Which service types the shop currently offers. */
   services: ServiceType[];
   collectionMinutes: number;

@@ -386,9 +386,15 @@ export const SHOP: ShopConfig = {
   currency: "GBP",
   openTime: "16:00",
   closeTime: "22:00",
-  // Flip to true only once POST /public/orders and the Stripe webhook are live
-  // and tested end to end. See Checkout.tsx.
-  orderingEnabled: false,
+  // Orders are placed against POST /public/{tenant}/orders and appear on the
+  // shop's tablet for accept/reject. Ordering additionally requires the menu to
+  // have loaded from the API — see `canOrder` in store/menu.ts — so this flag
+  // alone cannot produce an order the server would refuse.
+  orderingEnabled: true,
+  // ⚠️ Stays false until Stripe Checkout and its signature-verified webhook are
+  // live. Orders are created unpaid and settled in the shop. Flipping this
+  // without Stripe means telling a customer they have paid when they have not.
+  cardPaymentEnabled: false,
   services: ["collection", "delivery"],
   collectionMinutes: 20,
   deliveryMinutes: 45,
@@ -442,6 +448,18 @@ export function itemImage(item: MenuItem): ImageName | null {
 /** Cheapest variant, used for the "from £x.xx" label on cards. */
 export function fromPrice(item: MenuItem): number {
   return Math.min(...item.variants.map((v) => v.price));
+}
+
+/**
+ * Does this item offer the board's "MAKE IT MEAL £3.00 EXTRA" upgrade?
+ *
+ * Matches on `slug`, falling back to `id`, so it works for both menu sources:
+ * in this file the id IS the slug, while a menu from the API has UUID ids and
+ * carries the slug separately. Matching on `id` alone silently stopped finding
+ * anything the moment the menu started coming from the database.
+ */
+export function hasMealUpgrade(item: MenuItem): boolean {
+  return item.modifierGroups.some((group) => (group.slug ?? group.id) === "meal");
 }
 
 export function areaById(id: string) {
