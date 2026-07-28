@@ -1,6 +1,6 @@
 # STATE — Restaurant POS System
 
-**Last refreshed:** 2026-07-29 (late) · **Branch:** `feat/storefront-checkout-wiring` · **HEAD:** `8a560c8`, pushed
+**Last refreshed:** 2026-07-29 (late) · **Branch:** `feat/storefront-checkout-wiring` · **HEAD:** `a75ea99`, pushed
 *(branched off `main` @ `6b00f78`. **Deliberately not on `main`:** a push to `main` triggers
 `deploy-production.yml`, and every deploy leaves nginx on the old backend IP until it is recreated
 by hand — which would 502 `eats.sitaratech.info`, the URL Imran's tablet uses.)*
@@ -51,10 +51,10 @@ we supply the online channel alongside it: website with checkout, plus a tablet 
 | API access from the storefront domain | ✅ **Fixed on the server 2026-07-29.** `CORS_ORIGINS` now allows both Chick Shack origins; preflight verified, unknown origins still refused | `_state/open-items.md` OI-40 |
 | Stripe | ⬜ Not started. Blocked on the client's account. Not needed for either UAT run | `_state/open-items.md` OI-20 |
 | Printing | ✅ **PROVEN ON SITE 2026-07-28.** The tablet printed to his existing EposNow printer. £0 hardware. Our own bytes still not on paper | `_state/printing.md` |
-| Served / delivered gap | 🔶 **Backend done + committed (`c7ec832`), local only.** `/ready`, `/complete`, `/paid` exist and **nothing in any UI calls them.** Tablet buttons are the live task | `_state/open-items.md` OI-44 |
+| Served / delivered gap | ✅ **Closed in code (`a75ea99`).** Tablet has out-for-delivery / delivered / mark-paid; completed orders leave the Active tab; confirmation screen tracks it. **Local only — not deployed, not published** | `_state/open-items.md` OI-44 |
 | Customer emails | 🔶 **Code done, sends nothing.** 4 messages built and wired after commit; gated on `settings.email_configured` = `SMTP_HOST and EMAIL_FROM`, and **no email key exists in any env file.** No provider, no sending domain chosen. Also missing a `Reply-To` header | `_state/open-items.md` OI-43 |
 | Menu modifier prompts | ⏸️ **Parked to QC by Malik 03:09.** Imran wants a required Hot/Mild "Peri-Peri Heat" choice on peri items (easy, no schema change) **and** meal-contents choices (hard, conditional). Requirement still incomplete — he was mid-list | `_state/open-items.md` OI-45 |
-| Backend test suite | ✅ **342 passing** (2026-07-29), 12 pre-existing failures. Had been dead 2026-03-26 to 07-27 | `ERROR_LOG.md` |
+| Backend test suite | ✅ **371 passing** (2026-07-29 late), same 12 pre-existing failures. **29 new** cover the lifecycle guards + email; the shipped lifecycle/email code had had zero tests | `ERROR_LOG.md` |
 | Core POS (10 phases) | ✅ Production, 98/99 UAT | `_state/pos-platform.md` |
 | QuickBooks Online | ✅ Live. Sync is **manual by design**, not broken | `_state/pos-platform.md` |
 | POS demo sites | ✅ Green (`pos-demo.duckdns.org`, `eats.sitaratech.info`) | `_state/infrastructure.md` |
