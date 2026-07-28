@@ -28,7 +28,14 @@ Three parts, in order:
    `chickshackg84.com` carries the client's live business email, so any DNS record for sending must
    be added additively and verified, per the DKIM near-miss on 2026-07-27.
 
-**OI-44 · The order stops dead at `in_kitchen` — "Out for delivery" does not exist.**
+**OI-44 ✅ RESOLVED 2026-07-29 · The order can now finish.** Tablet has one service-type-aware
+"Out for delivery"/"Ready for collection" button, then "Delivered"/"Collected" which settles an
+unpaid cash order in the same tap (and says so on the button), plus a separate "Mark paid" for
+the driver-returns-later case. Completed orders leave the Active tab. The customer's confirmation
+page now follows the order all the way instead of stopping at "accepted". Deployed.
+*Superseded description below, kept for the record:*
+
+**OI-44 (original) · The order stops dead at `in_kitchen`.**
 Independently raised by Imran 2026-07-29 and by Malik before him, which is about as strong a signal
 as a gap gets. An accepted order never leaves the Active tab, so the queue grows forever and the day
 never settles. The state machine **already** supports it (`ready → served → completed` plus

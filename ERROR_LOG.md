@@ -291,6 +291,29 @@ Each entry follows:
   nothing except that you set a wildcard. And whenever a browser app starts calling an API on a
   different hostname than it is served from, `CORS_ORIGINS` is a deployment step, not an afterthought.
 
+### 2026-07-29 — The deploy script was eaten by its own `pg_dump`
+- **Error**: None. The deploy reported success. `/api/v1/health` returned **502** while all three hostnames returned 200, and `alembic current` still showed the *previous* revision as head after a deploy that shipped a migration
+- **Context**: First run of a hardened `deploy-production.yml` that added an nginx recreation step at the end. The step never executed
+- **Root Cause**: The remote half ran as `ssh host << 'ENDSSH'`, so the server's shell read the script **from stdin**. `docker compose exec` also reads stdin, so `exec -T postgres pg_dump` **consumed every remaining line of the script as its own input**. Execution simply stopped after the backup, with no error and a zero exit code. Proven from evidence, not inferred: `backups/pre_migrate_2026-07-28_230757.sql` existed with a matching timestamp, while `docker inspect` showed nginx was still the container started three hours earlier
+- **The expensive part**: this had been true the whole time, so **the workflow's `alembic upgrade head` step had never once run**. Migrations only ever applied because the backend's own `start.sh` runs them at boot — luck, not design. The documented "back up before you migrate" guard was likewise never reached
+- **Fix**: the remote half moved to `scripts/deploy-remote.sh`, `scp`'d and executed **by path**, with `ssh -n` to close stdin and `< /dev/null` on both `exec` calls as belt-and-braces. As a real file it is also reviewable and runnable by hand
+- **Rule**: **Never feed a deploy script to `ssh` on stdin if it invokes anything that reads stdin** — `docker compose exec`, `docker build`, `ssh`, `mysql`, `psql` all qualify. The failure mode is silent truncation with a success exit code, which is the worst kind. Ship the script as a file and run it by path. And when a deploy claims success, verify the *effect* (schema version, container start time), never the exit code
+
+### 2026-07-29 — `git pull || true` hid a stale backend for an unknown number of deploys
+- **Error**: None visible. Deploys were green. The server sat on commit `b0dbb6a` while `main` moved on
+- **Context**: Found immediately after the above, when a migration that had "deployed" was still absent from the database
+- **Root Cause**: `git pull origin main || true` in the deploy. The pull was failing with *"Your local changes to the following files would be overwritten by merge: docker/nginx/nginx.demo.conf"* — the eats.sitaratech.info certificate split had been made **by hand on the box** and also committed, so both sides had touched it. `|| true` swallowed the abort. **The frontend kept updating regardless**, because it is `rsync`'d rather than pulled, so the site looked freshly deployed while the backend silently rotted
+- **Contributing cause**: the deploy itself dirtied `frontend/.dockerignore` every run (`sed` the line out, `echo` it back), permanently leaving a modified tracked file — the exact condition that blocks a future pull
+- **Fix**: resolved on the server **without discarding anything** — `git diff FETCH_HEAD -- docker/nginx/nginx.demo.conf` was **empty**, proving the working tree already matched the incoming version, so that one path was stashed, pulled, and the stash dropped. `md5sum` confirmed identical before and after, and a copy was kept at `/root/nginx.demo.conf.pre-pull-*`. Deliberately **not** `git checkout --`, because the production env file is tracked on this box and holds live secrets. In the script: the pull failure is now **fatal** with a message explaining how to resolve it safely, and `.dockerignore` is restored with `git checkout --` so no drift is left behind
+- **Rule**: **`|| true` on a step that fetches the thing you are deploying is never acceptable.** A deploy that cannot obtain the code has failed. More generally: if part of a deploy is `rsync`'d and part is `git pull`'d, they can drift apart silently — assert the deployed commit (`git rev-parse HEAD`) as part of verification, not just that the site returns 200
+
+### 2026-07-29 — Storefront checkout had no opening-hours gate at all
+- **Error**: Not hit in production — caught in the last checks before publishing
+- **Context**: About to run `npm run deploy`, which makes `chickshackg84.com` take real orders
+- **Root Cause**: `isOpenNow()` existed and was used **only to draw a banner**. Checkout itself was reachable at any hour, so a customer could place a real order at 03:00. It would land on a tablet nobody was watching, the confirmation screen would poll for twenty minutes and give up, and the shop would open to stale orders it never agreed to
+- **Fix**: a *placing window* rather than opening hours — `orderFromTime` (14:00) to `closeTime` (22:00). Baskets can still be built at any time; only placing is refused, and the refusal says when to come back. The window is 14:00 rather than the 16:00 opening because Imran's own worked example is an order **placed at 14:00** and accepted at 15:30 — blocking all pre-orders would have removed behaviour he relies on
+- **Rule**: A helper named `isOpenNow` that only feeds a banner is a trap: it reads like a guard at every call site that does not exist. If a rule matters, enforce it at the boundary that can violate it — and check what a feature does **outside** business hours before publishing it, because that is when nobody is watching
+
 ### 2026-07-29 — Self-referencing tenant row inserted with a NULL tenant_id
 - **Error**: `null value in column "tenant_id" of relation "tenants" violates not-null constraint`
 - **Context**: Creating the `chick-shack` tenant in a new seed script
