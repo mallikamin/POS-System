@@ -23,6 +23,7 @@ from app.models.customer import Customer
 from app.models.kitchen import KitchenStation, KitchenTicket, KitchenTicketItem
 from app.models.table_session import TableSession
 from app.models.discount import DiscountType, OrderDiscount
+from app.models.delivery import DeliveryArea
 from app.models.audit import AuditLog
 from app.models.inventory import (
     Ingredient,
@@ -67,6 +68,7 @@ __all__ = [
     "TableSession",
     "DiscountType",
     "OrderDiscount",
+    "DeliveryArea",
     "AuditLog",
     "Ingredient",
     "Recipe",

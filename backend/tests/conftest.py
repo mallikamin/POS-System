@@ -61,6 +61,19 @@ TestingSessionLocal = async_sessionmaker(
 )
 
 # Tables that use Postgres-specific types (JSONB) — skip for SQLite tests.
+#
+# To regenerate this list rather than discovering entries one failed run at a
+# time, compile every table for the SQLite dialect and see which ones raise:
+#
+#     from sqlalchemy.dialects import sqlite
+#     from sqlalchemy.schema import CreateTable
+#     for t in Base.metadata.sorted_tables:
+#         try: CreateTable(t).compile(dialect=sqlite.dialect())
+#         except Exception as e: print(t.name, e)
+#
+# As of 2026-07-27 that yields exactly three: audit_logs, qb_coa_snapshots and
+# stock_counts. The remaining qb_* entries below are skipped for other reasons
+# and are harmless to keep.
 _SKIP_TABLE_NAMES = {
     "qb_connections",
     "qb_account_mappings",
@@ -69,6 +82,10 @@ _SKIP_TABLE_NAMES = {
     "qb_sync_log",
     "qb_coa_snapshots",
     "audit_logs",
+    # Added 2026-07-27: inventory.StockCount.count_data is JSONB. Its absence
+    # made every DB-backed test in the suite error at fixture setup, not just
+    # inventory ones.
+    "stock_counts",
 }
 
 _TABLES_NEEDED = [

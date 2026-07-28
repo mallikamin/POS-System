@@ -1,0 +1,243 @@
+"""Turn an online order into a printable kitchen ticket.
+
+Where this sits in the chain
+----------------------------
+    customer orders on the website
+      -> POST /public/orders            (order lands in Postgres)
+      -> tablet in the shop is notified (WebSocket, already exists)
+      -> shop taps ACCEPT               (he does this by hand for every order)
+      -> THIS builds the ticket bytes
+      -> tablet hands them to RawBT     (rawbt: URL scheme)
+      -> RawBT opens TCP:9100           (printer is on the shop LAN)
+      -> ticket prints
+
+The print is triggered by the Accept tap, not by a background service. That
+matters: it is the reason no daemon has to survive Android's battery killer,
+and therefore the reason no Raspberry Pi or mini PC is needed in the shop.
+
+Confirmed by the client 2026-07-27: the kitchen printer is on an Ethernet
+switch which is on the broadband router, so it is on the shop LAN and reachable
+from the tablet's Wi-Fi. See `_state/printing.md`.
+"""
+
+from __future__ import annotations
+
+import base64
+import uuid
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.order import Order
+from app.models.restaurant_config import RestaurantConfig
+from app.models.tenant import Tenant
+from app.services import escpos, order_service
+from app.services.escpos import Ticket
+
+# Symbols for the currencies this product actually ships in. Anything else
+# falls back to the ISO code plus a space, which is ugly but never wrong.
+_CURRENCY_SYMBOLS = {
+    "GBP": "£",
+    "PKR": "Rs.",
+    "USD": "$",
+    "EUR": "EUR ",
+    "AED": "AED ",
+}
+
+
+def money(minor_units: int, currency: str) -> str:
+    """Format integer minor units for print.
+
+    Everything in this system is integer pence/paisa on purpose, so this is the
+    only place the decimal point is introduced.
+    """
+    symbol = _CURRENCY_SYMBOLS.get(currency.upper(), f"{currency.upper()} ")
+    return f"{symbol}{minor_units / 100:,.2f}"
+
+
+def _local(dt: datetime | None, offset_minutes: int) -> datetime | None:
+    """Shift a UTC timestamp to the shop's wall clock.
+
+    Timestamps are stored UTC. A kitchen ticket showing 17:42 when the clock on
+    the wall says 18:42 is worse than useless during a rush, and the server is
+    in Singapore while the shop is in Scotland.
+    """
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone(timedelta(minutes=offset_minutes)))
+
+
+def build_online_order_ticket(
+    order: Order,
+    *,
+    shop_name: str,
+    currency: str = "GBP",
+    width: int = 48,
+    utc_offset_minutes: int = 60,
+) -> bytes:
+    """Render one accepted online order as ESC/POS bytes.
+
+    This is a KITCHEN ticket, not a customer receipt: it leads with what has to
+    be cooked and how it leaves the building. Money is included because for a
+    delivery the driver needs to know whether to collect cash, and that is the
+    single most expensive thing to get wrong on a ticket.
+    """
+    t = Ticket(width=width)
+
+    is_delivery = (order.service_type or "").lower() == "delivery"
+    heading = "DELIVERY" if is_delivery else "COLLECTION"
+
+    t.center(shop_name, bold=True, big=True)
+    t.center("ONLINE ORDER")
+    t.feed()
+    t.center(heading, bold=True, big=True)
+    t.rule("=")
+
+    placed = _local(order.created_at, utc_offset_minutes)
+    accepted = _local(order.accepted_at, utc_offset_minutes)
+
+    t.bold(f"ORDER {order.order_number}")
+    if placed:
+        t.field("Placed", f"{placed:%H:%M}, {placed:%d %b}")
+
+    # The promised time is what the customer is holding us to, so compute and
+    # print it rather than making the kitchen add minutes in their head.
+    if order.eta_minutes and accepted:
+        ready = accepted + timedelta(minutes=order.eta_minutes)
+        t.bold(f"{'DELIVER BY' if is_delivery else 'READY AT'} {ready:%H:%M}"
+               f"   ({order.eta_minutes} min)")
+
+    t.rule()
+
+    # --- what to cook ---
+    for item in order.items:
+        t.bold(f"{item.quantity} x {item.name}")
+        for modifier in item.modifiers:
+            t.text(f"    - {modifier.name}")
+        if item.notes:
+            for line in item.notes.split("\n"):
+                if line.strip():
+                    t.bold(f"    ** {line.strip()}")
+
+    if order.notes:
+        t.rule()
+        t.bold("ORDER NOTES")
+        t.text(order.notes)
+
+    t.rule()
+
+    # --- where it goes ---
+    if order.customer_name:
+        t.field("Name", order.customer_name)
+    if order.customer_phone:
+        # Bold: this is what the shop rings when the driver cannot find them.
+        t.raw(escpos.BOLD_ON)
+        t.field("Phone", order.customer_phone)
+        t.raw(escpos.BOLD_OFF)
+
+    if is_delivery:
+        t.feed()
+        t.bold("DELIVER TO")
+        if order.delivery_address:
+            t.text(order.delivery_address)
+        if order.delivery_area:
+            t.bold(order.delivery_area)
+
+    t.rule()
+
+    # --- money ---
+    t.columns("Subtotal", money(order.subtotal, currency))
+    if order.discount_amount:
+        t.columns("Discount", f"-{money(order.discount_amount, currency)}")
+    if order.tax_amount:
+        t.columns("Tax", money(order.tax_amount, currency))
+    if order.delivery_fee:
+        t.columns("Delivery", money(order.delivery_fee, currency))
+    t.columns("TOTAL", money(order.total, currency), bold=True)
+
+    t.feed()
+    paid = (order.payment_status or "").lower() in {"paid", "refunded"}
+    if paid:
+        t.center("*** PAID ONLINE ***", bold=True)
+    else:
+        # Loud on purpose. A driver who assumes an order is prepaid does not
+        # come back with the money.
+        t.center("*** NOT PAID ***", bold=True, big=True)
+        t.center(f"COLLECT {money(order.total, currency)}", bold=True)
+
+    t.rule("=")
+    t.cut()
+    return t.bytes()
+
+
+async def build_ticket_for_order(
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    order_id: uuid.UUID,
+    *,
+    width: int = 48,
+) -> bytes:
+    """Load an order and render its kitchen ticket.
+
+    Raises LookupError if the order does not exist for this tenant, so the
+    route can turn that into a 404 without leaking whether the id exists under
+    some other tenant.
+    """
+    order = await order_service.get_order(db, order_id, tenant_id)
+    if order is None:
+        raise LookupError("Order not found.")
+
+    config = (
+        await db.execute(
+            select(RestaurantConfig).where(RestaurantConfig.tenant_id == tenant_id)
+        )
+    ).scalar_one_or_none()
+
+    shop_name = (
+        await db.execute(select(Tenant.name).where(Tenant.id == tenant_id))
+    ).scalar_one_or_none() or "Order"
+
+    currency = (config.currency if config else None) or "GBP"
+    tz_name = (config.timezone if config else None) or "UTC"
+
+    return build_online_order_ticket(
+        order,
+        shop_name=shop_name,
+        currency=currency,
+        width=width,
+        utc_offset_minutes=_offset_minutes(tz_name, order.accepted_at or order.created_at),
+    )
+
+
+def _offset_minutes(tz_name: str, at: datetime | None) -> int:
+    """Offset of the shop's timezone at a given instant, in minutes.
+
+    Computed at the order's own timestamp rather than "now" so a ticket
+    reprinted in winter still shows the summer time it was actually placed at.
+    An unknown timezone falls back to UTC rather than raising -- a ticket with
+    an hour-shifted time is bad, a ticket that fails to print is worse.
+    """
+    try:
+        tz = ZoneInfo(tz_name)
+    except (ZoneInfoNotFoundError, ValueError):
+        return 0
+    moment = at or datetime.now(timezone.utc)
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=timezone.utc)
+    offset = moment.astimezone(tz).utcoffset()
+    return int(offset.total_seconds() // 60) if offset else 0
+
+
+def to_rawbt_url(payload: bytes) -> str:
+    """Wrap ESC/POS bytes in the URL the tablet opens to print.
+
+    RawBT is an Android ESC/POS driver that accepts a job via the `rawbt:`
+    scheme and delivers it over Bluetooth, USB or **Ethernet/Wi-Fi on TCP:9100
+    (AppSocket)**, which is the path we need. Base64 is built here rather than
+    in the browser so the escape sequences live in one tested place.
+    """
+    return "rawbt:base64," + base64.b64encode(payload).decode("ascii")

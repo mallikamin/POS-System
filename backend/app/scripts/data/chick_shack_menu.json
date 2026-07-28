@@ -1,0 +1,3194 @@
+{
+  "_generated_by": "storefront/scripts/export-menu.ts",
+  "_source": "storefront/src/data/menu.ts",
+  "shop": {
+    "name": "Chick Shack",
+    "tagline": "Fried Chicken · Peri Peri",
+    "addressLines": [
+      "Main Street",
+      "Garelochhead",
+      "Helensburgh"
+    ],
+    "postcode": "G84 0AN",
+    "phones": [
+      "01436 653 143",
+      "07719 566 889"
+    ],
+    "currency": "GBP",
+    "openTime": "16:00",
+    "closeTime": "22:00",
+    "orderingEnabled": false,
+    "services": [
+      "collection",
+      "delivery"
+    ],
+    "collectionMinutes": 20,
+    "deliveryMinutes": 45,
+    "deliveryAreas": [
+      {
+        "id": "garelochhead",
+        "name": "Garelochhead",
+        "fee": 300
+      },
+      {
+        "id": "greenfields",
+        "name": "Greenfields Camp",
+        "fee": 300
+      },
+      {
+        "id": "southgate",
+        "name": "Southgate & Shanden",
+        "fee": 400
+      },
+      {
+        "id": "mambeg",
+        "name": "Mambeg, Clynder & Rahane",
+        "fee": 400
+      },
+      {
+        "id": "portincaple",
+        "name": "Portincaple",
+        "fee": 400
+      },
+      {
+        "id": "rhu",
+        "name": "Rhu",
+        "fee": 450
+      },
+      {
+        "id": "rosneath",
+        "name": "Rosneath",
+        "fee": 450
+      },
+      {
+        "id": "caravan-park",
+        "name": "Caravan Park",
+        "fee": 600
+      },
+      {
+        "id": "kilcreggan",
+        "name": "Kilcreggan & Cove",
+        "fee": 700
+      },
+      {
+        "id": "helensburgh",
+        "name": "Helensburgh",
+        "fee": 1000
+      },
+      {
+        "id": "arrochar",
+        "name": "Arrochar",
+        "fee": 1500
+      }
+    ],
+    "deliveryMinimum": 500,
+    "allergenNotice": "Please inform a member of staff of any allergies or dietary requirements before placing your order. While we take care, we cannot guarantee the absence of allergens due to shared preparation areas."
+  },
+  "categories": [
+    {
+      "id": "peri-grilled",
+      "name": "Peri Peri Grilled Chicken",
+      "sort": 1,
+      "image": "peri-grilled"
+    },
+    {
+      "id": "fried-chicken",
+      "name": "Fried Chicken",
+      "sort": 2,
+      "image": "fried-chicken"
+    },
+    {
+      "id": "burgers",
+      "name": "Burgers",
+      "sort": 3,
+      "image": "burger-chicken"
+    },
+    {
+      "id": "wraps",
+      "name": "Wraps",
+      "sort": 4,
+      "image": "wraps"
+    },
+    {
+      "id": "sides",
+      "name": "Sides",
+      "sort": 5,
+      "image": "sides-chips"
+    },
+    {
+      "id": "kids",
+      "name": "Kids",
+      "sort": 6
+    },
+    {
+      "id": "dips",
+      "name": "Dips",
+      "sort": 7
+    },
+    {
+      "id": "drinks",
+      "name": "Drinks",
+      "sort": 8
+    }
+  ],
+  "items": [
+    {
+      "id": "peri-half",
+      "categoryId": "peri-grilled",
+      "name": "Half Chicken on the Bone",
+      "description": "Grilled chicken served with a zesty peri peri flavour. Served with salad & coleslaw.",
+      "variants": [
+        {
+          "id": "ph-chips",
+          "name": "with Chips",
+          "price": 999
+        },
+        {
+          "id": "ph-halfhalf",
+          "name": "Half & Half",
+          "price": 1049
+        },
+        {
+          "id": "ph-rice",
+          "name": "with Rice",
+          "price": 1099
+        }
+      ],
+      "modifierGroups": [
+        {
+          "id": "heat",
+          "name": "Mild or Hot",
+          "min": 1,
+          "max": 1,
+          "options": [
+            {
+              "id": "heat-mild",
+              "name": "Mild",
+              "priceDelta": 0
+            },
+            {
+              "id": "heat-hot",
+              "name": "Hot",
+              "priceDelta": 0
+            }
+          ]
+        },
+        {
+          "id": "dips",
+          "name": "Add a dip (2oz tub)",
+          "min": 0,
+          "max": 6,
+          "options": [
+            {
+              "id": "dip-ketchup",
+              "name": "Ketchup",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-mayo",
+              "name": "Mayo",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-garlic-mayo",
+              "name": "Garlic Mayo",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-bbq",
+              "name": "BBQ",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-burger",
+              "name": "Burger Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-chilli",
+              "name": "Chilli Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-peri",
+              "name": "Peri Peri Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-salsa",
+              "name": "Salsa Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-algerian",
+              "name": "Algerian Sauce",
+              "priceDelta": 99
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "peri-full",
+      "categoryId": "peri-grilled",
+      "name": "Full Chicken on the Bone",
+      "description": "Grilled chicken served with a zesty peri peri flavour. Served with salad & coleslaw.",
+      "variants": [
+        {
+          "id": "pf-chips",
+          "name": "with Chips",
+          "price": 1349
+        },
+        {
+          "id": "pf-halfhalf",
+          "name": "Half & Half",
+          "price": 1399
+        },
+        {
+          "id": "pf-rice",
+          "name": "with Rice",
+          "price": 1449
+        }
+      ],
+      "modifierGroups": [
+        {
+          "id": "heat",
+          "name": "Mild or Hot",
+          "min": 1,
+          "max": 1,
+          "options": [
+            {
+              "id": "heat-mild",
+              "name": "Mild",
+              "priceDelta": 0
+            },
+            {
+              "id": "heat-hot",
+              "name": "Hot",
+              "priceDelta": 0
+            }
+          ]
+        },
+        {
+          "id": "dips",
+          "name": "Add a dip (2oz tub)",
+          "min": 0,
+          "max": 6,
+          "options": [
+            {
+              "id": "dip-ketchup",
+              "name": "Ketchup",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-mayo",
+              "name": "Mayo",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-garlic-mayo",
+              "name": "Garlic Mayo",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-bbq",
+              "name": "BBQ",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-burger",
+              "name": "Burger Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-chilli",
+              "name": "Chilli Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-peri",
+              "name": "Peri Peri Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-salsa",
+              "name": "Salsa Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-algerian",
+              "name": "Algerian Sauce",
+              "priceDelta": 99
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "peri-breast-2",
+      "categoryId": "peri-grilled",
+      "name": "2 Boneless Breast",
+      "description": "2 tender boneless chicken pieces in a zesty peri peri sauce. Served with salad & coleslaw.",
+      "variants": [
+        {
+          "id": "pb2-chips",
+          "name": "with Chips",
+          "price": 1149
+        },
+        {
+          "id": "pb2-halfhalf",
+          "name": "Half & Half",
+          "price": 1199
+        },
+        {
+          "id": "pb2-rice",
+          "name": "with Rice",
+          "price": 1249
+        }
+      ],
+      "modifierGroups": [
+        {
+          "id": "heat",
+          "name": "Mild or Hot",
+          "min": 1,
+          "max": 1,
+          "options": [
+            {
+              "id": "heat-mild",
+              "name": "Mild",
+              "priceDelta": 0
+            },
+            {
+              "id": "heat-hot",
+              "name": "Hot",
+              "priceDelta": 0
+            }
+          ]
+        },
+        {
+          "id": "dips",
+          "name": "Add a dip (2oz tub)",
+          "min": 0,
+          "max": 6,
+          "options": [
+            {
+              "id": "dip-ketchup",
+              "name": "Ketchup",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-mayo",
+              "name": "Mayo",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-garlic-mayo",
+              "name": "Garlic Mayo",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-bbq",
+              "name": "BBQ",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-burger",
+              "name": "Burger Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-chilli",
+              "name": "Chilli Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-peri",
+              "name": "Peri Peri Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-salsa",
+              "name": "Salsa Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-algerian",
+              "name": "Algerian Sauce",
+              "priceDelta": 99
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "peri-breast-4",
+      "categoryId": "peri-grilled",
+      "name": "4 Boneless Breast",
+      "description": "4 tender boneless chicken pieces in a zesty peri peri sauce. Served with salad & coleslaw.",
+      "variants": [
+        {
+          "id": "pb4-chips",
+          "name": "with Chips",
+          "price": 1849
+        },
+        {
+          "id": "pb4-halfhalf",
+          "name": "Half & Half",
+          "price": 1899
+        },
+        {
+          "id": "pb4-rice",
+          "name": "with Rice",
+          "price": 1949
+        }
+      ],
+      "modifierGroups": [
+        {
+          "id": "heat",
+          "name": "Mild or Hot",
+          "min": 1,
+          "max": 1,
+          "options": [
+            {
+              "id": "heat-mild",
+              "name": "Mild",
+              "priceDelta": 0
+            },
+            {
+              "id": "heat-hot",
+              "name": "Hot",
+              "priceDelta": 0
+            }
+          ]
+        },
+        {
+          "id": "dips",
+          "name": "Add a dip (2oz tub)",
+          "min": 0,
+          "max": 6,
+          "options": [
+            {
+              "id": "dip-ketchup",
+              "name": "Ketchup",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-mayo",
+              "name": "Mayo",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-garlic-mayo",
+              "name": "Garlic Mayo",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-bbq",
+              "name": "BBQ",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-burger",
+              "name": "Burger Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-chilli",
+              "name": "Chilli Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-peri",
+              "name": "Peri Peri Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-salsa",
+              "name": "Salsa Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-algerian",
+              "name": "Algerian Sauce",
+              "priceDelta": 99
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "peri-wings",
+      "categoryId": "peri-grilled",
+      "name": "Peri Peri Wings",
+      "description": "Grilled wings, a zesty peri flavour.",
+      "variants": [
+        {
+          "id": "pw-3",
+          "name": "3 pc",
+          "price": 699
+        },
+        {
+          "id": "pw-5",
+          "name": "5 pc",
+          "price": 799
+        }
+      ],
+      "modifierGroups": [
+        {
+          "id": "heat",
+          "name": "Mild or Hot",
+          "min": 1,
+          "max": 1,
+          "options": [
+            {
+              "id": "heat-mild",
+              "name": "Mild",
+              "priceDelta": 0
+            },
+            {
+              "id": "heat-hot",
+              "name": "Hot",
+              "priceDelta": 0
+            }
+          ]
+        },
+        {
+          "id": "meal",
+          "name": "Make it a meal",
+          "min": 0,
+          "max": 1,
+          "options": [
+            {
+              "id": "meal-yes",
+              "name": "Make it a meal",
+              "priceDelta": 300
+            }
+          ]
+        },
+        {
+          "id": "dips",
+          "name": "Add a dip (2oz tub)",
+          "min": 0,
+          "max": 6,
+          "options": [
+            {
+              "id": "dip-ketchup",
+              "name": "Ketchup",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-mayo",
+              "name": "Mayo",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-garlic-mayo",
+              "name": "Garlic Mayo",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-bbq",
+              "name": "BBQ",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-burger",
+              "name": "Burger Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-chilli",
+              "name": "Chilli Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-peri",
+              "name": "Peri Peri Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-salsa",
+              "name": "Salsa Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-algerian",
+              "name": "Algerian Sauce",
+              "priceDelta": 99
+            }
+          ]
+        }
+      ],
+      "image": "peri-wings"
+    },
+    {
+      "id": "peri-tenders",
+      "categoryId": "peri-grilled",
+      "name": "Peri Tenders",
+      "description": "Grilled tenders, a zesty peri peri flavour.",
+      "variants": [
+        {
+          "id": "pt-3",
+          "name": "3 pc",
+          "price": 699
+        },
+        {
+          "id": "pt-5",
+          "name": "5 pc",
+          "price": 799
+        },
+        {
+          "id": "pt-7",
+          "name": "7 pc",
+          "price": 899
+        }
+      ],
+      "modifierGroups": [
+        {
+          "id": "heat",
+          "name": "Mild or Hot",
+          "min": 1,
+          "max": 1,
+          "options": [
+            {
+              "id": "heat-mild",
+              "name": "Mild",
+              "priceDelta": 0
+            },
+            {
+              "id": "heat-hot",
+              "name": "Hot",
+              "priceDelta": 0
+            }
+          ]
+        },
+        {
+          "id": "meal",
+          "name": "Make it a meal",
+          "min": 0,
+          "max": 1,
+          "options": [
+            {
+              "id": "meal-yes",
+              "name": "Make it a meal",
+              "priceDelta": 300
+            }
+          ]
+        },
+        {
+          "id": "dips",
+          "name": "Add a dip (2oz tub)",
+          "min": 0,
+          "max": 6,
+          "options": [
+            {
+              "id": "dip-ketchup",
+              "name": "Ketchup",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-mayo",
+              "name": "Mayo",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-garlic-mayo",
+              "name": "Garlic Mayo",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-bbq",
+              "name": "BBQ",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-burger",
+              "name": "Burger Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-chilli",
+              "name": "Chilli Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-peri",
+              "name": "Peri Peri Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-salsa",
+              "name": "Salsa Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-algerian",
+              "name": "Algerian Sauce",
+              "priceDelta": 99
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "fried-chicken",
+      "categoryId": "fried-chicken",
+      "name": "Fried Chicken",
+      "variants": [
+        {
+          "id": "fc-2",
+          "name": "2 pc",
+          "price": 499
+        },
+        {
+          "id": "fc-3",
+          "name": "3 pc",
+          "price": 699
+        },
+        {
+          "id": "fc-4",
+          "name": "4 pc",
+          "price": 799
+        }
+      ],
+      "modifierGroups": [
+        {
+          "id": "meal",
+          "name": "Make it a meal",
+          "min": 0,
+          "max": 1,
+          "options": [
+            {
+              "id": "meal-yes",
+              "name": "Make it a meal",
+              "priceDelta": 300
+            }
+          ]
+        },
+        {
+          "id": "dips",
+          "name": "Add a dip (2oz tub)",
+          "min": 0,
+          "max": 6,
+          "options": [
+            {
+              "id": "dip-ketchup",
+              "name": "Ketchup",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-mayo",
+              "name": "Mayo",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-garlic-mayo",
+              "name": "Garlic Mayo",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-bbq",
+              "name": "BBQ",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-burger",
+              "name": "Burger Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-chilli",
+              "name": "Chilli Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-peri",
+              "name": "Peri Peri Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-salsa",
+              "name": "Salsa Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-algerian",
+              "name": "Algerian Sauce",
+              "priceDelta": 99
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "fried-combo",
+      "categoryId": "fried-chicken",
+      "name": "Combo Fried Chicken with 2 Wings",
+      "variants": [
+        {
+          "id": "fcb-2",
+          "name": "2 pc",
+          "price": 699
+        },
+        {
+          "id": "fcb-3",
+          "name": "3 pc",
+          "price": 999
+        },
+        {
+          "id": "fcb-4",
+          "name": "4 pc",
+          "price": 1199
+        }
+      ],
+      "modifierGroups": [
+        {
+          "id": "meal",
+          "name": "Make it a meal",
+          "min": 0,
+          "max": 1,
+          "options": [
+            {
+              "id": "meal-yes",
+              "name": "Make it a meal",
+              "priceDelta": 300
+            }
+          ]
+        },
+        {
+          "id": "dips",
+          "name": "Add a dip (2oz tub)",
+          "min": 0,
+          "max": 6,
+          "options": [
+            {
+              "id": "dip-ketchup",
+              "name": "Ketchup",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-mayo",
+              "name": "Mayo",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-garlic-mayo",
+              "name": "Garlic Mayo",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-bbq",
+              "name": "BBQ",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-burger",
+              "name": "Burger Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-chilli",
+              "name": "Chilli Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-peri",
+              "name": "Peri Peri Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-salsa",
+              "name": "Salsa Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-algerian",
+              "name": "Algerian Sauce",
+              "priceDelta": 99
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "spicy-wings",
+      "categoryId": "fried-chicken",
+      "name": "Spicy Fried Wings",
+      "variants": [
+        {
+          "id": "sw-4",
+          "name": "4 pc",
+          "price": 499
+        },
+        {
+          "id": "sw-6",
+          "name": "6 pc",
+          "price": 599
+        },
+        {
+          "id": "sw-8",
+          "name": "8 pc",
+          "price": 699
+        },
+        {
+          "id": "sw-10",
+          "name": "10 pc",
+          "price": 799
+        },
+        {
+          "id": "sw-12",
+          "name": "12 pc",
+          "price": 899
+        },
+        {
+          "id": "sw-16",
+          "name": "16 pc",
+          "price": 999
+        }
+      ],
+      "modifierGroups": [
+        {
+          "id": "meal",
+          "name": "Make it a meal",
+          "min": 0,
+          "max": 1,
+          "options": [
+            {
+              "id": "meal-yes",
+              "name": "Make it a meal",
+              "priceDelta": 300
+            }
+          ]
+        },
+        {
+          "id": "dips",
+          "name": "Add a dip (2oz tub)",
+          "min": 0,
+          "max": 6,
+          "options": [
+            {
+              "id": "dip-ketchup",
+              "name": "Ketchup",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-mayo",
+              "name": "Mayo",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-garlic-mayo",
+              "name": "Garlic Mayo",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-bbq",
+              "name": "BBQ",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-burger",
+              "name": "Burger Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-chilli",
+              "name": "Chilli Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-peri",
+              "name": "Peri Peri Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-salsa",
+              "name": "Salsa Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-algerian",
+              "name": "Algerian Sauce",
+              "priceDelta": 99
+            }
+          ]
+        }
+      ],
+      "image": "wings-spicy"
+    },
+    {
+      "id": "fried-tenders",
+      "categoryId": "fried-chicken",
+      "name": "Fried Tenders",
+      "variants": [
+        {
+          "id": "ft-4",
+          "name": "4 pc",
+          "price": 599
+        },
+        {
+          "id": "ft-6",
+          "name": "6 pc",
+          "price": 799
+        },
+        {
+          "id": "ft-8",
+          "name": "8 pc",
+          "price": 899
+        },
+        {
+          "id": "ft-10",
+          "name": "10 pc",
+          "price": 999
+        }
+      ],
+      "image": "fried-tenders",
+      "modifierGroups": [
+        {
+          "id": "meal",
+          "name": "Make it a meal",
+          "min": 0,
+          "max": 1,
+          "options": [
+            {
+              "id": "meal-yes",
+              "name": "Make it a meal",
+              "priceDelta": 300
+            }
+          ]
+        },
+        {
+          "id": "dips",
+          "name": "Add a dip (2oz tub)",
+          "min": 0,
+          "max": 6,
+          "options": [
+            {
+              "id": "dip-ketchup",
+              "name": "Ketchup",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-mayo",
+              "name": "Mayo",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-garlic-mayo",
+              "name": "Garlic Mayo",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-bbq",
+              "name": "BBQ",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-burger",
+              "name": "Burger Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-chilli",
+              "name": "Chilli Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-peri",
+              "name": "Peri Peri Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-salsa",
+              "name": "Salsa Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-algerian",
+              "name": "Algerian Sauce",
+              "priceDelta": 99
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "b-chicken-fillet",
+      "categoryId": "burgers",
+      "name": "Chicken Fillet",
+      "description": "Fried chicken fillet in a seeded bun with crisp lettuce, red onion and creamy mayonnaise.",
+      "variants": [
+        {
+          "id": "b-chicken-fillet-std",
+          "name": "",
+          "price": 699
+        }
+      ],
+      "modifierGroups": [
+        {
+          "id": "meal",
+          "name": "Make it a meal",
+          "min": 0,
+          "max": 1,
+          "options": [
+            {
+              "id": "meal-yes",
+              "name": "Make it a meal",
+              "priceDelta": 300
+            }
+          ]
+        },
+        {
+          "id": "dips",
+          "name": "Add a dip (2oz tub)",
+          "min": 0,
+          "max": 6,
+          "options": [
+            {
+              "id": "dip-ketchup",
+              "name": "Ketchup",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-mayo",
+              "name": "Mayo",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-garlic-mayo",
+              "name": "Garlic Mayo",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-bbq",
+              "name": "BBQ",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-burger",
+              "name": "Burger Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-chilli",
+              "name": "Chilli Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-peri",
+              "name": "Peri Peri Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-salsa",
+              "name": "Salsa Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-algerian",
+              "name": "Algerian Sauce",
+              "priceDelta": 99
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "b-double-chicken",
+      "categoryId": "burgers",
+      "name": "Double Chicken",
+      "description": "Double fried chicken fillet in a seeded bun with crisp lettuce, red onion and creamy mayonnaise.",
+      "variants": [
+        {
+          "id": "b-double-chicken-std",
+          "name": "",
+          "price": 899
+        }
+      ],
+      "modifierGroups": [
+        {
+          "id": "meal",
+          "name": "Make it a meal",
+          "min": 0,
+          "max": 1,
+          "options": [
+            {
+              "id": "meal-yes",
+              "name": "Make it a meal",
+              "priceDelta": 300
+            }
+          ]
+        },
+        {
+          "id": "dips",
+          "name": "Add a dip (2oz tub)",
+          "min": 0,
+          "max": 6,
+          "options": [
+            {
+              "id": "dip-ketchup",
+              "name": "Ketchup",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-mayo",
+              "name": "Mayo",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-garlic-mayo",
+              "name": "Garlic Mayo",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-bbq",
+              "name": "BBQ",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-burger",
+              "name": "Burger Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-chilli",
+              "name": "Chilli Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-peri",
+              "name": "Peri Peri Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-salsa",
+              "name": "Salsa Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-algerian",
+              "name": "Algerian Sauce",
+              "priceDelta": 99
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "b-fillet-tower",
+      "categoryId": "burgers",
+      "name": "Chick Shack Fillet Tower",
+      "description": "Fried chicken fillet and hashbrown in a seeded bun with crisp lettuce, red onion and creamy mayonnaise.",
+      "variants": [
+        {
+          "id": "b-fillet-tower-std",
+          "name": "",
+          "price": 799
+        }
+      ],
+      "modifierGroups": [
+        {
+          "id": "meal",
+          "name": "Make it a meal",
+          "min": 0,
+          "max": 1,
+          "options": [
+            {
+              "id": "meal-yes",
+              "name": "Make it a meal",
+              "priceDelta": 300
+            }
+          ]
+        },
+        {
+          "id": "dips",
+          "name": "Add a dip (2oz tub)",
+          "min": 0,
+          "max": 6,
+          "options": [
+            {
+              "id": "dip-ketchup",
+              "name": "Ketchup",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-mayo",
+              "name": "Mayo",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-garlic-mayo",
+              "name": "Garlic Mayo",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-bbq",
+              "name": "BBQ",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-burger",
+              "name": "Burger Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-chilli",
+              "name": "Chilli Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-peri",
+              "name": "Peri Peri Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-salsa",
+              "name": "Salsa Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-algerian",
+              "name": "Algerian Sauce",
+              "priceDelta": 99
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "b-peri",
+      "categoryId": "burgers",
+      "name": "Peri Peri",
+      "description": "Grilled peri chicken fillet, seeded bun, mayonnaise, lettuce, red onion.",
+      "variants": [
+        {
+          "id": "b-peri-std",
+          "name": "",
+          "price": 799
+        }
+      ],
+      "modifierGroups": [
+        {
+          "id": "heat",
+          "name": "Mild or Hot",
+          "min": 1,
+          "max": 1,
+          "options": [
+            {
+              "id": "heat-mild",
+              "name": "Mild",
+              "priceDelta": 0
+            },
+            {
+              "id": "heat-hot",
+              "name": "Hot",
+              "priceDelta": 0
+            }
+          ]
+        },
+        {
+          "id": "meal",
+          "name": "Make it a meal",
+          "min": 0,
+          "max": 1,
+          "options": [
+            {
+              "id": "meal-yes",
+              "name": "Make it a meal",
+              "priceDelta": 300
+            }
+          ]
+        },
+        {
+          "id": "dips",
+          "name": "Add a dip (2oz tub)",
+          "min": 0,
+          "max": 6,
+          "options": [
+            {
+              "id": "dip-ketchup",
+              "name": "Ketchup",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-mayo",
+              "name": "Mayo",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-garlic-mayo",
+              "name": "Garlic Mayo",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-bbq",
+              "name": "BBQ",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-burger",
+              "name": "Burger Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-chilli",
+              "name": "Chilli Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-peri",
+              "name": "Peri Peri Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-salsa",
+              "name": "Salsa Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-algerian",
+              "name": "Algerian Sauce",
+              "priceDelta": 99
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "b-double-peri",
+      "categoryId": "burgers",
+      "name": "Double Peri Peri",
+      "description": "Grilled double peri chicken fillet, seeded bun, mayonnaise, lettuce and red onion.",
+      "variants": [
+        {
+          "id": "b-double-peri-std",
+          "name": "",
+          "price": 1099
+        }
+      ],
+      "modifierGroups": [
+        {
+          "id": "heat",
+          "name": "Mild or Hot",
+          "min": 1,
+          "max": 1,
+          "options": [
+            {
+              "id": "heat-mild",
+              "name": "Mild",
+              "priceDelta": 0
+            },
+            {
+              "id": "heat-hot",
+              "name": "Hot",
+              "priceDelta": 0
+            }
+          ]
+        },
+        {
+          "id": "meal",
+          "name": "Make it a meal",
+          "min": 0,
+          "max": 1,
+          "options": [
+            {
+              "id": "meal-yes",
+              "name": "Make it a meal",
+              "priceDelta": 300
+            }
+          ]
+        },
+        {
+          "id": "dips",
+          "name": "Add a dip (2oz tub)",
+          "min": 0,
+          "max": 6,
+          "options": [
+            {
+              "id": "dip-ketchup",
+              "name": "Ketchup",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-mayo",
+              "name": "Mayo",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-garlic-mayo",
+              "name": "Garlic Mayo",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-bbq",
+              "name": "BBQ",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-burger",
+              "name": "Burger Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-chilli",
+              "name": "Chilli Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-peri",
+              "name": "Peri Peri Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-salsa",
+              "name": "Salsa Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-algerian",
+              "name": "Algerian Sauce",
+              "priceDelta": 99
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "b-quarter-cheese",
+      "categoryId": "burgers",
+      "name": "¼ Cheese Burger",
+      "description": "Seeded bun, beef patty, burger sauce, lettuce, cheese, red onion & tomato.",
+      "variants": [
+        {
+          "id": "b-quarter-cheese-std",
+          "name": "",
+          "price": 599
+        }
+      ],
+      "modifierGroups": [
+        {
+          "id": "meal",
+          "name": "Make it a meal",
+          "min": 0,
+          "max": 1,
+          "options": [
+            {
+              "id": "meal-yes",
+              "name": "Make it a meal",
+              "priceDelta": 300
+            }
+          ]
+        },
+        {
+          "id": "dips",
+          "name": "Add a dip (2oz tub)",
+          "min": 0,
+          "max": 6,
+          "options": [
+            {
+              "id": "dip-ketchup",
+              "name": "Ketchup",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-mayo",
+              "name": "Mayo",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-garlic-mayo",
+              "name": "Garlic Mayo",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-bbq",
+              "name": "BBQ",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-burger",
+              "name": "Burger Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-chilli",
+              "name": "Chilli Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-peri",
+              "name": "Peri Peri Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-salsa",
+              "name": "Salsa Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-algerian",
+              "name": "Algerian Sauce",
+              "priceDelta": 99
+            }
+          ]
+        }
+      ],
+      "image": "burger-beef"
+    },
+    {
+      "id": "b-half-cheese",
+      "categoryId": "burgers",
+      "name": "½ Cheese Burger",
+      "description": "Seeded bun, beef patty, burger sauce, lettuce, cheese, red onion & tomato.",
+      "variants": [
+        {
+          "id": "b-half-cheese-std",
+          "name": "",
+          "price": 799
+        }
+      ],
+      "modifierGroups": [
+        {
+          "id": "meal",
+          "name": "Make it a meal",
+          "min": 0,
+          "max": 1,
+          "options": [
+            {
+              "id": "meal-yes",
+              "name": "Make it a meal",
+              "priceDelta": 300
+            }
+          ]
+        },
+        {
+          "id": "dips",
+          "name": "Add a dip (2oz tub)",
+          "min": 0,
+          "max": 6,
+          "options": [
+            {
+              "id": "dip-ketchup",
+              "name": "Ketchup",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-mayo",
+              "name": "Mayo",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-garlic-mayo",
+              "name": "Garlic Mayo",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-bbq",
+              "name": "BBQ",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-burger",
+              "name": "Burger Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-chilli",
+              "name": "Chilli Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-peri",
+              "name": "Peri Peri Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-salsa",
+              "name": "Salsa Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-algerian",
+              "name": "Algerian Sauce",
+              "priceDelta": 99
+            }
+          ]
+        }
+      ],
+      "image": "burger-beef"
+    },
+    {
+      "id": "b-veggie",
+      "categoryId": "burgers",
+      "name": "Veggie Burger",
+      "description": "Seeded bun with veggie patty, mayo, lettuce, red onion & cheese.",
+      "variants": [
+        {
+          "id": "b-veggie-std",
+          "name": "",
+          "price": 599
+        }
+      ],
+      "modifierGroups": [
+        {
+          "id": "meal",
+          "name": "Make it a meal",
+          "min": 0,
+          "max": 1,
+          "options": [
+            {
+              "id": "meal-yes",
+              "name": "Make it a meal",
+              "priceDelta": 300
+            }
+          ]
+        },
+        {
+          "id": "dips",
+          "name": "Add a dip (2oz tub)",
+          "min": 0,
+          "max": 6,
+          "options": [
+            {
+              "id": "dip-ketchup",
+              "name": "Ketchup",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-mayo",
+              "name": "Mayo",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-garlic-mayo",
+              "name": "Garlic Mayo",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-bbq",
+              "name": "BBQ",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-burger",
+              "name": "Burger Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-chilli",
+              "name": "Chilli Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-peri",
+              "name": "Peri Peri Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-salsa",
+              "name": "Salsa Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-algerian",
+              "name": "Algerian Sauce",
+              "priceDelta": 99
+            }
+          ]
+        }
+      ],
+      "image": null
+    },
+    {
+      "id": "b-fish",
+      "categoryId": "burgers",
+      "name": "Fish Burger",
+      "description": "Seeded bun with fish patty, mayo, lettuce, red onion & cheese.",
+      "variants": [
+        {
+          "id": "b-fish-std",
+          "name": "",
+          "price": 599
+        }
+      ],
+      "modifierGroups": [
+        {
+          "id": "meal",
+          "name": "Make it a meal",
+          "min": 0,
+          "max": 1,
+          "options": [
+            {
+              "id": "meal-yes",
+              "name": "Make it a meal",
+              "priceDelta": 300
+            }
+          ]
+        },
+        {
+          "id": "dips",
+          "name": "Add a dip (2oz tub)",
+          "min": 0,
+          "max": 6,
+          "options": [
+            {
+              "id": "dip-ketchup",
+              "name": "Ketchup",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-mayo",
+              "name": "Mayo",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-garlic-mayo",
+              "name": "Garlic Mayo",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-bbq",
+              "name": "BBQ",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-burger",
+              "name": "Burger Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-chilli",
+              "name": "Chilli Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-peri",
+              "name": "Peri Peri Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-salsa",
+              "name": "Salsa Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-algerian",
+              "name": "Algerian Sauce",
+              "priceDelta": 99
+            }
+          ]
+        }
+      ],
+      "image": null
+    },
+    {
+      "id": "b-big-shack",
+      "categoryId": "burgers",
+      "name": "The Big Shack",
+      "description": "Seeded bun, mayo, Algerian sauce, lettuce, cheese, ¼ beef patty, fried chicken fillet, hashbrown, tomato & red onion.",
+      "variants": [
+        {
+          "id": "b-big-shack-std",
+          "name": "",
+          "price": 1099
+        }
+      ],
+      "modifierGroups": [
+        {
+          "id": "meal",
+          "name": "Make it a meal",
+          "min": 0,
+          "max": 1,
+          "options": [
+            {
+              "id": "meal-yes",
+              "name": "Make it a meal",
+              "priceDelta": 300
+            }
+          ]
+        },
+        {
+          "id": "dips",
+          "name": "Add a dip (2oz tub)",
+          "min": 0,
+          "max": 6,
+          "options": [
+            {
+              "id": "dip-ketchup",
+              "name": "Ketchup",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-mayo",
+              "name": "Mayo",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-garlic-mayo",
+              "name": "Garlic Mayo",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-bbq",
+              "name": "BBQ",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-burger",
+              "name": "Burger Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-chilli",
+              "name": "Chilli Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-peri",
+              "name": "Peri Peri Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-salsa",
+              "name": "Salsa Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-algerian",
+              "name": "Algerian Sauce",
+              "priceDelta": 99
+            }
+          ]
+        }
+      ],
+      "image": "burger-beef"
+    },
+    {
+      "id": "w-chicken-fillet",
+      "categoryId": "wraps",
+      "name": "Chicken Fillet Wrap",
+      "description": "Tortilla wrap, fried chicken fillet, red onion, lettuce and salsa sauce.",
+      "variants": [
+        {
+          "id": "w-chicken-fillet-std",
+          "name": "",
+          "price": 699
+        }
+      ],
+      "modifierGroups": [
+        {
+          "id": "meal",
+          "name": "Make it a meal",
+          "min": 0,
+          "max": 1,
+          "options": [
+            {
+              "id": "meal-yes",
+              "name": "Make it a meal",
+              "priceDelta": 300
+            }
+          ]
+        },
+        {
+          "id": "dips",
+          "name": "Add a dip (2oz tub)",
+          "min": 0,
+          "max": 6,
+          "options": [
+            {
+              "id": "dip-ketchup",
+              "name": "Ketchup",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-mayo",
+              "name": "Mayo",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-garlic-mayo",
+              "name": "Garlic Mayo",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-bbq",
+              "name": "BBQ",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-burger",
+              "name": "Burger Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-chilli",
+              "name": "Chilli Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-peri",
+              "name": "Peri Peri Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-salsa",
+              "name": "Salsa Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-algerian",
+              "name": "Algerian Sauce",
+              "priceDelta": 99
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "w-double-chicken",
+      "categoryId": "wraps",
+      "name": "Double Chicken Fillet Wrap",
+      "description": "Double tortilla wrap, fried chicken fillet, red onion, lettuce and salsa sauce.",
+      "variants": [
+        {
+          "id": "w-double-chicken-std",
+          "name": "",
+          "price": 899
+        }
+      ],
+      "modifierGroups": [
+        {
+          "id": "meal",
+          "name": "Make it a meal",
+          "min": 0,
+          "max": 1,
+          "options": [
+            {
+              "id": "meal-yes",
+              "name": "Make it a meal",
+              "priceDelta": 300
+            }
+          ]
+        },
+        {
+          "id": "dips",
+          "name": "Add a dip (2oz tub)",
+          "min": 0,
+          "max": 6,
+          "options": [
+            {
+              "id": "dip-ketchup",
+              "name": "Ketchup",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-mayo",
+              "name": "Mayo",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-garlic-mayo",
+              "name": "Garlic Mayo",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-bbq",
+              "name": "BBQ",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-burger",
+              "name": "Burger Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-chilli",
+              "name": "Chilli Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-peri",
+              "name": "Peri Peri Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-salsa",
+              "name": "Salsa Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-algerian",
+              "name": "Algerian Sauce",
+              "priceDelta": 99
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "w-peri",
+      "categoryId": "wraps",
+      "name": "Peri Peri Wrap",
+      "description": "Tortilla wrap, peri fillet, lettuce, mayonnaise, red onion and salsa sauce.",
+      "variants": [
+        {
+          "id": "w-peri-std",
+          "name": "",
+          "price": 799
+        }
+      ],
+      "modifierGroups": [
+        {
+          "id": "heat",
+          "name": "Mild or Hot",
+          "min": 1,
+          "max": 1,
+          "options": [
+            {
+              "id": "heat-mild",
+              "name": "Mild",
+              "priceDelta": 0
+            },
+            {
+              "id": "heat-hot",
+              "name": "Hot",
+              "priceDelta": 0
+            }
+          ]
+        },
+        {
+          "id": "meal",
+          "name": "Make it a meal",
+          "min": 0,
+          "max": 1,
+          "options": [
+            {
+              "id": "meal-yes",
+              "name": "Make it a meal",
+              "priceDelta": 300
+            }
+          ]
+        },
+        {
+          "id": "dips",
+          "name": "Add a dip (2oz tub)",
+          "min": 0,
+          "max": 6,
+          "options": [
+            {
+              "id": "dip-ketchup",
+              "name": "Ketchup",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-mayo",
+              "name": "Mayo",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-garlic-mayo",
+              "name": "Garlic Mayo",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-bbq",
+              "name": "BBQ",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-burger",
+              "name": "Burger Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-chilli",
+              "name": "Chilli Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-peri",
+              "name": "Peri Peri Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-salsa",
+              "name": "Salsa Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-algerian",
+              "name": "Algerian Sauce",
+              "priceDelta": 99
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "w-double-peri",
+      "categoryId": "wraps",
+      "name": "Double Peri Peri Wrap",
+      "description": "Double tortilla wrap, peri fillet, lettuce, mayonnaise, red onion and salsa sauce.",
+      "variants": [
+        {
+          "id": "w-double-peri-std",
+          "name": "",
+          "price": 1099
+        }
+      ],
+      "modifierGroups": [
+        {
+          "id": "heat",
+          "name": "Mild or Hot",
+          "min": 1,
+          "max": 1,
+          "options": [
+            {
+              "id": "heat-mild",
+              "name": "Mild",
+              "priceDelta": 0
+            },
+            {
+              "id": "heat-hot",
+              "name": "Hot",
+              "priceDelta": 0
+            }
+          ]
+        },
+        {
+          "id": "meal",
+          "name": "Make it a meal",
+          "min": 0,
+          "max": 1,
+          "options": [
+            {
+              "id": "meal-yes",
+              "name": "Make it a meal",
+              "priceDelta": 300
+            }
+          ]
+        },
+        {
+          "id": "dips",
+          "name": "Add a dip (2oz tub)",
+          "min": 0,
+          "max": 6,
+          "options": [
+            {
+              "id": "dip-ketchup",
+              "name": "Ketchup",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-mayo",
+              "name": "Mayo",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-garlic-mayo",
+              "name": "Garlic Mayo",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-bbq",
+              "name": "BBQ",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-burger",
+              "name": "Burger Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-chilli",
+              "name": "Chilli Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-peri",
+              "name": "Peri Peri Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-salsa",
+              "name": "Salsa Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-algerian",
+              "name": "Algerian Sauce",
+              "priceDelta": 99
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "w-veggie",
+      "categoryId": "wraps",
+      "name": "Veggie Wrap",
+      "description": "Tortilla wrap with veggie patty, red onion, lettuce & salsa sauce.",
+      "variants": [
+        {
+          "id": "w-veggie-std",
+          "name": "",
+          "price": 599
+        }
+      ],
+      "modifierGroups": [
+        {
+          "id": "meal",
+          "name": "Make it a meal",
+          "min": 0,
+          "max": 1,
+          "options": [
+            {
+              "id": "meal-yes",
+              "name": "Make it a meal",
+              "priceDelta": 300
+            }
+          ]
+        },
+        {
+          "id": "dips",
+          "name": "Add a dip (2oz tub)",
+          "min": 0,
+          "max": 6,
+          "options": [
+            {
+              "id": "dip-ketchup",
+              "name": "Ketchup",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-mayo",
+              "name": "Mayo",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-garlic-mayo",
+              "name": "Garlic Mayo",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-bbq",
+              "name": "BBQ",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-burger",
+              "name": "Burger Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-chilli",
+              "name": "Chilli Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-peri",
+              "name": "Peri Peri Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-salsa",
+              "name": "Salsa Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-algerian",
+              "name": "Algerian Sauce",
+              "priceDelta": 99
+            }
+          ]
+        }
+      ],
+      "image": null
+    },
+    {
+      "id": "w-hot-chick",
+      "categoryId": "wraps",
+      "name": "The Hot Chick",
+      "description": "Tortilla wrap, fried chicken fillet, lettuce and chilli sauce.",
+      "variants": [
+        {
+          "id": "w-hot-chick-std",
+          "name": "",
+          "price": 699
+        }
+      ],
+      "modifierGroups": [
+        {
+          "id": "meal",
+          "name": "Make it a meal",
+          "min": 0,
+          "max": 1,
+          "options": [
+            {
+              "id": "meal-yes",
+              "name": "Make it a meal",
+              "priceDelta": 300
+            }
+          ]
+        },
+        {
+          "id": "dips",
+          "name": "Add a dip (2oz tub)",
+          "min": 0,
+          "max": 6,
+          "options": [
+            {
+              "id": "dip-ketchup",
+              "name": "Ketchup",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-mayo",
+              "name": "Mayo",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-garlic-mayo",
+              "name": "Garlic Mayo",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-bbq",
+              "name": "BBQ",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-burger",
+              "name": "Burger Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-chilli",
+              "name": "Chilli Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-peri",
+              "name": "Peri Peri Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-salsa",
+              "name": "Salsa Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-algerian",
+              "name": "Algerian Sauce",
+              "priceDelta": 99
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s-chips-reg",
+      "categoryId": "sides",
+      "name": "Regular Chips",
+      "variants": [
+        {
+          "id": "s-chips-reg-std",
+          "name": "",
+          "price": 349
+        }
+      ],
+      "modifierGroups": []
+    },
+    {
+      "id": "s-chips-large",
+      "categoryId": "sides",
+      "name": "Large Chips",
+      "variants": [
+        {
+          "id": "s-chips-large-std",
+          "name": "",
+          "price": 399
+        }
+      ],
+      "modifierGroups": []
+    },
+    {
+      "id": "s-peri-chips",
+      "categoryId": "sides",
+      "name": "Peri Chips",
+      "variants": [
+        {
+          "id": "s-peri-chips-std",
+          "name": "",
+          "price": 429
+        }
+      ],
+      "modifierGroups": []
+    },
+    {
+      "id": "s-onion-rings",
+      "categoryId": "sides",
+      "name": "Onion Rings (12)",
+      "variants": [
+        {
+          "id": "s-onion-rings-std",
+          "name": "",
+          "price": 599
+        }
+      ],
+      "modifierGroups": []
+    },
+    {
+      "id": "s-wedges-plain",
+      "categoryId": "sides",
+      "name": "Plain Wedges",
+      "variants": [
+        {
+          "id": "s-wedges-plain-std",
+          "name": "",
+          "price": 429
+        }
+      ],
+      "modifierGroups": []
+    },
+    {
+      "id": "s-wedges-peri",
+      "categoryId": "sides",
+      "name": "Peri Wedges",
+      "variants": [
+        {
+          "id": "s-wedges-peri-std",
+          "name": "",
+          "price": 479
+        }
+      ],
+      "modifierGroups": []
+    },
+    {
+      "id": "s-chilli-cheese-bites",
+      "categoryId": "sides",
+      "name": "Chilli Cheese Bites (8)",
+      "variants": [
+        {
+          "id": "s-chilli-cheese-bites-std",
+          "name": "",
+          "price": 499
+        }
+      ],
+      "modifierGroups": []
+    },
+    {
+      "id": "s-corn-cob",
+      "categoryId": "sides",
+      "name": "Corn Cob",
+      "variants": [
+        {
+          "id": "s-corn-cob-std",
+          "name": "",
+          "price": 299
+        }
+      ],
+      "modifierGroups": []
+    },
+    {
+      "id": "s-beans",
+      "categoryId": "sides",
+      "name": "Beans (8oz)",
+      "variants": [
+        {
+          "id": "s-beans-std",
+          "name": "",
+          "price": 249
+        }
+      ],
+      "modifierGroups": []
+    },
+    {
+      "id": "s-gravy",
+      "categoryId": "sides",
+      "name": "Gravy (8oz)",
+      "variants": [
+        {
+          "id": "s-gravy-std",
+          "name": "",
+          "price": 249
+        }
+      ],
+      "modifierGroups": []
+    },
+    {
+      "id": "s-coleslaw",
+      "categoryId": "sides",
+      "name": "Coleslaw (8oz)",
+      "variants": [
+        {
+          "id": "s-coleslaw-std",
+          "name": "",
+          "price": 249
+        }
+      ],
+      "modifierGroups": []
+    },
+    {
+      "id": "s-spicy-rice",
+      "categoryId": "sides",
+      "name": "Spicy Rice",
+      "variants": [
+        {
+          "id": "s-spicy-rice-std",
+          "name": "",
+          "price": 399
+        }
+      ],
+      "modifierGroups": []
+    },
+    {
+      "id": "s-hash-brown",
+      "categoryId": "sides",
+      "name": "Hash Brown",
+      "variants": [
+        {
+          "id": "s-hash-brown-std",
+          "name": "",
+          "price": 299
+        }
+      ],
+      "modifierGroups": []
+    },
+    {
+      "id": "s-salad-box",
+      "categoryId": "sides",
+      "name": "Salad Box",
+      "variants": [
+        {
+          "id": "s-salad-box-std",
+          "name": "",
+          "price": 299
+        }
+      ],
+      "modifierGroups": []
+    },
+    {
+      "id": "k-popcorn",
+      "categoryId": "kids",
+      "name": "Popcorn Chicken",
+      "variants": [
+        {
+          "id": "kp-reg",
+          "name": "Regular",
+          "price": 399
+        },
+        {
+          "id": "kp-lrg",
+          "name": "Large",
+          "price": 499
+        }
+      ],
+      "modifierGroups": [
+        {
+          "id": "meal",
+          "name": "Make it a meal",
+          "min": 0,
+          "max": 1,
+          "options": [
+            {
+              "id": "meal-yes",
+              "name": "Make it a meal",
+              "priceDelta": 300
+            }
+          ]
+        },
+        {
+          "id": "dips",
+          "name": "Add a dip (2oz tub)",
+          "min": 0,
+          "max": 6,
+          "options": [
+            {
+              "id": "dip-ketchup",
+              "name": "Ketchup",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-mayo",
+              "name": "Mayo",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-garlic-mayo",
+              "name": "Garlic Mayo",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-bbq",
+              "name": "BBQ",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-burger",
+              "name": "Burger Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-chilli",
+              "name": "Chilli Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-peri",
+              "name": "Peri Peri Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-salsa",
+              "name": "Salsa Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-algerian",
+              "name": "Algerian Sauce",
+              "priceDelta": 99
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "k-nuggets",
+      "categoryId": "kids",
+      "name": "Nuggets",
+      "variants": [
+        {
+          "id": "kn-4",
+          "name": "4 pc",
+          "price": 399
+        },
+        {
+          "id": "kn-8",
+          "name": "8 pc",
+          "price": 799
+        },
+        {
+          "id": "kn-12",
+          "name": "12 pc",
+          "price": 999
+        },
+        {
+          "id": "kn-16",
+          "name": "16 pc",
+          "price": 1199
+        }
+      ],
+      "modifierGroups": [
+        {
+          "id": "meal",
+          "name": "Make it a meal",
+          "min": 0,
+          "max": 1,
+          "options": [
+            {
+              "id": "meal-yes",
+              "name": "Make it a meal",
+              "priceDelta": 300
+            }
+          ]
+        },
+        {
+          "id": "dips",
+          "name": "Add a dip (2oz tub)",
+          "min": 0,
+          "max": 6,
+          "options": [
+            {
+              "id": "dip-ketchup",
+              "name": "Ketchup",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-mayo",
+              "name": "Mayo",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-garlic-mayo",
+              "name": "Garlic Mayo",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-bbq",
+              "name": "BBQ",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-burger",
+              "name": "Burger Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-chilli",
+              "name": "Chilli Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-peri",
+              "name": "Peri Peri Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-salsa",
+              "name": "Salsa Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-algerian",
+              "name": "Algerian Sauce",
+              "priceDelta": 99
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "k-mozzarella",
+      "categoryId": "kids",
+      "name": "Mozzarella Sticks",
+      "variants": [
+        {
+          "id": "km-3",
+          "name": "3 pc",
+          "price": 399
+        },
+        {
+          "id": "km-6",
+          "name": "6 pc",
+          "price": 599
+        },
+        {
+          "id": "km-9",
+          "name": "9 pc",
+          "price": 799
+        }
+      ],
+      "modifierGroups": [
+        {
+          "id": "meal",
+          "name": "Make it a meal",
+          "min": 0,
+          "max": 1,
+          "options": [
+            {
+              "id": "meal-yes",
+              "name": "Make it a meal",
+              "priceDelta": 300
+            }
+          ]
+        },
+        {
+          "id": "dips",
+          "name": "Add a dip (2oz tub)",
+          "min": 0,
+          "max": 6,
+          "options": [
+            {
+              "id": "dip-ketchup",
+              "name": "Ketchup",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-mayo",
+              "name": "Mayo",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-garlic-mayo",
+              "name": "Garlic Mayo",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-bbq",
+              "name": "BBQ",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-burger",
+              "name": "Burger Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-chilli",
+              "name": "Chilli Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-peri",
+              "name": "Peri Peri Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-salsa",
+              "name": "Salsa Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-algerian",
+              "name": "Algerian Sauce",
+              "priceDelta": 99
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "d-ketchup",
+      "categoryId": "dips",
+      "name": "Ketchup",
+      "variants": [
+        {
+          "id": "d-ketchup-std",
+          "name": "",
+          "price": 79
+        }
+      ],
+      "modifierGroups": []
+    },
+    {
+      "id": "d-mayo",
+      "categoryId": "dips",
+      "name": "Mayo",
+      "variants": [
+        {
+          "id": "d-mayo-std",
+          "name": "",
+          "price": 79
+        }
+      ],
+      "modifierGroups": []
+    },
+    {
+      "id": "d-garlic-mayo",
+      "categoryId": "dips",
+      "name": "Garlic Mayo",
+      "variants": [
+        {
+          "id": "d-garlic-mayo-std",
+          "name": "",
+          "price": 99
+        }
+      ],
+      "modifierGroups": []
+    },
+    {
+      "id": "d-bbq",
+      "categoryId": "dips",
+      "name": "BBQ",
+      "variants": [
+        {
+          "id": "d-bbq-std",
+          "name": "",
+          "price": 99
+        }
+      ],
+      "modifierGroups": []
+    },
+    {
+      "id": "d-burger",
+      "categoryId": "dips",
+      "name": "Burger Sauce",
+      "variants": [
+        {
+          "id": "d-burger-std",
+          "name": "",
+          "price": 99
+        }
+      ],
+      "modifierGroups": []
+    },
+    {
+      "id": "d-chilli",
+      "categoryId": "dips",
+      "name": "Chilli Sauce",
+      "variants": [
+        {
+          "id": "d-chilli-std",
+          "name": "",
+          "price": 99
+        }
+      ],
+      "modifierGroups": []
+    },
+    {
+      "id": "d-peri",
+      "categoryId": "dips",
+      "name": "Peri Peri Sauce",
+      "variants": [
+        {
+          "id": "d-peri-std",
+          "name": "",
+          "price": 99
+        }
+      ],
+      "modifierGroups": []
+    },
+    {
+      "id": "d-salsa",
+      "categoryId": "dips",
+      "name": "Salsa Sauce",
+      "variants": [
+        {
+          "id": "d-salsa-std",
+          "name": "",
+          "price": 99
+        }
+      ],
+      "modifierGroups": []
+    },
+    {
+      "id": "d-algerian",
+      "categoryId": "dips",
+      "name": "Algerian Sauce",
+      "variants": [
+        {
+          "id": "d-algerian-std",
+          "name": "",
+          "price": 99
+        }
+      ],
+      "modifierGroups": []
+    },
+    {
+      "id": "dr-pepsi",
+      "categoryId": "drinks",
+      "name": "Pepsi",
+      "variants": [
+        {
+          "id": "dr-pepsi-std",
+          "name": "",
+          "price": 179
+        }
+      ],
+      "modifierGroups": []
+    },
+    {
+      "id": "dr-pepsi-max",
+      "categoryId": "drinks",
+      "name": "Pepsi Max",
+      "variants": [
+        {
+          "id": "dr-pepsi-max-std",
+          "name": "",
+          "price": 179
+        }
+      ],
+      "modifierGroups": []
+    },
+    {
+      "id": "dr-fanta-orange",
+      "categoryId": "drinks",
+      "name": "Fanta Orange",
+      "variants": [
+        {
+          "id": "dr-fanta-orange-std",
+          "name": "",
+          "price": 179
+        }
+      ],
+      "modifierGroups": []
+    },
+    {
+      "id": "dr-7up",
+      "categoryId": "drinks",
+      "name": "7up",
+      "variants": [
+        {
+          "id": "dr-7up-std",
+          "name": "",
+          "price": 179
+        }
+      ],
+      "modifierGroups": []
+    },
+    {
+      "id": "dr-rubicon-passion",
+      "categoryId": "drinks",
+      "name": "Rubicon Passionfruit",
+      "variants": [
+        {
+          "id": "dr-rubicon-passion-std",
+          "name": "",
+          "price": 179
+        }
+      ],
+      "modifierGroups": []
+    },
+    {
+      "id": "dr-levi-roots",
+      "categoryId": "drinks",
+      "name": "Levi Roots Caribbean Crush",
+      "variants": [
+        {
+          "id": "dr-levi-roots-std",
+          "name": "",
+          "price": 179
+        }
+      ],
+      "modifierGroups": []
+    },
+    {
+      "id": "dr-irn-bru",
+      "categoryId": "drinks",
+      "name": "Irn Bru",
+      "variants": [
+        {
+          "id": "dr-irn-bru-std",
+          "name": "",
+          "price": 179
+        }
+      ],
+      "modifierGroups": []
+    },
+    {
+      "id": "dr-irn-bru-diet",
+      "categoryId": "drinks",
+      "name": "Diet Irn Bru",
+      "variants": [
+        {
+          "id": "dr-irn-bru-diet-std",
+          "name": "",
+          "price": 179
+        }
+      ],
+      "modifierGroups": []
+    },
+    {
+      "id": "dr-water",
+      "categoryId": "drinks",
+      "name": "Water",
+      "variants": [
+        {
+          "id": "dr-water-std",
+          "name": "",
+          "price": 149
+        }
+      ],
+      "modifierGroups": []
+    },
+    {
+      "id": "dr-fruit-shoot",
+      "categoryId": "drinks",
+      "name": "Fruit Shoot",
+      "variants": [
+        {
+          "id": "fs-orange",
+          "name": "Orange",
+          "price": 149
+        },
+        {
+          "id": "fs-blackcurrant",
+          "name": "Blackcurrant",
+          "price": 149
+        }
+      ],
+      "modifierGroups": []
+    }
+  ]
+}

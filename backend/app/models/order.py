@@ -4,8 +4,10 @@ All monetary amounts are stored in paisa (1 PKR = 100 paisa) as integers.
 """
 
 import uuid
+from datetime import datetime
 
 from sqlalchemy import (
+    DateTime,
     ForeignKey,
     Index,
     Integer,
@@ -23,9 +25,15 @@ from app.models.base import BaseMixin
 class Order(BaseMixin, Base):
     """A customer order.
 
-    order_type: dine_in | takeaway | call_center
+    order_type: dine_in | takeaway | call_center | online
     status: draft | confirmed | in_kitchen | ready | served | completed | voided
     payment_status: unpaid | partial | paid | refunded
+
+    `online` orders come from the public storefront and differ from the rest in
+    three ways: nobody is logged in when they are created, the customer chooses
+    collection or delivery, and the shop must explicitly accept or reject them
+    before the kitchen sees anything. The `accepted_at` / `rejected_at` /
+    `eta_minutes` fields below carry that gate.
     """
 
     __tablename__ = "orders"
@@ -41,7 +49,7 @@ class Order(BaseMixin, Base):
     order_type: Mapped[str] = mapped_column(
         String(20),
         nullable=False,
-        comment="dine_in | takeaway | call_center",
+        comment="dine_in | takeaway | call_center | online",
     )
     status: Mapped[str] = mapped_column(
         String(20),
@@ -93,6 +101,41 @@ class Order(BaseMixin, Base):
         comment="Grand total in paisa",
     )
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # --- Online ordering -------------------------------------------------
+    # All nullable: these are meaningless for dine-in/takeaway/call-center and
+    # must stay null there rather than carrying a misleading default.
+    service_type: Mapped[str | None] = mapped_column(
+        String(20),
+        nullable=True,
+        comment="collection | delivery. Online orders only; null otherwise.",
+    )
+    delivery_address: Mapped[str | None] = mapped_column(Text, nullable=True)
+    delivery_area: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+        comment="Named delivery area the fee was derived from, e.g. 'Arrochar'",
+    )
+    delivery_fee: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        nullable=False,
+        comment="Delivery fee in minor units. 0 for collection.",
+    )
+    accepted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="Set when the shop accepts an online order. Kitchen fires on this.",
+    )
+    rejected_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    rejection_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    eta_minutes: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        comment="Lead time promised to the customer on acceptance",
+    )
 
     created_by: Mapped[uuid.UUID] = mapped_column(
         Uuid,

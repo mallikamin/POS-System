@@ -9,11 +9,24 @@ from pydantic import BaseModel, EmailStr, Field
 
 
 class PinLoginRequest(BaseModel):
-    """Login using a numeric PIN (fast POS login for staff)."""
+    """Login using a numeric PIN (fast POS login for staff).
+
+    ⚠️ **A PIN is only unique inside one restaurant.** Four digits is a space of
+    10,000 and real POS PINs cluster hard on memorable numbers, so across a
+    handful of tenants a collision is likely rather than theoretical. Identify
+    the restaurant with `tenant_slug` (or `tenant_id`). It may only be omitted
+    when the deployment has exactly one active tenant.
+    """
 
     pin: str = Field(..., min_length=4, max_length=6, pattern=r"^\d{4,6}$")
     tenant_id: uuid.UUID | None = Field(
-        None, description="Tenant to authenticate against (auto-detected if omitted)"
+        None, description="Tenant to authenticate against, by id"
+    )
+    tenant_slug: str | None = Field(
+        None,
+        max_length=255,
+        description="Tenant to authenticate against, by slug -- e.g. 'chick-shack'. "
+        "Preferred over tenant_id: a person can type it and read it back.",
     )
 
 
@@ -23,7 +36,13 @@ class PasswordLoginRequest(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=1)
     tenant_id: uuid.UUID | None = Field(
-        None, description="Tenant to authenticate against (auto-detected if omitted)"
+        None, description="Tenant to authenticate against, by id"
+    )
+    tenant_slug: str | None = Field(
+        None,
+        max_length=255,
+        description="Tenant to authenticate against, by slug. Optional: email "
+        "plus password is already a strong enough key to search on.",
     )
 
 

@@ -54,6 +54,13 @@ class RestaurantConfig(BaseMixin, Base):
     receipt_header: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     receipt_footer: Mapped[str | None] = mapped_column(String(1000), nullable=True)
 
+    delivery_minimum: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        nullable=False,
+        comment="Minimum basket for delivery in minor units. 0 = no minimum.",
+    )
+
     # Discount approval thresholds — if either is exceeded, manager verify required
     discount_approval_threshold_bps: Mapped[int] = mapped_column(
         Integer,
