@@ -386,6 +386,9 @@ export const SHOP: ShopConfig = {
   currency: "GBP",
   openTime: "16:00",
   closeTime: "22:00",
+  // Pre-orders open two hours before service, matching Imran's own worked
+  // example (placed 14:00, accepted 15:30, opens 16:00). INFERRED — confirm.
+  orderFromTime: "14:00",
   // Orders are placed against POST /public/{tenant}/orders and appear on the
   // shop's tablet for accept/reject. Ordering additionally requires the menu to
   // have loaded from the API — see `canOrder` in store/menu.ts — so this flag

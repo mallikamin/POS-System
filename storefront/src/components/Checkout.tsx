@@ -2,7 +2,12 @@ import { useMemo, useState } from "react";
 import { SHOP } from "../data/menu";
 import type { ServiceType } from "../types";
 import { formatGBP } from "../lib/money";
-import { checkDelivery, collectionOffered, deliveryOffered } from "../lib/delivery";
+import {
+  canOrderNow,
+  checkDelivery,
+  collectionOffered,
+  deliveryOffered,
+} from "../lib/delivery";
 import { orderLinesOf, subtotalOf, useCart } from "../store/cart";
 import { canOrder, useMenu } from "../store/menu";
 import { ApiError, placeOrder } from "../lib/api";
@@ -23,7 +28,12 @@ export default function Checkout({ onBack, onPlaced }: Props) {
 
   const menuItems = useMenu((s) => s.items);
   const menuSource = useMenu((s) => s.source);
-  const orderingLive = canOrder(menuSource);
+  // Two independent gates, and both must hold. `canOrder` is "is this feature
+  // switched on and did the menu really come from the API"; `canOrderNow` is
+  // "is the shop willing to receive an order at this hour". A basket may be
+  // built at any time — only placing is restricted.
+  const orderingLive = canOrder(menuSource) && canOrderNow();
+  const shutForTheNight = canOrder(menuSource) && !canOrderNow();
 
   const [service, setService] = useState<ServiceType>(
     collectionOffered() ? "collection" : "delivery",
@@ -334,16 +344,30 @@ export default function Checkout({ onBack, onPlaced }: Props) {
               : `Place order · ${formatGBP(total)}`}
         </button>
       ) : (
-        /* Online ordering not switched on yet. Never imply an order was placed —
-           send them to the phone with their basket total in hand. */
+        /* Either ordering is not switched on yet, or the shop is shut for the
+           night. Never imply an order was placed — send them to the phone with
+           their basket total in hand. */
         <div className="card p-4 space-y-3 border-ember/40">
           <p className="font-semibold text-ember">
-            Online ordering is coming very soon
+            {shutForTheNight
+              ? "We're closed right now"
+              : "Online ordering is coming very soon"}
           </p>
           <p className="text-sm text-cream/70">
-            We're not taking online payments just yet. Give us a ring and we'll
-            get this order started — your total is{" "}
-            <strong className="text-cream">{formatGBP(total)}</strong>.
+            {shutForTheNight ? (
+              <>
+                You can order online from{" "}
+                <strong className="text-cream">{SHOP.orderFromTime}</strong> — your
+                basket will still be here. Your total is{" "}
+                <strong className="text-cream">{formatGBP(total)}</strong>.
+              </>
+            ) : (
+              <>
+                We're not taking online payments just yet. Give us a ring and
+                we'll get this order started — your total is{" "}
+                <strong className="text-cream">{formatGBP(total)}</strong>.
+              </>
+            )}
           </p>
           <div className="grid gap-2">
             {SHOP.phones.map((p) => (

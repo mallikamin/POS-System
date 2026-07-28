@@ -178,6 +178,15 @@ export interface ShopConfig {
   openTime: string;
   closeTime: string;
   /**
+   * Earliest an order may be PLACED, 24h "HH:MM". Pre-orders are allowed from
+   * here until `closeTime`; outside that window checkout is refused.
+   *
+   * Not the same as `openTime`: the client accepts pre-orders before service
+   * (his own example is a 14:00 order for a 16:00 opening). What this stops is
+   * a 3am order landing on a tablet nobody is watching.
+   */
+  orderFromTime: string;
+  /**
    * Master switch for taking orders online.
    *
    * FALSE until the public order endpoint and Stripe webhook are live. While

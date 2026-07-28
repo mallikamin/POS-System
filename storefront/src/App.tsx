@@ -75,7 +75,7 @@ export default function App() {
             {!open && (
               <p className="mt-4 card p-3 text-sm text-ember">
                 We're closed right now. Open daily {SHOP.openTime}–{SHOP.closeTime}
-                — you can still build your order.
+                {" "}— build your order now and place it from {SHOP.orderFromTime}.
               </p>
             )}
           </section>
