@@ -13,6 +13,31 @@ Priority: 🔴 blocks the current goal · 🟠 needed before go-live · 🟡 rea
 
 ## 🔴 Blocking
 
+**OI-43 · No email exists anywhere in this system, and the client's main scenario needs it.**
+Raised by Imran 2026-07-29 (OI-29). He wants two emails: on placement, and on accept carrying the
+lead time. **This is a go-live blocker rather than a refinement**, because his own worked example is
+a pre-order placed at 14:00 and accepted at 15:30 — the confirmation screen learns the ETA by
+polling and gives up after 20 minutes, so that customer would never find out they had been accepted.
+Three parts, in order:
+1. **Persist the address.** `customer_email` is accepted by `POST /public/{tenant}/orders` and then
+   **discarded** — `Order` has no email column and `_link_customer` never sets `Customer.email`,
+   though that column exists. Nothing is sendable today.
+2. **Make email required at checkout.** It is currently optional (`contactOk` needs only name and
+   phone) and labelled "for your receipt". If it is the notification channel it cannot be optional.
+3. **A sender.** No transactional email provider is configured. Needs an account and a domain — and
+   `chickshackg84.com` carries the client's live business email, so any DNS record for sending must
+   be added additively and verified, per the DKIM near-miss on 2026-07-27.
+
+**OI-44 · The order stops dead at `in_kitchen` — "Out for delivery" does not exist.**
+Independently raised by Imran 2026-07-29 and by Malik before him, which is about as strong a signal
+as a gap gets. An accepted order never leaves the Active tab, so the queue grows forever and the day
+never settles. The state machine **already** supports it (`ready → served → completed` plus
+`PATCH /orders/{id}`); what is missing is the tablet UI and the customer-facing status.
+Two notes on scope: the label must follow the service type ("Out for delivery" vs "Ready for
+collection"), and Imran asked directly whether the button is worth having — **it is, and not mainly
+for the notification: it is the only thing that closes an order.** Still to ask him: does the final
+tap also mark a cash order paid, or is that a second tap?
+
 **OI-20 · Stripe account not connected.**
 Imran says he has one. Unknown whether it is verified and live or newly created. **Gates the entire
 payment path**, which is the remaining bulk of the build. Ask before starting Stripe work.
@@ -148,9 +173,10 @@ when they had not. Flip it only with Stripe Checkout **and** its signature-verif
 accepted with a 45-minute ETA. Local only — **production was never written to.** Harmless, but they
 will show on a local tablet demo. Deleting them is a destructive DB op, so it is left for Malik.
 
-**OI-29 · How the ETA reaches the customer is undecided.** Never discussed with the client. The API
-returns it and there is a status-poll endpoint, but nothing pushes it. Recommended default: on-screen
-confirmation plus email, which adds no recurring cost. **Ask Imran.**
+**OI-29 ✅ ANSWERED BY THE CLIENT 2026-07-29 · The channel is EMAIL.** Imran described it unprompted
+in a voice note and said "email" every time, never SMS. He wants **two**: one the moment the order is
+placed, one when the shop accepts, carrying the lead time. Now tracked as OI-43.
+See `_context/clients/chick-shack-uk/voice-notes/2026-07-29_imran_order-lifecycle-and-emails.md`.
 
 **OI-30 ✅ RESOLVED 2026-07-27 · The test suite runs again, and it had been dead for four months.**
 Docker started; the suite then errored on *every* DB-backed test because `stock_counts` (JSONB, added
