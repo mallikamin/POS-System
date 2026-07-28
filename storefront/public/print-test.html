@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Printer test</title>
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 24px;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.5; max-width: 640px; margin-inline: auto;
+  }
+  h1 { font-size: 1.4rem; margin: 0 0 4px; }
+  p.sub { margin: 0 0 24px; opacity: .7; }
+  button {
+    width: 100%; min-height: 72px; font-size: 1.25rem; font-weight: 600;
+    border: 0; border-radius: 12px; background: #c81e1e; color: #fff;
+    cursor: pointer; margin-bottom: 12px;
+  }
+  button:active { opacity: .8; }
+  button.secondary { background: #374151; min-height: 56px; font-size: 1rem; }
+  ol { padding-left: 20px; }
+  li { margin-bottom: 10px; }
+  pre {
+    background: #111; color: #eee; padding: 14px; border-radius: 10px;
+    overflow-x: auto; font-size: 12px; line-height: 1.35;
+  }
+  .note {
+    border-left: 4px solid #c81e1e; padding: 10px 14px; margin: 20px 0;
+    background: rgba(200,30,30,.08); border-radius: 0 8px 8px 0;
+  }
+
+  /* Route 3 only: what Android's own print dialog renders. Sized for 80mm
+     paper, which is 72mm of printable width. Everything else is hidden so the
+     print is the slip and nothing else. */
+  #slip { display: none; }
+  @media print {
+    body > *:not(#slip) { display: none !important; }
+    #slip {
+      display: block; white-space: pre; font-family: "Courier New", monospace;
+      font-size: 11pt; line-height: 1.25; color: #000;
+    }
+    @page { size: 72mm auto; margin: 0; }
+  }
+</style>
+</head>
+<body>
+
+<h1>Printer test</h1>
+<p class="sub">Chick Shack online orders</p>
+
+<div class="note">
+  <strong>Before you tap the button:</strong> open the RawBT app once and add
+  your printer. Choose the network or WiFi option, enter the printer's IP
+  address, and set the port to <strong>9100</strong>. Do a test print from
+  inside RawBT first. If that works, come back here.
+</div>
+
+<button onclick="printTicket()">1 &nbsp;Print test ticket</button>
+<button class="secondary" onclick="printViaIntent()">
+  2 &nbsp;Did nothing? Try this
+</button>
+<button class="secondary" onclick="window.print()">
+  3 &nbsp;Still nothing? Try this
+</button>
+<p style="opacity:.7;font-size:.9rem;margin-top:-4px;">
+  Try them in order. Button 3 opens the normal Android print box, where you
+  pick RawBT from the printer list.
+</p>
+
+<div id="slip">Chick Shack
+ONLINE ORDER
+
+DELIVERY
+================================================
+ORDER TEST-001
+Placed 19:42, 27 Jul
+DELIVER BY 20:28 (45 min)
+------------------------------------------------
+2 x Peri Peri Half Chicken
+    - Hot
+    ** no salt
+1 x Chips
+    - Large
+3 x Rubicon Passionfruit
+------------------------------------------------
+ORDER NOTES
+This is a test ticket. No food needed.
+------------------------------------------------
+Name   Test Customer
+Phone  07700 900123
+
+DELIVER TO
+12 Shore Road
+Mambeg, Clynder &amp; Rahane
+------------------------------------------------
+Subtotal                                  £24.50
+Delivery                                   £4.00
+TOTAL                                     £28.50
+
+*** NOT PAID ***
+COLLECT £28.50
+================================================</div>
+
+<h2 style="font-size:1.05rem;margin-top:28px;">What should come out</h2>
+<pre>Chick Shack
+ONLINE ORDER
+
+DELIVERY
+================================================
+ORDER TEST-001
+Placed 19:42, 27 Jul
+DELIVER BY 20:28 (45 min)
+------------------------------------------------
+2 x Peri Peri Half Chicken
+    - Hot
+    ** no salt
+1 x Chips
+    - Large
+3 x Rubicon Passionfruit
+------------------------------------------------
+ORDER NOTES
+This is a test ticket. No food needed.
+------------------------------------------------
+Name   Test Customer
+Phone  07700 900123
+
+DELIVER TO
+12 Shore Road
+Mambeg, Clynder &amp; Rahane
+------------------------------------------------
+Subtotal                                  £24.50
+Delivery                                   £4.00
+TOTAL                                     £28.50
+
+*** NOT PAID ***
+COLLECT £28.50
+================================================</pre>
+
+<h2 style="font-size:1.05rem;">If nothing prints</h2>
+<ol>
+  <li>Does a test print from inside the RawBT app itself work? If not, the
+      problem is the printer or the network, not this page.</li>
+  <li>Is the tablet on the shop WiFi rather than mobile data?</li>
+  <li>Work down the three buttons. They reach the printer three different
+      ways, and knowing which one works tells us how to build it.</li>
+  <li>Send us a photo of whatever the printer does produce, even if it looks
+      like nonsense. That tells us a lot.</li>
+  <li>Send the printer's make and model. There is a chance it can print with
+      no app at all, and that would be the simplest answer of the lot.</li>
+</ol>
+
+<p style="opacity:.7;font-size:.9rem;">
+  Tell us which button worked. That is the only result we need.
+</p>
+
+<script>
+  // Built at generation time by app/scripts/make_print_test_page.py so this
+  // page needs no server. Two ways to hand the job to RawBT: the rawbt:
+  // scheme, and an intent: URL naming the package explicitly. Chrome on
+  // Android handles them differently depending on version, so both are here.
+  var PAYLOAD = "G0AbYQEdIREbRQFDaGljayBTaGFjawobRQAdIQAbYQAbYQFPTkxJTkUgT1JERVIKG2EAG2QBG2EBHSERG0UBREVMSVZFUlkKG0UAHSEAG2EAPT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09ChtFAU9SREVSIFRFU1QtMDAxChtFAFBsYWNlZCAxOTo0MiwgMjcgSnVsChtFAURFTElWRVIgQlkgMjA6MjggKDQ1IG1pbikKG0UALS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tChtFATIgeCBQZXJpIFBlcmkgSGFsZiBDaGlja2VuChtFACAgICAtIEhvdAobRQEgICAgKiogbm8gc2FsdAobRQAbRQExIHggQ2hpcHMKG0UAICAgIC0gTGFyZ2UKG0UBMyB4IFJ1Ymljb24gUGFzc2lvbmZydWl0ChtFAC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQobRQFPUkRFUiBOT1RFUwobRQBUaGlzIGlzIGEgdGVzdCB0aWNrZXQuIE5vIGZvb2QgbmVlZGVkLgotLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0KTmFtZSAgIFRlc3QgQ3VzdG9tZXIKG0UBUGhvbmUgIDA3NzAwIDkwMDEyMwobRQAbZAEbRQFERUxJVkVSIFRPChtFADEyIFNob3JlIFJvYWQKG0UBTWFtYmVnLCBDbHluZGVyICYgUmFoYW5lChtFAC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQpTdWJ0b3RhbCAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICCcMjQuNTAKRGVsaXZlcnkgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIJw0LjAwChtFAVRPVEFMICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIJwyOC41MAobRQAbZAEbYQEdIREbRQEqKiogTk9UIFBBSUQgKioqChtFAB0hABthABthARtFAUNPTExFQ1QgnDI4LjUwChtFABthAD09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PQobZAQdVkIA";
+
+  function printTicket() {
+    window.location.href = "rawbt:base64," + PAYLOAD;
+  }
+
+  function printViaIntent() {
+    window.location.href =
+      "intent:base64," + PAYLOAD +
+      "#Intent;scheme=rawbt;package=ru.a402d.rawbtprinter;end;";
+  }
+</script>
+
+</body>
+</html>
+

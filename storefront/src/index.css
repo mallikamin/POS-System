@@ -1,0 +1,50 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-ink text-cream font-sans antialiased;
+    /* Respect iPhone home indicator — the cart bar sits at the bottom. */
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  /* Inputs must be >=16px on iOS or Safari zooms the page on focus. */
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl font-semibold
+           transition-colors disabled:opacity-40 disabled:cursor-not-allowed
+           focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2
+           focus-visible:outline-flame-light;
+  }
+  .btn-primary {
+    @apply btn bg-flame hover:bg-flame-dark text-white;
+  }
+  .btn-ghost {
+    @apply btn border border-ink-line hover:border-flame/60 text-cream;
+  }
+  /* 48px minimum touch target — this is used one-handed on a phone. */
+  .tap {
+    @apply min-h-[48px] px-5;
+  }
+  .card {
+    @apply bg-ink-soft border border-ink-line rounded-2xl;
+  }
+  .field {
+    @apply w-full rounded-xl bg-ink border border-ink-line px-4 py-3
+           text-cream placeholder:text-cream/35
+           focus:border-flame focus:outline-none;
+  }
+  .label {
+    @apply block text-xs font-semibold uppercase tracking-wider text-cream/50 mb-1.5;
+  }
+}
