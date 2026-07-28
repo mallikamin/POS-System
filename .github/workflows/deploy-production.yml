@@ -84,6 +84,30 @@ jobs:
           # Wait for services
           sleep 5
 
+          # --- Database migrations -------------------------------------------
+          # Previously absent, which meant a deploy carrying a migration shipped
+          # new code against an old schema and failed at runtime rather than at
+          # deploy time.
+          #
+          # Back up first, without exception. This database has been lost once
+          # already (2026-03-26) -- see memory/data-integrity.md.
+          mkdir -p backups
+          docker compose -f docker-compose.demo.yml --env-file .env.demo \
+            exec -T postgres pg_dump -U pos_admin -d pos_system \
+            > "backups/pre_migrate_$(date +%Y-%m-%d_%H%M%S).sql"
+
+          # Fail the deploy loudly if the dump is empty -- an unusable backup is
+          # worse than a known-missing one, because it is trusted.
+          LATEST_DUMP=$(ls -t backups/pre_migrate_*.sql | head -1)
+          if [ ! -s "$LATEST_DUMP" ]; then
+            echo "Backup is empty ($LATEST_DUMP). Refusing to migrate."
+            exit 1
+          fi
+          echo "Backup OK: $LATEST_DUMP ($(wc -c < "$LATEST_DUMP") bytes)"
+
+          docker compose -f docker-compose.demo.yml --env-file .env.demo \
+            exec -T backend alembic upgrade head
+
           # Check status
           docker compose -f docker-compose.demo.yml --env-file .env.demo ps
 

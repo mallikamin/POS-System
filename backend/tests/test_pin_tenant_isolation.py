@@ -110,19 +110,67 @@ async def test_pin_login_returns_the_user_from_the_named_tenant(
     assert other.json()["user"]["email"] == "other@example.com"
 
 
-async def test_pin_login_refuses_to_guess_when_several_tenants_exist(
+async def test_pin_login_refuses_when_the_pin_is_genuinely_ambiguous(
     client: AsyncClient,
     user_in_home_tenant: User,
     user_in_other_tenant: User,
 ):
-    """No slug, more than one restaurant -- refuse rather than pick one.
+    """No slug, and the PIN matches a real person in TWO restaurants.
 
-    Refusing is the whole fix. Picking arbitrarily is what put someone in the
-    wrong restaurant's data.
+    Refusing is the whole fix. Returning the first match is what put someone
+    in the wrong restaurant's data.
     """
     resp = await client.post(PIN_URL, json={"pin": SHARED_PIN})
     assert resp.status_code == 400
-    assert "which restaurant" in resp.json()["detail"].lower()
+    assert "more than one restaurant" in resp.json()["detail"].lower()
+
+
+async def test_pin_login_still_works_across_tenants_when_unambiguous(
+    client: AsyncClient,
+    db: AsyncSession,
+    tenant: Tenant,
+    other_tenant: Tenant,
+    admin_role: Role,
+    other_tenant_role: Role,
+):
+    """Two restaurants, DIFFERENT PINs, no slug -- log the right person in.
+
+    This is the case that must not regress. The live server already hosts more
+    than one restaurant behind a single frontend that sends no tenant, so
+    demanding a slug outright would have broken every existing PIN login on
+    deploy. Only a real collision is refused.
+    """
+    db.add(
+        User(
+            tenant_id=tenant.id,
+            email="a@example.com",
+            full_name="Restaurant A Staff",
+            hashed_password=hash_password("pw-a"),
+            pin_code=hash_password("4455"),
+            role_id=admin_role.id,
+            is_active=True,
+        )
+    )
+    db.add(
+        User(
+            tenant_id=other_tenant.id,
+            email="b@example.com",
+            full_name="Restaurant B Staff",
+            hashed_password=hash_password("pw-b"),
+            pin_code=hash_password("7788"),
+            role_id=other_tenant_role.id,
+            is_active=True,
+        )
+    )
+    await db.commit()
+
+    a = await client.post(PIN_URL, json={"pin": "4455"})
+    b = await client.post(PIN_URL, json={"pin": "7788"})
+
+    assert a.status_code == 200, a.text
+    assert b.status_code == 200, b.text
+    assert a.json()["user"]["email"] == "a@example.com"
+    assert b.json()["user"]["email"] == "b@example.com"
 
 
 async def test_pin_login_still_works_with_one_tenant_and_no_slug(

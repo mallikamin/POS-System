@@ -176,38 +176,63 @@ async def login_with_pin(
     # would have been dropped inside another restaurant's data, holding a valid
     # token for it. Four digits is a space of 10,000 and real PINs cluster on
     # memorable numbers, so that was likely rather than theoretical.
-    named_a_tenant = bool(body.tenant_id or body.tenant_slug)
-    tenant_id = await _tenant_for_login(db, body.tenant_id, body.tenant_slug)
-
-    if tenant_id is None:
-        if named_a_tenant:
+    if body.tenant_id or body.tenant_slug:
+        tenant_id = await _tenant_for_login(db, body.tenant_id, body.tenant_slug)
+        if tenant_id is None:
             # The caller named a restaurant and it did not resolve. Answer
             # exactly as for a bad PIN -- a distinct status here would let
-            # anyone enumerate which restaurants exist on this server by
-            # watching 400 turn into 401.
+            # anyone enumerate which restaurants exist on this server.
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid PIN",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=(
-                "Which restaurant? This server hosts several, and a PIN is only "
-                "unique within one. Send tenant_slug with the PIN."
-            ),
+        try:
+            user = await authenticate_by_pin(db, body.pin, tenant_id)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid PIN",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+    else:
+        # No restaurant named. Search them all, but collect EVERY match rather
+        # than returning the first one.
+        #
+        # The old code broke out of this loop on the first hit, which is not a
+        # failed login but the WRONG login: the demo tenant ships PINs
+        # 1234 / 5678 / 9012, so a second restaurant issuing 1234 would have
+        # dropped that person into the demo's data holding a valid token.
+        #
+        # Refusing only on a genuine collision keeps every currently-working
+        # login working -- which matters, because this server already hosts
+        # more than one restaurant behind one frontend -- while making the
+        # wrong-login outcome impossible.
+        result = await db.execute(
+            select(Tenant.id).where(Tenant.is_active == True)  # noqa: E712
         )
+        matches = []
+        for tid in result.scalars().all():
+            try:
+                matches.append(await authenticate_by_pin(db, body.pin, tid))
+            except ValueError:
+                continue
 
-    try:
-        user = await authenticate_by_pin(db, body.pin, tenant_id)
-    except ValueError:
-        # Deliberately generic: never reveal whether the PIN was wrong or the
-        # restaurant was.
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid PIN",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        if not matches:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid PIN",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        if len(matches) > 1:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "That PIN is in use at more than one restaurant. Say which "
+                    "one by adding ?shop=<name> to the address."
+                ),
+            )
+        user = matches[0]
 
     tokens = await create_tokens(db, user)
     return AuthResponse(

@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import api from "@/lib/axios";
+import { getTenantSlug } from "@/lib/tenant";
 import type { User, AuthTokens } from "@/types";
 import { useMenuStore } from "@/stores/menuStore";
 import { useConfigStore } from "@/stores/configStore";
@@ -36,9 +37,12 @@ export const useAuthStore = create<AuthStore>()(
       loginWithPin: async (pin: string) => {
         set({ isLoading: true });
         try {
+          // A PIN is only unique within one restaurant, so the server refuses
+          // to guess when it hosts more than one. Undefined is fine and is the
+          // normal case for a single-restaurant deployment. See lib/tenant.ts.
           const { data } = await api.post<{ user: User; tokens: AuthTokens }>(
             "/auth/login/pin",
-            { pin }
+            { pin, tenant_slug: getTenantSlug() }
           );
           set({
             user: data.user,
@@ -57,7 +61,7 @@ export const useAuthStore = create<AuthStore>()(
         try {
           const { data } = await api.post<{ user: User; tokens: AuthTokens }>(
             "/auth/login",
-            { email, password }
+            { email, password, tenant_slug: getTenantSlug() }
           );
           set({
             user: data.user,
