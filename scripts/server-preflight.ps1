@@ -1,7 +1,7 @@
 $ErrorActionPreference = "Stop"
 
 $serverDoc = "SERVER.md"
-$expectedHost = "pos-demo.duckdns.org"
+$expectedHost = "eats.sitaratech.info"
 $expectedPath = "~/pos-system"
 
 if (-not (Test-Path $serverDoc)) {

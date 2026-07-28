@@ -15,9 +15,24 @@ values.**
 |---|---|---|
 | Chick Shack storefront | **Cloudflare Workers** (static assets), project `chick-shack-storefront` | ✅ Live |
 | POS app + API | DigitalOcean droplet **159.65.158.26** (SGP1), `~/pos-system` | ✅ Live |
-| POS demo | `pos-demo.duckdns.org` | ✅ Green |
-| POS demo (2nd domain) | `eats.sitaratech.info` | ✅ Green since 2026-07-15 |
+| **POS — client-facing** | **`eats.sitaratech.info`** | ✅ **This is the domain to give a client.** Own SSL cert since 2026-07-28 |
+| POS demo (legacy) | `pos-demo.duckdns.org` | ✅ Green. Same application, kept working — but do not hand a duckdns URL to a paying client |
 | Orbit CRM voice | `orbit-voice.duckdns.org` | Shares this server |
+&nbsp;
+
+> ⚠️ **2026-07-28 — `eats.sitaratech.info` was half-migrated for two weeks.**
+> The 2026-07-15 change added it to nginx `server_name` but **never issued a certificate**,
+> and it resolves straight to the origin with no Cloudflare in front. Both names shared one
+> 443 block, and a block can only present one certificate — so every visitor to
+> `https://eats.sitaratech.info` got the `pos-demo` certificate and an
+> `ERR_CERT_COMMON_NAME_INVALID` refusal. The same failure as the March orbit-voice incident.
+>
+> Fixed by issuing its own certificate and splitting it into its own server block
+> (`nginx.demo.conf`, reload only — no container recreation). Verified per-hostname with
+> `openssl s_client -servername`: all three now serve their own certificate.
+>
+> **Lesson: adding a hostname to `server_name` is half a migration.** The certificate is the
+> other half, and nothing fails until a human opens a browser.
 | Orbit CRM parkcity | `parkcity.sitaratech.info` | Shares this server |
 
 ### ⚠️ The DigitalOcean box is shared infrastructure

@@ -22,11 +22,11 @@ steps Malik asked for. The previous handoff is archived at
 | Backups | `~/pos-system/backups/pre_migrate_*.sql` and `pre_chickshack_seed_*.sql` |
 
 **Not yet done: nobody has opened either site in a browser.** Rule 5 requires verifying
-`pos-demo.duckdns.org` **and** `orbit-voice.duckdns.org` after any nginx work. Do that first.
+`eats.sitaratech.info` **and** `orbit-voice.duckdns.org` after any nginx work. Do that first.
 
 Imran's tablet URL:
 
-    https://pos-demo.duckdns.org/online-orders?shop=chick-shack
+    https://eats.sitaratech.info/online-orders?shop=chick-shack
 
 `?shop=` is remembered in localStorage, so it survives the login redirect.
 
