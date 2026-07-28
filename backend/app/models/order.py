@@ -78,6 +78,10 @@ class Order(BaseMixin, Base):
     )
     customer_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     customer_phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # Where confirmations for THIS order go. Held on the order rather than only
+    # on the linked customer so a later profile edit cannot rewrite history, and
+    # because guests without a phone number are never linked to a customer row.
+    customer_email: Mapped[str | None] = mapped_column(String(320), nullable=True)
 
     subtotal: Mapped[int] = mapped_column(
         Integer,

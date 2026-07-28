@@ -29,6 +29,21 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 480  # 8 hours for a POS shift
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
 
+    # Transactional email (order confirmations).
+    # Plain SMTP so any provider works -- Resend, Brevo, SES, Postmark, Gmail --
+    # without a vendor SDK. Unset means email is disabled and orders still work.
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USERNAME: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_STARTTLS: bool = True
+    SMTP_SSL: bool = False
+    EMAIL_FROM: str = ""
+    EMAIL_FROM_NAME: str = ""
+    # Absolute base URL a customer can open to track their order, no trailing
+    # slash. The order id is appended. Empty means no link is included.
+    ORDER_TRACKING_BASE_URL: str = ""
+
     # QuickBooks Integration
     QB_CLIENT_ID: str = ""
     QB_CLIENT_SECRET: str = ""
@@ -68,6 +83,16 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.ENVIRONMENT.lower() in ("production", "prod")
+
+    @property
+    def email_configured(self) -> bool:
+        """Email is opt-in. Without a host and a From address, nothing sends.
+
+        Deliberately not fatal: an order must never fail because a mail server
+        is down or unconfigured. The order is the product; the email is a
+        courtesy on top of it.
+        """
+        return bool(self.SMTP_HOST and self.EMAIL_FROM)
 
     model_config = {
         "env_file": ".env",
