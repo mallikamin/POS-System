@@ -49,7 +49,39 @@ recreated by hand. Automating it is safe **only** with the mount check in front 
 
 ---
 
-## What Malik asked for next
+## ▶ START HERE — build UAT run 2, then run both UATs together
+
+Malik confirmed 2026-07-29 that `https://eats.sitaratech.info` loads with a valid
+certificate. **The immediate task is wiring the storefront checkout so Imran can place a
+real order on the website himself.** Both UAT runs are then done together, in one sitting
+with Imran.
+
+Concretely, that means:
+
+1. **`storefront/src/data/menu.ts` → fetch from the API instead.** The site renders a
+   hardcoded menu whose IDs are slugs (`peri-half`); `POST /public/chick-shack/orders`
+   validates UUIDs. Point the storefront at `GET /public/chick-shack/menu` so the basket
+   carries real IDs. The menu is already seeded on production — 62 items, GBP.
+2. **`place()` in `storefront/src/components/Checkout.tsx`** currently fabricates a
+   reference and creates nothing. Post the basket to `POST /public/chick-shack/orders`.
+   Send only IDs and quantities — the endpoint rejects any price with a 422, deliberately.
+   Every required modifier group must be satisfied or the order is refused with a 409.
+3. **The confirmation screen** should poll
+   `GET /public/chick-shack/orders/{id}/status` so the customer sees "accepted, 45 min"
+   when Imran accepts.
+4. **Only then** flip `SHOP.orderingEnabled` to `true`. Not before — a fake confirmation is
+   worse than no ordering at all.
+
+⚠️ Cash only for now. Stripe is not built and is blocked on the client's account (OI-20),
+so orders arrive `unpaid` and the ticket prints its double-height NOT PAID banner. That is
+correct behaviour for collection and cash-on-delivery, and is enough for both UAT runs.
+
+`scratchpad/e2e_order_flow.py` from the previous session drives this exact chain against
+the API and is the fastest way to check the backend before touching the storefront.
+
+---
+
+## The two UAT runs
 
 ### A. Two UAT runs
 
