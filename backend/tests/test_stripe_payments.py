@@ -328,6 +328,65 @@ def test_webhook_is_refused_when_no_signing_secret_is_configured() -> None:
             stripe_service.verify_webhook(b"{}", "sig")
 
 
+class _StripeLike:
+    """Stands in for a real `StripeObject`.
+
+    Subscriptable, but **any** attribute access raises `AttributeError` -- which
+    is what the real class does for `.get`, as its own `__getattr__` tries to
+    resolve `get` as a *field* of the response and fails.
+
+    Deliberately not a `dict` subclass: `dict` supplies a working `.get()`, so a
+    dict-based fake silently passes and reproduces nothing. That is the whole
+    trap being pinned here -- mocked tests hand plain dicts to code that will
+    receive StripeObjects in production.
+    """
+
+    def __init__(self, data: dict) -> None:
+        object.__setattr__(self, "_data", data)
+
+    def __getitem__(self, key: str):  # noqa: ANN204 - mirrors StripeObject
+        return object.__getattribute__(self, "_data")[key]
+
+    def __getattr__(self, name: str):  # noqa: ANN204 - mirrors StripeObject
+        raise AttributeError(name)
+
+
+def test_reading_a_stripe_response_never_uses_dot_get() -> None:
+    """Regression: `StripeObject` has no `.get()`.
+
+    Found by driving the real sandbox after every mocked test passed. Any code
+    that calls `.get()` on a Stripe response raises `AttributeError: get` in
+    production while looking perfectly correct in the suite.
+    """
+    obj = _StripeLike({"status": "requires_capture"})
+
+    with pytest.raises(AttributeError):
+        obj.get("status")  # the bug, pinned so nobody reintroduces it
+
+    assert stripe_service.field(obj, "status") == "requires_capture"
+    assert stripe_service.field(obj, "absent") is None
+    assert stripe_service.field(obj, "absent", "fallback") == "fallback"
+    assert stripe_service.field(None, "status") is None
+
+
+def test_order_id_survives_a_real_shaped_stripe_event() -> None:
+    """The webhook path specifically, with StripeObjects rather than dicts."""
+    import uuid as _uuid
+
+    order_id = _uuid.uuid4()
+    event = _StripeLike(
+        {
+            "type": "payment_intent.succeeded",
+            "data": _StripeLike(
+                {"object": _StripeLike({"metadata": _StripeLike({"order_id": str(order_id)})})}
+            ),
+        }
+    )
+
+    assert stripe_service.order_id_from_event(event) == order_id
+    assert stripe_service.field(event, "type") == "payment_intent.succeeded"
+
+
 def test_order_id_is_read_from_event_metadata() -> None:
     import uuid as _uuid
 

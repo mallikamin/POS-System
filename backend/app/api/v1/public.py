@@ -267,7 +267,8 @@ async def stripe_webhook(
             status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
         ) from exc
 
-    event_type = event.get("type", "")
+    # `event` is a StripeObject, which has no `.get()` -- see stripe_service.field.
+    event_type = stripe_service.field(event, "type", "")
     order_id = stripe_service.order_id_from_event(event)
     if order_id is None:
         return {"status": "ignored"}

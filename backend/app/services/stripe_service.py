@@ -52,6 +52,24 @@ logger = logging.getLogger(__name__)
 _STRIPE_TIMEOUT_SECONDS = 20
 
 
+def field(obj: Any, key: str, default: Any = None) -> Any:
+    """Read a key from a Stripe response, or a plain dict, safely.
+
+    ⚠️ **`StripeObject` does not have `.get()`.** It subclasses dict but
+    overrides attribute access, so `response.get("status")` raises
+    `AttributeError: get` rather than returning anything. Subscripting works and
+    raises `KeyError` when the key is absent -- and absent keys are normal,
+    because Stripe omits fields rather than nulling them.
+
+    This was caught by driving the real sandbox; every mocked test passed
+    happily with plain dicts, which is precisely the blind spot mocks create.
+    """
+    try:
+        return obj[key]
+    except (KeyError, TypeError, IndexError):
+        return default
+
+
 class StripeError(Exception):
     """Anything that should stop the caller. Money problems are not swallowed."""
 
@@ -235,9 +253,11 @@ async def create_checkout_session(
         logger.exception("Stripe checkout session failed for order %s", order.order_number)
         raise StripeError(str(exc)) from exc
 
-    payment_intent = session.get("payment_intent") or ""
-    if isinstance(payment_intent, dict):
-        payment_intent = payment_intent.get("id", "")
+    # `payment_intent` is an id string when the session is created, but an
+    # expanded object if anyone ever adds `expand`. Handle both.
+    payment_intent = field(session, "payment_intent") or ""
+    if not isinstance(payment_intent, str):
+        payment_intent = field(payment_intent, "id", "")
 
     logger.info(
         "Created checkout session %s for order %s", session["id"], order.order_number
@@ -282,7 +302,7 @@ async def capture(payment_intent_id: str, amount: int | None = None) -> str:
         logger.exception("Capture failed for %s", payment_intent_id)
         raise StripeError(message) from exc
 
-    status = intent.get("status", "")
+    status = field(intent, "status", "")
     logger.info("Captured %s -> %s", payment_intent_id, status)
     return str(status)
 
@@ -320,7 +340,9 @@ async def cancel(payment_intent_id: str) -> bool:
         )
         return False
 
-    logger.info("Cancelled authorisation %s -> %s", payment_intent_id, intent.get("status"))
+    logger.info(
+        "Cancelled authorisation %s -> %s", payment_intent_id, field(intent, "status")
+    )
     return True
 
 
@@ -352,9 +374,9 @@ def verify_webhook(payload: bytes, signature: str) -> dict[str, Any]:
 
 def order_id_from_event(event: dict[str, Any]) -> uuid.UUID | None:
     """Pull our order id out of an event's metadata, if it carries one."""
-    obj = (event.get("data") or {}).get("object") or {}
-    metadata = obj.get("metadata") or {}
-    raw = metadata.get("order_id")
+    obj = field(field(event, "data", {}), "object", {}) or {}
+    metadata = field(obj, "metadata", {}) or {}
+    raw = field(metadata, "order_id")
     if not raw:
         return None
     try:
