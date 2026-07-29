@@ -17,8 +17,11 @@ The backend now sends through Brevo's HTTPS API whenever `BREVO_API_KEY` is set
 check). The SMTP path remains in the code for a future host whose egress permits mail.
 
 The old Mailjet account, its two DNS records and the 9 `SMTP_*`/Mailjet keys on the server
-are **harmless and can stay** — with `BREVO_API_KEY` set, the API path wins (tested).
-Remove them later at leisure, never as part of this change.
+can stay — with `BREVO_API_KEY` set, the API path wins (tested). Until the key lands, each
+send still attempts the dead SMTP route and burns its 15-second timeout **in a background
+task**: the send was made fire-and-forget in session F after it turned out the inline
+`await` was adding ~15 silent seconds to every live checkout and Accept tap. Remove the
+old keys later at leisure, never as part of this change.
 
 **Send-path proof carried over from session D:** all four messages (`received`, `accepted`,
 `rejected`, `on_the_way`) build correctly with `From: Chick Shack <orders@chickshackg84.com>`,

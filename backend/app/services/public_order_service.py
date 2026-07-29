@@ -14,6 +14,7 @@ stale browser tab, and the customer needs to see that before they pay, not
 after.
 """
 
+import asyncio
 import logging
 import secrets
 import uuid
@@ -95,20 +96,38 @@ async def get_shop_name(db: AsyncSession, tenant_id: uuid.UUID) -> str:
     return result.scalar_one_or_none() or "Your restaurant"
 
 
+# Strong references to in-flight email tasks. asyncio keeps only a weak ref to
+# tasks, so without this set a send could be garbage-collected mid-flight.
+_email_tasks: set[asyncio.Task] = set()
+
+
 async def notify_customer(
     db: AsyncSession, tenant_id: uuid.UUID, order: Order, event: str
-) -> bool:
-    """Email the customer about their order. Never raises.
+) -> None:
+    """Schedule the customer's email without making anyone wait for it.
 
     ⚠️ **Call this AFTER `db.commit()`, never before.** An email announcing an
     order that then failed to commit cannot be recalled, and the customer would
     be holding a confirmation for something that does not exist.
+
+    The send itself is fire-and-forget, and that is load-bearing: an
+    unreachable provider burns its full transport timeout, and while this was
+    awaited inline that put ~15 silent seconds inside every checkout and every
+    Accept tap on production (2026-07-29, the dead-SMTP period). An email must
+    never fail an order — nor delay one. `send_order_email` never raises, so a
+    finished task has nothing to hand back; the order object's fields are
+    eager-loaded before this is called, so the task outliving the request's
+    DB session is safe.
     """
     currency = await get_currency(db, tenant_id)
     shop_name = await get_shop_name(db, tenant_id)
-    return await email_service.send_order_email(
-        order, event, shop_name=shop_name, currency=currency
+    task = asyncio.create_task(
+        email_service.send_order_email(
+            order, event, shop_name=shop_name, currency=currency
+        )
     )
+    _email_tasks.add(task)
+    task.add_done_callback(_email_tasks.discard)
 
 
 # ---------------------------------------------------------------------------

@@ -16,6 +16,7 @@ test below that asserts "returns False" is really asserting "did not raise".
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from unittest.mock import patch
 
@@ -192,6 +193,39 @@ async def test_generic_transition_still_moves_an_accepted_online_order(
         db, accepted_order.id, tenant.id, admin_user.id, "ready"
     )
     assert moved.status == "ready"
+
+
+@pytest.mark.asyncio
+async def test_notify_customer_never_waits_for_the_transport(
+    db: AsyncSession, tenant: Tenant, admin_user: User
+) -> None:
+    """An unreachable provider burns its full transport timeout. That wait
+    must live in a background task — while it was awaited inline it put ~15
+    silent seconds inside every checkout and Accept tap on production
+    (2026-07-29, the dead-SMTP period)."""
+    release = asyncio.Event()
+    ran = asyncio.Event()
+
+    async def _stuck_send(*_a, **_k) -> bool:
+        ran.set()
+        await release.wait()
+        return True
+
+    order = _online_order(tenant, admin_user, order_number="L250101-005")
+    with patch.object(
+        public_order_service.email_service, "send_order_email", new=_stuck_send
+    ):
+        start = asyncio.get_running_loop().time()
+        await public_order_service.notify_customer(db, tenant.id, order, "received")
+        elapsed = asyncio.get_running_loop().time() - start
+
+        assert elapsed < 1.0, "notify_customer blocked on the send"
+        # The email is scheduled, not dropped -- it must still actually run.
+        await asyncio.wait_for(ran.wait(), timeout=2)
+        release.set()
+        await asyncio.gather(
+            *public_order_service._email_tasks, return_exceptions=True
+        )
 
 
 # ---------------------------------------------------------------------------

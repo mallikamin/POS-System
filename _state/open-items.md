@@ -207,6 +207,9 @@ at ~4 emails/order), plain HTTPS JSON API, contract verified against its docs.
 `docker-compose.demo.yml` (two-places rule), 11 new tests including a **strict fake that
 refuses what the real API refuses** — mutation-checked by renaming `textContent` and
 watching 4 tests fail. Never-fail-an-order guards re-proven for the API path.
+**Found and fixed underneath it:** the inline `await` on the send was adding **~15 silent
+seconds to every live checkout and tablet tap** while the dead SMTP config sat on the
+server — `notify_customer` is now fire-and-forget (tested). See `ERROR_LOG.md` session F.
 **Remaining (Malik, ~20 min): `docs/EMAIL_SETUP_RUNBOOK.md`** — rewritten for Brevo:
 account, domain auth records in Cloudflare (**additive only, never touch MX/SPF/livemail***),
 `BREVO_API_KEY` onto the server env, deploy, **read the value back inside the container**,

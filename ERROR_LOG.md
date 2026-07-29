@@ -384,3 +384,10 @@ Each entry follows:
 - **Root Cause**: `tenants.tenant_id` self-references `tenants.id`. Setting `tenant.tenant_id = tenant.id` after construction reads `None`, because the model default has not fired before flush.
 - **Fix**: Generate the UUID explicitly and pass it to both fields, as `conftest.py` already did
 - **Rule**: For any self-referencing FK, mint the id in application code rather than relying on a column default you then read back.
+
+### 2026-07-29 (session F) — The courtesy email was adding ~15 silent seconds to every live checkout
+- **Error**: None visible anywhere. Checkouts completed, taps worked, the log showed a swallowed send failure a quarter of a minute after the request that caused it
+- **Context**: Verifying the Brevo-transport deploy **from inside the container**: `email_configured` printed `True` with no Brevo key present — the dead Mailjet `SMTP_HOST` from session D was still on the server and still satisfying the flag
+- **Root Cause**: two facts composing. (1) `notify_customer` **awaited** `send_order_email` inline in `POST /public/{tenant}/orders`, accept, reject and the lifecycle moves. (2) With email "configured" but the SMTP route dead (DigitalOcean egress block), every send burned its full 15-second transport timeout before being swallowed. Net: every real customer checkout and every tablet tap since the email keys reached the container carried ~15 invisible seconds. The email failure itself was known (OI-55); the latency it was charging the order path was not
+- **Fix**: `notify_customer` now schedules the send as a fire-and-forget task (strong-ref set so it is not garbage-collected mid-flight; `send_order_email` already never raises). Tested: scheduling returns in under a second while a deliberately stuck transport still runs to completion in the background
+- **Rule**: **A courtesy side effect must never sit inline in a request path** — "it can't fail the order" is not enough, it must also be unable to *delay* it. And when a feature flag derives from leftover configuration, "configured" and "working" diverge silently: verify what the flag actually reads, from inside the running container.
