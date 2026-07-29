@@ -40,6 +40,16 @@ class Settings(BaseSettings):
     SMTP_SSL: bool = False
     EMAIL_FROM: str = ""
     EMAIL_FROM_NAME: str = ""
+    # Where a customer's reply actually lands.
+    #
+    # This matters more than it looks. Mail is SENT through a relay as
+    # orders@<shop domain>, but that address does not necessarily RECEIVE
+    # anything -- authenticating a domain for sending says nothing about
+    # mailboxes. Without this, a customer who hits reply to ask "can you make
+    # it no onion" is writing into a void.
+    #
+    # Set it to an address the shop genuinely reads. Falls back to EMAIL_FROM.
+    EMAIL_REPLY_TO: str = ""
     # Absolute base URL a customer can open to track their order, no trailing
     # slash. The order id is appended. Empty means no link is included.
     ORDER_TRACKING_BASE_URL: str = ""

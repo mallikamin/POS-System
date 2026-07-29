@@ -223,6 +223,45 @@ async def test_a_dead_mail_server_never_raises(event: str) -> None:
     assert sent is False
 
 
+def test_reply_to_is_set_and_prefers_the_explicit_address() -> None:
+    """A customer hitting reply must reach a mailbox somebody reads.
+
+    We relay as orders@<shop domain> because that is what the customer should
+    see, but authenticating a domain for SENDING creates no mailbox. Without a
+    Reply-To that lands somewhere real, "can you make it no onion" goes
+    nowhere.
+    """
+    from email.message import EmailMessage
+
+    captured: list[EmailMessage] = []
+
+    with patch.object(email_service.settings, "SMTP_HOST", "localhost"), patch.object(
+        email_service.settings, "EMAIL_FROM", "orders@example.com"
+    ), patch.object(
+        email_service.settings, "EMAIL_REPLY_TO", "shop@example.com"
+    ), patch.object(email_service.smtplib, "SMTP") as smtp:
+        smtp.return_value.__enter__.return_value.send_message = captured.append
+        email_service._send_blocking("customer@example.com", "s", "b")
+
+    assert captured[0]["Reply-To"] == "shop@example.com"
+
+
+def test_reply_to_falls_back_to_the_from_address() -> None:
+    from email.message import EmailMessage
+
+    captured: list[EmailMessage] = []
+
+    with patch.object(email_service.settings, "SMTP_HOST", "localhost"), patch.object(
+        email_service.settings, "EMAIL_FROM", "orders@example.com"
+    ), patch.object(email_service.settings, "EMAIL_REPLY_TO", ""), patch.object(
+        email_service.smtplib, "SMTP"
+    ) as smtp:
+        smtp.return_value.__enter__.return_value.send_message = captured.append
+        email_service._send_blocking("customer@example.com", "s", "b")
+
+    assert captured[0]["Reply-To"] == "orders@example.com"
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize("event", ["received", "accepted", "rejected", "on_the_way"])
 async def test_every_event_builds_and_sends(event: str) -> None:

@@ -197,6 +197,12 @@ def _send_blocking(to: str, subject: str, body: str) -> None:
         (settings.EMAIL_FROM_NAME or None, settings.EMAIL_FROM)  # type: ignore[arg-type]
     )
     message["To"] = to
+    # A sending domain is not a mailbox. We relay as orders@<shop> because that
+    # is what a customer should see, but nothing guarantees that address
+    # receives anything -- so point replies at one the shop actually reads.
+    reply_to = settings.EMAIL_REPLY_TO or settings.EMAIL_FROM
+    if reply_to:
+        message["Reply-To"] = reply_to
     message.set_content(body)
 
     if settings.SMTP_SSL:
