@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { SHOP } from "../data/menu";
 import { formatGBP } from "../lib/money";
 import { fetchOrderStatus } from "../lib/api";
+import { orderTiming } from "../lib/delivery";
 import type { ApiOrderResponse, ApiOrderStatus } from "../lib/api";
 
 interface Props {
@@ -90,6 +91,11 @@ export default function OrderConfirmation({ order, onDone }: Props) {
     };
   }, [order.id]);
 
+  // A pre-order is not a slow order. Placed while the shop is shut, it will not
+  // be answered until they open — so this page must never tell the customer it
+  // is "taking longer than usual" and send them to ring a closed shop.
+  const preOrder = !orderTiming().immediate;
+
   const collecting = order.service_type !== "delivery";
   const accepted = status?.accepted === true;
   const rejected = status?.rejected === true;
@@ -176,13 +182,26 @@ export default function OrderConfirmation({ order, onDone }: Props) {
         </div>
       ) : (
         <div className="card p-4">
-          <p className="font-semibold">The shop is confirming your order</p>
+          <p className="font-semibold">
+            {preOrder
+              ? "Pre-order received"
+              : "The shop is confirming your order"}
+          </p>
           <p className="text-sm text-cream/60 mt-1">
-            {gaveUp
-              ? "This is taking longer than usual. Please give us a ring to check."
-              : `This usually takes a minute or two. We'll show your ${
-                  collecting ? "collection" : "delivery"
-                } time here as soon as it's confirmed.`}
+            {preOrder ? (
+              <>
+                We've got it. The shop is closed at the moment and will confirm
+                your order when we open at{" "}
+                <strong className="text-cream">{SHOP.openTime}</strong>. Nothing
+                more for you to do — keep your order number safe.
+              </>
+            ) : gaveUp ? (
+              "This is taking longer than usual. Please give us a ring to check."
+            ) : (
+              `This usually takes a minute or two. We'll show your ${
+                collecting ? "collection" : "delivery"
+              } time here as soon as it's confirmed.`
+            )}
           </p>
         </div>
       )}

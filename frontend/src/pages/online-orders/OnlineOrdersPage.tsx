@@ -57,6 +57,27 @@ function minutesSince(iso: string): number {
   return Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 60000));
 }
 
+/**
+ * Anything older than this was placed while the shop was shut.
+ *
+ * We take orders around the clock rather than turning customers away, so the
+ * queue legitimately contains orders placed overnight. Measuring their age
+ * from when they were placed would paint them solid red and shout "660 min
+ * ago" next to a genuinely late five-minute-old order — training staff to
+ * ignore the one signal that matters. A pre-order is not a late order.
+ */
+const PRE_ORDER_AFTER_MINUTES = 3 * 60;
+
+/** "23:14, 28 Jul" — an absolute time is more use than "660 min ago". */
+function placedAt(iso: string): string {
+  return new Date(iso).toLocaleString("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    day: "2-digit",
+    month: "short",
+  });
+}
+
 function isPaid(order: OnlineOrder): boolean {
   return ["paid", "refunded"].includes((order.payment_status || "").toLowerCase());
 }
@@ -86,6 +107,9 @@ function stageLabel(order: OnlineOrder): string {
 
 /** Older than this and the card starts shouting. A waiting customer is a lost one. */
 function urgency(minutes: number): string {
+  // A pre-order placed overnight is not an emergency, and colouring it as one
+  // devalues the colour for every real order beside it.
+  if (minutes >= PRE_ORDER_AFTER_MINUTES) return "border-blue-400 bg-blue-50";
   if (minutes >= 10) return "border-red-500 bg-red-50";
   if (minutes >= 5) return "border-amber-500 bg-amber-50";
   return "border-secondary-200 bg-white";
@@ -338,6 +362,7 @@ export default function OnlineOrdersPage() {
             const isPending = !order.accepted_at && !order.rejected_at;
             const closed = CLOSED.includes(order.status);
             const made = MADE.includes(order.status);
+            const isPreOrder = isPending && waited >= PRE_ORDER_AFTER_MINUTES;
 
             return (
               <article
@@ -352,7 +377,11 @@ export default function OnlineOrdersPage() {
                       {order.order_number}
                     </p>
                     <p className="text-sm text-secondary-500">
-                      {waited === 0 ? "just now" : `${waited} min ago`}
+                      {isPreOrder
+                        ? `Pre-order · placed ${placedAt(order.placed_at)}`
+                        : waited === 0
+                          ? "just now"
+                          : `${waited} min ago`}
                     </p>
                   </div>
                   <span

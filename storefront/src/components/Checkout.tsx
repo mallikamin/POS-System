@@ -3,10 +3,10 @@ import { SHOP } from "../data/menu";
 import type { ServiceType } from "../types";
 import { formatGBP } from "../lib/money";
 import {
-  canOrderNow,
   checkDelivery,
   collectionOffered,
   deliveryOffered,
+  orderTiming,
 } from "../lib/delivery";
 import { orderLinesOf, subtotalOf, useCart } from "../store/cart";
 import { canOrder, useMenu } from "../store/menu";
@@ -28,12 +28,12 @@ export default function Checkout({ onBack, onPlaced }: Props) {
 
   const menuItems = useMenu((s) => s.items);
   const menuSource = useMenu((s) => s.source);
-  // Two independent gates, and both must hold. `canOrder` is "is this feature
-  // switched on and did the menu really come from the API"; `canOrderNow` is
-  // "is the shop willing to receive an order at this hour". A basket may be
-  // built at any time — only placing is restricted.
-  const orderingLive = canOrder(menuSource) && canOrderNow();
-  const shutForTheNight = canOrder(menuSource) && !canOrderNow();
+  // Ordering is gated ONLY on the feature being on and the menu genuinely
+  // having come from the API. The clock never refuses an order — it only
+  // decides whether this is for now or a pre-order for the next service.
+  const orderingLive = canOrder(menuSource);
+  const timing = orderTiming();
+  const preOrder = !timing.immediate;
 
   const [service, setService] = useState<ServiceType>(
     collectionOffered() ? "collection" : "delivery",
@@ -336,38 +336,41 @@ export default function Checkout({ onBack, onPlaced }: Props) {
       )}
 
       {orderingLive ? (
-        <button onClick={place} disabled={!canPlace} className="btn-primary tap w-full h-14">
-          {submitting
-            ? "Placing order…"
-            : payment === "card"
-              ? `Pay ${formatGBP(total)}`
-              : `Place order · ${formatGBP(total)}`}
-        </button>
+        <div className="space-y-3">
+          {/* Say it BEFORE they commit, not after. A customer who finds out
+              their 3am order is not coming for hours only once they reach the
+              confirmation screen has been misled, however technically true it
+              was. */}
+          {preOrder && (
+            <p className="card p-3 text-sm text-ember border-ember/40">
+              We're closed at the moment, so this will be a{" "}
+              <strong className="text-cream">pre-order</strong>. We'll take it
+              now and the shop will confirm it when we open at{" "}
+              <strong className="text-cream">{timing.opensAt}</strong>.
+            </p>
+          )}
+          <button onClick={place} disabled={!canPlace} className="btn-primary tap w-full h-14">
+            {submitting
+              ? "Placing order…"
+              : payment === "card"
+                ? `Pay ${formatGBP(total)}`
+                : preOrder
+                  ? `Place pre-order · ${formatGBP(total)}`
+                  : `Place order · ${formatGBP(total)}`}
+          </button>
+        </div>
       ) : (
         /* Either ordering is not switched on yet, or the shop is shut for the
            night. Never imply an order was placed — send them to the phone with
            their basket total in hand. */
         <div className="card p-4 space-y-3 border-ember/40">
           <p className="font-semibold text-ember">
-            {shutForTheNight
-              ? "We're closed right now"
-              : "Online ordering is coming very soon"}
+            Online ordering is coming very soon
           </p>
           <p className="text-sm text-cream/70">
-            {shutForTheNight ? (
-              <>
-                You can order online from{" "}
-                <strong className="text-cream">{SHOP.orderFromTime}</strong> — your
-                basket will still be here. Your total is{" "}
-                <strong className="text-cream">{formatGBP(total)}</strong>.
-              </>
-            ) : (
-              <>
-                We're not taking online payments just yet. Give us a ring and
-                we'll get this order started — your total is{" "}
-                <strong className="text-cream">{formatGBP(total)}</strong>.
-              </>
-            )}
+            We're not taking online payments just yet. Give us a ring and we'll
+            get this order started — your total is{" "}
+            <strong className="text-cream">{formatGBP(total)}</strong>.
           </p>
           <div className="grid gap-2">
             {SHOP.phones.map((p) => (

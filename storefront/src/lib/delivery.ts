@@ -50,27 +50,41 @@ export function isOpenNow(now: Date = new Date()): boolean {
 }
 
 /**
- * May an order be PLACED right now?
+ * Is this order for now, or a pre-order for the next service?
  *
- * Distinct from `isOpenNow`, and the difference is the whole point. The shop
- * opens at 16:00, but Imran's own worked example is an order **placed at
- * 14:00** and accepted at 15:30 — so he takes pre-orders before service, and
- * refusing them would remove behaviour he already relies on.
+ * ⚠️ **We never refuse an order because of the time.** An earlier version did,
+ * and it was wrong: a takeaway that answers "we're closed, come back later"
+ * loses that customer to whoever is still taking orders. Every serious food
+ * platform takes the order and schedules it. So do we.
  *
- * What must NOT happen is an order at 03:00. Nobody is at the tablet, the
- * customer's confirmation screen gives up after twenty minutes, and the shop
- * opens to stale orders it never agreed to. Before this existed, `isOpenNow`
- * only drew a banner and checkout was reachable around the clock.
+ * What the time DOES change is what everyone is told. An order placed at 03:00
+ * cannot be confirmed at 03:00, and pretending otherwise is how a customer ends
+ * up staring at a page that eventually tells them to ring a closed shop. So an
+ * out-of-hours order is labelled a pre-order end to end: the button says so,
+ * the confirmation page says the shop will confirm when it opens instead of
+ * giving up, and the tablet shows it as a pre-order rather than as an order
+ * that has been ignored for eleven hours.
  *
- * ⚠️ `orderFromTime` is inferred from that 14:00 example, not stated by the
- * client. Confirm it before relying on it commercially.
+ * `orderFromTime` is the point from which an order counts as "for today's
+ * service" rather than a pre-order. Imran's own worked example is an order
+ * placed at 14:00 for a 16:00 opening, so pre-service ordering is normal here.
+ * ⚠️ Inferred from that example, not stated. Confirm it.
  */
-export function canOrderNow(now: Date = new Date()): boolean {
+export type OrderTiming = {
+  /** False only means "not for immediate service" — never "refused". */
+  immediate: boolean;
+  /** When the shop will next be answering, "HH:MM". */
+  opensAt: string;
+};
+
+export function orderTiming(now: Date = new Date()): OrderTiming {
   const uk = new Date(now.toLocaleString("en-GB", { timeZone: "Europe/London" }));
   const minutes = uk.getHours() * 60 + uk.getMinutes();
   const [fh, fm] = (SHOP.orderFromTime || SHOP.openTime).split(":").map(Number);
   const [ch, cm] = SHOP.closeTime.split(":").map(Number);
-  return minutes >= fh! * 60 + fm! && minutes < ch! * 60 + cm!;
+  const immediate =
+    minutes >= fh! * 60 + fm! && minutes < ch! * 60 + cm!;
+  return { immediate, opensAt: SHOP.openTime };
 }
 
 export function deliveryOffered(): boolean {
