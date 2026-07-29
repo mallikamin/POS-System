@@ -15,13 +15,20 @@ back an accepted order or 500 a checkout. Failures are logged loudly and
 swallowed. This mirrors the SAVEPOINT reasoning already used for audit logging:
 a non-critical side effect must not poison the caller.
 
-Plain SMTP rather than a provider SDK, so Resend, Brevo, SES, Postmark or a
-plain mailbox all work by changing environment variables only. `smtplib` is
-synchronous, so sends run in a worker thread to avoid blocking the event loop.
+Two transports, chosen by configuration (OI-55):
+
+    BREVO_API_KEY set  -> Brevo's HTTPS API. Production must use this: the
+        DigitalOcean droplet cannot reach ANY outbound SMTP port (25/465/587
+        time out, 2525 resets) and api.mailjet.com TLS-resets from that box,
+        while api.brevo.com handshakes fine -- all measured FROM THE DROPLET
+        on 2026-07-29. A connectivity claim proves only the path it ran on.
+
+    SMTP_* set         -> plain smtplib, kept for any future host whose
+        egress permits mail. Synchronous, so sends run in a worker thread.
 
 If `settings.email_configured` is false, every function here returns without
 doing anything. That is the default, and it is why the system runs unchanged
-until someone supplies SMTP credentials.
+until someone supplies credentials.
 """
 
 from __future__ import annotations
@@ -33,14 +40,22 @@ import ssl
 from email.message import EmailMessage
 from email.utils import formataddr
 
+import httpx
+
 from app.config import settings
 from app.models.order import Order
 
 logger = logging.getLogger(__name__)
 
 # A send is a courtesy, not a transaction. Keep it short so a hung mail server
-# cannot tie up a worker thread for the length of a service.
+# cannot tie up a worker thread (or the event loop) for the length of a service.
 _SMTP_TIMEOUT_SECONDS = 15
+_API_TIMEOUT_SECONDS = 15
+
+# Contract verified against https://developers.brevo.com/reference/send-transac-email
+# on 2026-07-29: POST with an `api-key` header; body carries `sender`, `to`,
+# `subject`, `textContent`, `replyTo`; success is HTTP 201 with a messageId.
+_BREVO_ENDPOINT = "https://api.brevo.com/v3/smtp/email"
 
 
 def _money(amount: int, currency: str) -> str:
@@ -189,6 +204,42 @@ _BUILDERS = {
 # ---------------------------------------------------------------------------
 
 
+async def _send_via_brevo(to: str, subject: str, body: str) -> None:
+    """One transactional send through Brevo's HTTPS API.
+
+    Raises on anything but the documented 201 so the caller's catch-all can
+    log it -- a 2xx-that-isn't-201 from this endpoint would mean the contract
+    changed under us, which is worth a loud log line, not a silent success.
+    """
+    sender: dict[str, str] = {"email": settings.EMAIL_FROM}
+    if settings.EMAIL_FROM_NAME:
+        sender["name"] = settings.EMAIL_FROM_NAME
+
+    payload: dict[str, object] = {
+        "sender": sender,
+        "to": [{"email": to}],
+        "subject": subject,
+        "textContent": body,
+    }
+    # Same reasoning as the SMTP path: the sending address is not a mailbox,
+    # so replies must be pointed at one the shop actually reads.
+    reply_to = settings.EMAIL_REPLY_TO or settings.EMAIL_FROM
+    if reply_to:
+        payload["replyTo"] = {"email": reply_to}
+
+    async with httpx.AsyncClient(timeout=_API_TIMEOUT_SECONDS) as client:
+        response = await client.post(
+            _BREVO_ENDPOINT,
+            json=payload,
+            headers={"api-key": settings.BREVO_API_KEY, "accept": "application/json"},
+        )
+    if response.status_code != 201:
+        raise RuntimeError(
+            f"Brevo refused the send: HTTP {response.status_code} "
+            f"{response.text[:300]}"
+        )
+
+
 def _send_blocking(to: str, subject: str, body: str) -> None:
     """Synchronous SMTP send. Runs in a worker thread, never on the loop."""
     message = EmailMessage()
@@ -255,7 +306,8 @@ async def send_order_email(
 
     if not settings.email_configured:
         logger.warning(
-            "Email not configured (SMTP_HOST/EMAIL_FROM); would have sent %r for order %s",
+            "Email not configured (BREVO_API_KEY or SMTP_HOST, plus EMAIL_FROM); "
+            "would have sent %r for order %s",
             event,
             order.order_number,
         )
@@ -264,10 +316,14 @@ async def send_order_email(
     subject, body = _BUILDERS[event](order, shop_name, currency)
 
     try:
-        await asyncio.to_thread(_send_blocking, to, subject, body)
+        if settings.BREVO_API_KEY:
+            await _send_via_brevo(to, subject, body)
+        else:
+            await asyncio.to_thread(_send_blocking, to, subject, body)
     except Exception:
-        # Deliberately broad: smtplib raises a wide family, and DNS/socket
-        # errors surface as OSError. Nothing here is worth propagating.
+        # Deliberately broad: smtplib raises a wide family, DNS/socket errors
+        # surface as OSError, and httpx has its own tree. Nothing here is
+        # worth propagating.
         logger.exception(
             "Failed to send %r email for order %s", event, order.order_number
         )

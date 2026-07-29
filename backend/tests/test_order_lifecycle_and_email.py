@@ -19,6 +19,7 @@ from __future__ import annotations
 import uuid
 from unittest.mock import patch
 
+import httpx
 import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -315,6 +316,150 @@ async def test_every_event_builds_and_sends(event: str) -> None:
     assert captured["to"] == "customer@example.com"
     assert "L250101-009" in captured["subject"]
     assert captured["body"].strip()
+
+
+# ---------------------------------------------------------------------------
+# The Brevo HTTPS transport (OI-55)
+#
+# The droplet cannot reach any SMTP port, so production sends through
+# api.brevo.com. The fake below is STRICT on purpose: it refuses requests the
+# real API would refuse (wrong endpoint, missing api-key, malformed body).
+# ERROR_LOG 2026-07-29: a mock that accepts anything proves your logic and
+# nothing about the vendor -- that is how `timeout=` sailed through 40 tests.
+# ---------------------------------------------------------------------------
+
+
+class _FakeResponse:
+    def __init__(self, status_code: int, payload: dict) -> None:
+        self.status_code = status_code
+        self.text = repr(payload)
+
+
+class _StrictBrevo:
+    """Stands in for httpx.AsyncClient, validating like the real endpoint.
+
+    Contract per https://developers.brevo.com/reference/send-transac-email:
+    POST /v3/smtp/email with an `api-key` header; `sender.email`, non-empty
+    `to[].email`, `subject` and a content field are required; success is 201.
+    """
+
+    calls: list[dict] = []
+
+    def __init__(self, **_kwargs) -> None:
+        pass
+
+    async def __aenter__(self) -> "_StrictBrevo":
+        return self
+
+    async def __aexit__(self, *_exc) -> bool:
+        return False
+
+    async def post(self, url: str, json: dict, headers: dict) -> _FakeResponse:
+        _StrictBrevo.calls.append({"url": url, "json": json, "headers": headers})
+        if url != "https://api.brevo.com/v3/smtp/email":
+            return _FakeResponse(404, {"message": "not found"})
+        if not str(headers.get("api-key", "")).startswith("xkeysib-"):
+            return _FakeResponse(401, {"message": "Key not found", "code": "unauthorized"})
+        allowed = {"sender", "to", "subject", "textContent", "htmlContent", "replyTo"}
+        unknown = set(json) - allowed
+        if unknown:
+            return _FakeResponse(
+                400, {"message": f"unknown fields {unknown}", "code": "invalid_parameter"}
+            )
+        sender = json.get("sender") or {}
+        recipients = json.get("to") or []
+        if (
+            "@" not in str(sender.get("email", ""))
+            or not recipients
+            or any("@" not in str(r.get("email", "")) for r in recipients)
+            or not str(json.get("subject", "")).strip()
+            or not (json.get("textContent") or json.get("htmlContent"))
+        ):
+            return _FakeResponse(400, {"message": "missing field", "code": "missing_parameter"})
+        reply_to = json.get("replyTo")
+        if reply_to is not None and "@" not in str(reply_to.get("email", "")):
+            return _FakeResponse(400, {"message": "bad replyTo", "code": "invalid_parameter"})
+        return _FakeResponse(201, {"messageId": "<test@relay.brevo.com>"})
+
+
+def _brevo_settings(key: str = "xkeysib-test-key"):
+    """The settings production will run with: API key, no reachable SMTP."""
+    return (
+        patch.object(email_service.settings, "BREVO_API_KEY", key),
+        patch.object(email_service.settings, "SMTP_HOST", ""),
+        patch.object(email_service.settings, "EMAIL_FROM", "orders@example.com"),
+        patch.object(email_service.settings, "EMAIL_FROM_NAME", "Chick Shack"),
+        patch.object(email_service.settings, "EMAIL_REPLY_TO", "shop@example.com"),
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("event", ["received", "accepted", "rejected", "on_the_way"])
+async def test_brevo_transport_sends_every_event(event: str) -> None:
+    """The exact request shape the real API documents, survives the strict fake."""
+    _StrictBrevo.calls = []
+    p1, p2, p3, p4, p5 = _brevo_settings()
+    with p1, p2, p3, p4, p5, patch.object(email_service.httpx, "AsyncClient", _StrictBrevo):
+        sent = await email_service.send_order_email(_emailable(), event)
+
+    assert sent is True
+    (call,) = _StrictBrevo.calls
+    assert call["json"]["sender"] == {"email": "orders@example.com", "name": "Chick Shack"}
+    assert call["json"]["to"] == [{"email": "customer@example.com"}]
+    assert call["json"]["replyTo"] == {"email": "shop@example.com"}
+    assert "L250101-009" in call["json"]["subject"]
+    assert call["json"]["textContent"].strip()
+
+
+@pytest.mark.asyncio
+async def test_brevo_key_alone_configures_email() -> None:
+    """No SMTP host on this box, ever. The API key must be enough."""
+    p1, p2, p3, p4, p5 = _brevo_settings()
+    with p1, p2, p3, p4, p5:
+        assert email_service.settings.email_configured is True
+
+
+@pytest.mark.asyncio
+async def test_brevo_is_preferred_over_smtp_when_both_are_set() -> None:
+    """SMTP cannot work from this host, so a configured key must win."""
+    _StrictBrevo.calls = []
+    p1, p2, p3, p4, p5 = _brevo_settings()
+
+    def _smtp_must_not_run(*_a, **_k) -> None:
+        raise AssertionError("SMTP path used despite BREVO_API_KEY being set")
+
+    with p1, patch.object(email_service.settings, "SMTP_HOST", "smtp.example.com"), p3, p4, p5, patch.object(
+        email_service.httpx, "AsyncClient", _StrictBrevo
+    ), patch.object(email_service, "_send_blocking", side_effect=_smtp_must_not_run):
+        sent = await email_service.send_order_email(_emailable(), "received")
+
+    assert sent is True
+    assert len(_StrictBrevo.calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_a_rejected_brevo_key_never_raises() -> None:
+    """A 401 from the API is a logged failure, not a lost order."""
+    p1, p2, p3, p4, p5 = _brevo_settings(key="wrong-key")
+    with p1, p2, p3, p4, p5, patch.object(email_service.httpx, "AsyncClient", _StrictBrevo):
+        sent = await email_service.send_order_email(_emailable(), "accepted")
+    assert sent is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("event", ["received", "accepted", "rejected", "on_the_way"])
+async def test_an_unreachable_brevo_api_never_raises(event: str) -> None:
+    """The same guarantee the SMTP path makes: an outage costs an email,
+    never an order."""
+
+    class _Unreachable(_StrictBrevo):
+        async def post(self, url: str, json: dict, headers: dict) -> _FakeResponse:
+            raise httpx.ConnectError("connection reset")
+
+    p1, p2, p3, p4, p5 = _brevo_settings()
+    with p1, p2, p3, p4, p5, patch.object(email_service.httpx, "AsyncClient", _Unreachable):
+        sent = await email_service.send_order_email(_emailable(), event)
+    assert sent is False
 
 
 # ---------------------------------------------------------------------------

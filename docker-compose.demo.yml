@@ -87,6 +87,11 @@ services:
       # the env file is invisible to the container until it is declared here --
       # `--env-file` only feeds ${...} interpolation. Defaults match config.py,
       # so an unset key leaves email disabled rather than half-configured.
+      # BREVO_API_KEY selects the HTTPS transport -- the droplet cannot reach
+      # any SMTP port (DigitalOcean egress block, measured 2026-07-29, OI-55),
+      # so on this host the SMTP_* keys below exist only as a fallback for a
+      # future box.
+      - BREVO_API_KEY=${BREVO_API_KEY:-}
       - SMTP_HOST=${SMTP_HOST:-}
       - SMTP_PORT=${SMTP_PORT:-587}
       - SMTP_USERNAME=${SMTP_USERNAME:-}

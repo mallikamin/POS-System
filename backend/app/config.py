@@ -30,8 +30,20 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
 
     # Transactional email (order confirmations).
-    # Plain SMTP so any provider works -- Resend, Brevo, SES, Postmark, Gmail --
-    # without a vendor SDK. Unset means email is disabled and orders still work.
+    # Two transports, chosen by configuration:
+    #
+    #   BREVO_API_KEY set  -> Brevo's HTTPS API. This is the one production
+    #     uses: the DigitalOcean droplet cannot reach ANY outbound SMTP port
+    #     (25/465/587 time out, 2525 resets) and Mailjet's API TLS-resets from
+    #     that box, all measured from the droplet on 2026-07-29 (OI-55).
+    #     api.brevo.com handshakes fine from the same box -- measured, not
+    #     assumed.
+    #
+    #   SMTP_* set (and no BREVO_API_KEY) -> plain SMTP, kept for any future
+    #     host whose egress permits mail.
+    #
+    # Unset means email is disabled and orders still work.
+    BREVO_API_KEY: str = ""
     SMTP_HOST: str = ""
     SMTP_PORT: int = 587
     SMTP_USERNAME: str = ""
@@ -128,13 +140,14 @@ class Settings(BaseSettings):
 
     @property
     def email_configured(self) -> bool:
-        """Email is opt-in. Without a host and a From address, nothing sends.
+        """Email is opt-in. Without a transport and a From address, nothing sends.
 
-        Deliberately not fatal: an order must never fail because a mail server
-        is down or unconfigured. The order is the product; the email is a
-        courtesy on top of it.
+        A transport is either the Brevo HTTPS API (BREVO_API_KEY) or an SMTP
+        host. Deliberately not fatal: an order must never fail because a mail
+        server is down or unconfigured. The order is the product; the email is
+        a courtesy on top of it.
         """
-        return bool(self.SMTP_HOST and self.EMAIL_FROM)
+        return bool((self.BREVO_API_KEY or self.SMTP_HOST) and self.EMAIL_FROM)
 
     @property
     def stripe_configured(self) -> bool:
