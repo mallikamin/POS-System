@@ -71,6 +71,18 @@ def _local(dt: datetime | None, offset_minutes: int) -> datetime | None:
     return dt.astimezone(timezone(timedelta(minutes=offset_minutes)))
 
 
+def _daily_number(order_number: str | None) -> str:
+    """The day's running number — the `NNN` of `YYMMDD-NNN` that staff shout out.
+
+    The numbering itself already exists and already resets at 001 each day
+    (order numbers are generated as `YYMMDD-NNN`); this only extracts it for
+    display. Do not add a counter here.
+    """
+    if not order_number:
+        return ""
+    return order_number.rsplit("-", 1)[-1]
+
+
 def build_online_order_ticket(
     order: Order,
     *,
@@ -78,6 +90,7 @@ def build_online_order_ticket(
     currency: str = "GBP",
     width: int = 48,
     utc_offset_minutes: int = 60,
+    copies: int = 1,
 ) -> bytes:
     """Render one accepted online order as ESC/POS bytes.
 
@@ -85,11 +98,52 @@ def build_online_order_ticket(
     be cooked and how it leaves the building. Money is included because for a
     delivery the driver needs to know whether to collect cash, and that is the
     single most expensive thing to get wrong on a ticket.
+
+    `copies` repeats the whole ticket inside ONE payload, each copy cut into
+    its own slip and labelled "COPY n OF N". The repeat lives here and not in
+    the tablet because every `rawbt:` navigation is a separate chance for
+    Chrome to drop or coalesce the handoff (see ERROR_LOG 2026-07-29): one
+    payload, one navigation, N slips.
     """
     t = Ticket(width=width)
+    copies = max(1, copies)
+    for copy_number in range(1, copies + 1):
+        _render_copy(
+            t,
+            order,
+            shop_name=shop_name,
+            currency=currency,
+            utc_offset_minutes=utc_offset_minutes,
+            copy_number=copy_number,
+            copies=copies,
+        )
+    return t.bytes()
 
+
+def _render_copy(
+    t: Ticket,
+    order: Order,
+    *,
+    shop_name: str,
+    currency: str,
+    utc_offset_minutes: int,
+    copy_number: int,
+    copies: int,
+) -> None:
+    """One complete slip, ending in its own cut."""
     is_delivery = (order.service_type or "").lower() == "delivery"
     heading = "DELIVERY" if is_delivery else "COLLECTION"
+
+    # The day's number, first and unmissable. The kitchen works by this, not
+    # by the full order number. Double size is the largest this exact printer
+    # has proven on paper (photographed 2026-07-29) — do not go bigger untested.
+    daily = _daily_number(order.order_number)
+    if daily:
+        t.center(f"#{daily}", bold=True, big=True)
+    if copies > 1:
+        # Three identical slips must not be read as three orders.
+        t.center(f"COPY {copy_number} OF {copies}", bold=True)
+    t.rule()
 
     t.center(shop_name, bold=True, big=True)
     t.center("ONLINE ORDER")
@@ -171,7 +225,6 @@ def build_online_order_ticket(
 
     t.rule("=")
     t.cut()
-    return t.bytes()
 
 
 async def build_ticket_for_order(
@@ -180,6 +233,7 @@ async def build_ticket_for_order(
     order_id: uuid.UUID,
     *,
     width: int = 48,
+    copies: int = 1,
 ) -> bytes:
     """Load an order and render its kitchen ticket.
 
@@ -210,6 +264,7 @@ async def build_ticket_for_order(
         currency=currency,
         width=width,
         utc_offset_minutes=_offset_minutes(tz_name, order.accepted_at or order.created_at),
+        copies=copies,
     )
 
 

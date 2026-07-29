@@ -142,11 +142,19 @@ export async function markOnlineOrderPaid(
  * undo an accepted order: the order is accepted either way and the ticket can
  * be printed again from the Active tab.
  */
+/**
+ * Imran wants three slips per accepted order (OI-51). The repeat rides INSIDE
+ * the ESC/POS payload — three cut slips, one `rawbt:` navigation — because
+ * navigating three times is three chances for Chrome to drop or coalesce the
+ * handoff, which is exactly the class of bug fixed on 2026-07-29.
+ */
+const KITCHEN_TICKET_COPIES = 3;
+
 export async function fetchTicketUrl(orderId: string): Promise<string | null> {
   try {
     const { data } = await api.get<{ url: string; bytes: number }>(
       `/public/manage/orders/${orderId}/ticket`,
-      { params: { format: "rawbt" } },
+      { params: { format: "rawbt", copies: KITCHEN_TICKET_COPIES } },
     );
     return data?.url ?? null;
   } catch {

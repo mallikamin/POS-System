@@ -559,6 +559,14 @@ async def get_order_ticket(
     width: int = Query(
         48, ge=24, le=96, description="Characters per line: 48 for 80mm, 32 for 58mm"
     ),
+    copies: int = Query(
+        1,
+        ge=1,
+        le=5,
+        description="Copies of the ticket in ONE payload, each cut into its own "
+        "slip and labelled 'COPY n OF N'. The repeat rides inside the payload "
+        "so the tablet still makes exactly one rawbt: navigation.",
+    ),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -583,7 +591,7 @@ async def get_order_ticket(
     """
     try:
         payload = await print_service.build_ticket_for_order(
-            db, current_user.tenant_id, order_id, width=width
+            db, current_user.tenant_id, order_id, width=width, copies=copies
         )
     except LookupError as exc:
         raise HTTPException(

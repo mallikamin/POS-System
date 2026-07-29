@@ -313,6 +313,51 @@ def test_no_utf8_bytes_reach_the_printer():
 
 
 # ---------------------------------------------------------------------------
+# Copies and the daily number (OI-51 / OI-52)
+# ---------------------------------------------------------------------------
+
+
+def test_three_copies_ride_in_one_payload_each_with_its_own_cut():
+    """Imran wants three slips per accepted order. The repeat lives in the
+    payload so the tablet still makes exactly ONE rawbt: navigation — three
+    navigations are three chances for Chrome to drop the handoff."""
+    payload = build_online_order_ticket(_order(), shop_name="Chick Shack", copies=3)
+    assert payload.count(escpos.CUT) == 3
+    assert escpos.preview(payload).count("ORDER 260727-001") == 3
+
+
+def test_each_copy_is_labelled_so_three_slips_do_not_read_as_three_orders():
+    out = _preview(_order(), copies=3)
+    for n in (1, 2, 3):
+        assert f"COPY {n} OF 3" in out
+
+
+def test_single_copy_carries_no_copy_label():
+    out = _preview(_order())
+    assert "COPY" not in out
+    payload = build_online_order_ticket(_order(), shop_name="Chick Shack")
+    assert payload.count(escpos.CUT) == 1
+
+
+def test_daily_number_leads_every_copy_double_size_and_bold():
+    """The kitchen works by the day's number, not the full order number. It
+    must be the first thing on each slip, at the largest size this exact
+    printer has proven on paper (double), and bold."""
+    payload = build_online_order_ticket(_order(), shop_name="Chick Shack", copies=3)
+    # center(big=True, bold=True) emits SIZE_DOUBLE then BOLD_ON then the text.
+    big_number = escpos.SIZE_DOUBLE + escpos.BOLD_ON + escpos.encode("#001") + b"\n"
+    assert payload.count(big_number) == 3
+    assert escpos.preview(payload).splitlines()[0] == "#001"
+
+
+def test_daily_number_is_extracted_from_the_order_number_not_recounted():
+    # The numbering already exists and already resets daily (YYMMDD-NNN).
+    # 260727-047 is the 47th order of that day; the slip must show #047.
+    out = _preview(_order(order_number="260727-047"))
+    assert "#047" in out
+
+
+# ---------------------------------------------------------------------------
 # The handoff to the tablet
 # ---------------------------------------------------------------------------
 
@@ -326,8 +371,11 @@ def test_rawbt_url_is_a_valid_scheme_with_decodable_payload():
 
 def test_rawbt_url_stays_within_a_sane_url_length():
     """The payload rides in a URL the browser navigates to. A realistic
-    ticket must not approach browser or intent limits."""
+    ticket — even at three copies — must not approach browser or intent
+    limits."""
     order = _order()
     order.items = order.items * 20  # a 20-line order, far beyond typical
-    url = to_rawbt_url(build_online_order_ticket(order, shop_name="Chick Shack"))
+    url = to_rawbt_url(
+        build_online_order_ticket(order, shop_name="Chick Shack", copies=3)
+    )
     assert len(url) < 32_000
