@@ -13,7 +13,18 @@ Priority: 🔴 blocks the current goal · 🟠 needed before go-live · 🟡 rea
 
 ## 🔴 Blocking
 
-**OI-43 · No email exists anywhere in this system, and the client's main scenario needs it.**
+**OI-43 · Email: code done, nothing sends. Provider chosen, DNS + env outstanding.**
+✅ Parts 1 and 2 done: `orders.customer_email` persists, email is now **required** at checkout,
+and `Reply-To` is set (`e0168c4`) — a sending domain is not a mailbox.
+⬜ Part 3 remains: **Mailjet free** (6,000/mo, 200/day, no card, SMTP relay, DKIM on the free
+tier). Address is `orders@chickshackg84.com`. **One additive DNS record, nothing modified** —
+DMARC passes on DKIM alignment alone, so we deliberately skip Mailjet's SPF instruction rather
+than edit the single live SPF record on a domain carrying his business email.
+**Full step-by-step in `docs/EMAIL_SETUP_RUNBOOK.md`.**
+
+*Original description, kept for context:*
+
+**OI-43 (original) · No email exists anywhere in this system.**
 Raised by Imran 2026-07-29 (OI-29). He wants two emails: on placement, and on accept carrying the
 lead time. **This is a go-live blocker rather than a refinement**, because his own worked example is
 a pre-order placed at 14:00 and accepted at 15:30 — the confirmation screen learns the ETA by
