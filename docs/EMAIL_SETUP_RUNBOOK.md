@@ -3,6 +3,17 @@
 **Status:** not started. Nothing sends today. **Chosen provider: Mailjet free.**
 Written 2026-07-29. Code side is done (`e0168c4`); only the account + DNS + env remain.
 
+**✅ The send path itself is now proven (2026-07-29, session D).** `send_order_email` was run
+against a local SMTP sink and asserted on the bytes that actually reached the server, so the
+only unknown left after your DNS work is the credentials. All four messages plus the
+collection variant put a well-formed message on the wire, with `From: Chick Shack
+<orders@chickshackg84.com>`, a distinct `Reply-To`, the order number in the subject and the
+`£` intact. The four guards hold: no address → no send, unknown event → `False`, unconfigured
+→ `False`, and a **dead mail server is swallowed** rather than failing the order.
+⚠️ One thing to eyeball at Step 5: most bodies go out `Content-Transfer-Encoding: 8bit`
+(raw UTF-8). Mailjet advertises `8BITMIME` so this is fine, but **confirm the `£` renders in
+the mail you actually receive** rather than assuming it.
+
 ---
 
 ## The one thing that makes this safe
@@ -11,14 +22,22 @@ Written 2026-07-29. Code side is done (`e0168c4`); only the account + DNS + env 
 auto-import silently dropped all four of its DKIM records — nothing alerts you when that
 happens, mail just quietly degrades.
 
-Verified live 2026-07-29:
+**Baseline re-verified against 1.1.1.1 on 2026-07-29 (session D), immediately before any
+change. This is the exact record set to diff against afterwards** — do not diff from memory,
+that is the 2026-07-27 lesson:
 
 | Record | Current value | Touch it? |
 |---|---|---|
-| MX | `mailserver.livemail.co.uk` | ❌ **NEVER** |
+| MX | `mailserver.livemail.co.uk` (pref 10) | ❌ **NEVER** |
 | SPF (TXT) | `v=spf1 mx a include:_spf.livemail.co.uk ~all` | ❌ **NEVER** (see below) |
 | DMARC | `v=DMARC1; p=none;` | ❌ leave |
-| DKIM | `livemail1–4._domainkey` → `…1404674.dkim.livemail.co.uk` | ❌ leave |
+| DKIM `livemail1._domainkey` | CNAME → `livemail1._domainkey.1404674.dkim.livemail.co.uk` | ❌ leave |
+| DKIM `livemail2._domainkey` | CNAME → `livemail2._domainkey.1404674.dkim.livemail.co.uk` | ❌ leave |
+| DKIM `livemail3._domainkey` | CNAME → `livemail3._domainkey.1404674.dkim.livemail.co.uk` | ❌ leave |
+| DKIM `livemail4._domainkey` | CNAME → `livemail4._domainkey.1404674.dkim.livemail.co.uk` | ❌ leave |
+
+All seven confirmed present and resolving at the time of writing. **If any of them differs
+after your change, stop and restore before sending anything.**
 
 **Everything we add is a NEW hostname. Nothing existing is modified.**
 

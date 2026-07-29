@@ -1,6 +1,6 @@
 # STATE — Restaurant POS System
 
-**Last refreshed:** 2026-07-29 (late) · **Branch:** `main` · **HEAD:** `9670362`, pushed **and deployed**
+**Last refreshed:** 2026-07-29 (session D) · **Branch:** `main` · **HEAD:** `513e6e8`, pushed **and deployed**
 
 🔴 **THE STOREFRONT IS PUBLISHED AND `chickshackg84.com` IS TAKING REAL ORDERS, 24/7.**
 Published 2026-07-29 ~00:30 UK. **There is no time gate** — an order placed while the shop is shut
@@ -14,8 +14,9 @@ wired end to end — tablet buttons for out-for-delivery / delivered / mark-paid
 leave the Active tab, and the customer's confirmation page follows it. Storefront gained required
 email, **"leave it out" ticks** that print in bold on the kitchen ticket, and an ordering window.
 Migration `o1p2q3r4s5t6` (`orders.customer_email`) **applied on production** — verified in the
-backend's own upgrade log, not assumed. Backend suite **371 passing** (was 342), same 12
-pre-existing failures.*
+backend's own upgrade log, not assumed. Backend suite **373 passing** (was 342), same 12
+pre-existing failures — **re-run and verified at 373 on 2026-07-29 session D**, not inherited
+from a checkpoint claim.*
 
 *⚠️ **Two silent deployment bugs were found and fixed** — both had been live for an unknown
 number of deploys. The deploy script was being truncated by its own `pg_dump` reading stdin, so
@@ -49,7 +50,8 @@ New here? → **`_state/README.md`**.
 we supply the online channel alongside it: website with checkout, plus a tablet showing live orders.
 £300 build + £35/month, paid at go-live. **Not a POS displacement.**
 
-🔴 **The storefront is live at https://chickshackg84.com and TAKING ORDERS from 14:00 UK daily.**
+🔴 **The storefront is live at https://chickshackg84.com and TAKING ORDERS 24/7** — out-of-hours
+orders are accepted as labelled pre-orders, never refused.
 
 ---
 
@@ -68,7 +70,7 @@ we supply the online channel alongside it: website with checkout, plus a tablet 
 | Stripe | ⬜ Not started. Blocked on the client's account. Not needed for either UAT run | `_state/open-items.md` OI-20 |
 | Printing | ✅ **PROVEN ON SITE 2026-07-28.** The tablet printed to his existing EposNow printer. £0 hardware. Our own bytes still not on paper | `_state/printing.md` |
 | Served / delivered gap | ✅ **CLOSED and deployed.** Tablet has out-for-delivery / delivered / mark-paid; completed orders leave the Active tab; the customer's page follows it | `_state/open-items.md` OI-44 |
-| Customer emails | 🔶 **Code done, sends nothing.** 4 messages built and wired after commit; gated on `settings.email_configured` = `SMTP_HOST and EMAIL_FROM`, and **no email key exists in any env file.** No provider, no sending domain chosen. Also missing a `Reply-To` header | `_state/open-items.md` OI-43 |
+| Customer emails | 🔶 **Code done, sends nothing.** 4 messages built and wired; gated on `settings.email_configured` = `SMTP_HOST and EMAIL_FROM`, and **no email key exists in any env file.** `Reply-To` **is** now set (`e0168c4`). Provider **chosen: Mailjet free**, address `orders@chickshackg84.com`. Only the account + one DNS record + server env remain — `docs/EMAIL_SETUP_RUNBOOK.md` | `_state/open-items.md` OI-43 |
 | Menu modifier prompts | ⏸️ **Parked to QC by Malik 03:09.** Imran wants a required Hot/Mild "Peri-Peri Heat" choice on peri items (easy, no schema change) **and** meal-contents choices (hard, conditional). Requirement still incomplete — he was mid-list | `_state/open-items.md` OI-45 |
 | Backend test suite | ✅ **371 passing** (2026-07-29 late), same 12 pre-existing failures. **29 new** cover the lifecycle guards + email; the shipped lifecycle/email code had had zero tests | `ERROR_LOG.md` |
 | Core POS (10 phases) | ✅ Production, 98/99 UAT | `_state/pos-platform.md` |
@@ -93,10 +95,13 @@ In order:
 2. **UAT run 1**: we place an order, Imran accepts on the tablet, the ticket prints.
 3. **UAT run 2**: Imran places the order himself, then drives it accept → out for delivery →
    delivered, and confirms the takings settle.
-4. **Email.** Nothing sends. Needs an SMTP provider and a sending domain — recommend
-   `orders@mail.chickshackg84.com` (a subdomain, so the apex MX/SPF/DKIM carrying his live
-   business email is never touched) plus a `Reply-To` back to the shop, which the code does not
-   set yet. See OI-43.
+4. **Email — the next task.** Nothing sends. Provider **chosen: Mailjet free**, address
+   `orders@chickshackg84.com` on the **apex** (the earlier `mail.` subdomain suggestion is
+   **withdrawn** — unnecessary once we skip Mailjet's SPF instruction, and a subdomain sender
+   is a weaker DMARC story than an aligned apex DKIM). **One additive TXT record; nothing
+   existing is modified**, because DMARC passes on DKIM alignment alone and the single live SPF
+   record must not be edited on a domain carrying the client's business email. `Reply-To` is
+   already in the code (`e0168c4`). **Follow `docs/EMAIL_SETUP_RUNBOOK.md` exactly.** See OI-43.
 5. **OI-45 menu modifiers**, now fully specified by his screen recording. No schema change needed.
 6. **Stripe** (OI-20) — still blocked on his account. Until then every order is created unpaid and
    `cardPaymentEnabled` stays `false`.
