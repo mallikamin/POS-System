@@ -1,12 +1,12 @@
 # STATE — Restaurant POS System
 
-**Last refreshed:** 2026-07-29 (session E) · **Branch:** `main` · **HEAD:** `a707a53`
-🔴 **5 commits ahead of `origin/main` (= `447847a`). 4 of them are held back ON PURPOSE** —
-`b884b0e`, `8ff61ce`, `889d5ad`, `9ebf896` (Stripe). **Pushing IS deploying**, and they change
-`accept_order`, the exact path the UAT exercises. Push only after the UAT passes; the deploy then
-runs migration `p2q3r4s5t6u7` (4 nullable columns on `orders`, additive, already applied locally).
-The 5th, `a707a53`, is the session-D checkpoint doc and rides along with them.
-**Everything up to `447847a` is pushed and deployed** (email/Mailjet included).
+**Last refreshed:** 2026-07-29 (session F) · **Branch:** `main`
+✅ Session E ended fully pushed and deployed at `7797af2` (the "held back Stripe commits" in an
+earlier header version were pushed late in session E; Stripe live in **TEST mode**, keys verified
+in the container). **Session F adds 4 commits — OI-51…OI-54 — and pushing them IS the deploy.**
+That deploy runs migration `q3r4s5t6u7v8` (additive column on `restaurant_configs` + chick-shack
+backfill by slug). Verify the effect after push per the playbook: deployed commit, schema
+revision `q3r4s5t6u7v8` inside the backend container, every hostname's own certificate.
 
 🔴 **THE STOREFRONT IS PUBLISHED AND `chickshackg84.com` IS TAKING REAL ORDERS, 24/7.**
 Published 2026-07-29 ~00:30 UK. **There is no time gate** — an order placed while the shop is shut
@@ -76,8 +76,8 @@ orders are accepted as labelled pre-orders, never refused.
 | Order-queue tablet view | ✅ **Deployed with the full lifecycle** at `/online-orders`. Accept → out for delivery → delivered/paid; completed orders leave Active. **Not yet opened on Imran's real tablet** | `_state/open-items.md` OI-36 |
 | Storefront checkout wiring | ✅ **Merged and PUBLISHED 2026-07-29.** Menu from the API, checkout posts, confirmation follows the order to delivered. Email required; "leave it out" ticks print on the ticket | `_state/open-items.md` OI-28 / OI-37 |
 | API access from the storefront domain | ✅ **Fixed on the server 2026-07-29.** `CORS_ORIGINS` now allows both Chick Shack origins; preflight verified, unknown origins still refused | `_state/open-items.md` OI-40 |
-| Stripe | 🔶 **BUILT + HARDENED, not deployed.** Manual capture: authorise at checkout, **capture on Accept, cancel on Reject**, so a rejected order is never charged. **36 tests**, proven against the real sandbox. **Hardening H-1…H-10 done except H-6** (session E) — the four money-critical guards were **mutation-checked**, i.e. each was shown to fail when the code it defends is broken. `cardPaymentEnabled` still **false** | `docs/STRIPE_HARDENING_CHECKLIST.md` · OI-20 / OI-41 |
-| Printing | ✅ **OUR OWN TICKET IS ON PAPER — 2026-07-29, first time.** Photographed. Needed a real fix: both print paths `await`ed a fetch before navigating to `rawbt:`, which ends the user gesture, and Chrome on Android then drops the handoff **silently** while the server logs a cheerful 200. URLs are now prefetched and the button navigates synchronously. **Wanted next: 3 copies + the daily number printed large** | OI-51 / OI-52 · `ERROR_LOG.md` |
+| Stripe | 🔶 **DEPLOYED IN TEST MODE** (pushed late session E; keys verified inside the container). Manual capture: authorise at checkout, **capture on Accept, cancel on Reject**, so a rejected order is never charged. **36 tests**, proven against the real sandbox. **Hardening H-1…H-10 done except H-6** (session E) — the four money-critical guards were **mutation-checked**, i.e. each was shown to fail when the code it defends is broken. `cardPaymentEnabled` still **false** | `docs/STRIPE_HARDENING_CHECKLIST.md` · OI-20 / OI-41 |
+| Printing | ✅ **ON PAPER (photographed 2026-07-29)**, and session F built Imran's two asks: **3 labelled copies per ticket in ONE payload** (one `rawbt:` navigation) and the **daily `#NNN` double-size at the top of each copy**. Byte-level verified + tested; **paper check on his printer still pending** | OI-51 / OI-52 ✅ built · `ERROR_LOG.md` |
 | Served / delivered gap | ✅ **CLOSED and deployed.** Tablet has out-for-delivery / delivered / mark-paid; completed orders leave the Active tab; the customer's page follows it | `_state/open-items.md` OI-44 |
 | Customer emails | 🔴 **CANNOT SEND FROM THIS SERVER.** The first real send failed: `TimeoutError`. Proven from the droplet — SMTP **25/465/587 time out** (DigitalOcean anti-spam block), **2525 resets**, and **`api.mailjet.com:443` TLS-resets** while Stripe and GitHub handshake fine from the same box. Credentials and DKIM are almost certainly fine; **the route is blocked**. Session D's "authenticated on 587/465" was run from Malik's laptop, not the server — which is exactly why this was missed | `_state/open-items.md` **OI-55** |
 | Menu modifier prompts | ⏸️ **Parked to QC by Malik 03:09.** Imran wants a required Hot/Mild "Peri-Peri Heat" choice on peri items (easy, no schema change) **and** meal-contents choices (hard, conditional). Requirement still incomplete — he was mid-list | `_state/open-items.md` OI-45 |
@@ -92,18 +92,20 @@ orders are accepted as labelled pre-orders, never refused.
 
 ## 🔴 Next action — set by Imran's live walkthrough, 2026-07-29 (session E)
 
-**Build these four first, in this order, then email.** All four came from Imran watching the
-system work on his own tablet, so they are observed needs, not speculation.
+**Session F built all four walkthrough items** — details in `_state/open-items.md`:
 
-1. **OI-51** — three copies of the ticket per accepted order (put the repeat in the ESC/POS
-   payload, not three navigations).
-2. **OI-52** — the daily number printed **large** on every copy, plus "COPY 1 OF 3".
-   ⚠️ The numbering already exists and already resets daily. Do not build a counter.
-3. **OI-53** — `/orders` has no Accept button; add it and trim the view for a website-only shop.
-4. **OI-54** — the landing page offers Dine-In / Takeaway / Call Center, all dead ends for
-   this client. Land on a dashboard or the queue instead. **Per-tenant, not global.**
-5. **Then OI-55, email egress** — and note the ports question is already settled, so do not
-   re-test SMTP.
+1. ✅ **OI-51** — three copies per ticket, repeated **inside** the ESC/POS payload.
+2. ✅ **OI-52** — daily `#NNN` double-size + "COPY n OF 3" on every copy. No new counter.
+3. ✅ **OI-53** — `/orders` shows Accept (routes to the queue) and trims online orders;
+   the server now **refuses** the generic `confirmed→in_kitchen` for online orders, which
+   would have cooked food without ETA, capture or notification.
+4. ✅ **OI-54** — `online_ordering_only` per-tenant flag; chick-shack lands on
+   `/online-orders`. Migration backfills production by slug, so the deploy flips it.
+
+Still to verify on the real tablet/printer: 3 slips with big numbers actually on paper.
+
+5. 🔴 **NOW: OI-55, email egress** — the ports question is settled, do not re-test SMTP.
+   The fix is a transactional API this box can reach, or a host whose egress permits mail.
 
 *Everything below this line predates the walkthrough.*
 

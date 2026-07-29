@@ -1,9 +1,10 @@
 # Open items register
 
-**Last updated:** 2026-07-29 (session E) — **Stripe hardening H-1…H-10 done except H-6**; new
-**OI-49** (register the Stripe webhook — the last hardening item, a dashboard step). Earlier the
-same day: storefront checkout wired (OI-28, OI-37 closed) and the CORS blocker found and fixed on
-the server (OI-40); OI-41 (card payment gated on Stripe), OI-42 (local test orders).
+**Last updated:** 2026-07-29 (session F) — **OI-51…OI-54 all BUILT** (three ticket copies,
+daily number large, `/orders` Accept + online trimming, per-tenant landing) and a real hole
+closed underneath OI-53: the generic transition could cook an online order without accepting
+it. Next: **OI-55 email egress**. Earlier the same day (session E): Stripe hardening done
+except H-6 → **OI-49** (webhook, a dashboard step for Malik).
 
 Numbered so they can be referenced across sessions. **Numbers are never reused.** Closed items stay
 here with their outcome for one cycle, then move to the bottom.
@@ -168,30 +169,30 @@ the kitchen ticket, and deciding what happens when the shop cannot meet the chos
 
 ## 🔴 From Imran's live walkthrough, 2026-07-29 (session E) — build these first
 
-**OI-51 · Three copies of the ticket per accepted order.** Today exactly one prints.
-Imran wants **3**. Decide where the repeat lives: the ESC/POS payload can simply carry the
-ticket three times (one `print_service` change, one handoff to RawBT, nothing to retry), or
-`sendToPrinter` can be called three times (three navigations, fragile — Chrome may coalesce
-or drop them, and each is a separate chance to fail). **Prefer the payload.**
+**OI-51 ✅ BUILT 2026-07-29 (session F) · Three copies per accepted order.** The repeat
+rides **inside the ESC/POS payload** (`print_service` renders N cut slips; the endpoint
+takes `copies`, the tablet asks for 3) — one `rawbt:` navigation, exactly as the item
+recommended. Tests assert 3 cuts, 3 bodies, one navigation-sized URL. **Paper not yet
+verified on Imran's printer** — that is the next walkthrough's first check.
 
-**OI-52 · Print the daily ticket number large on every copy.**
-⚠️ **The numbering already exists and already resets daily.** `260729-001` is `YYMMDD-NNN`
-and `NNN` restarts at 001 each day — do **not** build a new counter. What is missing is
-presentation: the number is currently small body text on the ticket. It needs to be big and
-unmissable at the top of **each** copy, and each copy should say which it is (e.g.
-"COPY 1 OF 3"), so three identical slips are not mistaken for three orders.
+**OI-52 ✅ BUILT 2026-07-29 (session F) · Daily number large on every copy.** Each slip
+now leads with `#NNN` (extracted from the existing `YYMMDD-NNN` — **no new counter was
+built**) at double size + bold — the largest size this exact printer has proven on paper —
+plus "COPY n OF 3". Verified in the byte stream and preview; paper pending like OI-51.
 
-**OI-53 · `/orders` needs an Accept button and Imran-specific trimming.**
-The general POS order list shows Mark Ready / Pay / Receipt / Void but **no Accept**, so a
-pending online order cannot be answered from there — only from `/online-orders`. Imran
-found this himself. Add Accept, and strip what a website-only shop never uses.
+**OI-53 ✅ BUILT 2026-07-29 (session F) · `/orders` can answer an online order.** Pending
+online orders show **Accept** (routes to `/online-orders`, where accept + ETA + capture +
+the prefetched print gesture already live — one accept path, not two); online orders drop
+the generic Send-to-Kitchen / Pay / Refund / Void and show "Awaiting Accept"; active ones
+link to the queue. **Found and closed underneath it:** the generic `confirmed→in_kitchen`
+transition would have bypassed accept entirely (no ETA, no Stripe capture, no notification,
+no ticket) — the server now refuses it for online orders, tested in both directions.
 
-**OI-54 · The landing page is wrong for this client.** `eats.sitaratech.info` opens on
-"Select Order Channel — Dine-In / Takeaway / Call Center". **Chick Shack takes orders only
-from the website**, so all three tiles are dead ends for him. It should land on a dashboard
-(today's orders, takings, pending count) or straight on the order queue. Needs to be
-per-tenant, not a global change — the core POS still serves all three channels for other
-tenants.
+**OI-54 ✅ BUILT 2026-07-29 (session F) · Per-tenant landing.** New
+`restaurant_configs.online_ordering_only` flag: when true the POS lands on
+`/online-orders` instead of the three-channel selector. **Per-tenant, not global** —
+demo-restaurant keeps the full selector (verified). The migration backfills chick-shack
+by slug so **the deploy itself flips production**; the seed also sets it for reseeds.
 
 **OI-55 · 🔴 EMAIL CANNOT SEND FROM THIS SERVER — egress, not credentials.**
 Proven 2026-07-29 from the droplet itself, not inferred:
