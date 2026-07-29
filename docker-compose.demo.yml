@@ -83,6 +83,20 @@ services:
       - QB_CLIENT_SECRET=${QB_CLIENT_SECRET}
       - QB_REDIRECT_URI=${QB_REDIRECT_URI}
       - QB_ENVIRONMENT=${QB_ENVIRONMENT:-sandbox}
+      # Transactional email. This service has no `env_file:`, so a key added to
+      # the env file is invisible to the container until it is declared here --
+      # `--env-file` only feeds ${...} interpolation. Defaults match config.py,
+      # so an unset key leaves email disabled rather than half-configured.
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USERNAME=${SMTP_USERNAME:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - SMTP_STARTTLS=${SMTP_STARTTLS:-true}
+      - SMTP_SSL=${SMTP_SSL:-false}
+      - EMAIL_FROM=${EMAIL_FROM:-}
+      - EMAIL_FROM_NAME=${EMAIL_FROM_NAME:-}
+      - EMAIL_REPLY_TO=${EMAIL_REPLY_TO:-}
+      - ORDER_TRACKING_BASE_URL=${ORDER_TRACKING_BASE_URL:-}
     expose:
       - "8000"
     depends_on:
