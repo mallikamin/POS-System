@@ -21,7 +21,7 @@ known false.
 
 | Client | Folder | Status |
 |---|---|---|
-| **Chick Shack UK** (Imran R) | `_context/clients/chick-shack-uk/` | **Active, building.** Proposal sent 2026-07-27. Menu received and verified against the client's official artwork. Storefront **built and deployed**; custom domain blocked on two dead Vercel DNS records. Public ordering API + Stripe not started. |
+| **Chick Shack UK** (Imran R) | `_context/clients/chick-shack-uk/` | **Active, building.** Reference material only — **status lives in `STATE.md`**, per the rule above. (The old status text here had gone stale twice: the custom domain is long since live and the ordering API shipped.) |
 | BPO World (Younis Kamran) | `docs/` — partner pricing + MOU | Partner, 50/50 revenue share. See root `MOU-Sitara-Vera-BPO-World.md`. |
 | TastyBites (Faizan) | `C:\ST\Sitara Infotech\Faizan TastyBites\` | Lead. Runs the same EposNow system as Chick Shack. |
 

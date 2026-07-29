@@ -97,6 +97,17 @@ services:
       - EMAIL_FROM_NAME=${EMAIL_FROM_NAME:-}
       - EMAIL_REPLY_TO=${EMAIL_REPLY_TO:-}
       - ORDER_TRACKING_BASE_URL=${ORDER_TRACKING_BASE_URL:-}
+      # Card payment. Same rule as the email block above -- a key in the env
+      # file that is not named here never reaches the container, and the
+      # symptom is silence: card simply is not offered and the deploy is green.
+      # An unset key leaves the whole feature cleanly off, which is the shop's
+      # current, working state (cash on handover).
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-}
+      - STRIPE_PUBLISHABLE_KEY=${STRIPE_PUBLISHABLE_KEY:-}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-}
+      - STRIPE_SUCCESS_URL=${STRIPE_SUCCESS_URL:-}
+      - STRIPE_CANCEL_URL=${STRIPE_CANCEL_URL:-}
+      - STRIPE_ACCOUNT_CURRENCY=${STRIPE_ACCOUNT_CURRENCY:-gbp}
     expose:
       - "8000"
     depends_on:

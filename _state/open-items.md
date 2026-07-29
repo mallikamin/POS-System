@@ -1,8 +1,9 @@
 # Open items register
 
-**Last updated:** 2026-07-29 — storefront checkout wired (OI-28, OI-37 closed) and the CORS blocker
-found and fixed on the server (OI-40). New: OI-41 (card payment gated on Stripe), OI-42 (local test
-orders). **The only step left before UAT is publishing the storefront.**
+**Last updated:** 2026-07-29 (session E) — **Stripe hardening H-1…H-10 done except H-6**; new
+**OI-49** (register the Stripe webhook — the last hardening item, a dashboard step). Earlier the
+same day: storefront checkout wired (OI-28, OI-37 closed) and the CORS blocker found and fixed on
+the server (OI-40); OI-41 (card payment gated on Stripe), OI-42 (local test orders).
 
 Numbered so they can be referenced across sessions. **Numbers are never reused.** Closed items stay
 here with their outcome for one cycle, then move to the bottom.
@@ -164,6 +165,20 @@ picking a slot, bounded below by opening time plus a lead time. That means a new
 order, validating the requested slot against opening hours, surfacing it on the tablet card and
 the kitchen ticket, and deciding what happens when the shop cannot meet the chosen time.
 **Deliberately logged rather than absorbed into the Stripe work.**
+
+**OI-49 · Register the Stripe webhook. The last hardening item, and it is a dashboard step.**
+Raised 2026-07-29 (session E) as H-6 of `docs/STRIPE_HARDENING_CHECKLIST.md`, where the full
+procedure is written out. Everything else in that checklist (H-1…H-5, H-7…H-10) is **done**.
+The **code half of H-6 is also done**: all six Stripe keys are now declared in the backend's
+`environment:` list in `docker-compose.demo.yml`. ⚠️ **None of them were there before** — the
+keys would have been written to the server env file and never reached the container, so card
+payment would have been silently unavailable behind a green deploy. That is the identical
+failure logged for the email keys earlier the same day; see `ERROR_LOG.md`.
+What is left is Malik's, in the Stripe dashboard: add the endpoint
+`https://eats.sitaratech.info/api/v1/public/stripe/webhook`, subscribe to the four
+`payment_intent.*` events, put the signing secret on the server, deploy, then **read the value
+back from inside the running container** and send a test event. Until the secret exists the
+endpoint refuses everything, which is the correct fail-closed state, not a bug.
 
 **OI-47 · CI has been red on every commit, and the lint failure means the tests never run.**
 Found 2026-07-29 (session D) while verifying a deploy. **Both** CI jobs fail: backend Ruff

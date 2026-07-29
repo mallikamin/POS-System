@@ -73,6 +73,18 @@ class Settings(BaseSettings):
     # appended by the service.
     STRIPE_SUCCESS_URL: str = ""
     STRIPE_CANCEL_URL: str = ""
+    # The currency the Stripe ACCOUNT settles in. A Stripe account has one, and
+    # a session created in any other currency is rejected by Stripe with an
+    # error the customer sees at the worst possible moment -- on the payment
+    # page, having already committed to the order.
+    #
+    # Checked against the tenant's own configured currency before a session is
+    # created, so a tenant misconfigured to PKR fails here, internally and
+    # loudly, rather than at Stripe. Not derived from the account by an API call
+    # on purpose: that would put a network round trip in front of every
+    # checkout, and add a way for checkout to fail that has nothing to do with
+    # the payment.
+    STRIPE_ACCOUNT_CURRENCY: str = "gbp"
 
     # QuickBooks Integration
     QB_CLIENT_ID: str = ""

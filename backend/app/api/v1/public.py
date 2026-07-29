@@ -278,6 +278,22 @@ async def stripe_webhook(
         logger.warning("Stripe event %s referenced unknown order %s", event_type, order_id)
         return {"status": "ignored"}
 
+    # Tenant-scope it like every other route in this file. The id alone is an
+    # unguessable UUID, so this is defence in depth rather than a hole being
+    # closed -- but this is the only unauthenticated path in the system that
+    # writes, and "the order id was right" is a weaker claim than "the order id
+    # was right and it belongs to the tenant the event says it does".
+    event_tenant_id = stripe_service.tenant_id_from_event(event)
+    if event_tenant_id is not None and event_tenant_id != order.tenant_id:
+        logger.warning(
+            "Stripe event %s claimed tenant %s for order %s, which belongs to %s. Ignored.",
+            event_type,
+            event_tenant_id,
+            order_id,
+            order.tenant_id,
+        )
+        return {"status": "ignored"}
+
     # Idempotent by construction: every branch below is a no-op if the state is
     # already what the event describes, so a duplicate delivery changes nothing.
     if event_type == "payment_intent.amount_capturable_updated":

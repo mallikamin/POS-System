@@ -534,7 +534,12 @@ async def accept_order(
     # Card orders only. Cash on handover is the default and has nothing to take.
     if order.stripe_payment_intent_id and order.payment_captured_at is None:
         try:
-            status = await stripe_service.capture(order.stripe_payment_intent_id)
+            # Bounded by what the order is worth NOW, not by what was authorised
+            # when the customer paid. If the shop struck an item in between, the
+            # customer must not be charged the original figure.
+            status = await stripe_service.capture_for_order(
+                order.stripe_payment_intent_id, order.total
+            )
         except stripe_service.StripeError as exc:
             raise PublicOrderError(
                 f"Could not take the payment, so the order has not been accepted. {exc}"

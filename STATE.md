@@ -1,6 +1,12 @@
 # STATE — Restaurant POS System
 
-**Last refreshed:** 2026-07-29 (session D) · **Branch:** `main` · **HEAD:** `513e6e8`, pushed **and deployed**
+**Last refreshed:** 2026-07-29 (session E) · **Branch:** `main` · **HEAD:** `a707a53`
+🔴 **5 commits ahead of `origin/main` (= `447847a`). 4 of them are held back ON PURPOSE** —
+`b884b0e`, `8ff61ce`, `889d5ad`, `9ebf896` (Stripe). **Pushing IS deploying**, and they change
+`accept_order`, the exact path the UAT exercises. Push only after the UAT passes; the deploy then
+runs migration `p2q3r4s5t6u7` (4 nullable columns on `orders`, additive, already applied locally).
+The 5th, `a707a53`, is the session-D checkpoint doc and rides along with them.
+**Everything up to `447847a` is pushed and deployed** (email/Mailjet included).
 
 🔴 **THE STOREFRONT IS PUBLISHED AND `chickshackg84.com` IS TAKING REAL ORDERS, 24/7.**
 Published 2026-07-29 ~00:30 UK. **There is no time gate** — an order placed while the shop is shut
@@ -25,7 +31,10 @@ pull, so the **backend had been stale on the server at `b0dbb6a`** while the fro
 updating. Full write-ups in `ERROR_LOG.md`. The deploy now recreates nginx itself and verifies
 every hostname's certificate, so "merge to main" is a complete deploy with no hand-fixing.*
 
-*Email still sends **nothing**: no SMTP provider and no sending domain chosen. See OI-43.*
+*~~Email still sends nothing: no SMTP provider and no sending domain chosen.~~ **Superseded
+2026-07-29 session D** — Mailjet is wired, DKIM verified, 9 keys live in the running container,
+`orders@chickshackg84.com` sends and receives. OI-43 is RESOLVED. **No real message has been sent
+yet**; the UAT is the first one.*
 *2026-07-29: everything below was **committed, pushed and deployed to production**. Migration
 `n0o1p2q3r4s5` applied on the server, `chick-shack` seeded there (62 items), `eats.sitaratech.info`
 finally given its own certificate. Backend suite 342 passing, same 12 pre-existing failures.
@@ -67,12 +76,12 @@ orders are accepted as labelled pre-orders, never refused.
 | Order-queue tablet view | ✅ **Deployed with the full lifecycle** at `/online-orders`. Accept → out for delivery → delivered/paid; completed orders leave Active. **Not yet opened on Imran's real tablet** | `_state/open-items.md` OI-36 |
 | Storefront checkout wiring | ✅ **Merged and PUBLISHED 2026-07-29.** Menu from the API, checkout posts, confirmation follows the order to delivered. Email required; "leave it out" ticks print on the ticket | `_state/open-items.md` OI-28 / OI-37 |
 | API access from the storefront domain | ✅ **Fixed on the server 2026-07-29.** `CORS_ORIGINS` now allows both Chick Shack origins; preflight verified, unknown origins still refused | `_state/open-items.md` OI-40 |
-| Stripe | 🔶 **Unblocked 2026-07-29.** Client's account is live (`Chick Shack`, GBP); Malik has a **Developer** seat and is working in the **sandbox**. Build not started. **Charge on ACCEPT, not on placement** (client's decision) → manual capture, which **kills OI-46** — a rejected order was never charged | `_state/open-items.md` OI-20 / OI-23 |
+| Stripe | 🔶 **BUILT + HARDENED, not deployed.** Manual capture: authorise at checkout, **capture on Accept, cancel on Reject**, so a rejected order is never charged. **36 tests**, proven against the real sandbox. **Hardening H-1…H-10 done except H-6** (session E) — the four money-critical guards were **mutation-checked**, i.e. each was shown to fail when the code it defends is broken. `cardPaymentEnabled` still **false** | `docs/STRIPE_HARDENING_CHECKLIST.md` · OI-20 / OI-41 |
 | Printing | ✅ **PROVEN ON SITE 2026-07-28.** The tablet printed to his existing EposNow printer. £0 hardware. Our own bytes still not on paper | `_state/printing.md` |
 | Served / delivered gap | ✅ **CLOSED and deployed.** Tablet has out-for-delivery / delivered / mark-paid; completed orders leave the Active tab; the customer's page follows it | `_state/open-items.md` OI-44 |
 | Customer emails | ✅ **Configured 2026-07-29.** Mailjet free, DKIM verified, 9 keys on the server. `orders@chickshackg84.com` sends **and receives** (Fasthosts forwarder → the shop's Gmail). Client's live mail re-verified unchanged after every DNS step. Send path and credentials both proven before deployment. **Awaiting a real end-to-end send to confirm** | `_state/open-items.md` OI-43 |
 | Menu modifier prompts | ⏸️ **Parked to QC by Malik 03:09.** Imran wants a required Hot/Mild "Peri-Peri Heat" choice on peri items (easy, no schema change) **and** meal-contents choices (hard, conditional). Requirement still incomplete — he was mid-list | `_state/open-items.md` OI-45 |
-| Backend test suite | ✅ **371 passing** (2026-07-29 late), same 12 pre-existing failures. **29 new** cover the lifecycle guards + email; the shipped lifecycle/email code had had zero tests | `ERROR_LOG.md` |
+| Backend test suite | ✅ **409 passing — run and verified 2026-07-29 session E**, not inherited. Session E started from a verified **393** (session D's "391" was two short) and added **16** for the Stripe hardening. Same **12 pre-existing failures** throughout (10 failed + 2 errors), all in QuickBooks-Desktop/parked code | `ERROR_LOG.md` |
 | Core POS (10 phases) | ✅ Production, 98/99 UAT | `_state/pos-platform.md` |
 | QuickBooks Online | ✅ Live. Sync is **manual by design**, not broken | `_state/pos-platform.md` |
 | POS demo sites | ✅ Green (`pos-demo.duckdns.org`, `eats.sitaratech.info`) | `_state/infrastructure.md` |
@@ -83,34 +92,37 @@ orders are accepted as labelled pre-orders, never refused.
 
 ## Next action
 
-**Everything is deployed and published.** `merge to main` is now a complete deploy: it recreates
-nginx itself and verifies every hostname's certificate, so there is no hand-fixing step any more.
+**Everything up to `447847a` is deployed and published.** `merge to main` is a complete deploy: it
+recreates nginx itself and verifies every hostname's certificate, so there is no hand-fixing step.
 
 🔴 **UAT is live NOW.** `chickshackg84.com` accepts orders at any hour and every one lands on
-Imran's tablet at `https://eats.sitaratech.info/online-orders?shop=chick-shack`. **Tell Imran.**
+Imran's tablet at `https://eats.sitaratech.info/online-orders?shop=chick-shack`.
 
 In order:
 
-1. **Tell Imran the site is live** and that orders start arriving from 14:00. He has never opened
-   the tablet page on the real device (OI-36) — that is the single biggest untested link.
-2. **UAT run 1**: we place an order, Imran accepts on the tablet, the ticket prints.
-3. **UAT run 2**: Imran places the order himself, then drives it accept → out for delivery →
-   delivered, and confirms the takings settle.
-4. **Email — the next task.** Nothing sends. Provider **chosen: Mailjet free**, address
-   `orders@chickshackg84.com` on the **apex** (the earlier `mail.` subdomain suggestion is
-   **withdrawn** — unnecessary once we skip Mailjet's SPF instruction, and a subdomain sender
-   is a weaker DMARC story than an aligned apex DKIM). **One additive TXT record; nothing
-   existing is modified**, because DMARC passes on DKIM alignment alone and the single live SPF
-   record must not be edited on a domain carrying the client's business email. `Reply-To` is
-   already in the code (`e0168c4`). **Follow `docs/EMAIL_SETUP_RUNBOOK.md` exactly.** See OI-43.
-5. **OI-45 menu modifiers**, now fully specified by his screen recording. No schema change needed.
-6. **Stripe** (OI-20) — still blocked on his account. Until then every order is created unpaid and
-   `cardPaymentEnabled` stays `false`.
+1. **The UAT with Imran** — order → **first real email send** → tablet → print → accept →
+   out for delivery → delivered. He has never opened the tablet page on the real device
+   (OI-36); that is still the single biggest untested link.
+2. **Push the 4 held Stripe commits** once the UAT passes, and watch the deploy — it runs
+   migration `p2q3r4s5t6u7`. Verify the *effect* (schema revision, container start time,
+   deployed commit), never the exit code.
+3. ✅ **Stripe hardening — DONE in session E except H-6.** H-1 to H-5 and H-7 to H-10 are
+   fixed, tested and, for the four money-critical ones, **mutation-checked**. H-1 turned out
+   to be safe today purely by luck and is now robust; see `ERROR_LOG.md`.
+4. ⏳ **H-6, the only hardening item left, and it is a dashboard step for Malik:** register
+   the webhook in Stripe, then put `STRIPE_WEBHOOK_SECRET` on the server. The **code half is
+   already done** — all six Stripe keys are now declared in `docker-compose.demo.yml`, which
+   they were **not** before (they would have been written to the env file and never reached
+   the container: card silently off, deploy green). Exact steps are in the checklist under
+   H-6.
+5. **Storefront card UI** — `cardPaymentEnabled` stays `false` until a test card completes end
+   to end (OI-41).
+6. **OI-45 menu modifiers** (fully specified, no schema change) and **OI-48 time picker** (new,
+   not built, not a tweak).
 
-**Waiting on the client (not blocking the build):**
-- The **Stripe account** needs connecting (OI-20). Ask before starting step 5.
-- **Is Chick Shack VAT registered?** (OI-38). Tax is seeded at 0 deliberately. Must be answered
-  before real money moves.
+**Client answers now in hand:** not VAT registered (OI-38 closed, 0% tax is correct); charge on
+acceptance (OI-46 dissolved); Stripe account live with a Developer seat (OI-20 closed); wants a
+customer-chosen time (OI-48 raised).
 
 ---
 

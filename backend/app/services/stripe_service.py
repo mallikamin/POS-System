@@ -238,9 +238,32 @@ async def create_checkout_session(
     success = success_url or settings.STRIPE_SUCCESS_URL
     cancel = cancel_url or settings.STRIPE_CANCEL_URL
     if not success or not cancel:
-        raise StripeError(
+        # StripeNotConfigured, not StripeError, so the route answers 503 "card
+        # payment is not available" instead of 502 Bad Gateway. Missing config
+        # is not a broken server, and telling a customer our server is broken
+        # when we simply have not finished setting up reads far worse than the
+        # truth -- and sends whoever debugs it looking in the wrong place.
+        raise StripeNotConfigured(
             "STRIPE_SUCCESS_URL and STRIPE_CANCEL_URL must be set before "
             "offering card payment."
+        )
+
+    # The account settles in one currency. A session in any other is rejected by
+    # Stripe on the payment page, in front of a customer who has already
+    # committed to the order. Fail here, internally, where it is our problem.
+    expected = (settings.STRIPE_ACCOUNT_CURRENCY or "").strip().lower()
+    if expected and currency.strip().lower() != expected:
+        logger.error(
+            "Tenant currency %s does not match the Stripe account currency %s; "
+            "refusing to create a checkout session for order %s",
+            currency,
+            expected.upper(),
+            order.order_number,
+        )
+        raise StripeNotConfigured(
+            f"This shop is configured in {currency.upper()} but the Stripe "
+            f"account settles in {expected.upper()}. Card payment is not "
+            "available until they match."
         )
 
     try:
@@ -307,6 +330,65 @@ async def capture(payment_intent_id: str, amount: int | None = None) -> str:
     return str(status)
 
 
+def _retrieve_blocking(payment_intent_id: str) -> Any:
+    stripe = _client()
+    return stripe.PaymentIntent.retrieve(
+        payment_intent_id, timeout=_STRIPE_TIMEOUT_SECONDS
+    )
+
+
+async def capture_for_order(payment_intent_id: str, order_total: int) -> str:
+    """Capture what the order is worth **now**, never what was authorised then.
+
+    `capture()` with no amount takes the full authorised amount. That is wrong
+    the moment an order changes between authorisation and acceptance: the shop
+    strikes an item the kitchen has run out of, taps Accept, and the customer is
+    charged the original, higher figure. Nothing in the system would notice --
+    Stripe did exactly as it was told.
+
+    So the amount is read back from Stripe and bounded:
+
+    * already `succeeded` -- a retried Accept tap. Not an error, and emphatically
+      not a second charge.
+    * nothing capturable -- the hold expired, was cancelled, or never completed.
+      Raise, so the shop is told before it starts cooking.
+    * total **above** what is held -- refuse. Capturing the lesser amount would
+      quietly undercharge, and how to recover that is a human's decision, not a
+      default this function should pick.
+    * otherwise capture the order total exactly. Stripe releases the remainder
+      of a partial capture by itself.
+    """
+    try:
+        intent = await asyncio.to_thread(_retrieve_blocking, payment_intent_id)
+    except StripeNotConfigured:
+        raise
+    except Exception as exc:
+        logger.exception("Could not read PaymentIntent %s", payment_intent_id)
+        raise StripeError(str(exc)) from exc
+
+    status = str(field(intent, "status", ""))
+    if status == "succeeded":
+        logger.info("PaymentIntent %s was already captured", payment_intent_id)
+        return "succeeded"
+
+    capturable = int(field(intent, "amount_capturable", 0) or 0)
+    if capturable <= 0:
+        raise StripeError(
+            f"No money is being held for this order (the authorisation is "
+            f"'{status}'). It may have expired -- an authorisation lasts about "
+            "5 days. Take payment another way."
+        )
+
+    if order_total > capturable:
+        raise StripeError(
+            f"The order is now worth more than was authorised "
+            f"({order_total} vs {capturable}). Capturing would undercharge, so "
+            "nothing has been taken -- collect the difference or re-authorise."
+        )
+
+    return await capture(payment_intent_id, amount=order_total)
+
+
 def _cancel_blocking(payment_intent_id: str) -> Any:
     stripe = _client()
     return stripe.PaymentIntent.cancel(
@@ -363,7 +445,7 @@ def verify_webhook(payload: bytes, signature: str) -> dict[str, Any]:
 
     stripe = _client()
     try:
-        return stripe.Webhook.construct_event(
+        event = stripe.Webhook.construct_event(
             payload, signature, settings.STRIPE_WEBHOOK_SECRET
         )
     except Exception as exc:
@@ -371,19 +453,59 @@ def verify_webhook(payload: bytes, signature: str) -> dict[str, Any]:
         # distinguishing to the caller -- both are "not from Stripe".
         raise StripeError(f"Webhook signature verification failed: {exc}") from exc
 
+    # A valid signature proves the event came from Stripe. It does not prove it
+    # came from the right *mode*. Test and live are separate worlds with
+    # separate keys, and a test event driving a production order -- marking it
+    # paid when no money exists -- is the kind of thing nobody finds until the
+    # books do not balance. The endpoint secret differs per mode so this is
+    # unlikely, but the assertion costs one comparison and removes the question.
+    if bool(field(event, "livemode", False)) is not is_live_mode():
+        raise StripeError(
+            "Webhook mode mismatch: this event's livemode does not match the "
+            "configured Stripe key. Refusing it."
+        )
 
-def order_id_from_event(event: dict[str, Any]) -> uuid.UUID | None:
-    """Pull our order id out of an event's metadata, if it carries one."""
+    return event
+
+
+def is_live_mode() -> bool:
+    """True when configured with a live key rather than a test one.
+
+    `rk_live_` is included because a **restricted** key is a perfectly ordinary
+    thing to deploy -- arguably the better thing to deploy -- and matching only
+    `sk_live_` would classify a live restricted key as test mode, then reject
+    every genuine live event as a mode mismatch.
+    """
+    return settings.STRIPE_SECRET_KEY.startswith(("sk_live_", "rk_live_"))
+
+
+def _metadata_uuid(event: dict[str, Any], key: str) -> uuid.UUID | None:
     obj = field(field(event, "data", {}), "object", {}) or {}
     metadata = field(obj, "metadata", {}) or {}
-    raw = field(metadata, "order_id")
+    raw = field(metadata, key)
     if not raw:
         return None
     try:
         return uuid.UUID(str(raw))
     except (ValueError, AttributeError):
-        logger.warning("Webhook carried an unparseable order_id: %r", raw)
+        logger.warning("Webhook carried an unparseable %s: %r", key, raw)
         return None
+
+
+def order_id_from_event(event: dict[str, Any]) -> uuid.UUID | None:
+    """Pull our order id out of an event's metadata, if it carries one."""
+    return _metadata_uuid(event, "order_id")
+
+
+def tenant_id_from_event(event: dict[str, Any]) -> uuid.UUID | None:
+    """Pull the tenant id out of an event's metadata, if it carries one.
+
+    Every other route in `public.py` is scrupulously tenant-scoped; the webhook
+    looked an order up by id alone. The metadata already carries the tenant, so
+    checking it costs nothing and keeps the one unauthenticated write path in
+    the system to the same standard as the rest.
+    """
+    return _metadata_uuid(event, "tenant_id")
 
 
 def authorization_timestamp() -> datetime:
