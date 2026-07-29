@@ -77,9 +77,9 @@ orders are accepted as labelled pre-orders, never refused.
 | Storefront checkout wiring | ✅ **Merged and PUBLISHED 2026-07-29.** Menu from the API, checkout posts, confirmation follows the order to delivered. Email required; "leave it out" ticks print on the ticket | `_state/open-items.md` OI-28 / OI-37 |
 | API access from the storefront domain | ✅ **Fixed on the server 2026-07-29.** `CORS_ORIGINS` now allows both Chick Shack origins; preflight verified, unknown origins still refused | `_state/open-items.md` OI-40 |
 | Stripe | 🔶 **BUILT + HARDENED, not deployed.** Manual capture: authorise at checkout, **capture on Accept, cancel on Reject**, so a rejected order is never charged. **36 tests**, proven against the real sandbox. **Hardening H-1…H-10 done except H-6** (session E) — the four money-critical guards were **mutation-checked**, i.e. each was shown to fail when the code it defends is broken. `cardPaymentEnabled` still **false** | `docs/STRIPE_HARDENING_CHECKLIST.md` · OI-20 / OI-41 |
-| Printing | ✅ **PROVEN ON SITE 2026-07-28.** The tablet printed to his existing EposNow printer. £0 hardware. Our own bytes still not on paper | `_state/printing.md` |
+| Printing | ✅ **OUR OWN TICKET IS ON PAPER — 2026-07-29, first time.** Photographed. Needed a real fix: both print paths `await`ed a fetch before navigating to `rawbt:`, which ends the user gesture, and Chrome on Android then drops the handoff **silently** while the server logs a cheerful 200. URLs are now prefetched and the button navigates synchronously. **Wanted next: 3 copies + the daily number printed large** | OI-51 / OI-52 · `ERROR_LOG.md` |
 | Served / delivered gap | ✅ **CLOSED and deployed.** Tablet has out-for-delivery / delivered / mark-paid; completed orders leave the Active tab; the customer's page follows it | `_state/open-items.md` OI-44 |
-| Customer emails | ✅ **Configured 2026-07-29.** Mailjet free, DKIM verified, 9 keys on the server. `orders@chickshackg84.com` sends **and receives** (Fasthosts forwarder → the shop's Gmail). Client's live mail re-verified unchanged after every DNS step. Send path and credentials both proven before deployment. **Awaiting a real end-to-end send to confirm** | `_state/open-items.md` OI-43 |
+| Customer emails | 🔴 **CANNOT SEND FROM THIS SERVER.** The first real send failed: `TimeoutError`. Proven from the droplet — SMTP **25/465/587 time out** (DigitalOcean anti-spam block), **2525 resets**, and **`api.mailjet.com:443` TLS-resets** while Stripe and GitHub handshake fine from the same box. Credentials and DKIM are almost certainly fine; **the route is blocked**. Session D's "authenticated on 587/465" was run from Malik's laptop, not the server — which is exactly why this was missed | `_state/open-items.md` **OI-55** |
 | Menu modifier prompts | ⏸️ **Parked to QC by Malik 03:09.** Imran wants a required Hot/Mild "Peri-Peri Heat" choice on peri items (easy, no schema change) **and** meal-contents choices (hard, conditional). Requirement still incomplete — he was mid-list | `_state/open-items.md` OI-45 |
 | Backend test suite | ✅ **409 passing — run and verified 2026-07-29 session E**, not inherited. Session E started from a verified **393** (session D's "391" was two short) and added **16** for the Stripe hardening. Same **12 pre-existing failures** throughout (10 failed + 2 errors), all in QuickBooks-Desktop/parked code | `ERROR_LOG.md` |
 | Core POS (10 phases) | ✅ Production, 98/99 UAT | `_state/pos-platform.md` |
@@ -89,6 +89,23 @@ orders are accepted as labelled pre-orders, never refused.
 | Nightly demo-data cron | ❌ **Has never run** | `_state/open-items.md` OI-11 |
 
 ---
+
+## 🔴 Next action — set by Imran's live walkthrough, 2026-07-29 (session E)
+
+**Build these four first, in this order, then email.** All four came from Imran watching the
+system work on his own tablet, so they are observed needs, not speculation.
+
+1. **OI-51** — three copies of the ticket per accepted order (put the repeat in the ESC/POS
+   payload, not three navigations).
+2. **OI-52** — the daily number printed **large** on every copy, plus "COPY 1 OF 3".
+   ⚠️ The numbering already exists and already resets daily. Do not build a counter.
+3. **OI-53** — `/orders` has no Accept button; add it and trim the view for a website-only shop.
+4. **OI-54** — the landing page offers Dine-In / Takeaway / Call Center, all dead ends for
+   this client. Land on a dashboard or the queue instead. **Per-tenant, not global.**
+5. **Then OI-55, email egress** — and note the ports question is already settled, so do not
+   re-test SMTP.
+
+*Everything below this line predates the walkthrough.*
 
 ## Next action
 

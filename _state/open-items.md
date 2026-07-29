@@ -166,6 +166,52 @@ order, validating the requested slot against opening hours, surfacing it on the 
 the kitchen ticket, and deciding what happens when the shop cannot meet the chosen time.
 **Deliberately logged rather than absorbed into the Stripe work.**
 
+## 🔴 From Imran's live walkthrough, 2026-07-29 (session E) — build these first
+
+**OI-51 · Three copies of the ticket per accepted order.** Today exactly one prints.
+Imran wants **3**. Decide where the repeat lives: the ESC/POS payload can simply carry the
+ticket three times (one `print_service` change, one handoff to RawBT, nothing to retry), or
+`sendToPrinter` can be called three times (three navigations, fragile — Chrome may coalesce
+or drop them, and each is a separate chance to fail). **Prefer the payload.**
+
+**OI-52 · Print the daily ticket number large on every copy.**
+⚠️ **The numbering already exists and already resets daily.** `260729-001` is `YYMMDD-NNN`
+and `NNN` restarts at 001 each day — do **not** build a new counter. What is missing is
+presentation: the number is currently small body text on the ticket. It needs to be big and
+unmissable at the top of **each** copy, and each copy should say which it is (e.g.
+"COPY 1 OF 3"), so three identical slips are not mistaken for three orders.
+
+**OI-53 · `/orders` needs an Accept button and Imran-specific trimming.**
+The general POS order list shows Mark Ready / Pay / Receipt / Void but **no Accept**, so a
+pending online order cannot be answered from there — only from `/online-orders`. Imran
+found this himself. Add Accept, and strip what a website-only shop never uses.
+
+**OI-54 · The landing page is wrong for this client.** `eats.sitaratech.info` opens on
+"Select Order Channel — Dine-In / Takeaway / Call Center". **Chick Shack takes orders only
+from the website**, so all three tiles are dead ends for him. It should land on a dashboard
+(today's orders, takings, pending count) or straight on the order queue. Needs to be
+per-tenant, not a global change — the core POS still serves all three channels for other
+tenants.
+
+**OI-55 · 🔴 EMAIL CANNOT SEND FROM THIS SERVER — egress, not credentials.**
+Proven 2026-07-29 from the droplet itself, not inferred:
+- outbound SMTP **25, 465, 587 all time out** (DigitalOcean's standard anti-spam block)
+- **2525 accepts TCP then resets** immediately
+- **`api.mailjet.com:443` connects but the TLS handshake is reset** — 0 bytes read.
+  `api.stripe.com` and `api.github.com` handshake fine from the same box, so 443 egress
+  works generally and this is **specific to Mailjet**
+Session D's "credentials authenticated on 587 and 465" was run from Malik's machine, not
+the server, which is why the block never appeared. The credentials are almost certainly
+fine; the route is not. Options: a transactional API this box can actually reach, or a host
+whose egress permits mail. **Do not re-test SMTP ports — that is settled.**
+
+**OI-50 · The storefront has NO test framework.** `package.json` has dev/build/preview/
+type-check/deploy and nothing else. The timezone bug that made the shop read as closed 24/7
+and labelled every order a pre-order shipped to real customers and was caught by eye. Any
+storefront logic with branches deserves a test; there is nowhere to put one.
+
+---
+
 **OI-49 · Register the Stripe webhook. The last hardening item, and it is a dashboard step.**
 Raised 2026-07-29 (session E) as H-6 of `docs/STRIPE_HARDENING_CHECKLIST.md`, where the full
 procedure is written out. Everything else in that checklist (H-1…H-5, H-7…H-10) is **done**.

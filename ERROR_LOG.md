@@ -330,6 +330,38 @@ Each entry follows:
 - **Fix**: declared all nine keys plus `ORDER_TRACKING_BASE_URL` in the backend's `environment:` list, each with a `:-` default matching `config.py` so an unset key leaves email cleanly disabled rather than half-configured
 - **Rule**: **Writing a key to the env file is not the same as the application having it.** When a compose service uses an explicit `environment:` list rather than `env_file:`, every new key needs adding in *two* places. Always verify a config change by reading the value back **from inside the running container**, never from the file you wrote — and be suspicious when a printed value happens to equal the code default, because that is what an unset variable looks like.
 
+### 2026-07-29 (session E) — `timeout` is not a Stripe API parameter, and 40 mocked tests never noticed
+- **Error**: `{"detail":"Request req_…: Received unknown parameter: timeout"}`, HTTP 502, on the first real checkout-session call
+- **Context**: Proving the card flow against the real sandbox, minutes before a client walkthrough
+- **Root Cause**: Every Stripe call passed `timeout=_STRIPE_TIMEOUT_SECONDS`. It is **not** a per-call argument — the SDK forwards unknown keywords to the API as request **fields**, and Stripe rejects the entire call. All four call sites had it (create, capture, cancel, retrieve), so **card payment could not have worked at all**
+- **Why the tests could not catch it**: `unittest.mock` accepts any keyword you hand it and asserts nothing about what the vendor would accept. Exactly the blind spot that hid `StripeObject.get` two commits earlier — the same lesson, re-learned, in the same file
+- **Fix**: the timeout moved to the HTTP client (`stripe.RequestsClient(timeout=…)`, set once), and a regression test whose fake **rejects unknown parameters** the way the real API does. Verified by reintroducing the bug and watching the new test fail
+- **Rule**: **A mock proves your logic, never the vendor's contract.** When a third-party SDK is involved, at least one fake must be STRICT — rejecting what the real service rejects — and the integration must make one real call before it is called done. Also: `timeout` is a transport concern, so if an SDK seems to accept it per-call, check whether it is being silently forwarded as data.
+
+### 2026-07-29 (session E) — The storefront told every customer the shop was closed, and labelled every order a pre-order
+- **Error**: None thrown. The banner read "We're closed right now" at 17:15 UK, mid-service, on a site taking real orders
+- **Context**: Spotted during a client walkthrough because the banner disagreed with a clock on the wall
+- **Root Cause**: `new Date(now.toLocaleString("en-GB", { timeZone: "Europe/London" }))`. `en-GB` formats day-first, and JavaScript's date parser cannot read `"29/07/2026, 17:16:39"` — it tries month 29 and returns **Invalid Date**. `getHours()` then returned `NaN`, and **every comparison against `NaN` is false**, so both time functions were pinned to their false branch
+- **Impact, live**: the banner said closed 24 hours a day; `orderTiming().immediate` was always false so **every order was labelled a pre-order** on the website, the confirmation page and the shop's tablet; and customers were told "we'll confirm when we open at 16:00" at six in the evening
+- **Fix**: `Intl.DateTimeFormat(...).formatToParts()`, which reads the hour and minute as numbers and never touches the string parser. Midnight's `"24"` handled. Checked across the day: 03:00, 13:00, 15:00, 17:00, 23:00, 00:30
+- **Rule**: **Never round-trip a localised date string back through `new Date()`.** `toLocaleString` is for humans; `formatToParts` is for programs. More generally, a timezone bug fails silently into a plausible-looking state — if a time-dependent feature has a visible symptom, check it against a real clock at a real hour rather than trusting that it compiles.
+
+### 2026-07-29 (session E) — The kitchen ticket never reached the printer: an `await` ate the user gesture
+- **Error**: None anywhere. Imran tapped Accept on the first live order; the server logged `GET …/ticket?format=rawbt 200 OK` and nothing came out of the printer
+- **Context**: The first real accept, during a client walkthrough, on the client's own Android tablet with RawBT installed and working
+- **Root Cause**: Printing hands an ESC/POS job to the RawBT app by navigating to a `rawbt:` URL. **Chrome on Android only follows a custom scheme from inside a genuine user gesture**, and both print paths `await`ed the ticket fetch *before* setting `location.href` — so by the time they navigated, the tap was over and Chrome dropped it. Silently: no error, no dialog, no console warning
+- **Why "printing is proven" did not carry over**: the 2026-07-28 test page printed perfectly because its buttons navigated **directly from the click**, with the payload already embedded in the page. The mechanism it proved was not the mechanism the live flow used
+- **Fix**: ticket URLs are prefetched in the background for every listed order; `sendToPrinter(url)` is **synchronous** and documented as needing to stay that way; the card's Print button navigates straight from the tap; the `intent:` form naming the RawBT package is tried first, with the bare scheme as fallback
+- **Rule**: **A 200 in the log is not evidence the thing happened — for a printer, the only evidence is paper.** And on mobile web, any `await` between a tap and a custom-scheme navigation destroys it. If a handoff to a native app must work, have everything it needs in hand before the tap.
+
+### 2026-07-29 (session E) — Email was "verified" from the wrong machine, and the server cannot send at all
+- **Error**: `TimeoutError: timed out` from `email_service.send_order_email`, on the first real send. No mail ever arrived
+- **Context**: A client walkthrough, immediately after telling Malik to check his inbox — without first checking the send had succeeded. The log had the answer the whole time
+- **Root Cause**: **DigitalOcean blocks outbound SMTP on droplets.** Measured from the box: ports **25, 465 and 587 all time out**; **2525 accepts TCP then resets**. Separately, **`api.mailjet.com:443` connects but the TLS handshake is reset with 0 bytes read**, while `api.stripe.com` and `api.github.com` handshake fine from the same host — so 443 egress works and the failure is specific to Mailjet
+- **Why it was missed**: session D authenticated the Mailjet credentials against `in-v3.mailjet.com` on 587 and 465 **from Malik's laptop**, and recorded that as proof. The credentials were never the problem; the route was, and a laptop shares none of a droplet's egress policy
+- **Status**: **OPEN — OI-55.** The fix is a transactional API this box can reach, or a host whose egress permits mail. Not a credential or config change
+- **Rule**: **Verify a network dependency from the machine that will actually use it.** A connectivity test proves the path it ran on and nothing else. And never report a delivery as working without checking the send result — "it should have arrived" is not a status.
+
 ### 2026-07-29 (session E) — The same env-key trap was still open for Stripe, six days after it was written up here
 - **Error**: None, and that is the point. Caught during the Stripe hardening pass, before any key was deployed
 - **Context**: Working H-6 of `docs/STRIPE_HARDENING_CHECKLIST.md`. Checked whether `STRIPE_WEBHOOK_SECRET` needed adding to the compose `environment:` list, and found that **not one of the Stripe keys was declared there** — not the secret key, not the publishable key, none of them
