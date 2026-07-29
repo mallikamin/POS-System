@@ -26,10 +26,20 @@ Deliveroo use for a guest tracking link, and the reason that response is
 deliberately thin. See PublicOrderStatusResponse.
 """
 
+import logging
 import uuid
 from typing import Literal
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query, Response, status
+from fastapi import (
+    APIRouter,
+    Body,
+    Depends,
+    HTTPException,
+    Query,
+    Request,
+    Response,
+    status,
+)
 from fastapi.responses import PlainTextResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -48,8 +58,16 @@ from app.schemas.public_order import (
     PublicOrderResponse,
     PublicOrderStatusResponse,
 )
-from app.services import escpos, print_service, public_order_service
+from app.services import (
+    escpos,
+    order_service,
+    print_service,
+    public_order_service,
+    stripe_service,
+)
 from app.services.public_order_service import PublicOrderError
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/public", tags=["public"])
 
@@ -59,7 +77,7 @@ _manager_dep = require_role("admin")
 # Slugs that would collide with the /public/manage/... routes below. A tenant
 # named "manage" would make `/public/manage/orders` ambiguous, so it is refused
 # at the door rather than debugged later.
-_RESERVED_TENANT_SLUGS = frozenset({"manage", "orders", "menu", "health"})
+_RESERVED_TENANT_SLUGS = frozenset({"manage", "orders", "menu", "health", "stripe"})
 
 
 async def _resolve_tenant_id(db: AsyncSession, tenant_slug: str) -> uuid.UUID:
@@ -154,6 +172,133 @@ async def create_public_order(
 
     currency = await public_order_service.get_currency(db, tenant_id)
     return _to_public_response(order, currency)
+
+
+# ---------------------------------------------------------------------------
+# Paying by card
+# ---------------------------------------------------------------------------
+
+
+@router.post("/{tenant_slug}/orders/{order_id}/checkout-session")
+async def create_checkout_session(
+    tenant_slug: str,
+    order_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, str]:
+    """Authorise the card for an order that has already been placed.
+
+    Deliberately a **second** call rather than part of order creation. The order
+    exists and is real before any payment page is shown, so a customer who
+    abandons checkout leaves an ordinary unpaid order the shop can still see and
+    chase, rather than nothing at all.
+
+    The money is only *held* here. It is taken when the shop accepts, and
+    released if the shop rejects -- the client's own rule, "charge once
+    accepted".
+    """
+    tenant_id = await _resolve_tenant_id(db, tenant_slug)
+
+    order = await order_service.get_order(db, order_id, tenant_id)
+    if order is None or order.order_type != "online":
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found.")
+    if order.accepted_at is not None or order.rejected_at is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This order has already been answered by the shop.",
+        )
+    if order.payment_status == "paid":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="This order is already paid."
+        )
+
+    currency = await public_order_service.get_currency(db, tenant_id)
+    shop_name = await public_order_service.get_shop_name(db, tenant_id)
+
+    try:
+        url, session_id, payment_intent_id = await stripe_service.create_checkout_session(
+            order, currency=currency, shop_name=shop_name
+        )
+    except stripe_service.StripeNotConfigured as exc:
+        # Not an error the customer caused. Card simply is not on offer.
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Card payment is not available right now.",
+        ) from exc
+    except stripe_service.StripeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)
+        ) from exc
+
+    order.stripe_checkout_session_id = session_id
+    order.stripe_payment_intent_id = payment_intent_id or None
+    order.payment_authorized_at = stripe_service.authorization_timestamp()
+    await db.commit()
+
+    return {"checkout_url": url, "session_id": session_id}
+
+
+@router.post("/stripe/webhook", include_in_schema=False)
+async def stripe_webhook(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, str]:
+    """Reconcile what Stripe believes against what we believe.
+
+    Capture and cancel are both driven from the merchant tablet, so the system
+    is *correct* without this endpoint. It exists because Stripe is the
+    authority on money and we are not: it catches an authorisation that expired,
+    a payment that failed after the customer left, and a capture whose database
+    write did not land.
+
+    Two rules, both from Stripe's own guidance. The signature is verified before
+    the body is trusted at all -- otherwise this is an unauthenticated POST that
+    claims orders are paid. And it returns 2xx quickly even when the event is
+    one we ignore, because a non-2xx makes Stripe retry forever.
+    """
+    payload = await request.body()
+    signature = request.headers.get("Stripe-Signature", "")
+
+    try:
+        event = stripe_service.verify_webhook(payload, signature)
+    except stripe_service.StripeError as exc:
+        # 400, not 500: this is a rejected request, not a broken server, and it
+        # must not look like something worth retrying.
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
+
+    event_type = event.get("type", "")
+    order_id = stripe_service.order_id_from_event(event)
+    if order_id is None:
+        return {"status": "ignored"}
+
+    order = await db.get(Order, order_id)
+    if order is None:
+        logger.warning("Stripe event %s referenced unknown order %s", event_type, order_id)
+        return {"status": "ignored"}
+
+    # Idempotent by construction: every branch below is a no-op if the state is
+    # already what the event describes, so a duplicate delivery changes nothing.
+    if event_type == "payment_intent.amount_capturable_updated":
+        if order.payment_authorized_at is None:
+            order.payment_authorized_at = stripe_service.authorization_timestamp()
+    elif event_type == "payment_intent.succeeded":
+        if order.payment_captured_at is None:
+            order.payment_captured_at = stripe_service.authorization_timestamp()
+            logger.info(
+                "Webhook recorded a capture for order %s that the tablet did not",
+                order.order_number,
+            )
+    elif event_type in ("payment_intent.canceled", "payment_intent.payment_failed"):
+        # Deliberately does not touch order status. Whether a failed payment
+        # should void an order is the shop's call, not Stripe's -- they may
+        # still want to take it in cash.
+        logger.info("Stripe reports %s for order %s", event_type, order.order_number)
+    else:
+        return {"status": "ignored"}
+
+    await db.commit()
+    return {"status": "ok"}
 
 
 @router.get(

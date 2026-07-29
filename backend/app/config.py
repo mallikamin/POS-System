@@ -54,6 +54,26 @@ class Settings(BaseSettings):
     # slash. The order id is appended. Empty means no link is included.
     ORDER_TRACKING_BASE_URL: str = ""
 
+    # Stripe -- card payments for online orders.
+    #
+    # The shop charges on ACCEPTANCE, not on placement (the client's own
+    # decision, 2026-07-29: "Once accepted"). So the money is AUTHORISED at
+    # checkout and only CAPTURED when the shop taps Accept; a rejected order has
+    # its authorisation cancelled and the customer is never charged. That is why
+    # there is no refund path here -- there is nothing to refund.
+    #
+    # ⚠️ An authorisation is not indefinite: roughly 5 days on Visa and 7 on
+    # Mastercard/Amex for card-not-present. A pre-order cannot be held past that.
+    STRIPE_SECRET_KEY: str = ""
+    STRIPE_PUBLISHABLE_KEY: str = ""
+    # Verifies that a webhook genuinely came from Stripe. Without it we would be
+    # trusting an unauthenticated POST to tell us an order had been paid.
+    STRIPE_WEBHOOK_SECRET: str = ""
+    # Where Stripe returns the customer after checkout. The session id is
+    # appended by the service.
+    STRIPE_SUCCESS_URL: str = ""
+    STRIPE_CANCEL_URL: str = ""
+
     # QuickBooks Integration
     QB_CLIENT_ID: str = ""
     QB_CLIENT_SECRET: str = ""
@@ -103,6 +123,27 @@ class Settings(BaseSettings):
         courtesy on top of it.
         """
         return bool(self.SMTP_HOST and self.EMAIL_FROM)
+
+    @property
+    def stripe_configured(self) -> bool:
+        """Card payment is opt-in, exactly like email.
+
+        Without a secret key nothing card-related is offered and orders are
+        created unpaid, to be settled in cash on handover -- which is how the
+        shop already runs. A half-configured Stripe must never let the
+        storefront tell a customer they have paid when they have not.
+        """
+        return bool(self.STRIPE_SECRET_KEY)
+
+    @property
+    def stripe_webhook_configured(self) -> bool:
+        """Signature verification is not optional once money is real.
+
+        Capture and cancel are driven from the merchant tablet rather than from
+        the webhook, so the system is correct without one. The webhook exists to
+        reconcile what Stripe believes against what we believe.
+        """
+        return bool(self.STRIPE_WEBHOOK_SECRET)
 
     model_config = {
         "env_file": ".env",

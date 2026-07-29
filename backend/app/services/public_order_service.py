@@ -31,7 +31,7 @@ from app.models.restaurant_config import RestaurantConfig
 from app.models.user import Role, User
 from app.models.tenant import Tenant
 from app.schemas.public_order import PublicOrderCreate
-from app.services import email_service, order_service
+from app.services import email_service, order_service, stripe_service
 from app.utils.security import hash_password
 
 logger = logging.getLogger(__name__)
@@ -458,6 +458,59 @@ async def _link_customer(
 # ---------------------------------------------------------------------------
 
 
+async def _record_card_payment(
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    order: Order,
+    user_id: uuid.UUID,
+) -> None:
+    """Write the Payment row for a card capture.
+
+    Money that Stripe has but this system has no row for is money the shop
+    cannot reconcile: the Z-report, the dashboard and the drawer session all
+    read `payments`, never `orders.payment_status`.
+
+    Failure here must NOT undo the capture -- the money is already taken and
+    the customer is owed their food. So it is isolated in a SAVEPOINT, the same
+    pattern audit logging uses, and a failure is logged loudly rather than
+    poisoning the acceptance. The webhook is the backstop that reconciles it.
+    """
+    from app.schemas.payment import PaymentCreate
+    from app.services import payment_service
+
+    try:
+        async with db.begin_nested():
+            # A tenant seeded only for online ordering has no payment methods.
+            await payment_service.ensure_default_payment_methods(db, tenant_id)
+
+            paid, refunded = await payment_service._get_order_payment_totals(
+                db, tenant_id, order.id
+            )
+            due = max(order.total - paid + refunded, 0)
+            if due <= 0:
+                return
+
+            await payment_service.create_payment(
+                db,
+                tenant_id,
+                user_id,
+                PaymentCreate(
+                    order_id=order.id,
+                    method_code="card",
+                    amount=due,
+                    reference=order.stripe_payment_intent_id,
+                    note="Online card payment captured on acceptance",
+                ),
+            )
+    except Exception:
+        logger.exception(
+            "Captured %s for order %s but could not write the Payment row. "
+            "The money IS taken; reports will understate until reconciled.",
+            order.stripe_payment_intent_id,
+            order.order_number,
+        )
+
+
 async def accept_order(
     db: AsyncSession,
     tenant_id: uuid.UUID,
@@ -465,8 +518,39 @@ async def accept_order(
     user_id: uuid.UUID,
     eta_minutes: int,
 ) -> Order:
-    """Accept an online order and send it to the kitchen."""
+    """Accept an online order, take the money if a card is held, fire the kitchen.
+
+    Order of operations matters and is deliberate: **the card is captured before
+    anything else changes.** The client's rule is "charge once accepted", so
+    acceptance is the moment money moves, and if it cannot move the shop must
+    not be told the order is accepted -- the very next thing that happens is a
+    ticket printing in the kitchen and food being made.
+
+    A capture failure therefore raises and leaves the order pending, which is
+    recoverable. Cooking food for a payment that failed is not.
+    """
     order = await _get_pending_online_order(db, tenant_id, order_id)
+
+    # Card orders only. Cash on handover is the default and has nothing to take.
+    if order.stripe_payment_intent_id and order.payment_captured_at is None:
+        try:
+            status = await stripe_service.capture(order.stripe_payment_intent_id)
+        except stripe_service.StripeError as exc:
+            raise PublicOrderError(
+                f"Could not take the payment, so the order has not been accepted. {exc}"
+            ) from exc
+
+        if status != "succeeded":
+            raise PublicOrderError(
+                f"The payment did not complete (status: {status}). "
+                "The order has not been accepted."
+            )
+        order.payment_captured_at = datetime.now(timezone.utc)
+        # Stripe holding the money is not the same as this system knowing about
+        # it. Reports, the drawer session and the Z-report all read the payments
+        # table, so a capture that writes no Payment row is money the shop
+        # cannot see -- the same trap `mark_order_paid` exists to avoid.
+        await _record_card_payment(db, tenant_id, order, user_id)
 
     order.accepted_at = datetime.now(timezone.utc)
     order.eta_minutes = eta_minutes
@@ -625,8 +709,22 @@ async def reject_order(
     user_id: uuid.UUID,
     reason: str,
 ) -> Order:
-    """Reject an online order. Terminal -- it becomes `voided`."""
+    """Reject an online order. Terminal -- it becomes `voided`.
+
+    If a card was authorised, the hold is released here. Nothing was ever
+    captured, so there is no refund and the customer's "nothing has been
+    charged" line stays literally true.
+
+    Releasing is best-effort **on purpose**: a Stripe outage must not trap the
+    shop with an order it has already declined, and an uncaptured authorisation
+    expires by itself within days either way. Compare `accept_order`, where a
+    Stripe failure *does* block -- there the shop would otherwise cook food it
+    had not been paid for.
+    """
     order = await _get_pending_online_order(db, tenant_id, order_id)
+
+    if order.stripe_payment_intent_id and order.payment_captured_at is None:
+        await stripe_service.cancel(order.stripe_payment_intent_id)
 
     order.rejected_at = datetime.now(timezone.utc)
     order.rejection_reason = reason

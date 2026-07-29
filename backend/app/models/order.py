@@ -141,6 +141,39 @@ class Order(BaseMixin, Base):
         comment="Lead time promised to the customer on acceptance",
     )
 
+    # --- Stripe ------------------------------------------------------------
+    # The shop charges on ACCEPTANCE, not on placement, so a card payment lives
+    # in two steps: authorised at checkout, captured when the shop accepts (or
+    # cancelled when it rejects). Both ids are kept because they answer
+    # different questions -- the session is what the customer was sent to, the
+    # payment intent is what actually holds the money and is the thing we
+    # capture or cancel.
+    stripe_checkout_session_id: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+        index=True,
+        comment="Stripe Checkout Session the customer was sent to, if paying by card",
+    )
+    stripe_payment_intent_id: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+        index=True,
+        comment="PaymentIntent holding the authorisation. Captured on accept, cancelled on reject.",
+    )
+    payment_authorized_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment=(
+            "When the card was authorised. The hold expires roughly 5 days later "
+            "on Visa and 7 on Mastercard/Amex, so a pre-order cannot outlive it."
+        ),
+    )
+    payment_captured_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="When the authorisation was actually taken, on acceptance",
+    )
+
     created_by: Mapped[uuid.UUID] = mapped_column(
         Uuid,
         ForeignKey("users.id"),
