@@ -140,8 +140,13 @@ async def _get_or_create_config(
     config.receipt_header = "CHICK SHACK"
     config.receipt_footer = "Thank you -- see you again!"
 
+    # Chick Shack takes orders ONLY from the website (OI-54): the POS lands on
+    # the online-orders queue and the dine-in/takeaway/call-center channels are
+    # hidden. Per-tenant — every other tenant keeps the full channel selector.
+    config.online_ordering_only = True
+
     await db.flush()
-    print("  Restaurant config set (GBP, Europe/London, tax 0).")
+    print("  Restaurant config set (GBP, Europe/London, tax 0, online-only).")
     return config
 
 

@@ -61,6 +61,16 @@ class RestaurantConfig(BaseMixin, Base):
         comment="Minimum basket for delivery in minor units. 0 = no minimum.",
     )
 
+    online_ordering_only: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+        comment="True for a shop that takes orders ONLY from its website "
+        "(e.g. Chick Shack): the POS lands on the online-orders queue and "
+        "hides the dine-in/takeaway/call-center channels. Per-tenant on "
+        "purpose — the core POS keeps all channels for everyone else.",
+    )
+
     # Discount approval thresholds — if either is exceeded, manager verify required
     discount_approval_threshold_bps: Mapped[int] = mapped_column(
         Integer,

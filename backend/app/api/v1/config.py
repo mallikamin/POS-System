@@ -30,6 +30,7 @@ class RestaurantConfigUpdate(BaseModel):
     tax_inclusive: bool | None = None
     discount_approval_threshold_bps: int | None = Field(None, ge=0, le=10000)
     discount_approval_threshold_fixed: int | None = Field(None, ge=0)
+    online_ordering_only: bool | None = None
 
 
 @router.get("/restaurant", response_model=RestaurantConfigResponse)
@@ -119,6 +120,8 @@ async def update_restaurant_config(
         config.discount_approval_threshold_fixed = (
             data.discount_approval_threshold_fixed
         )
+    if data.online_ordering_only is not None:
+        config.online_ordering_only = data.online_ordering_only
 
     await db.commit()
     await db.refresh(config)

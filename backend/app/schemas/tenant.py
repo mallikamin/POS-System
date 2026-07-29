@@ -31,5 +31,6 @@ class RestaurantConfigResponse(BaseModel):
     receipt_footer: str | None = None
     discount_approval_threshold_bps: int = 0
     discount_approval_threshold_fixed: int = 0
+    online_ordering_only: bool = False
 
     model_config = {"from_attributes": True}

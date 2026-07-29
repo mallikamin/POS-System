@@ -1,7 +1,8 @@
 import { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { UtensilsCrossed, ShoppingBag, Phone } from "lucide-react";
+import { Navigate, useNavigate } from "react-router-dom";
+import { UtensilsCrossed, ShoppingBag, Phone, Loader2 } from "lucide-react";
 import { useUIStore } from "@/stores/uiStore";
+import { useConfigStore } from "@/stores/configStore";
 import type { OrderType } from "@/types";
 
 /* Preload POS-critical chunks so navigation is instant */
@@ -52,13 +53,39 @@ const channels: ChannelCard[] = [
 function DashboardPage() {
   const navigate = useNavigate();
   const { setCurrentChannel } = useUIStore();
+  const config = useConfigStore((s) => s.config);
+  const configLoading = useConfigStore((s) => s.isLoading);
+  const onlineOnly = config?.online_ordering_only === true;
 
   /* Preload all POS channel chunks on mount so navigation is instant */
   useEffect(() => {
+    if (onlineOnly) return;
     preloadDineIn();
     preloadTakeaway();
     preloadCallCenter();
-  }, []);
+  }, [onlineOnly]);
+
+  /*
+   * A website-only shop (OI-54): every one of the three channel tiles is a
+   * dead end, so land on the online-orders queue instead. Per-tenant via
+   * config — the core POS keeps the channel selector for everyone else.
+   */
+  if (onlineOnly) {
+    return <Navigate to="/online-orders" replace />;
+  }
+
+  /*
+   * Don't flash the channel selector before the config has answered whether
+   * this tenant should even see it. If the fetch errors, config stays null
+   * and we fall through to the selector rather than trapping everyone here.
+   */
+  if (!config && configLoading) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary-400" />
+      </div>
+    );
+  }
 
   const handleChannelSelect = (channel: ChannelCard) => {
     setCurrentChannel(channel.type);

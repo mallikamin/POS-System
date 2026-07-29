@@ -52,6 +52,11 @@ export interface RestaurantConfig extends BaseEntity {
   default_tax_rate: number;
   receipt_header: string | null;
   receipt_footer: string | null;
+  /**
+   * True for a shop that takes orders only from its website (Chick Shack):
+   * the POS lands on the online-orders queue instead of the channel selector.
+   */
+  online_ordering_only: boolean;
 }
 
 // ---------------------------------------------------------------------------
