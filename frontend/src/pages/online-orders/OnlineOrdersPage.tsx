@@ -2,11 +2,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   acceptOnlineOrder,
   completeOnlineOrder,
+  fetchTicketUrl,
   listOnlineOrders,
   markOnlineOrderPaid,
   markOnlineOrderReady,
   printTicket,
   rejectOnlineOrder,
+  sendToPrinter,
   type OnlineOrder,
   type OnlineOrderState,
 } from "@/services/onlineOrdersApi";
@@ -129,6 +131,13 @@ export default function OnlineOrdersPage() {
   const knownIds = useRef<Set<string>>(new Set());
   const firstLoad = useRef(true);
 
+  // Ticket jobs, fetched ahead of the tap. A ref rather than state, and that is
+  // the whole point: the Print handler has to read the current value
+  // SYNCHRONOUSLY, because any await before navigating ends the user gesture
+  // and Chrome then drops the `rawbt:` handoff without a word. Nothing renders
+  // from this, so it needs no re-render.
+  const ticketUrls = useRef<Map<string, string>>(new Map());
+
   const chime = useCallback(() => {
     try {
       const Ctx =
@@ -155,6 +164,21 @@ export default function OnlineOrdersPage() {
       try {
         const next = await listOnlineOrders(which);
         setOrders(next);
+
+        // Fetch every ticket URL up front, in the background.
+        //
+        // Not an optimisation -- a correctness requirement. Chrome on Android
+        // only follows a custom scheme inside a real user gesture, and an
+        // `await` inside the tap handler ends that gesture, so the print was
+        // being dropped silently. Having the URL already in hand is what makes
+        // the Print button navigate synchronously and actually reach RawBT.
+        void Promise.all(
+          next.map(async (order) => {
+            if (ticketUrls.current.has(order.id)) return;
+            const url = await fetchTicketUrl(order.id);
+            if (url) ticketUrls.current.set(order.id, url);
+          }),
+        );
 
         if (which === "pending") {
           const incoming = next.filter((o) => !knownIds.current.has(o.id));
@@ -191,15 +215,30 @@ export default function OnlineOrdersPage() {
 
       // The print is a separate step on purpose. If it fails the order stays
       // accepted -- the customer has already been told yes, and that must not
-      // be undone by a printer problem. It can be reprinted from Active.
-      const printed = await printTicket(order.id);
-      if (!printed) {
-        toast({
-          title: "Could not reach the printer",
-          description:
-            "The order is accepted. Open it under Active and print again.",
-          variant: "destructive",
-        });
+      // be undone by a printer problem.
+      //
+      // ⚠️ This automatic attempt is BEST EFFORT and frequently will not fire.
+      // Accepting means awaiting the API call above, which ends the user
+      // gesture, and Chrome on Android then refuses the `rawbt:` navigation
+      // without a word. That is exactly how the first live ticket vanished:
+      // 200s in the log, nothing on paper.
+      //
+      // So the real print path is the Print ticket button on the card, which
+      // navigates synchronously from the tap using a prefetched URL. If the
+      // automatic attempt is dropped, the toast below sends them straight to it.
+      const url = ticketUrls.current.get(order.id);
+      if (url) {
+        sendToPrinter(url);
+      } else {
+        const printed = await printTicket(order.id);
+        if (!printed) {
+          toast({
+            title: "Now tap Print ticket",
+            description:
+              "The order is accepted. Tap the Print ticket button on the order to send it to the printer.",
+            variant: "destructive",
+          });
+        }
       }
       await refresh(state);
     } catch (err) {
@@ -477,11 +516,32 @@ export default function OnlineOrdersPage() {
                       >
                         {stageLabel(order)}
                       </span>
+                      {/* Synchronous on purpose: the URL is already in hand,
+                          so the tap navigates straight to RawBT. Awaiting a
+                          fetch here is what silently killed the first live
+                          ticket. */}
                       <button
-                        onClick={() => void printTicket(order.id)}
-                        className="h-11 rounded-lg bg-white px-4 font-semibold text-secondary-800 shadow-sm"
+                        onClick={() => {
+                          const url = ticketUrls.current.get(order.id);
+                          if (url) {
+                            sendToPrinter(url);
+                            return;
+                          }
+                          // Not prefetched yet -- fall back and warn, because
+                          // this path can be dropped by Chrome.
+                          void printTicket(order.id).then((ok) => {
+                            if (!ok) {
+                              toast({
+                                title: "Could not reach the printer",
+                                description: "Wait a moment and tap Print again.",
+                                variant: "destructive",
+                              });
+                            }
+                          });
+                        }}
+                        className="h-12 rounded-lg bg-secondary-900 px-5 font-bold text-white shadow-sm"
                       >
-                        Print again
+                        🖨 Print ticket
                       </button>
                     </div>
 

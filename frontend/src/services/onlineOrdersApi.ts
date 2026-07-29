@@ -142,20 +142,62 @@ export async function markOnlineOrderPaid(
  * undo an accepted order: the order is accepted either way and the ticket can
  * be printed again from the Active tab.
  */
-export async function printTicket(orderId: string): Promise<boolean> {
+export async function fetchTicketUrl(orderId: string): Promise<string | null> {
   try {
     const { data } = await api.get<{ url: string; bytes: number }>(
       `/public/manage/orders/${orderId}/ticket`,
       { params: { format: "rawbt" } },
     );
-    if (!data?.url) return false;
-
-    // Navigating rather than window.open: a popup blocker will silently eat
-    // window.open on Android Chrome, and this is a custom scheme handoff, not
-    // a page we ever come back from.
-    window.location.href = data.url;
-    return true;
+    return data?.url ?? null;
   } catch {
-    return false;
+    return null;
   }
+}
+
+/**
+ * Hand an already-fetched job to RawBT. **Synchronous, and it must stay that
+ * way.**
+ *
+ * ⚠️ **This is the bug that stopped the first live ticket printing.** Chrome on
+ * Android refuses to navigate to a custom scheme unless the navigation happens
+ * inside a genuine user gesture — and `await`ing anything first ends that
+ * gesture. The old code fetched the ticket and *then* navigated, so by the time
+ * it set `location.href` the tap was over and Chrome dropped it **silently**:
+ * no error, no dialog, no print, and a 200 in the server log to say the ticket
+ * had been built. It looked for all the world like a printer problem.
+ *
+ * So the URL must already be in hand before the tap. Do not "tidy" this by
+ * moving the fetch back in here.
+ *
+ * The `intent:` form is tried first because it names the RawBT package
+ * explicitly, which newer Chrome handles more reliably than a bare scheme; the
+ * plain `rawbt:` URL stays as the fallback for older builds and other browsers.
+ */
+export function sendToPrinter(url: string): void {
+  const base64 = url.startsWith("rawbt:base64,")
+    ? url.slice("rawbt:base64,".length)
+    : null;
+
+  if (base64) {
+    window.location.href =
+      `intent:base64,${base64}` +
+      "#Intent;scheme=rawbt;package=ru.a402d.rawbtprinter;end;";
+    return;
+  }
+  window.location.href = url;
+}
+
+/**
+ * Fetch and print in one go.
+ *
+ * Only safe when NOT inside a user gesture that matters — i.e. the automatic
+ * attempt straight after Accept, which may well be dropped by Chrome. The
+ * visible Print button uses the prefetched URL instead, and that is the path
+ * that actually has to work.
+ */
+export async function printTicket(orderId: string): Promise<boolean> {
+  const url = await fetchTicketUrl(orderId);
+  if (!url) return false;
+  sendToPrinter(url);
+  return true;
 }
