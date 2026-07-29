@@ -96,6 +96,21 @@ def _client() -> Any:
 
     stripe.api_key = settings.STRIPE_SECRET_KEY
     stripe.max_network_retries = 2
+
+    # ⚠️ `timeout=` is NOT a per-call argument. Passing it to `.create()` sends
+    # it to Stripe as a request FIELD, and the API rejects the whole call with
+    # "Received unknown parameter: timeout" -- a 502 at the moment a customer
+    # is trying to pay. It was written that way here and every mocked test
+    # passed, because a mock accepts any keyword you hand it. Found by making
+    # one real call.
+    #
+    # The timeout belongs on the HTTP client, set once. Assigned only if unset,
+    # so this does not build a fresh connection pool on every call.
+    if stripe.default_http_client is None:
+        stripe.default_http_client = stripe.RequestsClient(
+            timeout=_STRIPE_TIMEOUT_SECONDS
+        )
+
     return stripe
 
 
@@ -231,7 +246,6 @@ def _create_session_blocking(
         # Stripe deduplicates on this, so a double-tap or a retried request
         # returns the same session instead of authorising the customer twice.
         idempotency_key=f"checkout:{order.id}",
-        timeout=_STRIPE_TIMEOUT_SECONDS,
     )
 
 
@@ -315,7 +329,7 @@ async def create_checkout_session(
 
 def _capture_blocking(payment_intent_id: str, amount: int | None) -> Any:
     stripe = _client()
-    params: dict[str, Any] = {"timeout": _STRIPE_TIMEOUT_SECONDS}
+    params: dict[str, Any] = {}
     if amount is not None:
         # A partial capture automatically releases the remainder, so this is
         # also how an order reduced after the fact would settle honestly.
@@ -352,9 +366,7 @@ async def capture(payment_intent_id: str, amount: int | None = None) -> str:
 
 def _retrieve_blocking(payment_intent_id: str) -> Any:
     stripe = _client()
-    return stripe.PaymentIntent.retrieve(
-        payment_intent_id, timeout=_STRIPE_TIMEOUT_SECONDS
-    )
+    return stripe.PaymentIntent.retrieve(payment_intent_id)
 
 
 async def capture_for_order(payment_intent_id: str, order_total: int) -> str:
@@ -411,9 +423,7 @@ async def capture_for_order(payment_intent_id: str, order_total: int) -> str:
 
 def _cancel_blocking(payment_intent_id: str) -> Any:
     stripe = _client()
-    return stripe.PaymentIntent.cancel(
-        payment_intent_id, timeout=_STRIPE_TIMEOUT_SECONDS
-    )
+    return stripe.PaymentIntent.cancel(payment_intent_id)
 
 
 async def cancel(payment_intent_id: str) -> bool:

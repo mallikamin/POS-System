@@ -612,6 +612,105 @@ async def test_unset_return_urls_read_as_unavailable_not_as_a_broken_server(
             await stripe_service.create_checkout_session(order, currency="GBP")
 
 
+# --- Regression: `timeout=` is not a Stripe API parameter -------------------
+
+
+class _StrictSessionApi:
+    """A fake that rejects unknown parameters, exactly as the real API does.
+
+    The bug this pins: `timeout=20` was passed to `checkout.Session.create()`.
+    It is **not** a per-call argument -- the SDK forwards it to Stripe as a
+    request FIELD, and the API answers
+    `Received unknown parameter: timeout`, which surfaced as a 502 to a
+    customer trying to pay.
+
+    Every mocked test passed, because `unittest.mock` accepts any keyword you
+    give it and asserts nothing about whether Stripe would. That is the same
+    blind spot that hid `StripeObject.get`, so the fix is the same shape: a fake
+    that is strict where the mock was permissive.
+    """
+
+    #: Everything Stripe genuinely accepts on a Checkout Session create call
+    #: that this service uses. `timeout` is deliberately absent.
+    ALLOWED = {
+        "mode",
+        "line_items",
+        "payment_intent_data",
+        "metadata",
+        "customer_email",
+        "success_url",
+        "cancel_url",
+        "idempotency_key",
+    }
+
+    def __init__(self) -> None:
+        self.captured: dict = {}
+
+    def create(self, **kwargs):  # noqa: ANN003, ANN201 - mirrors the SDK
+        unknown = set(kwargs) - self.ALLOWED
+        if unknown:
+            raise TypeError(f"Received unknown parameter: {sorted(unknown)[0]}")
+        self.captured = kwargs
+        return {
+            "id": "cs_test_1",
+            "url": "https://checkout.stripe.com/c/pay/cs_test_1",
+            "payment_intent": "pi_test_1",
+        }
+
+
+@pytest.mark.asyncio
+async def test_checkout_session_sends_no_parameter_stripe_would_reject(
+    tenant: Tenant, admin_user: User
+) -> None:
+    """The whole call must survive an API that refuses unknown fields."""
+    order = _card_order(tenant, admin_user)
+    order.items = []
+
+    sessions = _StrictSessionApi()
+    fake_stripe = type(
+        "FakeStripe", (), {"checkout": type("C", (), {"Session": sessions})()}
+    )()
+
+    with patch.object(stripe_service, "_client", return_value=fake_stripe), \
+         patch.object(stripe_service.settings, "STRIPE_SUCCESS_URL", "https://x/ok"), \
+         patch.object(stripe_service.settings, "STRIPE_CANCEL_URL", "https://x/no"), \
+         patch.object(stripe_service.settings, "STRIPE_ACCOUNT_CURRENCY", "gbp"):
+        url, session_id, intent_id = await stripe_service.create_checkout_session(
+            order, currency="GBP"
+        )
+
+    assert session_id == "cs_test_1"
+    assert intent_id == "pi_test_1"
+    assert url.startswith("https://checkout.stripe.com/")
+    assert "timeout" not in sessions.captured, (
+        "timeout is an HTTP-client setting, never a Stripe API parameter"
+    )
+    # The return URLs must still have carried the order id through.
+    assert f"order={order.id}" in sessions.captured["success_url"]
+
+
+def test_the_http_timeout_is_configured_on_the_client_not_the_call() -> None:
+    """Where the timeout is supposed to live, so the fix is not undone.
+
+    Deleting the client configuration would make every Stripe call fall back to
+    the SDK default of 80 seconds -- a customer staring at a spinner through
+    four of our own 20-second budgets.
+    """
+    import stripe as real_stripe
+
+    original = real_stripe.default_http_client
+    try:
+        real_stripe.default_http_client = None
+        with patch.object(
+            stripe_service.settings, "STRIPE_SECRET_KEY", "sk_test_x"
+        ):
+            stripe_service._client()
+        assert real_stripe.default_http_client is not None
+        assert getattr(real_stripe.default_http_client, "_timeout", None) == 20
+    finally:
+        real_stripe.default_http_client = original
+
+
 # --- The return trip: Stripe sends the customer back to a fresh page load ---
 
 
