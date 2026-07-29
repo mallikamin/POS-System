@@ -71,7 +71,22 @@ selectors afterwards.
 
 ## Step 2 — DNS in Cloudflare (you)
 
-Add **one** record. Everything else stays untouched.
+Add **two** records — both on **new** hostnames, so nothing existing is modified.
+
+> ⚠️ **Corrected 2026-07-29 (session D).** This section originally said *one* record. In
+> practice Mailjet asks for domain **ownership** verification first, and DKIM second. The
+> safety property is unchanged (both are additive, nothing existing is edited), but the count
+> was wrong.
+
+**2a — Ownership verification.** Mailjet offers a file upload *or* a DNS record. **Take the
+DNS record.** The file route would mean deploying a file to the client's live storefront, and
+a storefront deploy is a business event (it is the live ordering site), not a verification step.
+
+| Type | Name | Value | Proxy |
+|---|---|---|---|
+| TXT | `mailjet._<token prefix>` (exact name Mailjet gives) | the token Mailjet gives | DNS only |
+
+**2b — DKIM.**
 
 | Type | Name | Value | Proxy |
 |---|---|---|---|

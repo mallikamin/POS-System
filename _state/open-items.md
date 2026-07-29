@@ -144,13 +144,26 @@ is the whole heat scale, kids upgrade prices, and tick-list vs free text.
 Either way this is **not storefront-only**: the choices must exist as rows or the order
 endpoint will refuse them, so it means new groups in `seed_chick_shack.py` and a re-seed.
 
-**OI-46 · A prepaid pre-order that gets REJECTED means we owe a refund, and nothing refunds.**
-Raised 2026-07-29 when 24/7 pre-ordering went in. Today every order is created unpaid, so a
-rejection costs nothing and the reject path correctly says "nothing has been charged". The moment
-Stripe is live that sentence becomes false: a customer can pay at 02:00 for a shop that opens at
-16:00 and then declines the order. `reject_order` has **no refund call**, and the rejection email
-still claims nothing was taken. **Must be built as part of the Stripe work, not after it** —
-together with deciding whether pre-orders are even allowed to prepay. Blocks nothing today.
+**OI-46 ✅ DISSOLVED 2026-07-29 by the client's own answer — there is nothing to refund.**
+Asked directly whether a website prepaid order should be charged at placement or on acceptance,
+Imran answered **"Once accepted."** That makes it Stripe **manual capture**: authorise at
+checkout, **capture on the Accept tap**, **cancel the authorisation on Reject**. A rejected order
+is therefore never charged, the rejection screen's *"nothing has been charged"* stays true, and
+no refund path is needed. **Build the capture/cancel model, not a refund model.**
+⚠️ One real constraint it introduces: a card authorisation expires after **~7 days**, so a
+pre-order cannot be held open indefinitely. Fine for same-day and next-day, which is all he does.
+*Original description — a refund gap that only existed under charge-at-placement:*
+Raised 2026-07-29 when 24/7 pre-ordering went in. A customer could pay at 02:00 for a shop that
+opens at 16:00 and then be declined, and `reject_order` had **no refund call**.
+
+**OI-48 · Customers should be able to CHOOSE a time. Not built, and it is not a tweak.**
+Raised by Imran 2026-07-29: *"they can select a time (we open at 4) so earliest delivery would be
+4.30pm."* Today the storefront has **no time picker at all** — an out-of-hours order is simply
+labelled a pre-order and the shop supplies the ETA when it accepts. He is describing the customer
+picking a slot, bounded below by opening time plus a lead time. That means a new field on the
+order, validating the requested slot against opening hours, surfacing it on the tablet card and
+the kitchen ticket, and deciding what happens when the shop cannot meet the chosen time.
+**Deliberately logged rather than absorbed into the Stripe work.**
 
 **OI-47 · CI has been red on every commit, and the lint failure means the tests never run.**
 Found 2026-07-29 (session D) while verifying a deploy. **Both** CI jobs fail: backend Ruff
@@ -168,9 +181,18 @@ a safety net nobody can read. **Deliberately not fixed here** — it is ~30 edit
 is parked, which is Malik's call, not a side effect of the Chick Shack work. Fix is either a
 one-off cleanup or scoping Ruff to exclude parked paths until they are revived.
 
-**OI-20 · Stripe account not connected.**
-Imran says he has one. Unknown whether it is verified and live or newly created. **Gates the entire
-payment path**, which is the remaining bulk of the build. Ask before starting Stripe work.
+**OI-20 ✅ RESOLVED 2026-07-29 · Stripe account connected.**
+Imran's account is real, live and GBP (`Chick Shack`, `acct_1TngvxFnGj7KcDjJ`). He granted Malik a
+**Developer** seat — the least-privilege role that can manage API keys and webhooks and cannot
+touch payouts. Work starts in the **sandbox**; live keys only once the sandbox flow passes.
+⚠️ Stripe **does not support Pakistan**, so the signup country is answered **United Kingdom**.
+That field only shapes the personal user profile — it does not create a merchant account, because
+this is a team invitation onto his existing UK business.
+**Now open as OI-23** — the integration itself, still unbuilt.
+
+**OI-38 ✅ ANSWERED 2026-07-29 · Chick Shack is NOT VAT registered.** Imran, directly: *"We are not
+VAT registered yet."* The seed's **0% tax is therefore correct**, not a placeholder, and no change
+is needed before taking money. Revisit only if he registers.
 
 **OI-31 ✅ RESOLVED 2026-07-27 06:43 · He does not need to buy anything.** He said the printer was
 incompatible and he would buy a new one — repeating back our own superseded Bluetooth-era advice, not
@@ -227,7 +249,8 @@ not a wildcard. `.env.demo` backed up first as `.env.demo.bak.20260728-201748`.
 *This is the failure mode that has no error message. Test CORS with an `Origin` header, not by
 whether the endpoint returns 200.*
 
-**OI-38 · Is Chick Shack VAT registered?** The seed sets tax to **0**, deliberately, rather than
+**OI-38 — see the ✅ ANSWERED entry above. Original wording kept for the record:**
+**Is Chick Shack VAT registered?** The seed sets tax to **0**, deliberately, rather than
 assuming 20% UK VAT. Totals match the printed board either way under `tax_inclusive`, so nothing is
 wrong today, but this must be answered before real money moves. Ask alongside the Stripe question.
 
