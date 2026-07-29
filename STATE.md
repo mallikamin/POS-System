@@ -2,10 +2,12 @@
 
 **Last refreshed:** 2026-07-29 (late) · **Branch:** `main` · **HEAD:** `9670362`, pushed **and deployed**
 
-🔴 **THE STOREFRONT IS PUBLISHED AND `chickshackg84.com` CAN NOW TAKE REAL ORDERS.**
-Published 2026-07-29 ~00:30 UK. **The first order becomes possible at 14:00 UK** — checkout is
-gated to 14:00–22:00, so nothing can be placed overnight. From 14:00 today a real customer order
-goes straight to Imran's tablet. **UAT is live from that moment.**
+🔴 **THE STOREFRONT IS PUBLISHED AND `chickshackg84.com` IS TAKING REAL ORDERS, 24/7.**
+Published 2026-07-29 ~00:30 UK. **There is no time gate** — an order placed while the shop is shut
+is accepted as a **pre-order** and labelled as one on the website, the confirmation page and the
+tablet. Refusing out-of-hours customers was tried and reversed: it loses the order to whoever is
+still taking them. Nothing is auto-accepted; Imran's team still accepts or rejects every order by
+hand. **Any real order now goes straight to his tablet — UAT is live.**
 
 *2026-07-29 (late session): merged to `main` and deployed. The **whole order lifecycle** is now
 wired end to end — tablet buttons for out-for-delivery / delivered / mark-paid, completed orders
@@ -56,7 +58,7 @@ we supply the online channel alongside it: website with checkout, plus a tablet 
 | Area | Status | Detail |
 |---|---|---|
 | Chick Shack storefront | ✅ **Live** on the client's real domain, Cloudflare SSL | `_state/chick-shack-uk.md` |
-| Chick Shack ordering | 🔴 **LIVE.** Published 2026-07-29 ~00:30 UK. Checkout gated to **14:00–22:00**, so the first possible real order is 14:00 UK | `_state/chick-shack-uk.md` |
+| Chick Shack ordering | 🔴 **LIVE, 24/7.** Out-of-hours orders are accepted as **pre-orders** and shown as such on all three surfaces. Accept/reject is always manual | `_state/chick-shack-uk.md` |
 | Chick Shack tenant + menu in DB | ✅ **Seeded locally and on production 2026-07-28/29** — 8 categories, 62 items, 11 delivery areas, GBP. Logins verified | `_state/decisions.md` D-11 |
 | Multi-tenant routing | ✅ **Fixed 2026-07-28.** Public routes keyed by slug; PIN login no longer searches across tenants | `_state/decisions.md` D-10 |
 | Public ordering API | ✅ Built, tenant-scoped, queue endpoint. **Deployed 2026-07-29** | `_state/chick-shack-uk.md` |
@@ -81,9 +83,8 @@ we supply the online channel alongside it: website with checkout, plus a tablet 
 **Everything is deployed and published.** `merge to main` is now a complete deploy: it recreates
 nginx itself and verifies every hostname's certificate, so there is no hand-fixing step any more.
 
-🔴 **UAT begins at 14:00 UK today, whether or not anyone is ready.** From that moment
-`chickshackg84.com` accepts real orders and every one lands on Imran's tablet at
-`https://eats.sitaratech.info/online-orders?shop=chick-shack`. **Tell Imran before 14:00.**
+🔴 **UAT is live NOW.** `chickshackg84.com` accepts orders at any hour and every one lands on
+Imran's tablet at `https://eats.sitaratech.info/online-orders?shop=chick-shack`. **Tell Imran.**
 
 In order:
 

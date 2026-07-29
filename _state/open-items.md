@@ -113,6 +113,14 @@ is the whole heat scale, kids upgrade prices, and tick-list vs free text.
 Either way this is **not storefront-only**: the choices must exist as rows or the order
 endpoint will refuse them, so it means new groups in `seed_chick_shack.py` and a re-seed.
 
+**OI-46 · A prepaid pre-order that gets REJECTED means we owe a refund, and nothing refunds.**
+Raised 2026-07-29 when 24/7 pre-ordering went in. Today every order is created unpaid, so a
+rejection costs nothing and the reject path correctly says "nothing has been charged". The moment
+Stripe is live that sentence becomes false: a customer can pay at 02:00 for a shop that opens at
+16:00 and then declines the order. `reject_order` has **no refund call**, and the rejection email
+still claims nothing was taken. **Must be built as part of the Stripe work, not after it** —
+together with deciding whether pre-orders are even allowed to prepay. Blocks nothing today.
+
 **OI-20 · Stripe account not connected.**
 Imran says he has one. Unknown whether it is verified and live or newly created. **Gates the entire
 payment path**, which is the remaining bulk of the build. Ask before starting Stripe work.
