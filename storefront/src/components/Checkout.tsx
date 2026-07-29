@@ -10,8 +10,10 @@ import {
 } from "../lib/delivery";
 import { orderLinesOf, subtotalOf, useCart } from "../store/cart";
 import { canOrder, useMenu } from "../store/menu";
-import { ApiError, placeOrder } from "../lib/api";
+import { ApiError, createCheckoutSession, placeOrder } from "../lib/api";
 import type { ApiOrderResponse } from "../lib/api";
+import { savePendingOrder } from "../lib/pendingOrder";
+import { cardPaymentOffered } from "../lib/cardPayment";
 
 interface Props {
   onBack: () => void;
@@ -45,11 +47,12 @@ export default function Checkout({ onBack, onPlaced }: Props) {
   const [areaId, setAreaId] = useState("");
   const [postcode, setPostcode] = useState("");
   const [notes, setNotes] = useState("");
-  // Card is only offered once Stripe exists. Until then the order is created
-  // unpaid and settled in the shop, so cash is not merely the default, it is
-  // the only truthful option. See the Payment section below.
+  // Card is only offered once Stripe is wired and proven. Until then the order
+  // is created unpaid and settled in the shop, so cash is not merely the
+  // default, it is the only truthful option. See the Payment section below.
+  const cardOffered = cardPaymentOffered();
   const [payment, setPayment] = useState<PaymentMethod>(
-    SHOP.cardPaymentEnabled ? "card" : "cash",
+    cardOffered ? "card" : "cash",
   );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -116,7 +119,33 @@ export default function Checkout({ onBack, onPlaced }: Props) {
           : {}),
       });
 
+      // The order now EXISTS, whatever happens next. That is deliberate: a
+      // customer who abandons the payment page leaves an ordinary unpaid order
+      // the shop can see and chase, rather than nothing at all.
       clear();
+
+      if (payment === "card") {
+        try {
+          const { checkout_url } = await createCheckoutSession(order.id);
+          // Stash before leaving. Stripe returns the browser here as a fresh
+          // page load, and without this the customer lands on an empty menu
+          // having just paid.
+          savePendingOrder(order);
+          window.location.assign(checkout_url);
+          // Deliberately leave `submitting` set. The page is being replaced,
+          // and re-enabling the button invites a second tap on the way out.
+          return;
+        } catch {
+          // Card could not be started -- Stripe unconfigured, unreachable, or
+          // refusing. The order stands and is unpaid, so show the confirmation
+          // rather than an error: telling someone their order failed when it
+          // is sitting on the shop's tablet is worse than telling them nothing.
+          setSubmitting(false);
+          onPlaced(order);
+          return;
+        }
+      }
+
       setSubmitting(false);
       onPlaced(order);
     } catch (cause) {
@@ -259,12 +288,13 @@ export default function Checkout({ onBack, onPlaced }: Props) {
 
       <section>
         <h2 className="label">Payment</h2>
-        {/* Card is hidden, not merely unselected, until Stripe is built. The
-            order endpoint creates every order `unpaid` and there is no payment
-            step behind it, so offering "Pay now by card" would take no money
-            while telling the customer it had. Showing one honest option is
-            better than two where one is a lie. */}
-        {SHOP.cardPaymentEnabled ? (
+        {/* Card is hidden, not merely unselected, until it is proven end to
+            end. Offering "Pay now by card" while the server holds test keys
+            would decline every real customer's real card for no reason they
+            could understand. Showing one honest option is better than two where
+            one is a lie. See `lib/cardPayment.ts` for the `?card=1` override
+            that lets us test on the live site without exposing it. */}
+        {cardOffered ? (
           <div className="space-y-2">
             <button
               onClick={() => setPayment("card")}

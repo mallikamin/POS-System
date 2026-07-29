@@ -242,6 +242,26 @@ export function placeOrder(order: ApiOrderRequest): Promise<ApiOrderResponse> {
   });
 }
 
+/**
+ * Authorise the card for an order that has ALREADY been placed.
+ *
+ * Deliberately a second call, never part of placing the order. The order is
+ * real before any payment page is shown, so a customer who abandons Stripe
+ * leaves an ordinary unpaid order the shop can still see and chase — rather
+ * than nothing at all, which is what would happen if payment came first.
+ *
+ * The money is only *held* here. It is taken when the shop accepts and released
+ * if the shop rejects, which is the client's own rule: charge once accepted.
+ */
+export function createCheckoutSession(
+  orderId: string,
+): Promise<{ checkout_url: string; session_id: string }> {
+  return request<{ checkout_url: string; session_id: string }>(
+    `/public/${TENANT_SLUG}/orders/${orderId}/checkout-session`,
+    { method: "POST" },
+  );
+}
+
 export function fetchOrderStatus(orderId: string): Promise<ApiOrderStatus> {
   return request<ApiOrderStatus>(
     `/public/${TENANT_SLUG}/orders/${orderId}/status`,

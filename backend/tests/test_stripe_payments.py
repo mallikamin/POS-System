@@ -612,6 +612,47 @@ async def test_unset_return_urls_read_as_unavailable_not_as_a_broken_server(
             await stripe_service.create_checkout_session(order, currency="GBP")
 
 
+# --- The return trip: Stripe sends the customer back to a fresh page load ---
+
+
+def test_return_urls_carry_the_order_id(tenant: Tenant, admin_user: User) -> None:
+    """Without this the customer lands on an empty menu having just paid.
+
+    The storefront is a single page holding its state in memory. Stripe returns
+    the browser as a **new page load**, so the only way the confirmation screen
+    can be rebuilt is if the order id comes back on the URL.
+    """
+    order = _card_order(tenant, admin_user)
+
+    success = stripe_service._with_order("https://chickshackg84.com/", order, paid=True)
+    cancel = stripe_service._with_order("https://chickshackg84.com/", order, paid=False)
+
+    assert f"order={order.id}" in success
+    assert success.endswith("paid=1")
+    assert f"order={order.id}" in cancel
+    assert cancel.endswith("paid=0")
+
+
+def test_return_urls_do_not_break_a_url_that_already_has_a_query(
+    tenant: Tenant, admin_user: User
+) -> None:
+    """A `?` already in the configured URL must not become a second `?`.
+
+    Easy to get wrong and invisible until someone configures a return URL with
+    a tracking parameter on it, at which point the whole query string is
+    silently malformed and the order id never arrives.
+    """
+    order = _card_order(tenant, admin_user)
+
+    url = stripe_service._with_order(
+        "https://chickshackg84.com/?utm_source=qr", order, paid=True
+    )
+
+    assert url.count("?") == 1
+    assert "utm_source=qr" in url, "the existing query must survive"
+    assert f"order={order.id}" in url
+
+
 # --- H-5: the money must be visible to the shop, not just to Stripe --------
 
 

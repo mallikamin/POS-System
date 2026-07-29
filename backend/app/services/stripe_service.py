@@ -99,6 +99,19 @@ def _client() -> Any:
     return stripe
 
 
+def _with_order(url: str, order: Order, *, paid: bool) -> str:
+    """Append the order id to a return URL, preserving any query it already has.
+
+    `paid` reflects which of the two URLs Stripe used, not whether money was
+    actually taken -- the customer landing on the success URL means they
+    finished the Checkout page, and the authorisation still has to be captured
+    when the shop accepts. The storefront uses it to decide which screen to
+    show; the database is the authority on payment.
+    """
+    separator = "&" if "?" in url else "?"
+    return f"{url}{separator}order={order.id}&paid={'1' if paid else '0'}"
+
+
 # ---------------------------------------------------------------------------
 # Building the basket Stripe will show
 # ---------------------------------------------------------------------------
@@ -265,6 +278,13 @@ async def create_checkout_session(
             f"account settles in {expected.upper()}. Card payment is not "
             "available until they match."
         )
+
+    # Stripe sends the customer back to a bare URL, and the storefront is a
+    # single page with its state in memory -- so without this it would reload to
+    # an empty menu, having just taken their money. The order id travels in the
+    # query string and is what the page uses to put the confirmation screen back.
+    success = _with_order(success, order, paid=True)
+    cancel = _with_order(cancel, order, paid=False)
 
     try:
         session = await asyncio.to_thread(

@@ -8,6 +8,17 @@ import type { ApiOrderResponse, ApiOrderStatus } from "../lib/api";
 interface Props {
   order: ApiOrderResponse;
   onDone: () => void;
+  /**
+   * The customer has just come back from Stripe having completed the Checkout
+   * page, so their card is AUTHORISED — the money is held, not taken.
+   *
+   * Not derivable from the order: it was stashed before the redirect, so its
+   * `payment_status` still reads `unpaid`, and it stays `unpaid` until the shop
+   * accepts and the capture writes a payment row. This is the only thing that
+   * distinguishes "card details taken, awaiting the shop" from "pay on
+   * delivery", and the two must never read the same.
+   */
+  cardAuthorised?: boolean;
 }
 
 /** How often to ask the shop whether they have answered yet. */
@@ -45,7 +56,11 @@ const ACCEPTED_POLL_WINDOW_MS = 2 * 60 * 60 * 1000;
  * It deliberately never claims payment has been taken. Orders are created
  * unpaid and settled in the shop until Stripe exists.
  */
-export default function OrderConfirmation({ order, onDone }: Props) {
+export default function OrderConfirmation({
+  order,
+  onDone,
+  cardAuthorised = false,
+}: Props) {
   const [status, setStatus] = useState<ApiOrderStatus | null>(null);
   const [gaveUp, setGaveUp] = useState(false);
 
@@ -104,6 +119,13 @@ export default function OrderConfirmation({ order, onDone }: Props) {
   // The shop has made the food: it is on the counter, or with the driver.
   const ready = status?.ready === true;
   const completed = status?.completed === true;
+
+  // `paid` is the server's word, read from the payments table, and it only
+  // becomes true once the shop has accepted and the card has actually been
+  // captured. An order that went through Stripe but has not been accepted yet
+  // is authorised, not paid — the money is held, not taken.
+  const paidByCard = status?.paid === true;
+  const awaitingCapture = !paidByCard && cardAuthorised;
 
   return (
     <div className="px-4 py-16 max-w-md mx-auto text-center space-y-5">
@@ -235,8 +257,18 @@ export default function OrderConfirmation({ order, onDone }: Props) {
           <span>Total</span>
           <span>{formatGBP(order.total)}</span>
         </div>
+        {/* Three states, and the middle one is the whole point of saying this
+            carefully. Money is only TAKEN when the shop accepts, so between
+            paying and being accepted the honest words are "held", not "paid" —
+            the customer's statement will show a pending amount and nothing has
+            actually left their account yet. Claiming "paid" here and then
+            having the shop reject the order would make this screen a lie. */}
         <p className="text-xs text-cream/45">
-          Payable on {collecting ? "collection" : "delivery"}.
+          {paidByCard
+            ? "Paid by card."
+            : awaitingCapture
+              ? "Card details taken. We only charge you once the shop accepts your order."
+              : `Payable on ${collecting ? "collection" : "delivery"}.`}
         </p>
       </div>
 
