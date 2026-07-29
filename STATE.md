@@ -76,6 +76,7 @@ orders are accepted as labelled pre-orders, never refused.
 | Core POS (10 phases) | ✅ Production, 98/99 UAT | `_state/pos-platform.md` |
 | QuickBooks Online | ✅ Live. Sync is **manual by design**, not broken | `_state/pos-platform.md` |
 | POS demo sites | ✅ Green (`pos-demo.duckdns.org`, `eats.sitaratech.info`) | `_state/infrastructure.md` |
+| CI (`ci.yml`) | ❌ **Red on every commit.** Ruff + ESLint fail; Ruff exits before the test step, so **CI has never run the suite**. All findings are in parked code, none are live bugs. Deploys are a separate workflow and are green | `_state/open-items.md` OI-47 |
 | Nightly demo-data cron | ❌ **Has never run** | `_state/open-items.md` OI-11 |
 
 ---

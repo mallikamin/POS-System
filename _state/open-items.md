@@ -132,6 +132,22 @@ Stripe is live that sentence becomes false: a customer can pay at 02:00 for a sh
 still claims nothing was taken. **Must be built as part of the Stripe work, not after it** —
 together with deciding whether pre-orders are even allowed to prepay. Blocks nothing today.
 
+**OI-47 · CI has been red on every commit, and the lint failure means the tests never run.**
+Found 2026-07-29 (session D) while verifying a deploy. **Both** CI jobs fail: backend Ruff
+(~30 findings) and frontend ESLint. The Ruff step runs *before* the test step and exits 1, so
+**`ci.yml` has not executed the backend suite on any recent commit** — the 373 passing figure
+comes from running it by hand, and nothing automated would catch a regression.
+Nothing here is a live bug: the findings are almost all `F401` unused imports in **parked**
+subsystems (QB Desktop at 33%, BOM seeders) plus `E712`/`F841`. The one that looks alarming,
+`app/models/menu.py:92 F821 Undefined name 'Recipe'`, was checked and is **not** a defect —
+it is a SQLAlchemy string forward reference resolved from the mapper registry at runtime; it
+only lacks a `TYPE_CHECKING` import. The live menu serves and the suite passes.
+**Not blocking, and deploys are unaffected** (`deploy-production.yml` is a separate workflow and
+is green). But a permanently-red CI is the same failure this repo already logged on 2026-07-27:
+a safety net nobody can read. **Deliberately not fixed here** — it is ~30 edits across code that
+is parked, which is Malik's call, not a side effect of the Chick Shack work. Fix is either a
+one-off cleanup or scoping Ruff to exclude parked paths until they are revived.
+
 **OI-20 · Stripe account not connected.**
 Imran says he has one. Unknown whether it is verified and live or newly created. **Gates the entire
 payment path**, which is the remaining bulk of the build. Ask before starting Stripe work.
