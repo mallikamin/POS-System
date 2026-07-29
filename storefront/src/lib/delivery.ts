@@ -38,15 +38,54 @@ export function checkDelivery(areaId: string, subtotal: Pence): DeliveryCheck {
   return { ok: true, area, fee: area.fee };
 }
 
+/**
+ * Minutes past midnight, in the shop's own timezone.
+ *
+ * ⚠️ **Do not go back to `new Date(now.toLocaleString("en-GB", …))`.** That was
+ * here, and it was broken in every browser:
+ *
+ *     new Date("29/07/2026, 17:16:39")   ->   Invalid Date
+ *
+ * `en-GB` formats day-first, and JavaScript's date parser cannot read
+ * DD/MM/YYYY — it tries month 29 and gives up. Every subsequent `getHours()`
+ * returned `NaN`, and because every comparison against `NaN` is false, the shop
+ * read as **closed 24 hours a day** and **every order was labelled a
+ * pre-order**, live, for real customers.
+ *
+ * It failed silently and looked completely reasonable, which is exactly why it
+ * survived review. `formatToParts` reads the numbers directly and never goes
+ * near the string parser.
+ */
+function shopMinutesNow(now: Date): number {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/London",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(now);
+
+  const value = (type: string) =>
+    Number(parts.find((part) => part.type === type)?.value ?? NaN);
+
+  // `hour12: false` yields "24" for midnight in some engines rather than "00".
+  const hour = value("hour") % 24;
+  const minute = value("minute");
+
+  return hour * 60 + minute;
+}
+
+/** "HH:MM" as minutes past midnight. */
+function toMinutes(hhmm: string): number {
+  const [h, m] = hhmm.split(":").map(Number);
+  return (h ?? 0) * 60 + (m ?? 0);
+}
+
 /** Is the shop currently within its opening hours, in UK local time? */
 export function isOpenNow(now: Date = new Date()): boolean {
-  // Compute against Europe/London explicitly — the customer may be on a phone
+  // Computed against Europe/London explicitly — the customer may be on a phone
   // set to another timezone, and the shop's hours are local.
-  const uk = new Date(now.toLocaleString("en-GB", { timeZone: "Europe/London" }));
-  const minutes = uk.getHours() * 60 + uk.getMinutes();
-  const [oh, om] = SHOP.openTime.split(":").map(Number);
-  const [ch, cm] = SHOP.closeTime.split(":").map(Number);
-  return minutes >= oh! * 60 + om! && minutes < ch! * 60 + cm!;
+  const minutes = shopMinutesNow(now);
+  return minutes >= toMinutes(SHOP.openTime) && minutes < toMinutes(SHOP.closeTime);
 }
 
 /**
@@ -78,12 +117,9 @@ export type OrderTiming = {
 };
 
 export function orderTiming(now: Date = new Date()): OrderTiming {
-  const uk = new Date(now.toLocaleString("en-GB", { timeZone: "Europe/London" }));
-  const minutes = uk.getHours() * 60 + uk.getMinutes();
-  const [fh, fm] = (SHOP.orderFromTime || SHOP.openTime).split(":").map(Number);
-  const [ch, cm] = SHOP.closeTime.split(":").map(Number);
-  const immediate =
-    minutes >= fh! * 60 + fm! && minutes < ch! * 60 + cm!;
+  const minutes = shopMinutesNow(now);
+  const from = toMinutes(SHOP.orderFromTime || SHOP.openTime);
+  const immediate = minutes >= from && minutes < toMinutes(SHOP.closeTime);
   return { immediate, opensAt: SHOP.openTime };
 }
 
