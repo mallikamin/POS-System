@@ -377,6 +377,22 @@ async def transition_order(
             f"Cannot transition from '{current}' to '{new_status}'. Allowed: {allowed}"
         )
 
+    # Online-order guard: a placed online order is ACCEPTED, never merely
+    # "sent to kitchen". Accepting (public_order_service.accept_order) is what
+    # gives the customer their ETA, captures a card authorisation, notifies
+    # them and prints the kitchen ticket. This generic transition does none of
+    # that, so allowing it here would cook food that was never charged for.
+    if (
+        order.order_type == "online"
+        and current == "confirmed"
+        and new_status == "in_kitchen"
+    ):
+        raise ValueError(
+            "This is an online order awaiting acceptance. Accept it from the "
+            "Online Orders queue so the customer is notified and any card "
+            "payment is captured."
+        )
+
     # Pay-first guard: block confirmed→in_kitchen without payment
     if current == "confirmed" and new_status == "in_kitchen":
         payment_flow = await _get_payment_flow(db, tenant_id)

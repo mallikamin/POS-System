@@ -26,7 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.order import Order
 from app.models.tenant import Tenant
 from app.models.user import User
-from app.services import email_service, public_order_service
+from app.services import email_service, order_service, public_order_service
 from app.services.public_order_service import PublicOrderError
 
 
@@ -155,6 +155,42 @@ async def test_a_non_online_order_is_not_reachable_from_here(
         await public_order_service.advance_order(
             db, tenant.id, order.id, admin_user.id, "ready"
         )
+
+
+@pytest.mark.asyncio
+async def test_generic_transition_cannot_accept_an_online_order(
+    db: AsyncSession, tenant: Tenant, admin_user: User
+) -> None:
+    """The /orders "Send to Kitchen" button must not bypass the accept path.
+
+    Accepting is what promises the customer an ETA, captures a card
+    authorisation and notifies them. The generic state machine does none of
+    that, so confirmed→in_kitchen for an online order is refused outright —
+    food must never be cooked for an order that was never answered.
+    """
+    order = _online_order(
+        tenant, admin_user, order_number="L250101-004", status="confirmed"
+    )
+    db.add(order)
+    await db.flush()
+    await db.commit()
+
+    with pytest.raises(ValueError, match="Online Orders queue"):
+        await order_service.transition_order(
+            db, order.id, tenant.id, admin_user.id, "in_kitchen"
+        )
+
+
+@pytest.mark.asyncio
+async def test_generic_transition_still_moves_an_accepted_online_order(
+    db: AsyncSession, tenant: Tenant, admin_user: User, accepted_order: Order
+) -> None:
+    """Only the accept step is fenced off. The queue's own ready/completed
+    moves run through this same function and must keep working."""
+    moved = await order_service.transition_order(
+        db, accepted_order.id, tenant.id, admin_user.id, "ready"
+    )
+    assert moved.status == "ready"
 
 
 # ---------------------------------------------------------------------------

@@ -14,6 +14,7 @@ import {
   Send,
   MapPin,
   User,
+  Globe,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -71,6 +72,12 @@ const ORDER_TYPE_CONFIG: Record<
     bg: "bg-accent-100",
     text: "text-accent-700",
     icon: Phone,
+  },
+  online: {
+    label: "Online",
+    bg: "bg-primary-100",
+    text: "text-primary-700",
+    icon: Globe,
   },
 };
 
@@ -177,14 +184,32 @@ export function OrderCard({ order, onTransition, onVoid }: OrderCardProps) {
     [user]
   );
   const typeConfig = ORDER_TYPE_CONFIG[order.order_type] ?? { label: "Order", bg: "bg-secondary-100", text: "text-secondary-700", icon: Package };
-  const statusConfig = isPendingPayment
+
+  /**
+   * Online orders are worked from the Online Orders queue, not from here.
+   * Accepting is not a status change: it promises the customer an ETA,
+   * captures a card authorisation, notifies them and prints the kitchen
+   * ticket — all of which live on /online-orders (including the prefetched
+   * print URL that must be in hand before the tap). The backend refuses the
+   * generic confirmed→in_kitchen transition for online orders for the same
+   * reason, so offering these buttons here would only produce errors.
+   */
+  const isOnline = order.order_type === "online";
+  const isOnlinePending = isOnline && order.status === "confirmed";
+  const isOnlineActive =
+    isOnline && ["in_kitchen", "ready", "served"].includes(order.status);
+
+  const statusConfig = isOnlinePending
+    ? { label: "Awaiting Accept", bg: "bg-amber-100", text: "text-amber-700", dot: "bg-amber-500" }
+    : isPendingPayment
     ? { label: "Pending Payment", bg: "bg-amber-100", text: "text-amber-700", dot: "bg-amber-500" }
     : STATUS_CONFIG[order.status] ?? { label: "Unknown", bg: "bg-secondary-100", text: "text-secondary-600", dot: "bg-secondary-400" };
   // In pay-first mode, don't show "Send to Kitchen" for unpaid confirmed orders — show Pay instead
-  const transition = isPendingPayment ? undefined : TRANSITION_ACTIONS[order.status];
-  const canVoid = permissionCodes.has("order.void") && VOIDABLE_STATUSES.has(order.status);
-  const canPay = order.payment_status !== "paid" && order.status !== "voided" && order.status !== "draft";
+  const transition = isOnline || isPendingPayment ? undefined : TRANSITION_ACTIONS[order.status];
+  const canVoid = !isOnline && permissionCodes.has("order.void") && VOIDABLE_STATUSES.has(order.status);
+  const canPay = !isOnline && order.payment_status !== "paid" && order.status !== "voided" && order.status !== "draft";
   const canRefund =
+    !isOnline &&
     permissionCodes.has("payment.refund") &&
     order.status !== "voided" &&
     order.status !== "draft" &&
@@ -311,8 +336,30 @@ export function OrderCard({ order, onTransition, onVoid }: OrderCardProps) {
         )}
 
         {/* Row 3: Actions */}
-        {(transition || canVoid || canPay || canRefund || canReceipt) && (
+        {(transition || canVoid || canPay || canRefund || canReceipt || isOnlinePending || isOnlineActive) && (
           <div className="flex flex-wrap items-center gap-2 pt-1">
+            {isOnlinePending && (
+              <Button
+                size="sm"
+                className="flex-1 gap-1.5"
+                onClick={() => navigate("/online-orders")}
+                aria-label={`Accept order ${order.order_number} in Online Orders`}
+              >
+                <CheckCircle className="h-3.5 w-3.5" />
+                Accept
+              </Button>
+            )}
+            {isOnlineActive && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex-1 gap-1.5"
+                onClick={() => navigate("/online-orders")}
+              >
+                <Globe className="h-3.5 w-3.5" />
+                Online Orders
+              </Button>
+            )}
             {transition && (
               <Button
                 size="sm"
