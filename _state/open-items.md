@@ -194,17 +194,23 @@ no ticket) — the server now refuses it for online orders, tested in both direc
 demo-restaurant keeps the full selector (verified). The migration backfills chick-shack
 by slug so **the deploy itself flips production**; the seed also sets it for reseeds.
 
-**OI-55 · 🔴 EMAIL CANNOT SEND FROM THIS SERVER — egress, not credentials.**
-Proven 2026-07-29 from the droplet itself, not inferred:
-- outbound SMTP **25, 465, 587 all time out** (DigitalOcean's standard anti-spam block)
-- **2525 accepts TCP then resets** immediately
-- **`api.mailjet.com:443` connects but the TLS handshake is reset** — 0 bytes read.
-  `api.stripe.com` and `api.github.com` handshake fine from the same box, so 443 egress
-  works generally and this is **specific to Mailjet**
-Session D's "credentials authenticated on 587 and 465" was run from Malik's machine, not
-the server, which is why the block never appeared. The credentials are almost certainly
-fine; the route is not. Options: a transactional API this box can actually reach, or a host
-whose egress permits mail. **Do not re-test SMTP ports — that is settled.**
+**OI-55 · 🔶 CODE HALF DONE (session F) — Brevo transport built; Malik's half remains.**
+The egress facts stand (measured from the droplet, session E): SMTP **25/465/587 time out**,
+**2525 resets**, **`api.mailjet.com:443` TLS-resets** — and session F measured the regional
+variants (`api.eu.mailjet.com`, `api.us.mailjet.com`) dead too, so Mailjet is unusable from
+this box in every form. **Do not re-test SMTP ports — settled.**
+Session F measured the alternatives **from the droplet**: Resend, Brevo, Postmark, Mailgun,
+SendGrid all handshake fine. **Chosen: Brevo** — 300/day free (Resend's 3,000/month is tight
+at ~4 emails/order), plain HTTPS JSON API, contract verified against its docs.
+**Built and merged:** `BREVO_API_KEY` config (API wins over SMTP when both set — tested),
+`email_service._send_via_brevo`, `email_configured` accepts key-only, key declared in
+`docker-compose.demo.yml` (two-places rule), 11 new tests including a **strict fake that
+refuses what the real API refuses** — mutation-checked by renaming `textContent` and
+watching 4 tests fail. Never-fail-an-order guards re-proven for the API path.
+**Remaining (Malik, ~20 min): `docs/EMAIL_SETUP_RUNBOOK.md`** — rewritten for Brevo:
+account, domain auth records in Cloudflare (**additive only, never touch MX/SPF/livemail***),
+`BREVO_API_KEY` onto the server env, deploy, **read the value back inside the container**,
+then a real order with a real inbox as the only accepted proof.
 
 **OI-50 · The storefront has NO test framework.** `package.json` has dev/build/preview/
 type-check/deploy and nothing else. The timezone bug that made the shop read as closed 24/7
