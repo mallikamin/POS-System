@@ -1,6 +1,17 @@
 # STATE — Restaurant POS System
 
-**Last refreshed:** 2026-07-31 (session H) · **Branch:** `main`
+**Last refreshed:** 2026-07-31 (session J) · **Branch:** `main`
+
+**Session J in one line:** Finished the photo-integration work session I left in progress
+(`PAUSE_CHECKPOINT_2026-07-31.md`). Re-verified every proposed photo→item mapping in
+`CLASSIFICATION.md` against real `menu.ts` descriptions before wiring anything in — rejected
+6 of the 15 approved photos rather than force a bad fit, including two the first-pass
+classification missed: a real Coca-Cola can in frame, and a third-party-branded "Chicken" box
+with its own logo. 9 photos used (4 swapped in place, 5 new per-item overrides), each cropped
+separately to thumb/hero sizes via ffmpeg. Deployed to Cloudflare and verified against the
+**live** site (bundle + all 18 image URLs), not the deploy log — caught and confirmed-resolved
+one transient bad response on first check. Full write-up: `_state/open-items.md` **OI-56**.
+Commit `a361fc8`, pushed.
 
 **Session H in one line:** Added a persistent "under testing, please call instead" banner to
 every storefront view (commit `abea022`) — UAT with Imran hasn't happened yet and Stripe/menu
@@ -101,6 +112,7 @@ orders are accepted as labelled pre-orders, never refused.
 | Served / delivered gap | ✅ **CLOSED and deployed.** Tablet has out-for-delivery / delivered / mark-paid; completed orders leave the Active tab; the customer's page follows it | `_state/open-items.md` OI-44 |
 | Customer emails | ✅ **RESOLVED 2026-07-30 — Brevo live, real order proved it, then branded.** Order `260729-003`: confirmation delivered in 2 seconds, Gmail "Show original" — SPF PASS, DKIM PASS (`d=chickshackg84.com`), DMARC PASS. Domain authentication needed a fix along the way (Brevo requires its own DMARC record to flip `authenticated`; resolved by editing Imran's single `_dmarc` record in place, same `p=none` policy, not duplicating it). **Same session: all 4 emails (received/accepted/rejected/on_the_way) given branded HTML** — ink/flame/ember from `tailwind.config.js`, no logo (none exists), inline-style table layout for client compat, every customer-supplied string `html.escape()`'d (checkout form is public input). Shipped `3ab141b`, deployed, verified live via order `260730-001` — real Gmail screenshot confirms it renders as designed. Test suite: 45/45 email tests, 432/444 full suite (12 pre-existing, unrelated). Runbook: `docs/EMAIL_SETUP_RUNBOOK.md` | `_state/open-items.md` **OI-55** |
 | Menu modifier prompts | ✅ **BUILT and deployed to production, 2026-07-31.** Peri-Peri Heat renamed to match his till; "make it a meal" is now 25 real Meal sibling products (drink + chips upgrade), not a flat +£3 tick. Exclusion ticks (no lettuce etc.) turned out to already be built. Verified against the live API: 87 items, no duplicates | `_state/open-items.md` OI-45 |
+| Storefront photos | ✅ **9 real chunky-chicken-sourced photos live, replacing stock, deployed 2026-07-31.** 6 of 15 approved photos rejected on re-verification (2 for undisclosed trademark issues, 4 for product mismatch) rather than forced in. Verified against the live bundle + all 18 image URLs, not the deploy log | `_state/open-items.md` OI-56 |
 | Backend test suite | ✅ **409 passing — run and verified 2026-07-29 session E**, not inherited. Session E started from a verified **393** (session D's "391" was two short) and added **16** for the Stripe hardening. Same **12 pre-existing failures** throughout (10 failed + 2 errors), all in QuickBooks-Desktop/parked code | `ERROR_LOG.md` |
 | Core POS (10 phases) | ✅ Production, 98/99 UAT | `_state/pos-platform.md` |
 | QuickBooks Online | ✅ Live. Sync is **manual by design**, not broken | `_state/pos-platform.md` |

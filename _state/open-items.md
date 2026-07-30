@@ -1,11 +1,45 @@
 # Open items register
 
-**Last updated:** 2026-07-31 (session H/I) — **OI-45(a) and (b) BUILT and deployed to
+**Last updated:** 2026-07-31 (session J) — **OI-56 CLOSED**: chunky-chicken source photos
+integrated and deployed, replacing stock placeholders. See entry below.
+
+**Previously, same day (session H/I):** **OI-45(a) and (b) BUILT and deployed to
 production**: meal deal modifiers as real Meal products, matching Imran's till exactly. Two
 silent rename-related bugs found and fixed during rollout (stale duplicate item, stale
 modifier-group links) — see OI-45 and `ERROR_LOG.md`. OI-45(c) turned out to already be built
 (stale "not built" note corrected). Storefront testing-mode banner (added earlier 2026-07-30/31)
 confirmed still live through both deploys.
+
+**OI-56 ✅ CLOSED 2026-07-31 (session J) · Chunky-chicken source photos integrated.**
+Malik approved 15 of 16 photos sourced from chunky-chicken.uk (via `AskUserQuestion`,
+2026-07-31 session I), minus one with the competitor's own brand name baked into the image.
+This session re-verified every proposed mapping in
+`_context/clients/chick-shack-uk/refs/2026-07-31_chunky-chicken-source-photos/CLASSIFICATION.md`
+against the actual item `description` strings in `storefront/src/data/menu.ts` before wiring
+anything in, per Malik's explicit "make sure products and pictures match, don't want a
+screwup." Rejected 6 of the 15 rather than force a weak fit — two for a reason the first-pass
+classification had missed entirely: `menuitem-6.jpg` has a genuine Coca-Cola can in frame
+(Chick Shack sells Pepsi, not Coke) and `menuitem-8.jpg` has a third-party "Chicken" box with
+its own rooster logo, prominent and unmistakably not Chick Shack's packaging. Also rejected:
+a text-and-collage composite, a fried-chicken photo that would misrepresent a *grilled* peri
+item, a multi-item table spread that isn't a photo of any single product, and a near-duplicate
+frame from the same shoot as an image already used. 9 photos used — 4 swapped in place at
+existing basenames (`burger-chicken`, `burger-beef`, `wraps`, `wings-spicy`), 5 wired as new
+explicit per-item overrides (`burger-double`, `burger-big-shack`, `wrap-hot-chick`,
+`kids-popcorn`, `kids-nuggets`). Each cropped separately to 240×180 (thumb, 4:3) and 720×480
+(hero, 3:2) via ffmpeg/libwebp — not scaled from one another. The nuggets photo's plain white
+cutout background (would show as a stark white patch against the site's dark "ink" theme) was
+fixed with a tight crop + soft vignette after a colorkey/chromakey attempt produced ugly dark
+fringing around the breading texture. Peri Peri Burger/Wrap and their Double variants keep
+inheriting the existing (imperfect — fried-style photo for a grilled item) category fallback,
+Malik's explicit call over nulling out 4 items' photos entirely. `tsc --noEmit` clean, deployed
+via `cd storefront && npm run deploy` (separate Cloudflare pipeline), and verified against the
+**live** site, not the deploy log: fetched the actual hashed JS bundle and confirmed all 5 new
+basenames appear in it, then fetched all 9 `/img/thumb/*.webp` and `/img/hero/*.webp` URL pairs
+(18 total) and confirmed `200 image/webp` — one (`hero/burger-big-shack.webp`) came back as a
+transient `200 text/html` on the first check seconds after deploy, resolved on retry, re-swept
+all 18 clean after. Testing-mode banner text and phone number reconfirmed present in the live
+bundle post-deploy. Commit `a361fc8`, pushed to `main`.
 
 **Previously, 2026-07-29 (session F):** OI-51…OI-54 all BUILT (three ticket copies, daily
 number large, `/orders` Accept + online trimming, per-tenant landing) and a real hole closed
