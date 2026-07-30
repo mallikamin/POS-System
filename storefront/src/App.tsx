@@ -79,25 +79,42 @@ export default function App() {
 
   return (
     <div className="min-h-screen">
-      <header className="sticky top-0 z-40 bg-ink/95 backdrop-blur border-b border-ink-line">
-        <div className="flex items-center justify-between px-4 h-14 max-w-3xl mx-auto">
-          <button
-            onClick={() => setView("menu")}
-            className="font-display text-lg tracking-tight"
-          >
-            CHICK <span className="text-flame">SHACK</span>
-          </button>
-          <span
-            className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${
-              open
-                ? "border-emerald-500/40 text-emerald-400"
-                : "border-ink-line text-cream/50"
-            }`}
-          >
-            {open ? "Open now" : `Opens ${SHOP.openTime}`}
-          </span>
+      {/* Testing-mode notice. Sits above the header inside one sticky wrapper so
+          it stays visible on every view (menu, checkout, confirmation) until
+          Malik removes it — this is not tied to open/closed or ordering state. */}
+      <div className="sticky top-0 z-50">
+        <div className="bg-ember text-ink px-4 py-2.5 text-center border-b-2 border-ink">
+          <p className="font-bold text-sm sm:text-base leading-snug">
+            This website is under testing — please do not place an order here.
+          </p>
+          <p className="text-xs sm:text-sm mt-0.5">
+            To place an order now, call us directly on{" "}
+            <a href="tel:07719566889" className="underline font-semibold">
+              07719 566 889
+            </a>
+            . Website ordering will be live shortly.
+          </p>
         </div>
-      </header>
+        <header className="bg-ink/95 backdrop-blur border-b border-ink-line">
+          <div className="flex items-center justify-between px-4 h-14 max-w-3xl mx-auto">
+            <button
+              onClick={() => setView("menu")}
+              className="font-display text-lg tracking-tight"
+            >
+              CHICK <span className="text-flame">SHACK</span>
+            </button>
+            <span
+              className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${
+                open
+                  ? "border-emerald-500/40 text-emerald-400"
+                  : "border-ink-line text-cream/50"
+              }`}
+            >
+              {open ? "Open now" : `Opens ${SHOP.openTime}`}
+            </span>
+          </div>
+        </header>
+      </div>
 
       {view === "menu" && (
         <>
