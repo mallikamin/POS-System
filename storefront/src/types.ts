@@ -46,8 +46,13 @@ export type ImageName =
   | "wings-spicy"
   | "burger-chicken"
   | "burger-beef"
+  | "burger-double"
+  | "burger-big-shack"
   | "wraps"
-  | "sides-chips";
+  | "wrap-hot-chick"
+  | "sides-chips"
+  | "kids-popcorn"
+  | "kids-nuggets";
 
 export const imageThumb = (n: ImageName) => `/img/thumb/${n}.webp`;
 export const imageHero = (n: ImageName) => `/img/hero/${n}.webp`;

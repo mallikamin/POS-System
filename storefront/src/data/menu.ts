@@ -301,7 +301,8 @@ const BASE_ITEMS: MenuItem[] = [
   flat("b-chicken-fillet", "burgers", "Chicken Fillet Burger", 699, [DIPS],
     "Fried chicken fillet in a seeded bun with crisp lettuce, red onion and creamy mayonnaise."),
   flat("b-double-chicken", "burgers", "Double Chicken Burger", 899, [DIPS],
-    "Double fried chicken fillet in a seeded bun with crisp lettuce, red onion and creamy mayonnaise."),
+    "Double fried chicken fillet in a seeded bun with crisp lettuce, red onion and creamy mayonnaise.",
+    "burger-double"),
   flat("b-fillet-tower", "burgers", "Chick Shack Fillet Tower Burger", 799, [DIPS],
     "Fried chicken fillet and hashbrown in a seeded bun with crisp lettuce, red onion and creamy mayonnaise."),
   flat("b-peri", "burgers", "Peri Peri Burger", 799, [HEAT, DIPS],
@@ -322,7 +323,7 @@ const BASE_ITEMS: MenuItem[] = [
     "Seeded bun with fish patty, mayo, lettuce, red onion & cheese.", null),
   flat("b-big-shack", "burgers", "The Big Shack Burger", 1099, [DIPS],
     "Seeded bun, mayo, Algerian sauce, lettuce, cheese, ¼ beef patty, fried chicken fillet, hashbrown, tomato & red onion.",
-    "burger-beef"),
+    "burger-big-shack"),
 
   // --- Wraps ---------------------------------------------------------------
   flat("w-chicken-fillet", "wraps", "Chicken Fillet Wrap", 699, [DIPS],
@@ -336,7 +337,8 @@ const BASE_ITEMS: MenuItem[] = [
   flat("w-veggie", "wraps", "Veggie Wrap", 599, [DIPS],
     "Tortilla wrap with veggie patty, red onion, lettuce & salsa sauce.", null),
   flat("w-hot-chick", "wraps", "The Hot Chick Wrap", 699, [DIPS],
-    "Tortilla wrap, fried chicken fillet, lettuce and chilli sauce."),
+    "Tortilla wrap, fried chicken fillet, lettuce and chilli sauce.",
+    "wrap-hot-chick"),
 
   // --- Sides ---------------------------------------------------------------
   flat("s-chips-reg", "sides", "Regular Chips", 349),
@@ -364,6 +366,7 @@ const BASE_ITEMS: MenuItem[] = [
       { id: "kp-lrg", name: "Large", price: 499 },
     ],
     modifierGroups: [DIPS],
+    image: "kids-popcorn",
   },
   {
     id: "k-nuggets",
@@ -376,6 +379,7 @@ const BASE_ITEMS: MenuItem[] = [
       { id: "kn-16", name: "16 pc", price: 1199 },
     ],
     modifierGroups: [DIPS],
+    image: "kids-nuggets",
   },
   {
     id: "k-mozzarella",
