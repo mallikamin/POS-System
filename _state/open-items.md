@@ -194,7 +194,19 @@ no ticket) — the server now refuses it for online orders, tested in both direc
 demo-restaurant keeps the full selector (verified). The migration backfills chick-shack
 by slug so **the deploy itself flips production**; the seed also sets it for reseeds.
 
-**OI-55 · 🔶 CODE HALF DONE (session F) — Brevo transport built; Malik's half remains.**
+**OI-55 · ✅ RESOLVED 2026-07-30 — real order delivered, SPF/DKIM/DMARC all PASS.**
+Brevo account created, domain authenticated in Cloudflare, `BREVO_API_KEY` deployed to the
+server and verified inside the container. One snag along the way: Brevo requires **its own**
+DMARC record present to flip `authenticated`, which the runbook hadn't anticipated (its rule
+was "never touch DMARC," written before this gate was known) — conflicted with Imran's
+existing single `_dmarc` record. Fixed by **editing** that one record's value in place to
+`v=DMARC1; p=none; rua=mailto:rua@dmarc.brevo.com` (same `p=none` policy, zero enforcement
+change) rather than adding a second record, which would have broken DMARC entirely. Proof:
+order `260729-003`, confirmation email delivered in 2 seconds, Gmail "Show original" shows
+SPF PASS, DKIM PASS (`d=chickshackg84.com`), DMARC PASS. Two real test orders
+(`260729-002`, `-003`) were placed on the live storefront in the process; voided through the
+app's own `reject_order` (not a raw DB delete), DB backed up first each time.
+**Original session F build-out below, superseded by the above:**
 The egress facts stand (measured from the droplet, session E): SMTP **25/465/587 time out**,
 **2525 resets**, **`api.mailjet.com:443` TLS-resets** — and session F measured the regional
 variants (`api.eu.mailjet.com`, `api.us.mailjet.com`) dead too, so Mailjet is unusable from

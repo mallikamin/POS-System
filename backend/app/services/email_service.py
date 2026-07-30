@@ -39,6 +39,7 @@ import smtplib
 import ssl
 from email.message import EmailMessage
 from email.utils import formataddr
+from html import escape as html_escape
 
 import httpx
 
@@ -56,6 +57,22 @@ _API_TIMEOUT_SECONDS = 15
 # on 2026-07-29: POST with an `api-key` header; body carries `sender`, `to`,
 # `subject`, `textContent`, `replyTo`; success is HTTP 201 with a messageId.
 _BREVO_ENDPOINT = "https://api.brevo.com/v3/smtp/email"
+
+# Brand constants, pulled from storefront/tailwind.config.js so the email
+# doesn't look like a different business than the site. No logo/mascot asset
+# exists (checked 2026-07-30) -- the wordmark is styled text everywhere,
+# including here. Archivo Black/Inter (the site's fonts) don't render in most
+# email clients, so headings fall back to a bold system sans-serif stack.
+_C_INK = "#12100f"
+_C_FLAME = "#e2361d"
+_C_FLAME_DARK = "#b82413"
+_C_EMBER = "#f5a524"
+_C_CREAM = "#faf7f2"
+_C_BODY_TEXT = "#2a2523"
+_C_MUTED = "#6b6b6b"
+_C_PAGE_BG = "#f2ede6"
+_C_LINE = "#ecebe9"
+_FONT_STACK = "'Helvetica Neue', Helvetica, Arial, sans-serif"
 
 
 def _money(amount: int, currency: str) -> str:
@@ -94,6 +111,260 @@ def _tracking_line(order: Order) -> str:
 
 def _collecting(order: Order) -> bool:
     return (order.service_type or "collection") != "delivery"
+
+
+# ---------------------------------------------------------------------------
+# HTML bodies
+#
+# `customer_name` and `delivery_address` come straight from the public
+# checkout form -- they are attacker-controlled strings, not staff-entered
+# ones. Every dynamic value below goes through `html_escape` before it lands
+# in markup. The plain-text bodies above never had this exposure because
+# nothing there is parsed as markup.
+# ---------------------------------------------------------------------------
+
+
+def _html_items_table(order: Order, currency: str) -> str:
+    rows = []
+    for item in order.items:
+        modifiers = [m.name for m in item.modifiers]
+        mod_line = ""
+        if modifiers:
+            mod_text = html_escape(", ".join(modifiers))
+            mod_line = (
+                f'<div style="font-size:12px; color:{_C_MUTED}; margin-top:2px;">'
+                f"{mod_text}</div>"
+            )
+        rows.append(
+            f"""<tr>
+<td style="padding:8px 0; font-size:14px; color:{_C_BODY_TEXT}; border-bottom:1px solid {_C_LINE};">
+{item.quantity} &times; {html_escape(item.name)}{mod_line}
+</td>
+<td style="padding:8px 0; font-size:14px; color:{_C_BODY_TEXT}; text-align:right; white-space:nowrap; border-bottom:1px solid {_C_LINE};">
+{html_escape(_money(item.total, currency))}
+</td>
+</tr>"""
+        )
+    return (
+        '<table role="presentation" width="100%" cellpadding="0" cellspacing="0">'
+        + "".join(rows)
+        + "</table>"
+    )
+
+
+def _html_totals_table(order: Order, currency: str) -> str:
+    rows = [("Subtotal", order.subtotal, False)]
+    if order.tax_amount:
+        rows.append(("Tax", order.tax_amount, False))
+    if order.delivery_fee:
+        rows.append(("Delivery", order.delivery_fee, False))
+    rows.append(("TOTAL", order.total, True))
+
+    cells = []
+    for label, amount, bold in rows:
+        size = "15px" if bold else "13px"
+        weight = "700" if bold else "400"
+        cells.append(
+            f"""<tr>
+<td style="padding:4px 0; font-size:{size}; font-weight:{weight}; color:{_C_BODY_TEXT};">{label}</td>
+<td style="padding:4px 0; font-size:{size}; font-weight:{weight}; color:{_C_BODY_TEXT}; text-align:right;">{html_escape(_money(amount, currency))}</td>
+</tr>"""
+        )
+    return (
+        f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
+        f'style="margin-top:8px; border-top:1px solid {_C_LINE}; padding-top:8px;">'
+        + "".join(cells)
+        + "</table>"
+    )
+
+
+def _html_fulfilment_line(order: Order) -> str:
+    if _collecting(order):
+        return "Collection"
+    return f"Delivery to: {html_escape(order.delivery_address or '')}"
+
+
+def _html_button(url: str, label: str) -> str:
+    return f"""<table role="presentation" cellpadding="0" cellspacing="0" style="margin:20px 0 0 0;">
+<tr>
+<td style="border-radius:6px; background-color:{_C_FLAME};">
+<a href="{html_escape(url)}" style="display:inline-block; padding:12px 24px; font-size:14px; font-weight:700; color:#ffffff; text-decoration:none; border-radius:6px;">{html_escape(label)}</a>
+</td>
+</tr>
+</table>"""
+
+
+def _html_tracking_button(order: Order) -> str:
+    # Mirrors `_tracking_line`'s guard exactly: no route exists yet, so no
+    # dead-end button ships (see "Known gaps to close later" in the runbook).
+    if not settings.ORDER_TRACKING_BASE_URL:
+        return ""
+    base = settings.ORDER_TRACKING_BASE_URL.rstrip("/")
+    return _html_button(f"{base}/{order.id}", "Track your order")
+
+
+def _html_order_label(order: Order) -> str:
+    return (
+        f'<p style="margin:0 0 4px 0; font-size:13px; color:{_C_MUTED}; '
+        f'text-transform:uppercase; letter-spacing:0.5px;">'
+        f"Order {html_escape(order.order_number)}</p>"
+    )
+
+
+def _html_shell(
+    *, badge_label: str, badge_color: str, headline_html: str, content_html: str, shop: str
+) -> str:
+    """The shared header/footer every event email renders inside.
+
+    Deliberately no logo/photo -- no such asset exists for this client
+    (checked 2026-07-30), and inline styles + a system font stack is what
+    actually survives Gmail/Outlook/Apple Mail, unlike the site's real fonts.
+    `headline_html` is pre-built by the caller (it mixes escaped dynamic
+    values with literal markup like &mdash;), everything else here is static
+    or already escaped by its builder.
+    """
+    return f"""<!doctype html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head>
+<body style="margin:0; padding:0; background-color:{_C_PAGE_BG}; font-family:{_FONT_STACK};">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:{_C_PAGE_BG};">
+<tr><td align="center" style="padding:24px 12px;">
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px; width:100%; background-color:#ffffff; border-radius:10px; overflow:hidden;">
+<tr>
+<td style="background-color:{_C_INK}; padding:28px 32px; text-align:center;">
+<div style="font-family:{_FONT_STACK}; font-weight:800; font-size:26px; letter-spacing:1px; text-transform:uppercase;">
+<span style="color:{_C_CREAM};">CHICK&nbsp;</span><span style="color:{_C_FLAME};">SHACK</span>
+</div>
+<div style="display:inline-block; margin-top:14px; padding:6px 16px; border-radius:999px; background-color:{badge_color}; color:#ffffff; font-weight:700; font-size:12px; letter-spacing:1px; text-transform:uppercase;">
+{html_escape(badge_label)}
+</div>
+</td>
+</tr>
+<tr>
+<td style="padding:28px 32px;">
+<p style="margin:0 0 20px 0; font-size:17px; line-height:1.5; color:{_C_BODY_TEXT}; font-weight:600;">{headline_html}</p>
+{content_html}
+</td>
+</tr>
+<tr>
+<td style="padding:18px 32px; background-color:{_C_PAGE_BG}; border-top:1px solid {_C_LINE};">
+<p style="margin:0; font-size:12px; color:{_C_MUTED};">{html_escape(shop)}</p>
+</td>
+</tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>"""
+
+
+def _html_received(order: Order, shop: str, currency: str) -> str:
+    name = html_escape(order.customer_name or "there")
+    content = (
+        _html_order_label(order)
+        + _html_items_table(order, currency)
+        + _html_totals_table(order, currency)
+        + f'<p style="margin:16px 0 0 0; font-size:13px; color:{_C_MUTED};">{_html_fulfilment_line(order)}</p>'
+        + _html_tracking_button(order)
+        + f'<p style="margin:16px 0 0 0; font-size:14px; color:{_C_BODY_TEXT};">'
+        f"We&rsquo;ll email you again as soon as the shop confirms your "
+        f"{'collection' if _collecting(order) else 'delivery'} time.</p>"
+    )
+    return _html_shell(
+        badge_label="Order received",
+        badge_color=_C_EMBER,
+        headline_html=f"Thanks, {name} &mdash; we&rsquo;ve got your order.",
+        content_html=content,
+        shop=shop,
+    )
+
+
+def _html_accepted(order: Order, shop: str, currency: str) -> str:
+    name = html_escape(order.customer_name or "there")
+    eta = order.eta_minutes
+    when = f"in about {eta} minutes" if eta else "shortly"
+    headline = (
+        f"confirmed &mdash; ready for collection {when}."
+        if _collecting(order)
+        else f"confirmed &mdash; on its way to you {when}."
+    )
+    payment_line = (
+        "Paid"
+        if order.payment_status == "paid"
+        else f"Due on {'collection' if _collecting(order) else 'delivery'}"
+    )
+    content = (
+        _html_order_label(order)
+        + _html_items_table(order, currency)
+        + _html_totals_table(order, currency)
+        + f'<p style="margin:16px 0 0 0; font-size:13px; color:{_C_MUTED};">{_html_fulfilment_line(order)}</p>'
+        + f'<p style="margin:4px 0 0 0; font-size:13px; color:{_C_MUTED};">Payment: {payment_line}</p>'
+        + _html_tracking_button(order)
+    )
+    return _html_shell(
+        badge_label="Confirmed",
+        badge_color=_C_FLAME,
+        headline_html=f"Hi {name} &mdash; your order is {headline}",
+        content_html=content,
+        shop=shop,
+    )
+
+
+def _html_rejected(order: Order, shop: str, currency: str) -> str:
+    name = html_escape(order.customer_name or "there")
+    reason = html_escape(
+        (order.rejection_reason or "").strip()
+        or "The shop is unable to take this order right now."
+    )
+    content = (
+        f'<p style="margin:0 0 16px 0; font-size:14px; color:{_C_BODY_TEXT};">{reason}</p>'
+        f'<p style="margin:0 0 16px 0; font-size:14px; color:{_C_BODY_TEXT};">'
+        "Nothing has been charged. If you&rsquo;d like to sort something out, "
+        "please give us a call and we&rsquo;ll do our best.</p>"
+        + _html_order_label(order)
+        + f'<p style="margin:0; font-size:14px; color:{_C_BODY_TEXT};">'
+        f"Total would have been {html_escape(_money(order.total, currency))}</p>"
+    )
+    return _html_shell(
+        badge_label="Order not taken",
+        badge_color=_C_FLAME_DARK,
+        headline_html=f"Sorry {name} &mdash; we can&rsquo;t take this order.",
+        content_html=content,
+        shop=shop,
+    )
+
+
+def _html_on_the_way(order: Order, shop: str, currency: str) -> str:
+    if _collecting(order):
+        headline = "Your order is ready and waiting for you at the shop."
+    else:
+        headline = "Your order has left the shop and is on its way to you."
+    payment_line = (
+        "(paid)"
+        if order.payment_status == "paid"
+        else f"&mdash; payable on {'collection' if _collecting(order) else 'delivery'}"
+    )
+    content = (
+        _html_order_label(order)
+        + f'<p style="margin:0; font-size:15px; font-weight:700; color:{_C_BODY_TEXT};">'
+        f"{html_escape(_money(order.total, currency))} {payment_line}</p>"
+        + _html_tracking_button(order)
+    )
+    return _html_shell(
+        badge_label="Ready for collection" if _collecting(order) else "On its way",
+        badge_color=_C_EMBER,
+        headline_html=headline,
+        content_html=content,
+        shop=shop,
+    )
+
+
+_HTML_BUILDERS = {
+    "received": _html_received,
+    "accepted": _html_accepted,
+    "rejected": _html_rejected,
+    "on_the_way": _html_on_the_way,
+}
 
 
 # ---------------------------------------------------------------------------
@@ -204,7 +475,7 @@ _BUILDERS = {
 # ---------------------------------------------------------------------------
 
 
-async def _send_via_brevo(to: str, subject: str, body: str) -> None:
+async def _send_via_brevo(to: str, subject: str, text: str, html: str) -> None:
     """One transactional send through Brevo's HTTPS API.
 
     Raises on anything but the documented 201 so the caller's catch-all can
@@ -219,8 +490,10 @@ async def _send_via_brevo(to: str, subject: str, body: str) -> None:
         "sender": sender,
         "to": [{"email": to}],
         "subject": subject,
-        "textContent": body,
+        "textContent": text,
     }
+    if html:
+        payload["htmlContent"] = html
     # Same reasoning as the SMTP path: the sending address is not a mailbox,
     # so replies must be pointed at one the shop actually reads.
     reply_to = settings.EMAIL_REPLY_TO or settings.EMAIL_FROM
@@ -240,7 +513,7 @@ async def _send_via_brevo(to: str, subject: str, body: str) -> None:
         )
 
 
-def _send_blocking(to: str, subject: str, body: str) -> None:
+def _send_blocking(to: str, subject: str, text: str, html: str) -> None:
     """Synchronous SMTP send. Runs in a worker thread, never on the loop."""
     message = EmailMessage()
     message["Subject"] = subject
@@ -254,7 +527,9 @@ def _send_blocking(to: str, subject: str, body: str) -> None:
     reply_to = settings.EMAIL_REPLY_TO or settings.EMAIL_FROM
     if reply_to:
         message["Reply-To"] = reply_to
-    message.set_content(body)
+    message.set_content(text)
+    if html:
+        message.add_alternative(html, subtype="html")
 
     if settings.SMTP_SSL:
         context = ssl.create_default_context()
@@ -313,13 +588,14 @@ async def send_order_email(
         )
         return False
 
-    subject, body = _BUILDERS[event](order, shop_name, currency)
+    subject, text = _BUILDERS[event](order, shop_name, currency)
+    html = _HTML_BUILDERS[event](order, shop_name, currency)
 
     try:
         if settings.BREVO_API_KEY:
-            await _send_via_brevo(to, subject, body)
+            await _send_via_brevo(to, subject, text, html)
         else:
-            await asyncio.to_thread(_send_blocking, to, subject, body)
+            await asyncio.to_thread(_send_blocking, to, subject, text, html)
     except Exception:
         # Deliberately broad: smtplib raises a wide family, DNS/socket errors
         # surface as OSError, and httpx has its own tree. Nothing here is

@@ -312,7 +312,7 @@ def test_reply_to_is_set_and_prefers_the_explicit_address() -> None:
         email_service.settings, "EMAIL_REPLY_TO", "shop@example.com"
     ), patch.object(email_service.smtplib, "SMTP") as smtp:
         smtp.return_value.__enter__.return_value.send_message = captured.append
-        email_service._send_blocking("customer@example.com", "s", "b")
+        email_service._send_blocking("customer@example.com", "s", "b", "")
 
     assert captured[0]["Reply-To"] == "shop@example.com"
 
@@ -328,7 +328,7 @@ def test_reply_to_falls_back_to_the_from_address() -> None:
         email_service.smtplib, "SMTP"
     ) as smtp:
         smtp.return_value.__enter__.return_value.send_message = captured.append
-        email_service._send_blocking("customer@example.com", "s", "b")
+        email_service._send_blocking("customer@example.com", "s", "b", "")
 
     assert captured[0]["Reply-To"] == "orders@example.com"
 
@@ -338,8 +338,8 @@ def test_reply_to_falls_back_to_the_from_address() -> None:
 async def test_every_event_builds_and_sends(event: str) -> None:
     captured: dict[str, str] = {}
 
-    def _capture(to: str, subject: str, body: str) -> None:
-        captured.update(to=to, subject=subject, body=body)
+    def _capture(to: str, subject: str, body: str, html: str) -> None:
+        captured.update(to=to, subject=subject, body=body, html=html)
 
     with patch.object(
         type(email_service.settings), "email_configured", property(lambda _: True)
@@ -350,6 +350,9 @@ async def test_every_event_builds_and_sends(event: str) -> None:
     assert captured["to"] == "customer@example.com"
     assert "L250101-009" in captured["subject"]
     assert captured["body"].strip()
+    assert "<!doctype html>" in captured["html"].lower()
+    assert "L250101-009" in captured["html"]
+    assert "CHICK" in captured["html"]
 
 
 # ---------------------------------------------------------------------------
@@ -443,6 +446,8 @@ async def test_brevo_transport_sends_every_event(event: str) -> None:
     assert call["json"]["replyTo"] == {"email": "shop@example.com"}
     assert "L250101-009" in call["json"]["subject"]
     assert call["json"]["textContent"].strip()
+    assert call["json"]["htmlContent"].strip()
+    assert "L250101-009" in call["json"]["htmlContent"]
 
 
 @pytest.mark.asyncio

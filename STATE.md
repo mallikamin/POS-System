@@ -1,6 +1,6 @@
 # STATE — Restaurant POS System
 
-**Last refreshed:** 2026-07-29 (session F) · **Branch:** `main`
+**Last refreshed:** 2026-07-30 — verified current, no drift · **Branch:** `main`
 ✅ Session E ended fully pushed and deployed at `7797af2` (the "held back Stripe commits" in an
 earlier header version were pushed late in session E; Stripe live in **TEST mode**, keys verified
 in the container). **Session F adds 4 commits — OI-51…OI-54 — and pushing them IS the deploy.**
@@ -79,7 +79,7 @@ orders are accepted as labelled pre-orders, never refused.
 | Stripe | 🔶 **DEPLOYED IN TEST MODE** (pushed late session E; keys verified inside the container). Manual capture: authorise at checkout, **capture on Accept, cancel on Reject**, so a rejected order is never charged. **36 tests**, proven against the real sandbox. **Hardening H-1…H-10 done except H-6** (session E) — the four money-critical guards were **mutation-checked**, i.e. each was shown to fail when the code it defends is broken. `cardPaymentEnabled` still **false** | `docs/STRIPE_HARDENING_CHECKLIST.md` · OI-20 / OI-41 |
 | Printing | ✅ **ON PAPER (photographed 2026-07-29)**, and session F built Imran's two asks: **3 labelled copies per ticket in ONE payload** (one `rawbt:` navigation) and the **daily `#NNN` double-size at the top of each copy**. Byte-level verified + tested; **paper check on his printer still pending** | OI-51 / OI-52 ✅ built · `ERROR_LOG.md` |
 | Served / delivered gap | ✅ **CLOSED and deployed.** Tablet has out-for-delivery / delivered / mark-paid; completed orders leave the Active tab; the customer's page follows it | `_state/open-items.md` OI-44 |
-| Customer emails | 🔶 **Brevo transport BUILT (session F); needs Malik's account + DNS + one key.** Mailjet is unreachable from the droplet in every form (API + regional variants TLS-reset; SMTP ports blocked — all measured). `api.brevo.com` handshakes fine from the same box, so the backend now sends via Brevo's HTTPS API when `BREVO_API_KEY` is set; strict-fake tested + mutation-checked; deployed **disabled** until the key exists. Runbook rewritten: `docs/EMAIL_SETUP_RUNBOOK.md` | `_state/open-items.md` **OI-55** |
+| Customer emails | ✅ **RESOLVED 2026-07-30 — Brevo live, real order proved it.** Order `260729-003`: confirmation delivered in 2 seconds, Gmail "Show original" — SPF PASS, DKIM PASS (`d=chickshackg84.com`), DMARC PASS. Domain authentication needed a fix along the way (Brevo requires its own DMARC record to flip `authenticated`; resolved by editing Imran's single `_dmarc` record in place, same `p=none` policy, not duplicating it). Two real test orders placed in the process, both voided via the app's own `reject_order`, DB backed up first. Runbook: `docs/EMAIL_SETUP_RUNBOOK.md` | `_state/open-items.md` **OI-55** |
 | Menu modifier prompts | ⏸️ **Parked to QC by Malik 03:09.** Imran wants a required Hot/Mild "Peri-Peri Heat" choice on peri items (easy, no schema change) **and** meal-contents choices (hard, conditional). Requirement still incomplete — he was mid-list | `_state/open-items.md` OI-45 |
 | Backend test suite | ✅ **409 passing — run and verified 2026-07-29 session E**, not inherited. Session E started from a verified **393** (session D's "391" was two short) and added **16** for the Stripe hardening. Same **12 pre-existing failures** throughout (10 failed + 2 errors), all in QuickBooks-Desktop/parked code | `ERROR_LOG.md` |
 | Core POS (10 phases) | ✅ Production, 98/99 UAT | `_state/pos-platform.md` |
@@ -104,10 +104,9 @@ orders are accepted as labelled pre-orders, never refused.
 
 Still to verify on the real tablet/printer: 3 slips with big numbers actually on paper.
 
-5. 🔶 **OI-55, email egress — code half DONE (session F).** Brevo chosen by measurement
-   from the droplet; transport built, strict-fake tested, deployed disabled. **What's left
-   is Malik's ~20 minutes**: Brevo account + additive DNS + `BREVO_API_KEY` on the server —
-   step by step in `docs/EMAIL_SETUP_RUNBOOK.md`. Then a real order is the proof.
+5. ✅ **OI-55, email egress — DONE 2026-07-30.** Brevo authenticated, `BREVO_API_KEY` live
+   on the server, real order `260729-003` delivered its confirmation email in 2 seconds with
+   SPF/DKIM/DMARC all PASS. Closed.
 
 *Everything below this line predates the walkthrough.*
 
