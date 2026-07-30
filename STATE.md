@@ -1,6 +1,26 @@
 # STATE — Restaurant POS System
 
-**Last refreshed:** 2026-07-30 — verified current, no drift · **Branch:** `main`
+**Last refreshed:** 2026-07-31 (session H) · **Branch:** `main`
+
+**Session H in one line:** Added a persistent "under testing, please call instead" banner to
+every storefront view (commit `abea022`) — UAT with Imran hasn't happened yet and Stripe/menu
+are still being tuned, but the site keeps taking real orders 24/7 in the meantime. Shipped via
+`git push` first, which only deploys the POS/backend side; the storefront needed its own
+`cd storefront && npm run deploy` (Cloudflare Workers), run and verified separately by fetching
+the live bundle. **`docs/DEPLOYMENT_PLAYBOOK.md`'s one-line summary was rewritten** to state
+both pipelines up front — see `ERROR_LOG.md` 2026-07-30 session H for the full incident. Banner
+stays until Malik says to remove it; it is copy-only, does not disable checkout.
+
+**Session G in one line:** OI-55 fully closed (Brevo authenticated + proved + branded HTML
+shipped at `3ab141b`, deployed, verified live). Card payment (OI-41/H-6) investigated and
+explained — not a bug, deliberately flagged off — but deferred: proving capture-on-accept
+needs the shop genuinely open and someone accepting a real order, so Malik is resuming that
+**next time the restaurant is open** (storefront itself shows "Opens 16:00" same day,
+2026-07-30 — Malik said "tomorrow," so confirm which he means before assuming either).
+**Loose end: order `260730-001` ("Chicken Fillet", placed to prove the HTML email) is a real
+pre-order still sitting in the queue**, same situation as the two from earlier in the
+session — nobody voided it. Give Imran a heads-up or void it via `reject_order` before he
+opens, same pattern used twice already this session.
 ✅ Session E ended fully pushed and deployed at `7797af2` (the "held back Stripe commits" in an
 earlier header version were pushed late in session E; Stripe live in **TEST mode**, keys verified
 in the container). **Session F adds 4 commits — OI-51…OI-54 — and pushing them IS the deploy.**
@@ -68,7 +88,7 @@ orders are accepted as labelled pre-orders, never refused.
 
 | Area | Status | Detail |
 |---|---|---|
-| Chick Shack storefront | ✅ **Live** on the client's real domain, Cloudflare SSL | `_state/chick-shack-uk.md` |
+| Chick Shack storefront | ✅ **Live** on the client's real domain, Cloudflare SSL. 🟡 **Testing-mode banner up on every view since 2026-07-31** ("please do not place an order, call 07719 566 889 instead") — checkout itself is unchanged and still works, this is copy-only. Stays until Malik says remove it | `_state/chick-shack-uk.md` |
 | Chick Shack ordering | 🔴 **LIVE, 24/7.** Out-of-hours orders are accepted as **pre-orders** and shown as such on all three surfaces. Accept/reject is always manual | `_state/chick-shack-uk.md` |
 | Chick Shack tenant + menu in DB | ✅ **Seeded locally and on production 2026-07-28/29** — 8 categories, 62 items, 11 delivery areas, GBP. Logins verified | `_state/decisions.md` D-11 |
 | Multi-tenant routing | ✅ **Fixed 2026-07-28.** Public routes keyed by slug; PIN login no longer searches across tenants | `_state/decisions.md` D-10 |
@@ -76,10 +96,10 @@ orders are accepted as labelled pre-orders, never refused.
 | Order-queue tablet view | ✅ **Deployed with the full lifecycle** at `/online-orders`. Accept → out for delivery → delivered/paid; completed orders leave Active. **Not yet opened on Imran's real tablet** | `_state/open-items.md` OI-36 |
 | Storefront checkout wiring | ✅ **Merged and PUBLISHED 2026-07-29.** Menu from the API, checkout posts, confirmation follows the order to delivered. Email required; "leave it out" ticks print on the ticket | `_state/open-items.md` OI-28 / OI-37 |
 | API access from the storefront domain | ✅ **Fixed on the server 2026-07-29.** `CORS_ORIGINS` now allows both Chick Shack origins; preflight verified, unknown origins still refused | `_state/open-items.md` OI-40 |
-| Stripe | 🔶 **DEPLOYED IN TEST MODE** (pushed late session E; keys verified inside the container). Manual capture: authorise at checkout, **capture on Accept, cancel on Reject**, so a rejected order is never charged. **36 tests**, proven against the real sandbox. **Hardening H-1…H-10 done except H-6** (session E) — the four money-critical guards were **mutation-checked**, i.e. each was shown to fail when the code it defends is broken. `cardPaymentEnabled` still **false** | `docs/STRIPE_HARDENING_CHECKLIST.md` · OI-20 / OI-41 |
+| Stripe | 🔶 **DEPLOYED IN TEST MODE**, keys verified inside the container. Manual capture: authorise at checkout, **capture on Accept, cancel on Reject**, so a rejected order is never charged — this is exactly why proving it needs the shop genuinely open (Malik, 2026-07-30): the capture-on-accept step only fires when someone accepts a real order on the tablet. `cardPaymentEnabled` is **false** by design (not a bug — flagged off until a test card completes end to end, so no real customer's card gets silently declined against TEST keys). **Test override exists:** `chickshackg84.com/?card=1` shows the card button to whoever has that link only, `storefront/src/lib/cardPayment.ts`. **36 tests**, proven against the real sandbox. **Hardening H-1…H-10 done except H-6** — the four money-critical guards were **mutation-checked**, i.e. each was shown to fail when the code it defends is broken | `docs/STRIPE_HARDENING_CHECKLIST.md` · OI-20 / OI-41 |
 | Printing | ✅ **ON PAPER (photographed 2026-07-29)**, and session F built Imran's two asks: **3 labelled copies per ticket in ONE payload** (one `rawbt:` navigation) and the **daily `#NNN` double-size at the top of each copy**. Byte-level verified + tested; **paper check on his printer still pending** | OI-51 / OI-52 ✅ built · `ERROR_LOG.md` |
 | Served / delivered gap | ✅ **CLOSED and deployed.** Tablet has out-for-delivery / delivered / mark-paid; completed orders leave the Active tab; the customer's page follows it | `_state/open-items.md` OI-44 |
-| Customer emails | ✅ **RESOLVED 2026-07-30 — Brevo live, real order proved it.** Order `260729-003`: confirmation delivered in 2 seconds, Gmail "Show original" — SPF PASS, DKIM PASS (`d=chickshackg84.com`), DMARC PASS. Domain authentication needed a fix along the way (Brevo requires its own DMARC record to flip `authenticated`; resolved by editing Imran's single `_dmarc` record in place, same `p=none` policy, not duplicating it). Two real test orders placed in the process, both voided via the app's own `reject_order`, DB backed up first. Runbook: `docs/EMAIL_SETUP_RUNBOOK.md` | `_state/open-items.md` **OI-55** |
+| Customer emails | ✅ **RESOLVED 2026-07-30 — Brevo live, real order proved it, then branded.** Order `260729-003`: confirmation delivered in 2 seconds, Gmail "Show original" — SPF PASS, DKIM PASS (`d=chickshackg84.com`), DMARC PASS. Domain authentication needed a fix along the way (Brevo requires its own DMARC record to flip `authenticated`; resolved by editing Imran's single `_dmarc` record in place, same `p=none` policy, not duplicating it). **Same session: all 4 emails (received/accepted/rejected/on_the_way) given branded HTML** — ink/flame/ember from `tailwind.config.js`, no logo (none exists), inline-style table layout for client compat, every customer-supplied string `html.escape()`'d (checkout form is public input). Shipped `3ab141b`, deployed, verified live via order `260730-001` — real Gmail screenshot confirms it renders as designed. Test suite: 45/45 email tests, 432/444 full suite (12 pre-existing, unrelated). Runbook: `docs/EMAIL_SETUP_RUNBOOK.md` | `_state/open-items.md` **OI-55** |
 | Menu modifier prompts | ⏸️ **Parked to QC by Malik 03:09.** Imran wants a required Hot/Mild "Peri-Peri Heat" choice on peri items (easy, no schema change) **and** meal-contents choices (hard, conditional). Requirement still incomplete — he was mid-list | `_state/open-items.md` OI-45 |
 | Backend test suite | ✅ **409 passing — run and verified 2026-07-29 session E**, not inherited. Session E started from a verified **393** (session D's "391" was two short) and added **16** for the Stripe hardening. Same **12 pre-existing failures** throughout (10 failed + 2 errors), all in QuickBooks-Desktop/parked code | `ERROR_LOG.md` |
 | Core POS (10 phases) | ✅ Production, 98/99 UAT | `_state/pos-platform.md` |
@@ -106,7 +126,22 @@ Still to verify on the real tablet/printer: 3 slips with big numbers actually on
 
 5. ✅ **OI-55, email egress — DONE 2026-07-30.** Brevo authenticated, `BREVO_API_KEY` live
    on the server, real order `260729-003` delivered its confirmation email in 2 seconds with
-   SPF/DKIM/DMARC all PASS. Closed.
+   SPF/DKIM/DMARC all PASS. **Same session, also shipped:** branded HTML for all 4 emails
+   (`3ab141b`), verified live via order `260730-001`. Closed.
+
+## 🔴 Resume here (session G paused 2026-07-30 ~06:15 PKT)
+
+1. **Void or flag order `260730-001`** before Imran opens — see note at the top of this file.
+2. **Stripe card payment, next time the shop is open:** use `chickshackg84.com/?card=1` to
+   reveal the card button (hidden from real customers on purpose), run a real TEST-mode card
+   through checkout, then **accept the order on the tablet and confirm the capture actually
+   fires** — that's OI-41, and it can only be proven with the shop live because capture is
+   tied to a real Accept action, not to checkout.
+3. **H-6** (dashboard-only, can be done anytime, doesn't need the shop open): register the
+   webhook in the Stripe dashboard, then put `STRIPE_WEBHOOK_SECRET` on the server. Code side
+   already done — see the checklist under H-6.
+4. Once OI-41 + H-6 both close, flip `cardPaymentEnabled: true` in `storefront/src/data/menu.ts`
+   and redeploy — that's what actually turns the card button on for real customers.
 
 *Everything below this line predates the walkthrough.*
 
@@ -151,6 +186,7 @@ customer-chosen time (OI-48 raised).
 | If you are… | Read |
 |---|---|
 | Working on the client build | `_state/chick-shack-uk.md` |
+| **About to deploy anything** | `docs/DEPLOYMENT_PLAYBOOK.md` — **two separate pipelines.** `git push origin main` ships the POS backend/admin only; the Chick Shack **storefront** needs its own `cd storefront && npm run deploy` (Cloudflare Workers). A green push/Action proves nothing about the storefront — verify the live bundle. See `ERROR_LOG.md` 2026-07-30 session H |
 | Touching a server, domain or DNS | `_state/infrastructure.md` **and** `memory/server-deployment-rules.md` |
 | Touching the database | `memory/data-integrity.md` — **`pg_dump` first, no exceptions** |
 | Debugging something odd | `ERROR_LOG.md` — it is a real log of real mistakes |

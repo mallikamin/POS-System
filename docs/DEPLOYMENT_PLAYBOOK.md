@@ -10,8 +10,20 @@ deploys and emergency recovery. This file covers the path we actually use.
 
 ## The one-line summary
 
-**Merging to `main` deploys production.** There is no other button. Do not SSH in and
-`git pull` by hand — that leaves the server on a commit no workflow knows about.
+⚠️ **There are TWO separate deploy pipelines. Read both before you push or run anything.**
+
+| Changed... | Deploy command | Ships to |
+|---|---|---|
+| `backend/`, `frontend/` (POS admin/KDS), anything else at repo root | `git push origin main` | DigitalOcean droplet, via `deploy-production.yml` |
+| `storefront/` (the Chick Shack customer-facing site) | `cd storefront && npm run deploy` | Cloudflare Workers — **`git push` does NOT touch this** |
+
+**Merging to `main` deploys the POS/backend side only.** There is no other button *for that
+side*. Do not SSH in and `git pull` by hand — that leaves the server on a commit no workflow
+knows about. But a green `git push` / green Action tells you **nothing** about whether the
+storefront changed — verify by fetching the live bundle and grepping for what you just edited,
+not by trusting CI status. (This is exactly how a testing-mode banner shipped to `main` on
+2026-07-30 sat un-deployed on the live site for several minutes while a GitHub Action ran green
+for an unrelated pipeline — see `ERROR_LOG.md`.)
 
 ---
 
