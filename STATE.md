@@ -1,6 +1,20 @@
 # STATE — Restaurant POS System
 
-**Last refreshed:** 2026-07-31 (session J) · **Branch:** `main`
+**Last refreshed:** 2026-07-31 (session K) · **Branch:** `main`
+
+**Session K in one line:** Malik's first live UAT pass on OI-45(b) surfaced 3 real issues,
+all fixed and deployed: (1) a solo item gave no hint a Meal version existed — Meal items were
+appended in one block after every solo item in a category instead of interleaved, and the
+item modal had no cross-link; both fixed, plus a `reorder_chick_shack_meal_modifiers_2026_07_31.py`
+one-off was needed to fix the *live* modifier-group order too, since `seed_chick_shack.py`'s
+`_link()` is additive-only and a plain reseed doesn't reposition an existing link (same failure
+shape as the two rename bugs from the session before). (2) Meal items showed optional dip/sauce
+choices before the required drink + chips upgrade — reordered. (3) Checkout landed scrolled to
+the bottom of the page — `view` swaps screens in place rather than routing, so scroll position
+carried over; added scroll-to-top on every view change. Backend: `pg_dump` backed up, reseed +
+reorder script run on production, verified via the live API (item order + group order both
+correct). Storefront: deployed to Cloudflare, live bundle verified for the new code, testing-mode
+banner reconfirmed present. Commit `8017321`, pushed. UAT continuing — see Malik for next item.
 
 **Session J in one line:** Finished the photo-integration work session I left in progress
 (`PAUSE_CHECKPOINT_2026-07-31.md`). Re-verified every proposed photo→item mapping in
