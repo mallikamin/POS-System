@@ -17,7 +17,9 @@
     "currency": "GBP",
     "openTime": "16:00",
     "closeTime": "22:00",
-    "orderingEnabled": false,
+    "orderFromTime": "14:00",
+    "orderingEnabled": true,
+    "cardPaymentEnabled": false,
     "services": [
       "collection",
       "delivery"
@@ -157,18 +159,18 @@
       "modifierGroups": [
         {
           "id": "heat",
-          "name": "Mild or Hot",
+          "name": "Peri-Peri Heat",
           "min": 1,
           "max": 1,
           "options": [
             {
-              "id": "heat-mild",
-              "name": "Mild",
+              "id": "heat-hot",
+              "name": "Hot Heat",
               "priceDelta": 0
             },
             {
-              "id": "heat-hot",
-              "name": "Hot",
+              "id": "heat-mild",
+              "name": "Mild Heat",
               "priceDelta": 0
             }
           ]
@@ -253,18 +255,18 @@
       "modifierGroups": [
         {
           "id": "heat",
-          "name": "Mild or Hot",
+          "name": "Peri-Peri Heat",
           "min": 1,
           "max": 1,
           "options": [
             {
-              "id": "heat-mild",
-              "name": "Mild",
+              "id": "heat-hot",
+              "name": "Hot Heat",
               "priceDelta": 0
             },
             {
-              "id": "heat-hot",
-              "name": "Hot",
+              "id": "heat-mild",
+              "name": "Mild Heat",
               "priceDelta": 0
             }
           ]
@@ -349,18 +351,18 @@
       "modifierGroups": [
         {
           "id": "heat",
-          "name": "Mild or Hot",
+          "name": "Peri-Peri Heat",
           "min": 1,
           "max": 1,
           "options": [
             {
-              "id": "heat-mild",
-              "name": "Mild",
+              "id": "heat-hot",
+              "name": "Hot Heat",
               "priceDelta": 0
             },
             {
-              "id": "heat-hot",
-              "name": "Hot",
+              "id": "heat-mild",
+              "name": "Mild Heat",
               "priceDelta": 0
             }
           ]
@@ -445,18 +447,18 @@
       "modifierGroups": [
         {
           "id": "heat",
-          "name": "Mild or Hot",
+          "name": "Peri-Peri Heat",
           "min": 1,
           "max": 1,
           "options": [
             {
-              "id": "heat-mild",
-              "name": "Mild",
+              "id": "heat-hot",
+              "name": "Hot Heat",
               "priceDelta": 0
             },
             {
-              "id": "heat-hot",
-              "name": "Hot",
+              "id": "heat-mild",
+              "name": "Mild Heat",
               "priceDelta": 0
             }
           ]
@@ -536,32 +538,19 @@
       "modifierGroups": [
         {
           "id": "heat",
-          "name": "Mild or Hot",
+          "name": "Peri-Peri Heat",
           "min": 1,
           "max": 1,
           "options": [
             {
-              "id": "heat-mild",
-              "name": "Mild",
+              "id": "heat-hot",
+              "name": "Hot Heat",
               "priceDelta": 0
             },
             {
-              "id": "heat-hot",
-              "name": "Hot",
+              "id": "heat-mild",
+              "name": "Mild Heat",
               "priceDelta": 0
-            }
-          ]
-        },
-        {
-          "id": "meal",
-          "name": "Make it a meal",
-          "min": 0,
-          "max": 1,
-          "options": [
-            {
-              "id": "meal-yes",
-              "name": "Make it a meal",
-              "priceDelta": 300
             }
           ]
         },
@@ -646,32 +635,19 @@
       "modifierGroups": [
         {
           "id": "heat",
-          "name": "Mild or Hot",
+          "name": "Peri-Peri Heat",
           "min": 1,
           "max": 1,
           "options": [
             {
-              "id": "heat-mild",
-              "name": "Mild",
+              "id": "heat-hot",
+              "name": "Hot Heat",
               "priceDelta": 0
             },
             {
-              "id": "heat-hot",
-              "name": "Hot",
+              "id": "heat-mild",
+              "name": "Mild Heat",
               "priceDelta": 0
-            }
-          ]
-        },
-        {
-          "id": "meal",
-          "name": "Make it a meal",
-          "min": 0,
-          "max": 1,
-          "options": [
-            {
-              "id": "meal-yes",
-              "name": "Make it a meal",
-              "priceDelta": 300
             }
           ]
         },
@@ -753,19 +729,6 @@
       ],
       "modifierGroups": [
         {
-          "id": "meal",
-          "name": "Make it a meal",
-          "min": 0,
-          "max": 1,
-          "options": [
-            {
-              "id": "meal-yes",
-              "name": "Make it a meal",
-              "priceDelta": 300
-            }
-          ]
-        },
-        {
           "id": "dips",
           "name": "Add a dip (2oz tub)",
           "min": 0,
@@ -842,19 +805,6 @@
         }
       ],
       "modifierGroups": [
-        {
-          "id": "meal",
-          "name": "Make it a meal",
-          "min": 0,
-          "max": 1,
-          "options": [
-            {
-              "id": "meal-yes",
-              "name": "Make it a meal",
-              "priceDelta": 300
-            }
-          ]
-        },
         {
           "id": "dips",
           "name": "Add a dip (2oz tub)",
@@ -948,19 +898,6 @@
       ],
       "modifierGroups": [
         {
-          "id": "meal",
-          "name": "Make it a meal",
-          "min": 0,
-          "max": 1,
-          "options": [
-            {
-              "id": "meal-yes",
-              "name": "Make it a meal",
-              "priceDelta": 300
-            }
-          ]
-        },
-        {
           "id": "dips",
           "name": "Add a dip (2oz tub)",
           "min": 0,
@@ -1045,19 +982,6 @@
       "image": "fried-tenders",
       "modifierGroups": [
         {
-          "id": "meal",
-          "name": "Make it a meal",
-          "min": 0,
-          "max": 1,
-          "options": [
-            {
-              "id": "meal-yes",
-              "name": "Make it a meal",
-              "priceDelta": 300
-            }
-          ]
-        },
-        {
           "id": "dips",
           "name": "Add a dip (2oz tub)",
           "min": 0,
@@ -1115,7 +1039,7 @@
     {
       "id": "b-chicken-fillet",
       "categoryId": "burgers",
-      "name": "Chicken Fillet",
+      "name": "Chicken Fillet Burger",
       "description": "Fried chicken fillet in a seeded bun with crisp lettuce, red onion and creamy mayonnaise.",
       "variants": [
         {
@@ -1125,19 +1049,6 @@
         }
       ],
       "modifierGroups": [
-        {
-          "id": "meal",
-          "name": "Make it a meal",
-          "min": 0,
-          "max": 1,
-          "options": [
-            {
-              "id": "meal-yes",
-              "name": "Make it a meal",
-              "priceDelta": 300
-            }
-          ]
-        },
         {
           "id": "dips",
           "name": "Add a dip (2oz tub)",
@@ -1196,7 +1107,7 @@
     {
       "id": "b-double-chicken",
       "categoryId": "burgers",
-      "name": "Double Chicken",
+      "name": "Double Chicken Burger",
       "description": "Double fried chicken fillet in a seeded bun with crisp lettuce, red onion and creamy mayonnaise.",
       "variants": [
         {
@@ -1206,19 +1117,6 @@
         }
       ],
       "modifierGroups": [
-        {
-          "id": "meal",
-          "name": "Make it a meal",
-          "min": 0,
-          "max": 1,
-          "options": [
-            {
-              "id": "meal-yes",
-              "name": "Make it a meal",
-              "priceDelta": 300
-            }
-          ]
-        },
         {
           "id": "dips",
           "name": "Add a dip (2oz tub)",
@@ -1277,7 +1175,7 @@
     {
       "id": "b-fillet-tower",
       "categoryId": "burgers",
-      "name": "Chick Shack Fillet Tower",
+      "name": "Chick Shack Fillet Tower Burger",
       "description": "Fried chicken fillet and hashbrown in a seeded bun with crisp lettuce, red onion and creamy mayonnaise.",
       "variants": [
         {
@@ -1287,19 +1185,6 @@
         }
       ],
       "modifierGroups": [
-        {
-          "id": "meal",
-          "name": "Make it a meal",
-          "min": 0,
-          "max": 1,
-          "options": [
-            {
-              "id": "meal-yes",
-              "name": "Make it a meal",
-              "priceDelta": 300
-            }
-          ]
-        },
         {
           "id": "dips",
           "name": "Add a dip (2oz tub)",
@@ -1358,7 +1243,7 @@
     {
       "id": "b-peri",
       "categoryId": "burgers",
-      "name": "Peri Peri",
+      "name": "Peri Peri Burger",
       "description": "Grilled peri chicken fillet, seeded bun, mayonnaise, lettuce, red onion.",
       "variants": [
         {
@@ -1370,32 +1255,19 @@
       "modifierGroups": [
         {
           "id": "heat",
-          "name": "Mild or Hot",
+          "name": "Peri-Peri Heat",
           "min": 1,
           "max": 1,
           "options": [
             {
-              "id": "heat-mild",
-              "name": "Mild",
+              "id": "heat-hot",
+              "name": "Hot Heat",
               "priceDelta": 0
             },
             {
-              "id": "heat-hot",
-              "name": "Hot",
+              "id": "heat-mild",
+              "name": "Mild Heat",
               "priceDelta": 0
-            }
-          ]
-        },
-        {
-          "id": "meal",
-          "name": "Make it a meal",
-          "min": 0,
-          "max": 1,
-          "options": [
-            {
-              "id": "meal-yes",
-              "name": "Make it a meal",
-              "priceDelta": 300
             }
           ]
         },
@@ -1457,7 +1329,7 @@
     {
       "id": "b-double-peri",
       "categoryId": "burgers",
-      "name": "Double Peri Peri",
+      "name": "Double Peri Peri Burger",
       "description": "Grilled double peri chicken fillet, seeded bun, mayonnaise, lettuce and red onion.",
       "variants": [
         {
@@ -1469,32 +1341,19 @@
       "modifierGroups": [
         {
           "id": "heat",
-          "name": "Mild or Hot",
+          "name": "Peri-Peri Heat",
           "min": 1,
           "max": 1,
           "options": [
             {
-              "id": "heat-mild",
-              "name": "Mild",
+              "id": "heat-hot",
+              "name": "Hot Heat",
               "priceDelta": 0
             },
             {
-              "id": "heat-hot",
-              "name": "Hot",
+              "id": "heat-mild",
+              "name": "Mild Heat",
               "priceDelta": 0
-            }
-          ]
-        },
-        {
-          "id": "meal",
-          "name": "Make it a meal",
-          "min": 0,
-          "max": 1,
-          "options": [
-            {
-              "id": "meal-yes",
-              "name": "Make it a meal",
-              "priceDelta": 300
             }
           ]
         },
@@ -1567,19 +1426,6 @@
       ],
       "modifierGroups": [
         {
-          "id": "meal",
-          "name": "Make it a meal",
-          "min": 0,
-          "max": 1,
-          "options": [
-            {
-              "id": "meal-yes",
-              "name": "Make it a meal",
-              "priceDelta": 300
-            }
-          ]
-        },
-        {
           "id": "dips",
           "name": "Add a dip (2oz tub)",
           "min": 0,
@@ -1648,19 +1494,6 @@
         }
       ],
       "modifierGroups": [
-        {
-          "id": "meal",
-          "name": "Make it a meal",
-          "min": 0,
-          "max": 1,
-          "options": [
-            {
-              "id": "meal-yes",
-              "name": "Make it a meal",
-              "priceDelta": 300
-            }
-          ]
-        },
         {
           "id": "dips",
           "name": "Add a dip (2oz tub)",
@@ -1731,19 +1564,6 @@
       ],
       "modifierGroups": [
         {
-          "id": "meal",
-          "name": "Make it a meal",
-          "min": 0,
-          "max": 1,
-          "options": [
-            {
-              "id": "meal-yes",
-              "name": "Make it a meal",
-              "priceDelta": 300
-            }
-          ]
-        },
-        {
           "id": "dips",
           "name": "Add a dip (2oz tub)",
           "min": 0,
@@ -1813,19 +1633,6 @@
       ],
       "modifierGroups": [
         {
-          "id": "meal",
-          "name": "Make it a meal",
-          "min": 0,
-          "max": 1,
-          "options": [
-            {
-              "id": "meal-yes",
-              "name": "Make it a meal",
-              "priceDelta": 300
-            }
-          ]
-        },
-        {
           "id": "dips",
           "name": "Add a dip (2oz tub)",
           "min": 0,
@@ -1884,7 +1691,7 @@
     {
       "id": "b-big-shack",
       "categoryId": "burgers",
-      "name": "The Big Shack",
+      "name": "The Big Shack Burger",
       "description": "Seeded bun, mayo, Algerian sauce, lettuce, cheese, ¼ beef patty, fried chicken fillet, hashbrown, tomato & red onion.",
       "variants": [
         {
@@ -1894,19 +1701,6 @@
         }
       ],
       "modifierGroups": [
-        {
-          "id": "meal",
-          "name": "Make it a meal",
-          "min": 0,
-          "max": 1,
-          "options": [
-            {
-              "id": "meal-yes",
-              "name": "Make it a meal",
-              "priceDelta": 300
-            }
-          ]
-        },
         {
           "id": "dips",
           "name": "Add a dip (2oz tub)",
@@ -1977,19 +1771,6 @@
       ],
       "modifierGroups": [
         {
-          "id": "meal",
-          "name": "Make it a meal",
-          "min": 0,
-          "max": 1,
-          "options": [
-            {
-              "id": "meal-yes",
-              "name": "Make it a meal",
-              "priceDelta": 300
-            }
-          ]
-        },
-        {
           "id": "dips",
           "name": "Add a dip (2oz tub)",
           "min": 0,
@@ -2057,19 +1838,6 @@
         }
       ],
       "modifierGroups": [
-        {
-          "id": "meal",
-          "name": "Make it a meal",
-          "min": 0,
-          "max": 1,
-          "options": [
-            {
-              "id": "meal-yes",
-              "name": "Make it a meal",
-              "priceDelta": 300
-            }
-          ]
-        },
         {
           "id": "dips",
           "name": "Add a dip (2oz tub)",
@@ -2140,32 +1908,19 @@
       "modifierGroups": [
         {
           "id": "heat",
-          "name": "Mild or Hot",
+          "name": "Peri-Peri Heat",
           "min": 1,
           "max": 1,
           "options": [
             {
-              "id": "heat-mild",
-              "name": "Mild",
+              "id": "heat-hot",
+              "name": "Hot Heat",
               "priceDelta": 0
             },
             {
-              "id": "heat-hot",
-              "name": "Hot",
+              "id": "heat-mild",
+              "name": "Mild Heat",
               "priceDelta": 0
-            }
-          ]
-        },
-        {
-          "id": "meal",
-          "name": "Make it a meal",
-          "min": 0,
-          "max": 1,
-          "options": [
-            {
-              "id": "meal-yes",
-              "name": "Make it a meal",
-              "priceDelta": 300
             }
           ]
         },
@@ -2239,32 +1994,19 @@
       "modifierGroups": [
         {
           "id": "heat",
-          "name": "Mild or Hot",
+          "name": "Peri-Peri Heat",
           "min": 1,
           "max": 1,
           "options": [
             {
-              "id": "heat-mild",
-              "name": "Mild",
+              "id": "heat-hot",
+              "name": "Hot Heat",
               "priceDelta": 0
             },
             {
-              "id": "heat-hot",
-              "name": "Hot",
+              "id": "heat-mild",
+              "name": "Mild Heat",
               "priceDelta": 0
-            }
-          ]
-        },
-        {
-          "id": "meal",
-          "name": "Make it a meal",
-          "min": 0,
-          "max": 1,
-          "options": [
-            {
-              "id": "meal-yes",
-              "name": "Make it a meal",
-              "priceDelta": 300
             }
           ]
         },
@@ -2337,19 +2079,6 @@
       ],
       "modifierGroups": [
         {
-          "id": "meal",
-          "name": "Make it a meal",
-          "min": 0,
-          "max": 1,
-          "options": [
-            {
-              "id": "meal-yes",
-              "name": "Make it a meal",
-              "priceDelta": 300
-            }
-          ]
-        },
-        {
           "id": "dips",
           "name": "Add a dip (2oz tub)",
           "min": 0,
@@ -2408,7 +2137,7 @@
     {
       "id": "w-hot-chick",
       "categoryId": "wraps",
-      "name": "The Hot Chick",
+      "name": "The Hot Chick Wrap",
       "description": "Tortilla wrap, fried chicken fillet, lettuce and chilli sauce.",
       "variants": [
         {
@@ -2418,19 +2147,6 @@
         }
       ],
       "modifierGroups": [
-        {
-          "id": "meal",
-          "name": "Make it a meal",
-          "min": 0,
-          "max": 1,
-          "options": [
-            {
-              "id": "meal-yes",
-              "name": "Make it a meal",
-              "priceDelta": 300
-            }
-          ]
-        },
         {
           "id": "dips",
           "name": "Add a dip (2oz tub)",
@@ -2686,19 +2402,6 @@
       ],
       "modifierGroups": [
         {
-          "id": "meal",
-          "name": "Make it a meal",
-          "min": 0,
-          "max": 1,
-          "options": [
-            {
-              "id": "meal-yes",
-              "name": "Make it a meal",
-              "priceDelta": 300
-            }
-          ]
-        },
-        {
           "id": "dips",
           "name": "Add a dip (2oz tub)",
           "min": 0,
@@ -2781,19 +2484,6 @@
       ],
       "modifierGroups": [
         {
-          "id": "meal",
-          "name": "Make it a meal",
-          "min": 0,
-          "max": 1,
-          "options": [
-            {
-              "id": "meal-yes",
-              "name": "Make it a meal",
-              "priceDelta": 300
-            }
-          ]
-        },
-        {
           "id": "dips",
           "name": "Add a dip (2oz tub)",
           "min": 0,
@@ -2870,19 +2560,6 @@
         }
       ],
       "modifierGroups": [
-        {
-          "id": "meal",
-          "name": "Make it a meal",
-          "min": 0,
-          "max": 1,
-          "options": [
-            {
-              "id": "meal-yes",
-              "name": "Make it a meal",
-              "priceDelta": 300
-            }
-          ]
-        },
         {
           "id": "dips",
           "name": "Add a dip (2oz tub)",
@@ -3189,6 +2866,4091 @@
         }
       ],
       "modifierGroups": []
+    },
+    {
+      "id": "peri-wings-meal",
+      "categoryId": "peri-grilled",
+      "name": "Peri Peri Wings Meal",
+      "description": "Grilled wings, a zesty peri flavour.",
+      "variants": [
+        {
+          "id": "pw-3-meal",
+          "name": "3 pc",
+          "price": 999
+        },
+        {
+          "id": "pw-5-meal",
+          "name": "5 pc",
+          "price": 1099
+        }
+      ],
+      "modifierGroups": [
+        {
+          "id": "heat",
+          "name": "Peri-Peri Heat",
+          "min": 1,
+          "max": 1,
+          "options": [
+            {
+              "id": "heat-hot",
+              "name": "Hot Heat",
+              "priceDelta": 0
+            },
+            {
+              "id": "heat-mild",
+              "name": "Mild Heat",
+              "priceDelta": 0
+            }
+          ]
+        },
+        {
+          "id": "dips",
+          "name": "Add a dip (2oz tub)",
+          "min": 0,
+          "max": 6,
+          "options": [
+            {
+              "id": "dip-ketchup",
+              "name": "Ketchup",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-mayo",
+              "name": "Mayo",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-garlic-mayo",
+              "name": "Garlic Mayo",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-bbq",
+              "name": "BBQ",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-burger",
+              "name": "Burger Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-chilli",
+              "name": "Chilli Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-peri",
+              "name": "Peri Peri Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-salsa",
+              "name": "Salsa Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-algerian",
+              "name": "Algerian Sauce",
+              "priceDelta": 99
+            }
+          ]
+        },
+        {
+          "id": "adult-meal-drink",
+          "name": "Adults Meal Deal Drink",
+          "min": 1,
+          "max": 1,
+          "options": [
+            {
+              "id": "amd-7up",
+              "name": "7UP",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-fanta-orange",
+              "name": "Fanta Orange",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-levi-roots",
+              "name": "Levi Roots Caribbean Crush",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-pepsi-max",
+              "name": "Pepsi Max",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-water",
+              "name": "Water",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-diet-irn-bru",
+              "name": "Diet Irn Bru",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-irn-bru",
+              "name": "Irn Bru",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-pepsi",
+              "name": "Pepsi",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-rubicon-passion",
+              "name": "Rubicon Passion Fruit",
+              "priceDelta": 0
+            }
+          ]
+        },
+        {
+          "id": "meal-upgrade",
+          "name": "Meal Deal Upgrade",
+          "min": 0,
+          "max": 1,
+          "options": [
+            {
+              "id": "mu-reg-chips",
+              "name": "Regular Chips",
+              "priceDelta": 0
+            },
+            {
+              "id": "mu-large-fries",
+              "name": "Upgrade to Large Fries",
+              "priceDelta": 79
+            },
+            {
+              "id": "mu-peri-fries",
+              "name": "Upgrade to Peri Peri Fries",
+              "priceDelta": 99
+            },
+            {
+              "id": "mu-large-peri-fries",
+              "name": "Upgrade to Large Peri Peri Fries",
+              "priceDelta": 119
+            },
+            {
+              "id": "mu-wedges",
+              "name": "Upgrade to Wedges",
+              "priceDelta": 139
+            },
+            {
+              "id": "mu-peri-wedges",
+              "name": "Upgrade to Peri Peri Wedges",
+              "priceDelta": 159
+            }
+          ]
+        }
+      ],
+      "image": "peri-wings"
+    },
+    {
+      "id": "peri-tenders-meal",
+      "categoryId": "peri-grilled",
+      "name": "Peri Tenders Meal",
+      "description": "Grilled tenders, a zesty peri peri flavour.",
+      "variants": [
+        {
+          "id": "pt-3-meal",
+          "name": "3 pc",
+          "price": 999
+        },
+        {
+          "id": "pt-5-meal",
+          "name": "5 pc",
+          "price": 1099
+        },
+        {
+          "id": "pt-7-meal",
+          "name": "7 pc",
+          "price": 1199
+        }
+      ],
+      "modifierGroups": [
+        {
+          "id": "heat",
+          "name": "Peri-Peri Heat",
+          "min": 1,
+          "max": 1,
+          "options": [
+            {
+              "id": "heat-hot",
+              "name": "Hot Heat",
+              "priceDelta": 0
+            },
+            {
+              "id": "heat-mild",
+              "name": "Mild Heat",
+              "priceDelta": 0
+            }
+          ]
+        },
+        {
+          "id": "dips",
+          "name": "Add a dip (2oz tub)",
+          "min": 0,
+          "max": 6,
+          "options": [
+            {
+              "id": "dip-ketchup",
+              "name": "Ketchup",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-mayo",
+              "name": "Mayo",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-garlic-mayo",
+              "name": "Garlic Mayo",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-bbq",
+              "name": "BBQ",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-burger",
+              "name": "Burger Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-chilli",
+              "name": "Chilli Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-peri",
+              "name": "Peri Peri Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-salsa",
+              "name": "Salsa Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-algerian",
+              "name": "Algerian Sauce",
+              "priceDelta": 99
+            }
+          ]
+        },
+        {
+          "id": "adult-meal-drink",
+          "name": "Adults Meal Deal Drink",
+          "min": 1,
+          "max": 1,
+          "options": [
+            {
+              "id": "amd-7up",
+              "name": "7UP",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-fanta-orange",
+              "name": "Fanta Orange",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-levi-roots",
+              "name": "Levi Roots Caribbean Crush",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-pepsi-max",
+              "name": "Pepsi Max",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-water",
+              "name": "Water",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-diet-irn-bru",
+              "name": "Diet Irn Bru",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-irn-bru",
+              "name": "Irn Bru",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-pepsi",
+              "name": "Pepsi",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-rubicon-passion",
+              "name": "Rubicon Passion Fruit",
+              "priceDelta": 0
+            }
+          ]
+        },
+        {
+          "id": "meal-upgrade",
+          "name": "Meal Deal Upgrade",
+          "min": 0,
+          "max": 1,
+          "options": [
+            {
+              "id": "mu-reg-chips",
+              "name": "Regular Chips",
+              "priceDelta": 0
+            },
+            {
+              "id": "mu-large-fries",
+              "name": "Upgrade to Large Fries",
+              "priceDelta": 79
+            },
+            {
+              "id": "mu-peri-fries",
+              "name": "Upgrade to Peri Peri Fries",
+              "priceDelta": 99
+            },
+            {
+              "id": "mu-large-peri-fries",
+              "name": "Upgrade to Large Peri Peri Fries",
+              "priceDelta": 119
+            },
+            {
+              "id": "mu-wedges",
+              "name": "Upgrade to Wedges",
+              "priceDelta": 139
+            },
+            {
+              "id": "mu-peri-wedges",
+              "name": "Upgrade to Peri Peri Wedges",
+              "priceDelta": 159
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "fried-chicken-meal",
+      "categoryId": "fried-chicken",
+      "name": "Fried Chicken Meal",
+      "variants": [
+        {
+          "id": "fc-2-meal",
+          "name": "2 pc",
+          "price": 799
+        },
+        {
+          "id": "fc-3-meal",
+          "name": "3 pc",
+          "price": 999
+        },
+        {
+          "id": "fc-4-meal",
+          "name": "4 pc",
+          "price": 1099
+        }
+      ],
+      "modifierGroups": [
+        {
+          "id": "dips",
+          "name": "Add a dip (2oz tub)",
+          "min": 0,
+          "max": 6,
+          "options": [
+            {
+              "id": "dip-ketchup",
+              "name": "Ketchup",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-mayo",
+              "name": "Mayo",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-garlic-mayo",
+              "name": "Garlic Mayo",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-bbq",
+              "name": "BBQ",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-burger",
+              "name": "Burger Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-chilli",
+              "name": "Chilli Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-peri",
+              "name": "Peri Peri Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-salsa",
+              "name": "Salsa Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-algerian",
+              "name": "Algerian Sauce",
+              "priceDelta": 99
+            }
+          ]
+        },
+        {
+          "id": "adult-meal-drink",
+          "name": "Adults Meal Deal Drink",
+          "min": 1,
+          "max": 1,
+          "options": [
+            {
+              "id": "amd-7up",
+              "name": "7UP",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-fanta-orange",
+              "name": "Fanta Orange",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-levi-roots",
+              "name": "Levi Roots Caribbean Crush",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-pepsi-max",
+              "name": "Pepsi Max",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-water",
+              "name": "Water",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-diet-irn-bru",
+              "name": "Diet Irn Bru",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-irn-bru",
+              "name": "Irn Bru",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-pepsi",
+              "name": "Pepsi",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-rubicon-passion",
+              "name": "Rubicon Passion Fruit",
+              "priceDelta": 0
+            }
+          ]
+        },
+        {
+          "id": "meal-upgrade",
+          "name": "Meal Deal Upgrade",
+          "min": 0,
+          "max": 1,
+          "options": [
+            {
+              "id": "mu-reg-chips",
+              "name": "Regular Chips",
+              "priceDelta": 0
+            },
+            {
+              "id": "mu-large-fries",
+              "name": "Upgrade to Large Fries",
+              "priceDelta": 79
+            },
+            {
+              "id": "mu-peri-fries",
+              "name": "Upgrade to Peri Peri Fries",
+              "priceDelta": 99
+            },
+            {
+              "id": "mu-large-peri-fries",
+              "name": "Upgrade to Large Peri Peri Fries",
+              "priceDelta": 119
+            },
+            {
+              "id": "mu-wedges",
+              "name": "Upgrade to Wedges",
+              "priceDelta": 139
+            },
+            {
+              "id": "mu-peri-wedges",
+              "name": "Upgrade to Peri Peri Wedges",
+              "priceDelta": 159
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "fried-combo-meal",
+      "categoryId": "fried-chicken",
+      "name": "Combo Fried Chicken with 2 Wings Meal",
+      "variants": [
+        {
+          "id": "fcb-2-meal",
+          "name": "2 pc",
+          "price": 999
+        },
+        {
+          "id": "fcb-3-meal",
+          "name": "3 pc",
+          "price": 1299
+        },
+        {
+          "id": "fcb-4-meal",
+          "name": "4 pc",
+          "price": 1499
+        }
+      ],
+      "modifierGroups": [
+        {
+          "id": "dips",
+          "name": "Add a dip (2oz tub)",
+          "min": 0,
+          "max": 6,
+          "options": [
+            {
+              "id": "dip-ketchup",
+              "name": "Ketchup",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-mayo",
+              "name": "Mayo",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-garlic-mayo",
+              "name": "Garlic Mayo",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-bbq",
+              "name": "BBQ",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-burger",
+              "name": "Burger Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-chilli",
+              "name": "Chilli Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-peri",
+              "name": "Peri Peri Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-salsa",
+              "name": "Salsa Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-algerian",
+              "name": "Algerian Sauce",
+              "priceDelta": 99
+            }
+          ]
+        },
+        {
+          "id": "adult-meal-drink",
+          "name": "Adults Meal Deal Drink",
+          "min": 1,
+          "max": 1,
+          "options": [
+            {
+              "id": "amd-7up",
+              "name": "7UP",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-fanta-orange",
+              "name": "Fanta Orange",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-levi-roots",
+              "name": "Levi Roots Caribbean Crush",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-pepsi-max",
+              "name": "Pepsi Max",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-water",
+              "name": "Water",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-diet-irn-bru",
+              "name": "Diet Irn Bru",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-irn-bru",
+              "name": "Irn Bru",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-pepsi",
+              "name": "Pepsi",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-rubicon-passion",
+              "name": "Rubicon Passion Fruit",
+              "priceDelta": 0
+            }
+          ]
+        },
+        {
+          "id": "meal-upgrade",
+          "name": "Meal Deal Upgrade",
+          "min": 0,
+          "max": 1,
+          "options": [
+            {
+              "id": "mu-reg-chips",
+              "name": "Regular Chips",
+              "priceDelta": 0
+            },
+            {
+              "id": "mu-large-fries",
+              "name": "Upgrade to Large Fries",
+              "priceDelta": 79
+            },
+            {
+              "id": "mu-peri-fries",
+              "name": "Upgrade to Peri Peri Fries",
+              "priceDelta": 99
+            },
+            {
+              "id": "mu-large-peri-fries",
+              "name": "Upgrade to Large Peri Peri Fries",
+              "priceDelta": 119
+            },
+            {
+              "id": "mu-wedges",
+              "name": "Upgrade to Wedges",
+              "priceDelta": 139
+            },
+            {
+              "id": "mu-peri-wedges",
+              "name": "Upgrade to Peri Peri Wedges",
+              "priceDelta": 159
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "spicy-wings-meal",
+      "categoryId": "fried-chicken",
+      "name": "Spicy Fried Wings Meal",
+      "variants": [
+        {
+          "id": "sw-4-meal",
+          "name": "4 pc",
+          "price": 799
+        },
+        {
+          "id": "sw-6-meal",
+          "name": "6 pc",
+          "price": 899
+        },
+        {
+          "id": "sw-8-meal",
+          "name": "8 pc",
+          "price": 999
+        },
+        {
+          "id": "sw-10-meal",
+          "name": "10 pc",
+          "price": 1099
+        },
+        {
+          "id": "sw-12-meal",
+          "name": "12 pc",
+          "price": 1199
+        },
+        {
+          "id": "sw-16-meal",
+          "name": "16 pc",
+          "price": 1299
+        }
+      ],
+      "modifierGroups": [
+        {
+          "id": "dips",
+          "name": "Add a dip (2oz tub)",
+          "min": 0,
+          "max": 6,
+          "options": [
+            {
+              "id": "dip-ketchup",
+              "name": "Ketchup",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-mayo",
+              "name": "Mayo",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-garlic-mayo",
+              "name": "Garlic Mayo",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-bbq",
+              "name": "BBQ",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-burger",
+              "name": "Burger Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-chilli",
+              "name": "Chilli Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-peri",
+              "name": "Peri Peri Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-salsa",
+              "name": "Salsa Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-algerian",
+              "name": "Algerian Sauce",
+              "priceDelta": 99
+            }
+          ]
+        },
+        {
+          "id": "adult-meal-drink",
+          "name": "Adults Meal Deal Drink",
+          "min": 1,
+          "max": 1,
+          "options": [
+            {
+              "id": "amd-7up",
+              "name": "7UP",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-fanta-orange",
+              "name": "Fanta Orange",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-levi-roots",
+              "name": "Levi Roots Caribbean Crush",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-pepsi-max",
+              "name": "Pepsi Max",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-water",
+              "name": "Water",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-diet-irn-bru",
+              "name": "Diet Irn Bru",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-irn-bru",
+              "name": "Irn Bru",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-pepsi",
+              "name": "Pepsi",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-rubicon-passion",
+              "name": "Rubicon Passion Fruit",
+              "priceDelta": 0
+            }
+          ]
+        },
+        {
+          "id": "meal-upgrade",
+          "name": "Meal Deal Upgrade",
+          "min": 0,
+          "max": 1,
+          "options": [
+            {
+              "id": "mu-reg-chips",
+              "name": "Regular Chips",
+              "priceDelta": 0
+            },
+            {
+              "id": "mu-large-fries",
+              "name": "Upgrade to Large Fries",
+              "priceDelta": 79
+            },
+            {
+              "id": "mu-peri-fries",
+              "name": "Upgrade to Peri Peri Fries",
+              "priceDelta": 99
+            },
+            {
+              "id": "mu-large-peri-fries",
+              "name": "Upgrade to Large Peri Peri Fries",
+              "priceDelta": 119
+            },
+            {
+              "id": "mu-wedges",
+              "name": "Upgrade to Wedges",
+              "priceDelta": 139
+            },
+            {
+              "id": "mu-peri-wedges",
+              "name": "Upgrade to Peri Peri Wedges",
+              "priceDelta": 159
+            }
+          ]
+        }
+      ],
+      "image": "wings-spicy"
+    },
+    {
+      "id": "fried-tenders-meal",
+      "categoryId": "fried-chicken",
+      "name": "Fried Tenders Meal",
+      "variants": [
+        {
+          "id": "ft-4-meal",
+          "name": "4 pc",
+          "price": 899
+        },
+        {
+          "id": "ft-6-meal",
+          "name": "6 pc",
+          "price": 1099
+        },
+        {
+          "id": "ft-8-meal",
+          "name": "8 pc",
+          "price": 1199
+        },
+        {
+          "id": "ft-10-meal",
+          "name": "10 pc",
+          "price": 1299
+        }
+      ],
+      "image": "fried-tenders",
+      "modifierGroups": [
+        {
+          "id": "dips",
+          "name": "Add a dip (2oz tub)",
+          "min": 0,
+          "max": 6,
+          "options": [
+            {
+              "id": "dip-ketchup",
+              "name": "Ketchup",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-mayo",
+              "name": "Mayo",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-garlic-mayo",
+              "name": "Garlic Mayo",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-bbq",
+              "name": "BBQ",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-burger",
+              "name": "Burger Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-chilli",
+              "name": "Chilli Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-peri",
+              "name": "Peri Peri Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-salsa",
+              "name": "Salsa Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-algerian",
+              "name": "Algerian Sauce",
+              "priceDelta": 99
+            }
+          ]
+        },
+        {
+          "id": "adult-meal-drink",
+          "name": "Adults Meal Deal Drink",
+          "min": 1,
+          "max": 1,
+          "options": [
+            {
+              "id": "amd-7up",
+              "name": "7UP",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-fanta-orange",
+              "name": "Fanta Orange",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-levi-roots",
+              "name": "Levi Roots Caribbean Crush",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-pepsi-max",
+              "name": "Pepsi Max",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-water",
+              "name": "Water",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-diet-irn-bru",
+              "name": "Diet Irn Bru",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-irn-bru",
+              "name": "Irn Bru",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-pepsi",
+              "name": "Pepsi",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-rubicon-passion",
+              "name": "Rubicon Passion Fruit",
+              "priceDelta": 0
+            }
+          ]
+        },
+        {
+          "id": "meal-upgrade",
+          "name": "Meal Deal Upgrade",
+          "min": 0,
+          "max": 1,
+          "options": [
+            {
+              "id": "mu-reg-chips",
+              "name": "Regular Chips",
+              "priceDelta": 0
+            },
+            {
+              "id": "mu-large-fries",
+              "name": "Upgrade to Large Fries",
+              "priceDelta": 79
+            },
+            {
+              "id": "mu-peri-fries",
+              "name": "Upgrade to Peri Peri Fries",
+              "priceDelta": 99
+            },
+            {
+              "id": "mu-large-peri-fries",
+              "name": "Upgrade to Large Peri Peri Fries",
+              "priceDelta": 119
+            },
+            {
+              "id": "mu-wedges",
+              "name": "Upgrade to Wedges",
+              "priceDelta": 139
+            },
+            {
+              "id": "mu-peri-wedges",
+              "name": "Upgrade to Peri Peri Wedges",
+              "priceDelta": 159
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "b-chicken-fillet-meal",
+      "categoryId": "burgers",
+      "name": "Chicken Fillet Burger Meal",
+      "description": "Fried chicken fillet in a seeded bun with crisp lettuce, red onion and creamy mayonnaise.",
+      "variants": [
+        {
+          "id": "b-chicken-fillet-std-meal",
+          "name": "",
+          "price": 999
+        }
+      ],
+      "modifierGroups": [
+        {
+          "id": "dips",
+          "name": "Add a dip (2oz tub)",
+          "min": 0,
+          "max": 6,
+          "options": [
+            {
+              "id": "dip-ketchup",
+              "name": "Ketchup",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-mayo",
+              "name": "Mayo",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-garlic-mayo",
+              "name": "Garlic Mayo",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-bbq",
+              "name": "BBQ",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-burger",
+              "name": "Burger Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-chilli",
+              "name": "Chilli Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-peri",
+              "name": "Peri Peri Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-salsa",
+              "name": "Salsa Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-algerian",
+              "name": "Algerian Sauce",
+              "priceDelta": 99
+            }
+          ]
+        },
+        {
+          "id": "adult-meal-drink",
+          "name": "Adults Meal Deal Drink",
+          "min": 1,
+          "max": 1,
+          "options": [
+            {
+              "id": "amd-7up",
+              "name": "7UP",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-fanta-orange",
+              "name": "Fanta Orange",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-levi-roots",
+              "name": "Levi Roots Caribbean Crush",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-pepsi-max",
+              "name": "Pepsi Max",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-water",
+              "name": "Water",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-diet-irn-bru",
+              "name": "Diet Irn Bru",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-irn-bru",
+              "name": "Irn Bru",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-pepsi",
+              "name": "Pepsi",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-rubicon-passion",
+              "name": "Rubicon Passion Fruit",
+              "priceDelta": 0
+            }
+          ]
+        },
+        {
+          "id": "meal-upgrade",
+          "name": "Meal Deal Upgrade",
+          "min": 0,
+          "max": 1,
+          "options": [
+            {
+              "id": "mu-reg-chips",
+              "name": "Regular Chips",
+              "priceDelta": 0
+            },
+            {
+              "id": "mu-large-fries",
+              "name": "Upgrade to Large Fries",
+              "priceDelta": 79
+            },
+            {
+              "id": "mu-peri-fries",
+              "name": "Upgrade to Peri Peri Fries",
+              "priceDelta": 99
+            },
+            {
+              "id": "mu-large-peri-fries",
+              "name": "Upgrade to Large Peri Peri Fries",
+              "priceDelta": 119
+            },
+            {
+              "id": "mu-wedges",
+              "name": "Upgrade to Wedges",
+              "priceDelta": 139
+            },
+            {
+              "id": "mu-peri-wedges",
+              "name": "Upgrade to Peri Peri Wedges",
+              "priceDelta": 159
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "b-double-chicken-meal",
+      "categoryId": "burgers",
+      "name": "Double Chicken Burger Meal",
+      "description": "Double fried chicken fillet in a seeded bun with crisp lettuce, red onion and creamy mayonnaise.",
+      "variants": [
+        {
+          "id": "b-double-chicken-std-meal",
+          "name": "",
+          "price": 1199
+        }
+      ],
+      "modifierGroups": [
+        {
+          "id": "dips",
+          "name": "Add a dip (2oz tub)",
+          "min": 0,
+          "max": 6,
+          "options": [
+            {
+              "id": "dip-ketchup",
+              "name": "Ketchup",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-mayo",
+              "name": "Mayo",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-garlic-mayo",
+              "name": "Garlic Mayo",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-bbq",
+              "name": "BBQ",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-burger",
+              "name": "Burger Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-chilli",
+              "name": "Chilli Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-peri",
+              "name": "Peri Peri Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-salsa",
+              "name": "Salsa Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-algerian",
+              "name": "Algerian Sauce",
+              "priceDelta": 99
+            }
+          ]
+        },
+        {
+          "id": "adult-meal-drink",
+          "name": "Adults Meal Deal Drink",
+          "min": 1,
+          "max": 1,
+          "options": [
+            {
+              "id": "amd-7up",
+              "name": "7UP",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-fanta-orange",
+              "name": "Fanta Orange",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-levi-roots",
+              "name": "Levi Roots Caribbean Crush",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-pepsi-max",
+              "name": "Pepsi Max",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-water",
+              "name": "Water",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-diet-irn-bru",
+              "name": "Diet Irn Bru",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-irn-bru",
+              "name": "Irn Bru",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-pepsi",
+              "name": "Pepsi",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-rubicon-passion",
+              "name": "Rubicon Passion Fruit",
+              "priceDelta": 0
+            }
+          ]
+        },
+        {
+          "id": "meal-upgrade",
+          "name": "Meal Deal Upgrade",
+          "min": 0,
+          "max": 1,
+          "options": [
+            {
+              "id": "mu-reg-chips",
+              "name": "Regular Chips",
+              "priceDelta": 0
+            },
+            {
+              "id": "mu-large-fries",
+              "name": "Upgrade to Large Fries",
+              "priceDelta": 79
+            },
+            {
+              "id": "mu-peri-fries",
+              "name": "Upgrade to Peri Peri Fries",
+              "priceDelta": 99
+            },
+            {
+              "id": "mu-large-peri-fries",
+              "name": "Upgrade to Large Peri Peri Fries",
+              "priceDelta": 119
+            },
+            {
+              "id": "mu-wedges",
+              "name": "Upgrade to Wedges",
+              "priceDelta": 139
+            },
+            {
+              "id": "mu-peri-wedges",
+              "name": "Upgrade to Peri Peri Wedges",
+              "priceDelta": 159
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "b-fillet-tower-meal",
+      "categoryId": "burgers",
+      "name": "Chick Shack Fillet Tower Burger Meal",
+      "description": "Fried chicken fillet and hashbrown in a seeded bun with crisp lettuce, red onion and creamy mayonnaise.",
+      "variants": [
+        {
+          "id": "b-fillet-tower-std-meal",
+          "name": "",
+          "price": 1099
+        }
+      ],
+      "modifierGroups": [
+        {
+          "id": "dips",
+          "name": "Add a dip (2oz tub)",
+          "min": 0,
+          "max": 6,
+          "options": [
+            {
+              "id": "dip-ketchup",
+              "name": "Ketchup",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-mayo",
+              "name": "Mayo",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-garlic-mayo",
+              "name": "Garlic Mayo",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-bbq",
+              "name": "BBQ",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-burger",
+              "name": "Burger Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-chilli",
+              "name": "Chilli Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-peri",
+              "name": "Peri Peri Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-salsa",
+              "name": "Salsa Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-algerian",
+              "name": "Algerian Sauce",
+              "priceDelta": 99
+            }
+          ]
+        },
+        {
+          "id": "adult-meal-drink",
+          "name": "Adults Meal Deal Drink",
+          "min": 1,
+          "max": 1,
+          "options": [
+            {
+              "id": "amd-7up",
+              "name": "7UP",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-fanta-orange",
+              "name": "Fanta Orange",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-levi-roots",
+              "name": "Levi Roots Caribbean Crush",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-pepsi-max",
+              "name": "Pepsi Max",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-water",
+              "name": "Water",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-diet-irn-bru",
+              "name": "Diet Irn Bru",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-irn-bru",
+              "name": "Irn Bru",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-pepsi",
+              "name": "Pepsi",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-rubicon-passion",
+              "name": "Rubicon Passion Fruit",
+              "priceDelta": 0
+            }
+          ]
+        },
+        {
+          "id": "meal-upgrade",
+          "name": "Meal Deal Upgrade",
+          "min": 0,
+          "max": 1,
+          "options": [
+            {
+              "id": "mu-reg-chips",
+              "name": "Regular Chips",
+              "priceDelta": 0
+            },
+            {
+              "id": "mu-large-fries",
+              "name": "Upgrade to Large Fries",
+              "priceDelta": 79
+            },
+            {
+              "id": "mu-peri-fries",
+              "name": "Upgrade to Peri Peri Fries",
+              "priceDelta": 99
+            },
+            {
+              "id": "mu-large-peri-fries",
+              "name": "Upgrade to Large Peri Peri Fries",
+              "priceDelta": 119
+            },
+            {
+              "id": "mu-wedges",
+              "name": "Upgrade to Wedges",
+              "priceDelta": 139
+            },
+            {
+              "id": "mu-peri-wedges",
+              "name": "Upgrade to Peri Peri Wedges",
+              "priceDelta": 159
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "b-peri-meal",
+      "categoryId": "burgers",
+      "name": "Peri Peri Burger Meal",
+      "description": "Grilled peri chicken fillet, seeded bun, mayonnaise, lettuce, red onion.",
+      "variants": [
+        {
+          "id": "b-peri-std-meal",
+          "name": "",
+          "price": 1099
+        }
+      ],
+      "modifierGroups": [
+        {
+          "id": "heat",
+          "name": "Peri-Peri Heat",
+          "min": 1,
+          "max": 1,
+          "options": [
+            {
+              "id": "heat-hot",
+              "name": "Hot Heat",
+              "priceDelta": 0
+            },
+            {
+              "id": "heat-mild",
+              "name": "Mild Heat",
+              "priceDelta": 0
+            }
+          ]
+        },
+        {
+          "id": "dips",
+          "name": "Add a dip (2oz tub)",
+          "min": 0,
+          "max": 6,
+          "options": [
+            {
+              "id": "dip-ketchup",
+              "name": "Ketchup",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-mayo",
+              "name": "Mayo",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-garlic-mayo",
+              "name": "Garlic Mayo",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-bbq",
+              "name": "BBQ",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-burger",
+              "name": "Burger Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-chilli",
+              "name": "Chilli Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-peri",
+              "name": "Peri Peri Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-salsa",
+              "name": "Salsa Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-algerian",
+              "name": "Algerian Sauce",
+              "priceDelta": 99
+            }
+          ]
+        },
+        {
+          "id": "adult-meal-drink",
+          "name": "Adults Meal Deal Drink",
+          "min": 1,
+          "max": 1,
+          "options": [
+            {
+              "id": "amd-7up",
+              "name": "7UP",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-fanta-orange",
+              "name": "Fanta Orange",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-levi-roots",
+              "name": "Levi Roots Caribbean Crush",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-pepsi-max",
+              "name": "Pepsi Max",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-water",
+              "name": "Water",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-diet-irn-bru",
+              "name": "Diet Irn Bru",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-irn-bru",
+              "name": "Irn Bru",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-pepsi",
+              "name": "Pepsi",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-rubicon-passion",
+              "name": "Rubicon Passion Fruit",
+              "priceDelta": 0
+            }
+          ]
+        },
+        {
+          "id": "meal-upgrade",
+          "name": "Meal Deal Upgrade",
+          "min": 0,
+          "max": 1,
+          "options": [
+            {
+              "id": "mu-reg-chips",
+              "name": "Regular Chips",
+              "priceDelta": 0
+            },
+            {
+              "id": "mu-large-fries",
+              "name": "Upgrade to Large Fries",
+              "priceDelta": 79
+            },
+            {
+              "id": "mu-peri-fries",
+              "name": "Upgrade to Peri Peri Fries",
+              "priceDelta": 99
+            },
+            {
+              "id": "mu-large-peri-fries",
+              "name": "Upgrade to Large Peri Peri Fries",
+              "priceDelta": 119
+            },
+            {
+              "id": "mu-wedges",
+              "name": "Upgrade to Wedges",
+              "priceDelta": 139
+            },
+            {
+              "id": "mu-peri-wedges",
+              "name": "Upgrade to Peri Peri Wedges",
+              "priceDelta": 159
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "b-double-peri-meal",
+      "categoryId": "burgers",
+      "name": "Double Peri Peri Burger Meal",
+      "description": "Grilled double peri chicken fillet, seeded bun, mayonnaise, lettuce and red onion.",
+      "variants": [
+        {
+          "id": "b-double-peri-std-meal",
+          "name": "",
+          "price": 1399
+        }
+      ],
+      "modifierGroups": [
+        {
+          "id": "heat",
+          "name": "Peri-Peri Heat",
+          "min": 1,
+          "max": 1,
+          "options": [
+            {
+              "id": "heat-hot",
+              "name": "Hot Heat",
+              "priceDelta": 0
+            },
+            {
+              "id": "heat-mild",
+              "name": "Mild Heat",
+              "priceDelta": 0
+            }
+          ]
+        },
+        {
+          "id": "dips",
+          "name": "Add a dip (2oz tub)",
+          "min": 0,
+          "max": 6,
+          "options": [
+            {
+              "id": "dip-ketchup",
+              "name": "Ketchup",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-mayo",
+              "name": "Mayo",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-garlic-mayo",
+              "name": "Garlic Mayo",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-bbq",
+              "name": "BBQ",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-burger",
+              "name": "Burger Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-chilli",
+              "name": "Chilli Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-peri",
+              "name": "Peri Peri Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-salsa",
+              "name": "Salsa Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-algerian",
+              "name": "Algerian Sauce",
+              "priceDelta": 99
+            }
+          ]
+        },
+        {
+          "id": "adult-meal-drink",
+          "name": "Adults Meal Deal Drink",
+          "min": 1,
+          "max": 1,
+          "options": [
+            {
+              "id": "amd-7up",
+              "name": "7UP",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-fanta-orange",
+              "name": "Fanta Orange",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-levi-roots",
+              "name": "Levi Roots Caribbean Crush",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-pepsi-max",
+              "name": "Pepsi Max",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-water",
+              "name": "Water",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-diet-irn-bru",
+              "name": "Diet Irn Bru",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-irn-bru",
+              "name": "Irn Bru",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-pepsi",
+              "name": "Pepsi",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-rubicon-passion",
+              "name": "Rubicon Passion Fruit",
+              "priceDelta": 0
+            }
+          ]
+        },
+        {
+          "id": "meal-upgrade",
+          "name": "Meal Deal Upgrade",
+          "min": 0,
+          "max": 1,
+          "options": [
+            {
+              "id": "mu-reg-chips",
+              "name": "Regular Chips",
+              "priceDelta": 0
+            },
+            {
+              "id": "mu-large-fries",
+              "name": "Upgrade to Large Fries",
+              "priceDelta": 79
+            },
+            {
+              "id": "mu-peri-fries",
+              "name": "Upgrade to Peri Peri Fries",
+              "priceDelta": 99
+            },
+            {
+              "id": "mu-large-peri-fries",
+              "name": "Upgrade to Large Peri Peri Fries",
+              "priceDelta": 119
+            },
+            {
+              "id": "mu-wedges",
+              "name": "Upgrade to Wedges",
+              "priceDelta": 139
+            },
+            {
+              "id": "mu-peri-wedges",
+              "name": "Upgrade to Peri Peri Wedges",
+              "priceDelta": 159
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "b-quarter-cheese-meal",
+      "categoryId": "burgers",
+      "name": "¼ Cheese Burger Meal",
+      "description": "Seeded bun, beef patty, burger sauce, lettuce, cheese, red onion & tomato.",
+      "variants": [
+        {
+          "id": "b-quarter-cheese-std-meal",
+          "name": "",
+          "price": 899
+        }
+      ],
+      "modifierGroups": [
+        {
+          "id": "dips",
+          "name": "Add a dip (2oz tub)",
+          "min": 0,
+          "max": 6,
+          "options": [
+            {
+              "id": "dip-ketchup",
+              "name": "Ketchup",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-mayo",
+              "name": "Mayo",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-garlic-mayo",
+              "name": "Garlic Mayo",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-bbq",
+              "name": "BBQ",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-burger",
+              "name": "Burger Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-chilli",
+              "name": "Chilli Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-peri",
+              "name": "Peri Peri Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-salsa",
+              "name": "Salsa Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-algerian",
+              "name": "Algerian Sauce",
+              "priceDelta": 99
+            }
+          ]
+        },
+        {
+          "id": "adult-meal-drink",
+          "name": "Adults Meal Deal Drink",
+          "min": 1,
+          "max": 1,
+          "options": [
+            {
+              "id": "amd-7up",
+              "name": "7UP",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-fanta-orange",
+              "name": "Fanta Orange",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-levi-roots",
+              "name": "Levi Roots Caribbean Crush",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-pepsi-max",
+              "name": "Pepsi Max",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-water",
+              "name": "Water",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-diet-irn-bru",
+              "name": "Diet Irn Bru",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-irn-bru",
+              "name": "Irn Bru",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-pepsi",
+              "name": "Pepsi",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-rubicon-passion",
+              "name": "Rubicon Passion Fruit",
+              "priceDelta": 0
+            }
+          ]
+        },
+        {
+          "id": "meal-upgrade",
+          "name": "Meal Deal Upgrade",
+          "min": 0,
+          "max": 1,
+          "options": [
+            {
+              "id": "mu-reg-chips",
+              "name": "Regular Chips",
+              "priceDelta": 0
+            },
+            {
+              "id": "mu-large-fries",
+              "name": "Upgrade to Large Fries",
+              "priceDelta": 79
+            },
+            {
+              "id": "mu-peri-fries",
+              "name": "Upgrade to Peri Peri Fries",
+              "priceDelta": 99
+            },
+            {
+              "id": "mu-large-peri-fries",
+              "name": "Upgrade to Large Peri Peri Fries",
+              "priceDelta": 119
+            },
+            {
+              "id": "mu-wedges",
+              "name": "Upgrade to Wedges",
+              "priceDelta": 139
+            },
+            {
+              "id": "mu-peri-wedges",
+              "name": "Upgrade to Peri Peri Wedges",
+              "priceDelta": 159
+            }
+          ]
+        }
+      ],
+      "image": "burger-beef"
+    },
+    {
+      "id": "b-half-cheese-meal",
+      "categoryId": "burgers",
+      "name": "½ Cheese Burger Meal",
+      "description": "Seeded bun, beef patty, burger sauce, lettuce, cheese, red onion & tomato.",
+      "variants": [
+        {
+          "id": "b-half-cheese-std-meal",
+          "name": "",
+          "price": 1099
+        }
+      ],
+      "modifierGroups": [
+        {
+          "id": "dips",
+          "name": "Add a dip (2oz tub)",
+          "min": 0,
+          "max": 6,
+          "options": [
+            {
+              "id": "dip-ketchup",
+              "name": "Ketchup",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-mayo",
+              "name": "Mayo",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-garlic-mayo",
+              "name": "Garlic Mayo",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-bbq",
+              "name": "BBQ",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-burger",
+              "name": "Burger Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-chilli",
+              "name": "Chilli Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-peri",
+              "name": "Peri Peri Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-salsa",
+              "name": "Salsa Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-algerian",
+              "name": "Algerian Sauce",
+              "priceDelta": 99
+            }
+          ]
+        },
+        {
+          "id": "adult-meal-drink",
+          "name": "Adults Meal Deal Drink",
+          "min": 1,
+          "max": 1,
+          "options": [
+            {
+              "id": "amd-7up",
+              "name": "7UP",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-fanta-orange",
+              "name": "Fanta Orange",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-levi-roots",
+              "name": "Levi Roots Caribbean Crush",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-pepsi-max",
+              "name": "Pepsi Max",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-water",
+              "name": "Water",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-diet-irn-bru",
+              "name": "Diet Irn Bru",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-irn-bru",
+              "name": "Irn Bru",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-pepsi",
+              "name": "Pepsi",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-rubicon-passion",
+              "name": "Rubicon Passion Fruit",
+              "priceDelta": 0
+            }
+          ]
+        },
+        {
+          "id": "meal-upgrade",
+          "name": "Meal Deal Upgrade",
+          "min": 0,
+          "max": 1,
+          "options": [
+            {
+              "id": "mu-reg-chips",
+              "name": "Regular Chips",
+              "priceDelta": 0
+            },
+            {
+              "id": "mu-large-fries",
+              "name": "Upgrade to Large Fries",
+              "priceDelta": 79
+            },
+            {
+              "id": "mu-peri-fries",
+              "name": "Upgrade to Peri Peri Fries",
+              "priceDelta": 99
+            },
+            {
+              "id": "mu-large-peri-fries",
+              "name": "Upgrade to Large Peri Peri Fries",
+              "priceDelta": 119
+            },
+            {
+              "id": "mu-wedges",
+              "name": "Upgrade to Wedges",
+              "priceDelta": 139
+            },
+            {
+              "id": "mu-peri-wedges",
+              "name": "Upgrade to Peri Peri Wedges",
+              "priceDelta": 159
+            }
+          ]
+        }
+      ],
+      "image": "burger-beef"
+    },
+    {
+      "id": "b-veggie-meal",
+      "categoryId": "burgers",
+      "name": "Veggie Burger Meal",
+      "description": "Seeded bun with veggie patty, mayo, lettuce, red onion & cheese.",
+      "variants": [
+        {
+          "id": "b-veggie-std-meal",
+          "name": "",
+          "price": 899
+        }
+      ],
+      "modifierGroups": [
+        {
+          "id": "dips",
+          "name": "Add a dip (2oz tub)",
+          "min": 0,
+          "max": 6,
+          "options": [
+            {
+              "id": "dip-ketchup",
+              "name": "Ketchup",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-mayo",
+              "name": "Mayo",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-garlic-mayo",
+              "name": "Garlic Mayo",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-bbq",
+              "name": "BBQ",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-burger",
+              "name": "Burger Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-chilli",
+              "name": "Chilli Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-peri",
+              "name": "Peri Peri Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-salsa",
+              "name": "Salsa Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-algerian",
+              "name": "Algerian Sauce",
+              "priceDelta": 99
+            }
+          ]
+        },
+        {
+          "id": "adult-meal-drink",
+          "name": "Adults Meal Deal Drink",
+          "min": 1,
+          "max": 1,
+          "options": [
+            {
+              "id": "amd-7up",
+              "name": "7UP",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-fanta-orange",
+              "name": "Fanta Orange",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-levi-roots",
+              "name": "Levi Roots Caribbean Crush",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-pepsi-max",
+              "name": "Pepsi Max",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-water",
+              "name": "Water",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-diet-irn-bru",
+              "name": "Diet Irn Bru",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-irn-bru",
+              "name": "Irn Bru",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-pepsi",
+              "name": "Pepsi",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-rubicon-passion",
+              "name": "Rubicon Passion Fruit",
+              "priceDelta": 0
+            }
+          ]
+        },
+        {
+          "id": "meal-upgrade",
+          "name": "Meal Deal Upgrade",
+          "min": 0,
+          "max": 1,
+          "options": [
+            {
+              "id": "mu-reg-chips",
+              "name": "Regular Chips",
+              "priceDelta": 0
+            },
+            {
+              "id": "mu-large-fries",
+              "name": "Upgrade to Large Fries",
+              "priceDelta": 79
+            },
+            {
+              "id": "mu-peri-fries",
+              "name": "Upgrade to Peri Peri Fries",
+              "priceDelta": 99
+            },
+            {
+              "id": "mu-large-peri-fries",
+              "name": "Upgrade to Large Peri Peri Fries",
+              "priceDelta": 119
+            },
+            {
+              "id": "mu-wedges",
+              "name": "Upgrade to Wedges",
+              "priceDelta": 139
+            },
+            {
+              "id": "mu-peri-wedges",
+              "name": "Upgrade to Peri Peri Wedges",
+              "priceDelta": 159
+            }
+          ]
+        }
+      ],
+      "image": null
+    },
+    {
+      "id": "b-fish-meal",
+      "categoryId": "burgers",
+      "name": "Fish Burger Meal",
+      "description": "Seeded bun with fish patty, mayo, lettuce, red onion & cheese.",
+      "variants": [
+        {
+          "id": "b-fish-std-meal",
+          "name": "",
+          "price": 899
+        }
+      ],
+      "modifierGroups": [
+        {
+          "id": "dips",
+          "name": "Add a dip (2oz tub)",
+          "min": 0,
+          "max": 6,
+          "options": [
+            {
+              "id": "dip-ketchup",
+              "name": "Ketchup",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-mayo",
+              "name": "Mayo",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-garlic-mayo",
+              "name": "Garlic Mayo",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-bbq",
+              "name": "BBQ",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-burger",
+              "name": "Burger Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-chilli",
+              "name": "Chilli Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-peri",
+              "name": "Peri Peri Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-salsa",
+              "name": "Salsa Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-algerian",
+              "name": "Algerian Sauce",
+              "priceDelta": 99
+            }
+          ]
+        },
+        {
+          "id": "adult-meal-drink",
+          "name": "Adults Meal Deal Drink",
+          "min": 1,
+          "max": 1,
+          "options": [
+            {
+              "id": "amd-7up",
+              "name": "7UP",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-fanta-orange",
+              "name": "Fanta Orange",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-levi-roots",
+              "name": "Levi Roots Caribbean Crush",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-pepsi-max",
+              "name": "Pepsi Max",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-water",
+              "name": "Water",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-diet-irn-bru",
+              "name": "Diet Irn Bru",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-irn-bru",
+              "name": "Irn Bru",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-pepsi",
+              "name": "Pepsi",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-rubicon-passion",
+              "name": "Rubicon Passion Fruit",
+              "priceDelta": 0
+            }
+          ]
+        },
+        {
+          "id": "meal-upgrade",
+          "name": "Meal Deal Upgrade",
+          "min": 0,
+          "max": 1,
+          "options": [
+            {
+              "id": "mu-reg-chips",
+              "name": "Regular Chips",
+              "priceDelta": 0
+            },
+            {
+              "id": "mu-large-fries",
+              "name": "Upgrade to Large Fries",
+              "priceDelta": 79
+            },
+            {
+              "id": "mu-peri-fries",
+              "name": "Upgrade to Peri Peri Fries",
+              "priceDelta": 99
+            },
+            {
+              "id": "mu-large-peri-fries",
+              "name": "Upgrade to Large Peri Peri Fries",
+              "priceDelta": 119
+            },
+            {
+              "id": "mu-wedges",
+              "name": "Upgrade to Wedges",
+              "priceDelta": 139
+            },
+            {
+              "id": "mu-peri-wedges",
+              "name": "Upgrade to Peri Peri Wedges",
+              "priceDelta": 159
+            }
+          ]
+        }
+      ],
+      "image": null
+    },
+    {
+      "id": "b-big-shack-meal",
+      "categoryId": "burgers",
+      "name": "The Big Shack Burger Meal",
+      "description": "Seeded bun, mayo, Algerian sauce, lettuce, cheese, ¼ beef patty, fried chicken fillet, hashbrown, tomato & red onion.",
+      "variants": [
+        {
+          "id": "b-big-shack-std-meal",
+          "name": "",
+          "price": 1399
+        }
+      ],
+      "modifierGroups": [
+        {
+          "id": "dips",
+          "name": "Add a dip (2oz tub)",
+          "min": 0,
+          "max": 6,
+          "options": [
+            {
+              "id": "dip-ketchup",
+              "name": "Ketchup",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-mayo",
+              "name": "Mayo",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-garlic-mayo",
+              "name": "Garlic Mayo",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-bbq",
+              "name": "BBQ",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-burger",
+              "name": "Burger Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-chilli",
+              "name": "Chilli Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-peri",
+              "name": "Peri Peri Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-salsa",
+              "name": "Salsa Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-algerian",
+              "name": "Algerian Sauce",
+              "priceDelta": 99
+            }
+          ]
+        },
+        {
+          "id": "adult-meal-drink",
+          "name": "Adults Meal Deal Drink",
+          "min": 1,
+          "max": 1,
+          "options": [
+            {
+              "id": "amd-7up",
+              "name": "7UP",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-fanta-orange",
+              "name": "Fanta Orange",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-levi-roots",
+              "name": "Levi Roots Caribbean Crush",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-pepsi-max",
+              "name": "Pepsi Max",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-water",
+              "name": "Water",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-diet-irn-bru",
+              "name": "Diet Irn Bru",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-irn-bru",
+              "name": "Irn Bru",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-pepsi",
+              "name": "Pepsi",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-rubicon-passion",
+              "name": "Rubicon Passion Fruit",
+              "priceDelta": 0
+            }
+          ]
+        },
+        {
+          "id": "meal-upgrade",
+          "name": "Meal Deal Upgrade",
+          "min": 0,
+          "max": 1,
+          "options": [
+            {
+              "id": "mu-reg-chips",
+              "name": "Regular Chips",
+              "priceDelta": 0
+            },
+            {
+              "id": "mu-large-fries",
+              "name": "Upgrade to Large Fries",
+              "priceDelta": 79
+            },
+            {
+              "id": "mu-peri-fries",
+              "name": "Upgrade to Peri Peri Fries",
+              "priceDelta": 99
+            },
+            {
+              "id": "mu-large-peri-fries",
+              "name": "Upgrade to Large Peri Peri Fries",
+              "priceDelta": 119
+            },
+            {
+              "id": "mu-wedges",
+              "name": "Upgrade to Wedges",
+              "priceDelta": 139
+            },
+            {
+              "id": "mu-peri-wedges",
+              "name": "Upgrade to Peri Peri Wedges",
+              "priceDelta": 159
+            }
+          ]
+        }
+      ],
+      "image": "burger-beef"
+    },
+    {
+      "id": "w-chicken-fillet-meal",
+      "categoryId": "wraps",
+      "name": "Chicken Fillet Wrap Meal",
+      "description": "Tortilla wrap, fried chicken fillet, red onion, lettuce and salsa sauce.",
+      "variants": [
+        {
+          "id": "w-chicken-fillet-std-meal",
+          "name": "",
+          "price": 999
+        }
+      ],
+      "modifierGroups": [
+        {
+          "id": "dips",
+          "name": "Add a dip (2oz tub)",
+          "min": 0,
+          "max": 6,
+          "options": [
+            {
+              "id": "dip-ketchup",
+              "name": "Ketchup",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-mayo",
+              "name": "Mayo",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-garlic-mayo",
+              "name": "Garlic Mayo",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-bbq",
+              "name": "BBQ",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-burger",
+              "name": "Burger Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-chilli",
+              "name": "Chilli Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-peri",
+              "name": "Peri Peri Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-salsa",
+              "name": "Salsa Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-algerian",
+              "name": "Algerian Sauce",
+              "priceDelta": 99
+            }
+          ]
+        },
+        {
+          "id": "adult-meal-drink",
+          "name": "Adults Meal Deal Drink",
+          "min": 1,
+          "max": 1,
+          "options": [
+            {
+              "id": "amd-7up",
+              "name": "7UP",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-fanta-orange",
+              "name": "Fanta Orange",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-levi-roots",
+              "name": "Levi Roots Caribbean Crush",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-pepsi-max",
+              "name": "Pepsi Max",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-water",
+              "name": "Water",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-diet-irn-bru",
+              "name": "Diet Irn Bru",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-irn-bru",
+              "name": "Irn Bru",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-pepsi",
+              "name": "Pepsi",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-rubicon-passion",
+              "name": "Rubicon Passion Fruit",
+              "priceDelta": 0
+            }
+          ]
+        },
+        {
+          "id": "meal-upgrade",
+          "name": "Meal Deal Upgrade",
+          "min": 0,
+          "max": 1,
+          "options": [
+            {
+              "id": "mu-reg-chips",
+              "name": "Regular Chips",
+              "priceDelta": 0
+            },
+            {
+              "id": "mu-large-fries",
+              "name": "Upgrade to Large Fries",
+              "priceDelta": 79
+            },
+            {
+              "id": "mu-peri-fries",
+              "name": "Upgrade to Peri Peri Fries",
+              "priceDelta": 99
+            },
+            {
+              "id": "mu-large-peri-fries",
+              "name": "Upgrade to Large Peri Peri Fries",
+              "priceDelta": 119
+            },
+            {
+              "id": "mu-wedges",
+              "name": "Upgrade to Wedges",
+              "priceDelta": 139
+            },
+            {
+              "id": "mu-peri-wedges",
+              "name": "Upgrade to Peri Peri Wedges",
+              "priceDelta": 159
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "w-double-chicken-meal",
+      "categoryId": "wraps",
+      "name": "Double Chicken Fillet Wrap Meal",
+      "description": "Double tortilla wrap, fried chicken fillet, red onion, lettuce and salsa sauce.",
+      "variants": [
+        {
+          "id": "w-double-chicken-std-meal",
+          "name": "",
+          "price": 1199
+        }
+      ],
+      "modifierGroups": [
+        {
+          "id": "dips",
+          "name": "Add a dip (2oz tub)",
+          "min": 0,
+          "max": 6,
+          "options": [
+            {
+              "id": "dip-ketchup",
+              "name": "Ketchup",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-mayo",
+              "name": "Mayo",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-garlic-mayo",
+              "name": "Garlic Mayo",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-bbq",
+              "name": "BBQ",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-burger",
+              "name": "Burger Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-chilli",
+              "name": "Chilli Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-peri",
+              "name": "Peri Peri Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-salsa",
+              "name": "Salsa Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-algerian",
+              "name": "Algerian Sauce",
+              "priceDelta": 99
+            }
+          ]
+        },
+        {
+          "id": "adult-meal-drink",
+          "name": "Adults Meal Deal Drink",
+          "min": 1,
+          "max": 1,
+          "options": [
+            {
+              "id": "amd-7up",
+              "name": "7UP",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-fanta-orange",
+              "name": "Fanta Orange",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-levi-roots",
+              "name": "Levi Roots Caribbean Crush",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-pepsi-max",
+              "name": "Pepsi Max",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-water",
+              "name": "Water",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-diet-irn-bru",
+              "name": "Diet Irn Bru",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-irn-bru",
+              "name": "Irn Bru",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-pepsi",
+              "name": "Pepsi",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-rubicon-passion",
+              "name": "Rubicon Passion Fruit",
+              "priceDelta": 0
+            }
+          ]
+        },
+        {
+          "id": "meal-upgrade",
+          "name": "Meal Deal Upgrade",
+          "min": 0,
+          "max": 1,
+          "options": [
+            {
+              "id": "mu-reg-chips",
+              "name": "Regular Chips",
+              "priceDelta": 0
+            },
+            {
+              "id": "mu-large-fries",
+              "name": "Upgrade to Large Fries",
+              "priceDelta": 79
+            },
+            {
+              "id": "mu-peri-fries",
+              "name": "Upgrade to Peri Peri Fries",
+              "priceDelta": 99
+            },
+            {
+              "id": "mu-large-peri-fries",
+              "name": "Upgrade to Large Peri Peri Fries",
+              "priceDelta": 119
+            },
+            {
+              "id": "mu-wedges",
+              "name": "Upgrade to Wedges",
+              "priceDelta": 139
+            },
+            {
+              "id": "mu-peri-wedges",
+              "name": "Upgrade to Peri Peri Wedges",
+              "priceDelta": 159
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "w-peri-meal",
+      "categoryId": "wraps",
+      "name": "Peri Peri Wrap Meal",
+      "description": "Tortilla wrap, peri fillet, lettuce, mayonnaise, red onion and salsa sauce.",
+      "variants": [
+        {
+          "id": "w-peri-std-meal",
+          "name": "",
+          "price": 1099
+        }
+      ],
+      "modifierGroups": [
+        {
+          "id": "heat",
+          "name": "Peri-Peri Heat",
+          "min": 1,
+          "max": 1,
+          "options": [
+            {
+              "id": "heat-hot",
+              "name": "Hot Heat",
+              "priceDelta": 0
+            },
+            {
+              "id": "heat-mild",
+              "name": "Mild Heat",
+              "priceDelta": 0
+            }
+          ]
+        },
+        {
+          "id": "dips",
+          "name": "Add a dip (2oz tub)",
+          "min": 0,
+          "max": 6,
+          "options": [
+            {
+              "id": "dip-ketchup",
+              "name": "Ketchup",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-mayo",
+              "name": "Mayo",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-garlic-mayo",
+              "name": "Garlic Mayo",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-bbq",
+              "name": "BBQ",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-burger",
+              "name": "Burger Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-chilli",
+              "name": "Chilli Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-peri",
+              "name": "Peri Peri Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-salsa",
+              "name": "Salsa Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-algerian",
+              "name": "Algerian Sauce",
+              "priceDelta": 99
+            }
+          ]
+        },
+        {
+          "id": "adult-meal-drink",
+          "name": "Adults Meal Deal Drink",
+          "min": 1,
+          "max": 1,
+          "options": [
+            {
+              "id": "amd-7up",
+              "name": "7UP",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-fanta-orange",
+              "name": "Fanta Orange",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-levi-roots",
+              "name": "Levi Roots Caribbean Crush",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-pepsi-max",
+              "name": "Pepsi Max",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-water",
+              "name": "Water",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-diet-irn-bru",
+              "name": "Diet Irn Bru",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-irn-bru",
+              "name": "Irn Bru",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-pepsi",
+              "name": "Pepsi",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-rubicon-passion",
+              "name": "Rubicon Passion Fruit",
+              "priceDelta": 0
+            }
+          ]
+        },
+        {
+          "id": "meal-upgrade",
+          "name": "Meal Deal Upgrade",
+          "min": 0,
+          "max": 1,
+          "options": [
+            {
+              "id": "mu-reg-chips",
+              "name": "Regular Chips",
+              "priceDelta": 0
+            },
+            {
+              "id": "mu-large-fries",
+              "name": "Upgrade to Large Fries",
+              "priceDelta": 79
+            },
+            {
+              "id": "mu-peri-fries",
+              "name": "Upgrade to Peri Peri Fries",
+              "priceDelta": 99
+            },
+            {
+              "id": "mu-large-peri-fries",
+              "name": "Upgrade to Large Peri Peri Fries",
+              "priceDelta": 119
+            },
+            {
+              "id": "mu-wedges",
+              "name": "Upgrade to Wedges",
+              "priceDelta": 139
+            },
+            {
+              "id": "mu-peri-wedges",
+              "name": "Upgrade to Peri Peri Wedges",
+              "priceDelta": 159
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "w-double-peri-meal",
+      "categoryId": "wraps",
+      "name": "Double Peri Peri Wrap Meal",
+      "description": "Double tortilla wrap, peri fillet, lettuce, mayonnaise, red onion and salsa sauce.",
+      "variants": [
+        {
+          "id": "w-double-peri-std-meal",
+          "name": "",
+          "price": 1399
+        }
+      ],
+      "modifierGroups": [
+        {
+          "id": "heat",
+          "name": "Peri-Peri Heat",
+          "min": 1,
+          "max": 1,
+          "options": [
+            {
+              "id": "heat-hot",
+              "name": "Hot Heat",
+              "priceDelta": 0
+            },
+            {
+              "id": "heat-mild",
+              "name": "Mild Heat",
+              "priceDelta": 0
+            }
+          ]
+        },
+        {
+          "id": "dips",
+          "name": "Add a dip (2oz tub)",
+          "min": 0,
+          "max": 6,
+          "options": [
+            {
+              "id": "dip-ketchup",
+              "name": "Ketchup",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-mayo",
+              "name": "Mayo",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-garlic-mayo",
+              "name": "Garlic Mayo",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-bbq",
+              "name": "BBQ",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-burger",
+              "name": "Burger Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-chilli",
+              "name": "Chilli Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-peri",
+              "name": "Peri Peri Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-salsa",
+              "name": "Salsa Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-algerian",
+              "name": "Algerian Sauce",
+              "priceDelta": 99
+            }
+          ]
+        },
+        {
+          "id": "adult-meal-drink",
+          "name": "Adults Meal Deal Drink",
+          "min": 1,
+          "max": 1,
+          "options": [
+            {
+              "id": "amd-7up",
+              "name": "7UP",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-fanta-orange",
+              "name": "Fanta Orange",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-levi-roots",
+              "name": "Levi Roots Caribbean Crush",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-pepsi-max",
+              "name": "Pepsi Max",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-water",
+              "name": "Water",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-diet-irn-bru",
+              "name": "Diet Irn Bru",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-irn-bru",
+              "name": "Irn Bru",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-pepsi",
+              "name": "Pepsi",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-rubicon-passion",
+              "name": "Rubicon Passion Fruit",
+              "priceDelta": 0
+            }
+          ]
+        },
+        {
+          "id": "meal-upgrade",
+          "name": "Meal Deal Upgrade",
+          "min": 0,
+          "max": 1,
+          "options": [
+            {
+              "id": "mu-reg-chips",
+              "name": "Regular Chips",
+              "priceDelta": 0
+            },
+            {
+              "id": "mu-large-fries",
+              "name": "Upgrade to Large Fries",
+              "priceDelta": 79
+            },
+            {
+              "id": "mu-peri-fries",
+              "name": "Upgrade to Peri Peri Fries",
+              "priceDelta": 99
+            },
+            {
+              "id": "mu-large-peri-fries",
+              "name": "Upgrade to Large Peri Peri Fries",
+              "priceDelta": 119
+            },
+            {
+              "id": "mu-wedges",
+              "name": "Upgrade to Wedges",
+              "priceDelta": 139
+            },
+            {
+              "id": "mu-peri-wedges",
+              "name": "Upgrade to Peri Peri Wedges",
+              "priceDelta": 159
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "w-veggie-meal",
+      "categoryId": "wraps",
+      "name": "Veggie Wrap Meal",
+      "description": "Tortilla wrap with veggie patty, red onion, lettuce & salsa sauce.",
+      "variants": [
+        {
+          "id": "w-veggie-std-meal",
+          "name": "",
+          "price": 899
+        }
+      ],
+      "modifierGroups": [
+        {
+          "id": "dips",
+          "name": "Add a dip (2oz tub)",
+          "min": 0,
+          "max": 6,
+          "options": [
+            {
+              "id": "dip-ketchup",
+              "name": "Ketchup",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-mayo",
+              "name": "Mayo",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-garlic-mayo",
+              "name": "Garlic Mayo",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-bbq",
+              "name": "BBQ",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-burger",
+              "name": "Burger Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-chilli",
+              "name": "Chilli Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-peri",
+              "name": "Peri Peri Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-salsa",
+              "name": "Salsa Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-algerian",
+              "name": "Algerian Sauce",
+              "priceDelta": 99
+            }
+          ]
+        },
+        {
+          "id": "adult-meal-drink",
+          "name": "Adults Meal Deal Drink",
+          "min": 1,
+          "max": 1,
+          "options": [
+            {
+              "id": "amd-7up",
+              "name": "7UP",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-fanta-orange",
+              "name": "Fanta Orange",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-levi-roots",
+              "name": "Levi Roots Caribbean Crush",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-pepsi-max",
+              "name": "Pepsi Max",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-water",
+              "name": "Water",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-diet-irn-bru",
+              "name": "Diet Irn Bru",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-irn-bru",
+              "name": "Irn Bru",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-pepsi",
+              "name": "Pepsi",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-rubicon-passion",
+              "name": "Rubicon Passion Fruit",
+              "priceDelta": 0
+            }
+          ]
+        },
+        {
+          "id": "meal-upgrade",
+          "name": "Meal Deal Upgrade",
+          "min": 0,
+          "max": 1,
+          "options": [
+            {
+              "id": "mu-reg-chips",
+              "name": "Regular Chips",
+              "priceDelta": 0
+            },
+            {
+              "id": "mu-large-fries",
+              "name": "Upgrade to Large Fries",
+              "priceDelta": 79
+            },
+            {
+              "id": "mu-peri-fries",
+              "name": "Upgrade to Peri Peri Fries",
+              "priceDelta": 99
+            },
+            {
+              "id": "mu-large-peri-fries",
+              "name": "Upgrade to Large Peri Peri Fries",
+              "priceDelta": 119
+            },
+            {
+              "id": "mu-wedges",
+              "name": "Upgrade to Wedges",
+              "priceDelta": 139
+            },
+            {
+              "id": "mu-peri-wedges",
+              "name": "Upgrade to Peri Peri Wedges",
+              "priceDelta": 159
+            }
+          ]
+        }
+      ],
+      "image": null
+    },
+    {
+      "id": "w-hot-chick-meal",
+      "categoryId": "wraps",
+      "name": "The Hot Chick Wrap Meal",
+      "description": "Tortilla wrap, fried chicken fillet, lettuce and chilli sauce.",
+      "variants": [
+        {
+          "id": "w-hot-chick-std-meal",
+          "name": "",
+          "price": 999
+        }
+      ],
+      "modifierGroups": [
+        {
+          "id": "dips",
+          "name": "Add a dip (2oz tub)",
+          "min": 0,
+          "max": 6,
+          "options": [
+            {
+              "id": "dip-ketchup",
+              "name": "Ketchup",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-mayo",
+              "name": "Mayo",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-garlic-mayo",
+              "name": "Garlic Mayo",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-bbq",
+              "name": "BBQ",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-burger",
+              "name": "Burger Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-chilli",
+              "name": "Chilli Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-peri",
+              "name": "Peri Peri Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-salsa",
+              "name": "Salsa Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-algerian",
+              "name": "Algerian Sauce",
+              "priceDelta": 99
+            }
+          ]
+        },
+        {
+          "id": "adult-meal-drink",
+          "name": "Adults Meal Deal Drink",
+          "min": 1,
+          "max": 1,
+          "options": [
+            {
+              "id": "amd-7up",
+              "name": "7UP",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-fanta-orange",
+              "name": "Fanta Orange",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-levi-roots",
+              "name": "Levi Roots Caribbean Crush",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-pepsi-max",
+              "name": "Pepsi Max",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-water",
+              "name": "Water",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-diet-irn-bru",
+              "name": "Diet Irn Bru",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-irn-bru",
+              "name": "Irn Bru",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-pepsi",
+              "name": "Pepsi",
+              "priceDelta": 0
+            },
+            {
+              "id": "amd-rubicon-passion",
+              "name": "Rubicon Passion Fruit",
+              "priceDelta": 0
+            }
+          ]
+        },
+        {
+          "id": "meal-upgrade",
+          "name": "Meal Deal Upgrade",
+          "min": 0,
+          "max": 1,
+          "options": [
+            {
+              "id": "mu-reg-chips",
+              "name": "Regular Chips",
+              "priceDelta": 0
+            },
+            {
+              "id": "mu-large-fries",
+              "name": "Upgrade to Large Fries",
+              "priceDelta": 79
+            },
+            {
+              "id": "mu-peri-fries",
+              "name": "Upgrade to Peri Peri Fries",
+              "priceDelta": 99
+            },
+            {
+              "id": "mu-large-peri-fries",
+              "name": "Upgrade to Large Peri Peri Fries",
+              "priceDelta": 119
+            },
+            {
+              "id": "mu-wedges",
+              "name": "Upgrade to Wedges",
+              "priceDelta": 139
+            },
+            {
+              "id": "mu-peri-wedges",
+              "name": "Upgrade to Peri Peri Wedges",
+              "priceDelta": 159
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "k-popcorn-meal",
+      "categoryId": "kids",
+      "name": "Popcorn Chicken Meal",
+      "variants": [
+        {
+          "id": "kp-reg-meal",
+          "name": "Regular",
+          "price": 699
+        },
+        {
+          "id": "kp-lrg-meal",
+          "name": "Large",
+          "price": 799
+        }
+      ],
+      "modifierGroups": [
+        {
+          "id": "dips",
+          "name": "Add a dip (2oz tub)",
+          "min": 0,
+          "max": 6,
+          "options": [
+            {
+              "id": "dip-ketchup",
+              "name": "Ketchup",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-mayo",
+              "name": "Mayo",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-garlic-mayo",
+              "name": "Garlic Mayo",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-bbq",
+              "name": "BBQ",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-burger",
+              "name": "Burger Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-chilli",
+              "name": "Chilli Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-peri",
+              "name": "Peri Peri Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-salsa",
+              "name": "Salsa Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-algerian",
+              "name": "Algerian Sauce",
+              "priceDelta": 99
+            }
+          ]
+        },
+        {
+          "id": "kids-meal-drink",
+          "name": "Kids Meal Deal Drink",
+          "min": 1,
+          "max": 1,
+          "options": [
+            {
+              "id": "kmd-fruit-shoot-blackcurrant",
+              "name": "Fruit Shoot Blackcurrant",
+              "priceDelta": 0
+            },
+            {
+              "id": "kmd-fruit-shoot-orange",
+              "name": "Fruit Shoot Orange",
+              "priceDelta": 0
+            }
+          ]
+        },
+        {
+          "id": "meal-upgrade",
+          "name": "Meal Deal Upgrade",
+          "min": 0,
+          "max": 1,
+          "options": [
+            {
+              "id": "mu-reg-chips",
+              "name": "Regular Chips",
+              "priceDelta": 0
+            },
+            {
+              "id": "mu-large-fries",
+              "name": "Upgrade to Large Fries",
+              "priceDelta": 79
+            },
+            {
+              "id": "mu-peri-fries",
+              "name": "Upgrade to Peri Peri Fries",
+              "priceDelta": 99
+            },
+            {
+              "id": "mu-large-peri-fries",
+              "name": "Upgrade to Large Peri Peri Fries",
+              "priceDelta": 119
+            },
+            {
+              "id": "mu-wedges",
+              "name": "Upgrade to Wedges",
+              "priceDelta": 139
+            },
+            {
+              "id": "mu-peri-wedges",
+              "name": "Upgrade to Peri Peri Wedges",
+              "priceDelta": 159
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "k-nuggets-meal",
+      "categoryId": "kids",
+      "name": "Nuggets Meal",
+      "variants": [
+        {
+          "id": "kn-4-meal",
+          "name": "4 pc",
+          "price": 699
+        },
+        {
+          "id": "kn-8-meal",
+          "name": "8 pc",
+          "price": 1099
+        },
+        {
+          "id": "kn-12-meal",
+          "name": "12 pc",
+          "price": 1299
+        },
+        {
+          "id": "kn-16-meal",
+          "name": "16 pc",
+          "price": 1499
+        }
+      ],
+      "modifierGroups": [
+        {
+          "id": "dips",
+          "name": "Add a dip (2oz tub)",
+          "min": 0,
+          "max": 6,
+          "options": [
+            {
+              "id": "dip-ketchup",
+              "name": "Ketchup",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-mayo",
+              "name": "Mayo",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-garlic-mayo",
+              "name": "Garlic Mayo",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-bbq",
+              "name": "BBQ",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-burger",
+              "name": "Burger Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-chilli",
+              "name": "Chilli Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-peri",
+              "name": "Peri Peri Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-salsa",
+              "name": "Salsa Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-algerian",
+              "name": "Algerian Sauce",
+              "priceDelta": 99
+            }
+          ]
+        },
+        {
+          "id": "kids-meal-drink",
+          "name": "Kids Meal Deal Drink",
+          "min": 1,
+          "max": 1,
+          "options": [
+            {
+              "id": "kmd-fruit-shoot-blackcurrant",
+              "name": "Fruit Shoot Blackcurrant",
+              "priceDelta": 0
+            },
+            {
+              "id": "kmd-fruit-shoot-orange",
+              "name": "Fruit Shoot Orange",
+              "priceDelta": 0
+            }
+          ]
+        },
+        {
+          "id": "meal-upgrade",
+          "name": "Meal Deal Upgrade",
+          "min": 0,
+          "max": 1,
+          "options": [
+            {
+              "id": "mu-reg-chips",
+              "name": "Regular Chips",
+              "priceDelta": 0
+            },
+            {
+              "id": "mu-large-fries",
+              "name": "Upgrade to Large Fries",
+              "priceDelta": 79
+            },
+            {
+              "id": "mu-peri-fries",
+              "name": "Upgrade to Peri Peri Fries",
+              "priceDelta": 99
+            },
+            {
+              "id": "mu-large-peri-fries",
+              "name": "Upgrade to Large Peri Peri Fries",
+              "priceDelta": 119
+            },
+            {
+              "id": "mu-wedges",
+              "name": "Upgrade to Wedges",
+              "priceDelta": 139
+            },
+            {
+              "id": "mu-peri-wedges",
+              "name": "Upgrade to Peri Peri Wedges",
+              "priceDelta": 159
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "k-mozzarella-meal",
+      "categoryId": "kids",
+      "name": "Mozzarella Sticks Meal",
+      "variants": [
+        {
+          "id": "km-3-meal",
+          "name": "3 pc",
+          "price": 699
+        },
+        {
+          "id": "km-6-meal",
+          "name": "6 pc",
+          "price": 899
+        },
+        {
+          "id": "km-9-meal",
+          "name": "9 pc",
+          "price": 1099
+        }
+      ],
+      "modifierGroups": [
+        {
+          "id": "dips",
+          "name": "Add a dip (2oz tub)",
+          "min": 0,
+          "max": 6,
+          "options": [
+            {
+              "id": "dip-ketchup",
+              "name": "Ketchup",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-mayo",
+              "name": "Mayo",
+              "priceDelta": 79
+            },
+            {
+              "id": "dip-garlic-mayo",
+              "name": "Garlic Mayo",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-bbq",
+              "name": "BBQ",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-burger",
+              "name": "Burger Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-chilli",
+              "name": "Chilli Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-peri",
+              "name": "Peri Peri Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-salsa",
+              "name": "Salsa Sauce",
+              "priceDelta": 99
+            },
+            {
+              "id": "dip-algerian",
+              "name": "Algerian Sauce",
+              "priceDelta": 99
+            }
+          ]
+        },
+        {
+          "id": "kids-meal-drink",
+          "name": "Kids Meal Deal Drink",
+          "min": 1,
+          "max": 1,
+          "options": [
+            {
+              "id": "kmd-fruit-shoot-blackcurrant",
+              "name": "Fruit Shoot Blackcurrant",
+              "priceDelta": 0
+            },
+            {
+              "id": "kmd-fruit-shoot-orange",
+              "name": "Fruit Shoot Orange",
+              "priceDelta": 0
+            }
+          ]
+        },
+        {
+          "id": "meal-upgrade",
+          "name": "Meal Deal Upgrade",
+          "min": 0,
+          "max": 1,
+          "options": [
+            {
+              "id": "mu-reg-chips",
+              "name": "Regular Chips",
+              "priceDelta": 0
+            },
+            {
+              "id": "mu-large-fries",
+              "name": "Upgrade to Large Fries",
+              "priceDelta": 79
+            },
+            {
+              "id": "mu-peri-fries",
+              "name": "Upgrade to Peri Peri Fries",
+              "priceDelta": 99
+            },
+            {
+              "id": "mu-large-peri-fries",
+              "name": "Upgrade to Large Peri Peri Fries",
+              "priceDelta": 119
+            },
+            {
+              "id": "mu-wedges",
+              "name": "Upgrade to Wedges",
+              "priceDelta": 139
+            },
+            {
+              "id": "mu-peri-wedges",
+              "name": "Upgrade to Peri Peri Wedges",
+              "priceDelta": 159
+            }
+          ]
+        }
+      ]
     }
   ]
 }

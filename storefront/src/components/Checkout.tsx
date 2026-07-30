@@ -419,9 +419,14 @@ export default function Checkout({ onBack, onPlaced }: Props) {
         </div>
       )}
 
-      <p className="text-xs text-cream/45 leading-relaxed card p-3">
-        <strong className="text-cream/70">Allergens.</strong> {SHOP.allergenNotice}
-      </p>
+      <div className="card p-3 border-ember/40 bg-ember/10">
+        <p className="text-xs font-bold uppercase tracking-wide text-ember">
+          Allergen Notice
+        </p>
+        <p className="text-xs text-cream/70 leading-relaxed mt-1">
+          {SHOP.allergenNotice}
+        </p>
+      </div>
 
       <p className="text-xs text-cream/40 text-center">
         {SHOP.name} · {SHOP.addressLines.join(", ")}, {SHOP.postcode} ·{" "}

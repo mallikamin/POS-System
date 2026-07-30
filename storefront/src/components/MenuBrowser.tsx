@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { fromPrice, hasMealUpgrade, itemImage } from "../data/menu";
+import { fromPrice, isMealItem, itemImage } from "../data/menu";
 import type { MenuItem } from "../types";
 import { imageThumb } from "../types";
 import { formatGBP } from "../lib/money";
@@ -114,9 +114,9 @@ export default function MenuBrowser() {
                               {item.description}
                             </p>
                           )}
-                          {hasMealUpgrade(item) && (
+                          {isMealItem(item) && (
                             <span className="inline-block mt-2 text-[11px] font-semibold uppercase tracking-wide text-ember">
-                              Meal +£3
+                              Meal Deal · includes a drink &amp; chips
                             </span>
                           )}
                         </div>

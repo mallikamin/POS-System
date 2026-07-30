@@ -60,19 +60,6 @@ const CATEGORY_IMAGE_BY_NAME: ReadonlyMap<string, ImageName | undefined> = new M
   CATEGORIES.map((category) => [nameKey(category.name), category.image] as const),
 );
 
-/**
- * Slug for each shared modifier group, recovered by name.
- *
- * Derived from the items rather than from the group constants because those are
- * module-private in `data/menu.ts`. Every shared group is attached to at least
- * one item, so iterating items sees all of them.
- */
-const GROUP_SLUG_BY_NAME: ReadonlyMap<string, string> = new Map(
-  MENU_ITEMS.flatMap((item) =>
-    item.modifierGroups.map((group) => [nameKey(group.name), group.id] as const),
-  ),
-);
-
 function isVariantGroup(group: ApiModifierGroup, itemName: string): boolean {
   return nameKey(group.name) === nameKey(itemName + VARIANT_GROUP_SUFFIX);
 }
@@ -91,9 +78,6 @@ function toModifierGroup(group: ApiModifierGroup): ModifierGroup {
       name: modifier.name,
       priceDelta: modifier.price_adjustment,
     })),
-    ...(GROUP_SLUG_BY_NAME.has(nameKey(group.name))
-      ? { slug: GROUP_SLUG_BY_NAME.get(nameKey(group.name))! }
-      : {}),
   };
 }
 

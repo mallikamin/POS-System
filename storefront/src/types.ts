@@ -93,15 +93,6 @@ export interface ModifierGroup {
   /** Maximum selections. 1 = radio, >1 = checkboxes. */
   max: number;
   options: ModifierOption[];
-  /**
-   * Stable slug identifying a well-known group across both menu sources.
-   *
-   * When the menu is hardcoded, `id` IS the slug ("meal", "heat", "dips"). When
-   * it comes from the API, `id` is a UUID and the slug is recovered by name.
-   * Presentation code that needs to recognise one specific group must match on
-   * this rather than on `id` — see `hasMealUpgrade`.
-   */
-  slug?: string;
 }
 
 export interface MenuItem {

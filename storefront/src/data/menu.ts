@@ -26,25 +26,77 @@ import type {
 // Shared modifier groups
 // ---------------------------------------------------------------------------
 
-/** Required on all peri peri items. The board prints "MILD OR HOT". Free. */
+/**
+ * Required on all peri peri items. Matches Imran's own EposNow till exactly —
+ * name and option order verified against till photos, 2026-07-31
+ * (`_context/clients/chick-shack-uk/refs/2026-07-31_eposnow-meal-modifiers/peri-peri-heat.png`).
+ * IDs kept stable from the old "Mild or Hot" naming; only display text moved.
+ */
 const HEAT: ModifierGroup = {
   id: "heat",
-  name: "Mild or Hot",
+  name: "Peri-Peri Heat",
   min: 1,
   max: 1,
   options: [
-    { id: "heat-mild", name: "Mild", priceDelta: 0 },
-    { id: "heat-hot", name: "Hot", priceDelta: 0 },
+    { id: "heat-hot", name: "Hot Heat", priceDelta: 0 },
+    { id: "heat-mild", name: "Mild Heat", priceDelta: 0 },
   ],
 };
 
-/** The board's "MAKE IT MEAL £3.00 EXTRA" badge. */
-const MEAL: ModifierGroup = {
-  id: "meal",
-  name: "Make it a meal",
+/**
+ * Meal Deal drink choice for adults, and the upgrade-to-larger-sides group —
+ * both shared across every adult Meal product. Verified against fresh
+ * EposNow till photos, 2026-07-31, byte-identical to the 2026-07-29
+ * walkthrough that first specified them.
+ */
+const ADULT_MEAL_DRINK: ModifierGroup = {
+  id: "adult-meal-drink",
+  name: "Adults Meal Deal Drink",
+  min: 1,
+  max: 1,
+  options: [
+    { id: "amd-7up", name: "7UP", priceDelta: 0 },
+    { id: "amd-fanta-orange", name: "Fanta Orange", priceDelta: 0 },
+    { id: "amd-levi-roots", name: "Levi Roots Caribbean Crush", priceDelta: 0 },
+    { id: "amd-pepsi-max", name: "Pepsi Max", priceDelta: 0 },
+    { id: "amd-water", name: "Water", priceDelta: 0 },
+    { id: "amd-diet-irn-bru", name: "Diet Irn Bru", priceDelta: 0 },
+    { id: "amd-irn-bru", name: "Irn Bru", priceDelta: 0 },
+    { id: "amd-pepsi", name: "Pepsi", priceDelta: 0 },
+    { id: "amd-rubicon-passion", name: "Rubicon Passion Fruit", priceDelta: 0 },
+  ],
+};
+
+/**
+ * Kids Meal Deal drink — deliberately ONLY these two. Imran was emphatic on
+ * the 2026-07-29 walkthrough ("no other option of any fizzy drinks or canned
+ * drinks") and the 2026-07-31 till photo confirms the same two options again.
+ */
+const KIDS_MEAL_DRINK: ModifierGroup = {
+  id: "kids-meal-drink",
+  name: "Kids Meal Deal Drink",
+  min: 1,
+  max: 1,
+  options: [
+    { id: "kmd-fruit-shoot-blackcurrant", name: "Fruit Shoot Blackcurrant", priceDelta: 0 },
+    { id: "kmd-fruit-shoot-orange", name: "Fruit Shoot Orange", priceDelta: 0 },
+  ],
+};
+
+/** Identical for adults and kids meals — confirmed by both till photo sets. */
+const MEAL_UPGRADE: ModifierGroup = {
+  id: "meal-upgrade",
+  name: "Meal Deal Upgrade",
   min: 0,
   max: 1,
-  options: [{ id: "meal-yes", name: "Make it a meal", priceDelta: 300 }],
+  options: [
+    { id: "mu-reg-chips", name: "Regular Chips", priceDelta: 0 },
+    { id: "mu-large-fries", name: "Upgrade to Large Fries", priceDelta: 79 },
+    { id: "mu-peri-fries", name: "Upgrade to Peri Peri Fries", priceDelta: 99 },
+    { id: "mu-large-peri-fries", name: "Upgrade to Large Peri Peri Fries", priceDelta: 119 },
+    { id: "mu-wedges", name: "Upgrade to Wedges", priceDelta: 139 },
+    { id: "mu-peri-wedges", name: "Upgrade to Peri Peri Wedges", priceDelta: 159 },
+  ],
 };
 
 /** Dips priced as per the DIPS TUBS (2oz) section. */
@@ -114,7 +166,7 @@ function flat(
 // Items
 // ---------------------------------------------------------------------------
 
-export const MENU_ITEMS: MenuItem[] = [
+const BASE_ITEMS: MenuItem[] = [
   // --- Peri Peri Grilled Chicken (all served with salad & coleslaw) --------
   {
     id: "peri-half",
@@ -177,7 +229,7 @@ export const MENU_ITEMS: MenuItem[] = [
       { id: "pw-3", name: "3 pc", price: 699 },
       { id: "pw-5", name: "5 pc", price: 799 },
     ],
-    modifierGroups: [HEAT, MEAL, DIPS],
+    modifierGroups: [HEAT, DIPS],
     image: "peri-wings",
   },
   {
@@ -190,7 +242,7 @@ export const MENU_ITEMS: MenuItem[] = [
       { id: "pt-5", name: "5 pc", price: 799 },
       { id: "pt-7", name: "7 pc", price: 899 },
     ],
-    modifierGroups: [HEAT, MEAL, DIPS],
+    modifierGroups: [HEAT, DIPS],
   },
 
   // --- Fried Chicken -------------------------------------------------------
@@ -203,7 +255,7 @@ export const MENU_ITEMS: MenuItem[] = [
       { id: "fc-3", name: "3 pc", price: 699 },
       { id: "fc-4", name: "4 pc", price: 799 },
     ],
-    modifierGroups: [MEAL, DIPS],
+    modifierGroups: [DIPS],
   },
   {
     id: "fried-combo",
@@ -214,7 +266,7 @@ export const MENU_ITEMS: MenuItem[] = [
       { id: "fcb-3", name: "3 pc", price: 999 },
       { id: "fcb-4", name: "4 pc", price: 1199 },
     ],
-    modifierGroups: [MEAL, DIPS],
+    modifierGroups: [DIPS],
   },
   {
     id: "spicy-wings",
@@ -228,7 +280,7 @@ export const MENU_ITEMS: MenuItem[] = [
       { id: "sw-12", name: "12 pc", price: 899 },
       { id: "sw-16", name: "16 pc", price: 999 },
     ],
-    modifierGroups: [MEAL, DIPS],
+    modifierGroups: [DIPS],
     image: "wings-spicy",
   },
   {
@@ -242,48 +294,48 @@ export const MENU_ITEMS: MenuItem[] = [
       { id: "ft-10", name: "10 pc", price: 999 },
     ],
     image: "fried-tenders",
-    modifierGroups: [MEAL, DIPS],
+    modifierGroups: [DIPS],
   },
 
   // --- Burgers -------------------------------------------------------------
-  flat("b-chicken-fillet", "burgers", "Chicken Fillet", 699, [MEAL, DIPS],
+  flat("b-chicken-fillet", "burgers", "Chicken Fillet Burger", 699, [DIPS],
     "Fried chicken fillet in a seeded bun with crisp lettuce, red onion and creamy mayonnaise."),
-  flat("b-double-chicken", "burgers", "Double Chicken", 899, [MEAL, DIPS],
+  flat("b-double-chicken", "burgers", "Double Chicken Burger", 899, [DIPS],
     "Double fried chicken fillet in a seeded bun with crisp lettuce, red onion and creamy mayonnaise."),
-  flat("b-fillet-tower", "burgers", "Chick Shack Fillet Tower", 799, [MEAL, DIPS],
+  flat("b-fillet-tower", "burgers", "Chick Shack Fillet Tower Burger", 799, [DIPS],
     "Fried chicken fillet and hashbrown in a seeded bun with crisp lettuce, red onion and creamy mayonnaise."),
-  flat("b-peri", "burgers", "Peri Peri", 799, [HEAT, MEAL, DIPS],
+  flat("b-peri", "burgers", "Peri Peri Burger", 799, [HEAT, DIPS],
     "Grilled peri chicken fillet, seeded bun, mayonnaise, lettuce, red onion."),
-  flat("b-double-peri", "burgers", "Double Peri Peri", 1099, [HEAT, MEAL, DIPS],
+  flat("b-double-peri", "burgers", "Double Peri Peri Burger", 1099, [HEAT, DIPS],
     "Grilled double peri chicken fillet, seeded bun, mayonnaise, lettuce and red onion."),
-  flat("b-quarter-cheese", "burgers", "¼ Cheese Burger", 599, [MEAL, DIPS],
+  flat("b-quarter-cheese", "burgers", "¼ Cheese Burger", 599, [DIPS],
     "Seeded bun, beef patty, burger sauce, lettuce, cheese, red onion & tomato.",
     "burger-beef"),
-  flat("b-half-cheese", "burgers", "½ Cheese Burger", 799, [MEAL, DIPS],
+  flat("b-half-cheese", "burgers", "½ Cheese Burger", 799, [DIPS],
     "Seeded bun, beef patty, burger sauce, lettuce, cheese, red onion & tomato.",
     "burger-beef"),
   // null, not undefined: inheriting the Burgers image would show a fried
   // chicken burger to someone ordering veggie or fish.
-  flat("b-veggie", "burgers", "Veggie Burger", 599, [MEAL, DIPS],
+  flat("b-veggie", "burgers", "Veggie Burger", 599, [DIPS],
     "Seeded bun with veggie patty, mayo, lettuce, red onion & cheese.", null),
-  flat("b-fish", "burgers", "Fish Burger", 599, [MEAL, DIPS],
+  flat("b-fish", "burgers", "Fish Burger", 599, [DIPS],
     "Seeded bun with fish patty, mayo, lettuce, red onion & cheese.", null),
-  flat("b-big-shack", "burgers", "The Big Shack", 1099, [MEAL, DIPS],
+  flat("b-big-shack", "burgers", "The Big Shack Burger", 1099, [DIPS],
     "Seeded bun, mayo, Algerian sauce, lettuce, cheese, ¼ beef patty, fried chicken fillet, hashbrown, tomato & red onion.",
     "burger-beef"),
 
   // --- Wraps ---------------------------------------------------------------
-  flat("w-chicken-fillet", "wraps", "Chicken Fillet Wrap", 699, [MEAL, DIPS],
+  flat("w-chicken-fillet", "wraps", "Chicken Fillet Wrap", 699, [DIPS],
     "Tortilla wrap, fried chicken fillet, red onion, lettuce and salsa sauce."),
-  flat("w-double-chicken", "wraps", "Double Chicken Fillet Wrap", 899, [MEAL, DIPS],
+  flat("w-double-chicken", "wraps", "Double Chicken Fillet Wrap", 899, [DIPS],
     "Double tortilla wrap, fried chicken fillet, red onion, lettuce and salsa sauce."),
-  flat("w-peri", "wraps", "Peri Peri Wrap", 799, [HEAT, MEAL, DIPS],
+  flat("w-peri", "wraps", "Peri Peri Wrap", 799, [HEAT, DIPS],
     "Tortilla wrap, peri fillet, lettuce, mayonnaise, red onion and salsa sauce."),
-  flat("w-double-peri", "wraps", "Double Peri Peri Wrap", 1099, [HEAT, MEAL, DIPS],
+  flat("w-double-peri", "wraps", "Double Peri Peri Wrap", 1099, [HEAT, DIPS],
     "Double tortilla wrap, peri fillet, lettuce, mayonnaise, red onion and salsa sauce."),
-  flat("w-veggie", "wraps", "Veggie Wrap", 599, [MEAL, DIPS],
+  flat("w-veggie", "wraps", "Veggie Wrap", 599, [DIPS],
     "Tortilla wrap with veggie patty, red onion, lettuce & salsa sauce.", null),
-  flat("w-hot-chick", "wraps", "The Hot Chick", 699, [MEAL, DIPS],
+  flat("w-hot-chick", "wraps", "The Hot Chick Wrap", 699, [DIPS],
     "Tortilla wrap, fried chicken fillet, lettuce and chilli sauce."),
 
   // --- Sides ---------------------------------------------------------------
@@ -311,7 +363,7 @@ export const MENU_ITEMS: MenuItem[] = [
       { id: "kp-reg", name: "Regular", price: 399 },
       { id: "kp-lrg", name: "Large", price: 499 },
     ],
-    modifierGroups: [MEAL, DIPS],
+    modifierGroups: [DIPS],
   },
   {
     id: "k-nuggets",
@@ -323,7 +375,7 @@ export const MENU_ITEMS: MenuItem[] = [
       { id: "kn-12", name: "12 pc", price: 999 },
       { id: "kn-16", name: "16 pc", price: 1199 },
     ],
-    modifierGroups: [MEAL, DIPS],
+    modifierGroups: [DIPS],
   },
   {
     id: "k-mozzarella",
@@ -334,7 +386,7 @@ export const MENU_ITEMS: MenuItem[] = [
       { id: "km-6", name: "6 pc", price: 599 },
       { id: "km-9", name: "9 pc", price: 799 },
     ],
-    modifierGroups: [MEAL, DIPS],
+    modifierGroups: [DIPS],
   },
 
   // --- Dips (as standalone tubs) -------------------------------------------
@@ -372,6 +424,68 @@ export const MENU_ITEMS: MenuItem[] = [
     modifierGroups: [],
   },
 ];
+
+/**
+ * OI-45(b) — "make it a meal" as a real Meal product, not a flat +£3 tick.
+ *
+ * Settled model, from Imran's own EposNow screen recording (2026-07-29) and
+ * re-confirmed by till photos (2026-07-31): Solo and Meal are SEPARATE
+ * PRODUCTS in his till, not one product with a conditional toggle. Picking
+ * the Meal item is what asks for a drink and a chips upgrade; picking Solo
+ * never does. So each meal-eligible item gets a sibling `"<Name> Meal"` item
+ * instead of a tickbox — same variants, +£3 each, with the drink + upgrade
+ * groups attached in place of nothing (solo carries neither).
+ */
+function withMeal(item: MenuItem, drinkGroup: ModifierGroup): MenuItem {
+  return {
+    ...item,
+    id: `${item.id}-meal`,
+    name: `${item.name} Meal`,
+    variants: item.variants.map((v) => ({
+      id: `${v.id}-meal`,
+      name: v.name,
+      price: v.price + 300,
+    })),
+    modifierGroups: [...item.modifierGroups, drinkGroup, MEAL_UPGRADE],
+  };
+}
+
+/** Every item the board's "MAKE IT MEAL £3.00 EXTRA" badge used to apply to. */
+const ADULT_MEAL_ITEM_IDS = new Set([
+  "peri-wings",
+  "peri-tenders",
+  "fried-chicken",
+  "fried-combo",
+  "spicy-wings",
+  "fried-tenders",
+  "b-chicken-fillet",
+  "b-double-chicken",
+  "b-fillet-tower",
+  "b-peri",
+  "b-double-peri",
+  "b-quarter-cheese",
+  "b-half-cheese",
+  "b-veggie",
+  "b-fish",
+  "b-big-shack",
+  "w-chicken-fillet",
+  "w-double-chicken",
+  "w-peri",
+  "w-double-peri",
+  "w-veggie",
+  "w-hot-chick",
+]);
+
+/** Kids items get the 2-flavour Kids Meal Deal Drink, never the adult list. */
+const KIDS_MEAL_ITEM_IDS = new Set(["k-popcorn", "k-nuggets", "k-mozzarella"]);
+
+const MEAL_ITEMS: MenuItem[] = BASE_ITEMS.filter(
+  (item) => ADULT_MEAL_ITEM_IDS.has(item.id) || KIDS_MEAL_ITEM_IDS.has(item.id),
+).map((item) =>
+  withMeal(item, KIDS_MEAL_ITEM_IDS.has(item.id) ? KIDS_MEAL_DRINK : ADULT_MEAL_DRINK),
+);
+
+export const MENU_ITEMS: MenuItem[] = [...BASE_ITEMS, ...MEAL_ITEMS];
 
 // ---------------------------------------------------------------------------
 // Shop configuration
@@ -454,15 +568,17 @@ export function fromPrice(item: MenuItem): number {
 }
 
 /**
- * Does this item offer the board's "MAKE IT MEAL £3.00 EXTRA" upgrade?
+ * Is this the "Meal" sibling of another item (see `withMeal` above), rather
+ * than the solo product? Drives the "Meal Deal" badge.
  *
- * Matches on `slug`, falling back to `id`, so it works for both menu sources:
- * in this file the id IS the slug, while a menu from the API has UUID ids and
- * carries the slug separately. Matching on `id` alone silently stopped finding
- * anything the moment the menu started coming from the database.
+ * Matches on NAME, not id — when the menu comes from the API the id is a
+ * database UUID, not the local `"<id>-meal"` this file generates, and names
+ * are what survive the round trip through `seed_chick_shack.py` and back
+ * (see `menuAdapter.ts`'s own header comment: "Names are the join key
+ * throughout").
  */
-export function hasMealUpgrade(item: MenuItem): boolean {
-  return item.modifierGroups.some((group) => (group.slug ?? group.id) === "meal");
+export function isMealItem(item: MenuItem): boolean {
+  return item.name.endsWith(" Meal");
 }
 
 export function areaById(id: string) {
