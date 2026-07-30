@@ -1,10 +1,17 @@
 # Open items register
 
-**Last updated:** 2026-07-29 (session F) — **OI-51…OI-54 all BUILT** (three ticket copies,
-daily number large, `/orders` Accept + online trimming, per-tenant landing) and a real hole
-closed underneath OI-53: the generic transition could cook an online order without accepting
-it. Next: **OI-55 email egress**. Earlier the same day (session E): Stripe hardening done
-except H-6 → **OI-49** (webhook, a dashboard step for Malik).
+**Last updated:** 2026-07-31 (session H/I) — **OI-45(a) and (b) BUILT and deployed to
+production**: meal deal modifiers as real Meal products, matching Imran's till exactly. Two
+silent rename-related bugs found and fixed during rollout (stale duplicate item, stale
+modifier-group links) — see OI-45 and `ERROR_LOG.md`. OI-45(c) turned out to already be built
+(stale "not built" note corrected). Storefront testing-mode banner (added earlier 2026-07-30/31)
+confirmed still live through both deploys.
+
+**Previously, 2026-07-29 (session F):** OI-51…OI-54 all BUILT (three ticket copies, daily
+number large, `/orders` Accept + online trimming, per-tenant landing) and a real hole closed
+underneath OI-53: the generic transition could cook an online order without accepting it. Same
+day (session E): Stripe hardening done except H-6 → **OI-49** (webhook, a dashboard step for
+Malik). **OI-55 email egress** resolved 2026-07-30.
 
 Numbered so they can be referenced across sessions. **Numbers are never reused.** Closed items stay
 here with their outcome for one cycle, then move to the bottom.
@@ -78,12 +85,19 @@ collection"), and Imran asked directly whether the button is worth having — **
 for the notification: it is the only thing that closes an order.** Still to ask him: does the final
 tap also mark a cash order paid, or is that a second tap?
 
-**OI-45 · Menu items need real modifier prompts. TWO separate asks, do not conflate them.**
+**OI-45 · Menu items need real modifier prompts. THREE separate asks, do not conflate them.**
 
-⏸️ **Parked until the QC pass by Malik's own reply to Imran, 2026-07-29 03:09:** *"we'll get to
-the fine details in the QC part... i'll get to those as the backend plumbing is finished."*
-Do not build this before the lifecycle/email plumbing lands. Imran was still mid-list at 03:10,
-so **the requirement is not yet fully captured** — collect the rest before designing.
+✅ **(45a) and (45b) BUILT and DEPLOYED 2026-07-31 (session H/I).** The 2026-07-31 voice note
++ WhatsApp texts + 5 fresh till photos were the QC pass this was parked on — requirement
+confirmed stable and byte-identical to the 2026-07-29 walkthrough across both sessions.
+Full build record: `_context/clients/chick-shack-uk/voice-notes/2026-07-31_imran_meal-modifiers-and-photos.md`.
+
+**(45c) is ALREADY BUILT** — the "not built" note below is **stale**, left over from
+2026-07-29. Verified against actual code 2026-07-31: `EXCLUSIONS` tick-list in
+`storefront/src/data/menu.ts` (No Onion/Lettuce/Tomato/Salad/Mayo/Ketchup/Salsa/Algerian
+Sauce), offered via `exclusionsFor()` on burgers/wraps/peri-grilled/fried-chicken, travels on
+the line's `notes`, prints bold on the ticket. Proven live — a real customer already used it
+("no salsa" on 2 double chicken fillet wraps, per Malik's own screenshot).
 
 **(45a) Required heat-level choice — EASY, no schema change.**
 Imran 03:10: *"Such as: for peri burgers, peri wraps, both single and double and peri wings and
@@ -130,6 +144,23 @@ attach per item. It is also the model Imran already trains his staff on.
 heat on the double peri peri burger and he calls that out as wrong: *"it should ask you… so on
 the website I'm asking if you could add on."* Heat is wanted on **peri burgers, peri wraps
 (single and double), peri wings, peri tenders.**
+
+**What actually shipped, 2026-07-31 (commits `0e0b177`, `c6b03b0`, storefront deploy
+`e3ea6f27`):** 25 items got a `"<Name> Meal"` sibling product (+£3/variant) carrying the real
+drink + upgrade groups; solo items lost the flat tick entirely. `HEAT` renamed/reordered to
+match his till ("Peri-Peri Heat" / Hot Heat / Mild Heat). 7 burger/wrap items renamed for
+kitchen clarity (Chicken Fillet → Chicken Fillet Burger, etc — item (v) from the 07-31
+WhatsApp list). Verified end to end against the **production** API: 87 items, zero duplicate
+names, every meal item carries exactly one drink group + the upgrade group.
+
+⚠️ **Two silent bugs found and fixed along the way**, both from the same root cause —
+`seed_chick_shack.py` matches by name and only ever ADDS, never removes: renaming an item or a
+group's display name doesn't rename the DB row, it creates a duplicate and leaves the old one
+(and its item links) live. Fixed with two one-time, idempotent scripts
+(`rename_chick_shack_items_2026_07_31.py`, `fix_chick_shack_stale_groups_2026_07_31.py`) that
+edit rows in place rather than delete, so no historical order FK breaks. **If anyone renames an
+item or a shared group's `name` in `menu.ts` again, run a matching fix before/instead of
+relying on a plain reseed** — full write-up in `ERROR_LOG.md`.
 
 **(45c) Per-line notes / exclusions — he asked for this explicitly and it is not built.**
 *"a notes option whether if they don't want any like no onion or lettuce, no salsa, no Algerian
