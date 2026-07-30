@@ -1,0 +1,56 @@
+Source: WhatsApp Ptt 2026-07-31 at 1.45.17 AM.ogg
+Transcript: faster-whisper medium, CPU, en (p=0.82)
+
+[   0.40 ->    4.40] Okay, Assalamu alaikum, hope you're well.
+[   4.40 ->   10.40] That was a bit of a rush period there because of all the online orders.
+[  10.40 ->   16.40] Right, okay, so number one, we need to kind of fix up the menu.
+[  16.40 ->   20.40] When it says make it a meal, we need to add the modifiers on there.
+[  20.40 ->   25.40] So we can select what drink they want and then if they want regular chips,
+[  25.40 ->   28.40] if they want upgraded peri, large peri, blah, blah, blah.
+[  28.40 ->   31.40] The other thing I was looking to ask you was,
+[  31.40 ->   37.40] is there a way to set the website up in such a way when an order comes through,
+[  37.40 ->   41.40] there's a sound notification like a beep or a noise or something.
+[  41.40 ->   45.40] So we are alerted that there's a pending order.
+[  45.40 ->   49.40] And the other thing I wanted to ask you was,
+[  50.40 ->   61.40] the website, once it goes live, I'm hoping that there's going to be,
+[  61.40 ->   66.40] before it goes live, sorry, I'm hoping that we can put up like an allergy notice
+[  66.40 ->   69.40] or like a comments box in each order.
+[  69.40 ->   72.40] So when someone's placing, let's say an order for talking sake,
+[  72.40 ->   75.40] let's say that someone's placing an order for a peri burger,
+[  75.40 ->   78.40] they select peri burger and they want it as a meal,
+[  78.40 ->   81.40] so click on make it a meal.
+[  81.40 ->   86.40] In there, at the end, there should be when they're going to go,
+[  86.40 ->   88.40] before they pay for this order,
+[  88.40 ->   92.40] it should say that they should have like a notes box at the bottom
+[  92.40 ->   98.40] in case they want to add like don't put lettuce in or delivered to this address
+[  98.40 ->  102.40] or call me on this number instead of the number I've provided or something.
+[ 103.40 ->  107.40] The other thing is on the modifiers, we do need to add,
+[ 107.40 ->  112.40] like if they want to remove certain things off the burgers,
+[ 112.40 ->  116.40] such as if we can have like a generic box and it says no lettuce,
+[ 116.40 ->  122.40] no tomato, no salsa, no Algerian sauce, no mayonnaise,
+[ 122.40 ->  128.40] and then we can obviously take it off from there.
+[ 128.40 ->  131.40] Hopefully that makes sense to you.
+[ 131.40 ->  140.40] And the other thing is, I think it was the burgers on the actual website,
+[ 140.40 ->  144.40] the burgers, if you can just write under the burger section,
+[ 144.40 ->  146.40] so for example if it says chicken filler,
+[ 146.40 ->  148.40] if you can just add the word burger,
+[ 148.40 ->  151.40] because then it differentiates it from the wraps
+[ 151.40 ->  153.40] and the boys understand it here better,
+[ 153.40 ->  159.40] because unfortunately some of the boys that I have in the kitchen are a bit stupid.
+[ 161.40 ->  164.40] And yeah, I think that's everything.
+[ 164.40 ->  167.40] The last thing is the pictures of the items.
+[ 167.40 ->  170.40] Now there's a website that you can go on
+[ 170.40 ->  175.40] and practically our items are very similar to this other website.
+[ 175.40 ->  180.40] I don't know if you can take the pictures of their burgers.
+[ 180.40 ->  185.40] If you google chunkychicken.com and click on their menu,
+[ 185.40 ->  188.40] all their kind of items and the pictures and stuff
+[ 188.40 ->  190.40] should come up under the different sections.
+[ 190.40 ->  194.40] If you can use those pictures for our website,
+[ 194.40 ->  197.40] that would work really well because it's very similar stuff.
+[ 197.40 ->  198.40] If it's not going to work,
+[ 198.40 ->  204.40] then we're going to have to go to a file or something
+[ 204.40 ->  207.40] to dig out some pictures or some generic pictures for each item.
+
+Note: "chunkychicken.com" corrected by Malik to https://www.chunky-chicken.uk/ --
+Imran was giving the site from memory. Malik: "they have used generic photos too,
+so just put the pictures its fine" -- go-ahead confirmed 2026-07-31.
