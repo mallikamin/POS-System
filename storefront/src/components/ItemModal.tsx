@@ -1,13 +1,17 @@
 import { useMemo, useState } from "react";
 import type { MenuItem, ModifierOption, Variant } from "../types";
 import { imageHero } from "../types";
-import { exclusionsFor, itemImage } from "../data/menu";
+import { exclusionsFor, isMealItem, itemImage } from "../data/menu";
 import { formatGBP } from "../lib/money";
 import { unitPriceOf, useCart } from "../store/cart";
 
 interface Props {
   item: MenuItem;
   onClose: () => void;
+  /** The Meal/Solo counterpart of `item`, if the menu has one. */
+  sibling?: MenuItem;
+  /** Swap the modal to show `sibling` instead, without closing it. */
+  onSwitch: (item: MenuItem) => void;
 }
 
 /**
@@ -16,7 +20,7 @@ interface Props {
  * Variant prices are absolute (2pc £4.99 / 4pc £7.99), so selecting a variant
  * REPLACES the base price. Modifier deltas are then added on top.
  */
-export default function ItemModal({ item, onClose }: Props) {
+export default function ItemModal({ item, onClose, sibling, onSwitch }: Props) {
   const add = useCart((s) => s.add);
 
   const [variant, setVariant] = useState<Variant>(item.variants[0]!);
@@ -106,6 +110,27 @@ export default function ItemModal({ item, onClose }: Props) {
         </header>
 
         <div className="flex-1 overflow-y-auto p-5 space-y-6">
+          {/* Cross-link to the other half of a Solo/Meal pair. Solo items list
+              first in every category, so without this a customer looking at
+              one has no reason to suspect a Meal version is further down. */}
+          {sibling && (
+            <button
+              type="button"
+              onClick={() => onSwitch(sibling)}
+              className="w-full flex items-center justify-between gap-3 rounded-xl border border-ember/40
+                         bg-ember/10 px-4 py-3 text-left hover:border-ember/70 transition-colors"
+            >
+              <span className="text-sm font-semibold text-ember">
+                {isMealItem(item)
+                  ? "Prefer it on its own? See the Solo version"
+                  : "Make it a meal — adds a drink & chips upgrade"}
+              </span>
+              <span className="text-sm font-semibold text-ember shrink-0">
+                {isMealItem(item) ? "View Solo ›" : "View Meal ›"}
+              </span>
+            </button>
+          )}
+
           {/* Variants — only shown when there is a real choice. */}
           {item.variants.length > 1 && (
             <section>

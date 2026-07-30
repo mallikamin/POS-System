@@ -70,6 +70,15 @@ export default function App() {
     void loadMenu();
   }, [loadMenu]);
 
+  // `view` swaps the whole screen in place rather than navigating to a new
+  // route, so the browser keeps whatever scroll position the menu list was
+  // at. Someone who had scrolled deep into the menu before checking out would
+  // land on checkout already scrolled past the name/phone fields. Every view
+  // change should start at the top.
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [view]);
+
   // The basket is persisted to localStorage, so it can hold items from before
   // the menu changed — or from another environment entirely. Prune it against
   // whatever menu is now live, and refresh the prices of what survives.

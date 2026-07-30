@@ -441,6 +441,13 @@ const BASE_ITEMS: MenuItem[] = [
  * groups attached in place of nothing (solo carries neither).
  */
 function withMeal(item: MenuItem, drinkGroup: ModifierGroup): MenuItem {
+  // Order matters here, and it isn't "whatever the solo item already had,
+  // then the meal groups tacked on": Dips is an optional garnish and reads as
+  // an afterthought, so it goes last regardless of where it sat on the solo
+  // item. Heat (required, when present) leads, then the meal's own required
+  // drink choice, then the optional chips upgrade, then Dips.
+  const dips = item.modifierGroups.filter((g) => g.id === "dips");
+  const rest = item.modifierGroups.filter((g) => g.id !== "dips");
   return {
     ...item,
     id: `${item.id}-meal`,
@@ -450,7 +457,7 @@ function withMeal(item: MenuItem, drinkGroup: ModifierGroup): MenuItem {
       name: v.name,
       price: v.price + 300,
     })),
-    modifierGroups: [...item.modifierGroups, drinkGroup, MEAL_UPGRADE],
+    modifierGroups: [...rest, drinkGroup, MEAL_UPGRADE, ...dips],
   };
 }
 
@@ -489,7 +496,19 @@ const MEAL_ITEMS: MenuItem[] = BASE_ITEMS.filter(
   withMeal(item, KIDS_MEAL_ITEM_IDS.has(item.id) ? KIDS_MEAL_DRINK : ADULT_MEAL_DRINK),
 );
 
-export const MENU_ITEMS: MenuItem[] = [...BASE_ITEMS, ...MEAL_ITEMS];
+/**
+ * Meal siblings are interleaved right after their solo item, not appended in
+ * one block at the end of everything. `display_order` in the database is set
+ * from this array's index (`seed_chick_shack.py`'s `enumerate(items)`), so a
+ * flat append put every meal item after every solo item in a category —
+ * ten solo burgers, then ten meal burgers below all of them. A customer
+ * looking at a solo item never saw a meal version was one card away, and
+ * had no reason to keep scrolling.
+ */
+export const MENU_ITEMS: MenuItem[] = BASE_ITEMS.flatMap((item) => {
+  const meal = MEAL_ITEMS.find((m) => m.id === `${item.id}-meal`);
+  return meal ? [item, meal] : [item];
+});
 
 // ---------------------------------------------------------------------------
 // Shop configuration
@@ -583,6 +602,19 @@ export function fromPrice(item: MenuItem): number {
  */
 export function isMealItem(item: MenuItem): boolean {
   return item.name.endsWith(" Meal");
+}
+
+/**
+ * The other half of a Solo/Meal pair, if the current menu has one — a Meal
+ * item's Solo, or a Solo item's Meal. Same name-matching reasoning as
+ * `isMealItem`. Powers the cross-link in `ItemModal` so a customer looking at
+ * one product can see the other exists without hunting for it in the list.
+ */
+export function siblingOf(item: MenuItem, items: MenuItem[]): MenuItem | undefined {
+  const wantName = isMealItem(item)
+    ? item.name.slice(0, -" Meal".length)
+    : `${item.name} Meal`;
+  return items.find((i) => i.categoryId === item.categoryId && i.name === wantName);
 }
 
 export function areaById(id: string) {

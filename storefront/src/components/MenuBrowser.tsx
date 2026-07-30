@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { fromPrice, isMealItem, itemImage } from "../data/menu";
+import { fromPrice, isMealItem, itemImage, siblingOf } from "../data/menu";
 import type { MenuItem } from "../types";
 import { imageThumb } from "../types";
 import { formatGBP } from "../lib/money";
@@ -141,7 +141,15 @@ export default function MenuBrowser() {
         })}
       </div>
 
-      {open && <ItemModal item={open} onClose={() => setOpen(null)} />}
+      {open && (
+        <ItemModal
+          key={open.id}
+          item={open}
+          sibling={siblingOf(open, items)}
+          onSwitch={setOpen}
+          onClose={() => setOpen(null)}
+        />
+      )}
     </>
   );
 }
