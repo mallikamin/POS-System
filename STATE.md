@@ -27,6 +27,16 @@ one-off script needed. `pg_dump` backed up, reseeded on production, and **swept 
 menu items programmatically**: zero items show an optional group before a required one.
 Commit `97ec8c8`, pushed.
 
+**Same session, UAT item (iv):** the "leave it out" ticks (No Onion, No Lettuce, etc.) turned
+out to have **never rendered on the live site at all**, for any item. `exclusionsFor()` matched
+`item.categoryId` against a hardcoded slug Set ("burgers", "wraps", ...) — correct for the local
+fallback menu, but `categoryId` is a database UUID once the live API menu loads, so the check
+silently never matched. Same slug-vs-UUID class of bug already solved for images, never applied
+here. Fixed by matching on the category's NAME instead (resolved by `MenuBrowser` from its own
+always-correct `categories` list, passed to `ItemModal` as a plain prop) — no schema change.
+Pure frontend fix, no DB involved. `tsc` clean, deployed to Cloudflare, live bundle verified
+for the new code. Commit `a178d78`, pushed. Awaiting Malik's re-check.
+
 **Session J in one line:** Finished the photo-integration work session I left in progress
 (`PAUSE_CHECKPOINT_2026-07-31.md`). Re-verified every proposed photo→item mapping in
 `CLASSIFICATION.md` against real `menu.ts` descriptions before wiring anything in — rejected
