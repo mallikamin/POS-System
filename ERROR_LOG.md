@@ -448,7 +448,7 @@ Each entry follows:
 - **Fix**: the overwritten content was reconstructed from earlier in the same conversation (the file had been read in full near the start of the session, before being overwritten later) and restored to the plain filename with a "superseded" note; session K's content was moved to `PAUSE_CHECKPOINT_2026-07-31-C.md`, continuing this repo's own letter-suffix convention
 - **Rule**: **Before running `/pause` (directly or via `/handoff`) on a project that may have had an earlier session the same day, check for an existing `PAUSE_CHECKPOINT_[today's date].md` first** — if one exists, write to the next available letter suffix instead of overwriting it. This applies to any generic skill whose instructions assume a filename is safe to write unconditionally; a project's own established convention (visible in its file listing) should win over a skill's generic default.
 
-### 2026-07-31 (session M) — First live sandbox card test: Accept did not capture payment, and it's still open
+### 2026-07-31 (session M) — First live sandbox card test: Accept did not capture payment — RESOLVED session N
 - **Error**: None thrown anywhere. Order `260731-001` went through Stripe sandbox Checkout
   correctly (confirmation page: "Card details taken. We only charge you once the shop
   accepts your order.") — but after Imran hit Accept on the tablet, the tablet, all 3
@@ -456,20 +456,59 @@ Each entry follows:
   delivery**, when a successful `capture_for_order` should have flipped all three
 - **Context**: The first real end-to-end test of OI-41, Imran live on the phone, using the
   `?card=1` override to reveal the card button
-- **Root Cause**: **NOT YET FOUND — this entry is a placeholder, not a resolution.**
-  `docker logs` grepped for the order number, "stripe", "capture", "accept" returned zero
-  matches; grepped for "accept|POST" returned one unrelated alembic startup line, meaning
-  almost no request activity showed up in the access log for a window that must have had
-  several real requests. Investigation was interrupted by a `/handoff` before reaching the
-  database or Stripe API directly. See `PAUSE_CHECKPOINT_2026-07-31-F.md` for the exact
-  next steps and the diagnostics already ruled out
-- **Fix**: Not yet fixed. Do not swap to Stripe live keys until this is understood and a
-  retest passes clean
+- **Root Cause (found session N, 2026-08-01)**: `create_checkout_session` read
+  `session["payment_intent"]` immediately after `Session.create()` and stored it on the
+  order — but confirmed against the real sandbox (a throwaway probe session created and
+  inspected on the spot), Stripe does **not** create the PaymentIntent at that point, only
+  once the customer actually submits payment on the Checkout page. `stripe_payment_intent_id`
+  was written `None` and stayed that way forever: the webhook's own backstop
+  (`payment_intent.amount_capturable_updated`) never persisted it either, and was itself
+  blocked by an unrelated, prematurely-set `payment_authorized_at`. `accept_order`'s guard on
+  `stripe_payment_intent_id` then silently no-opped on Accept — no exception, nothing
+  logged, exactly matching the empty access-log grep above
+- **Fix**: `accept_order` now guards on `stripe_checkout_session_id` (reliably set at
+  session-creation) and resolves the missing intent id from Stripe directly via new
+  `stripe_service.resolve_payment_intent_id`, called right before capture. The webhook
+  independently backfills the id from its own event object. The premature
+  `payment_authorized_at` write at session-creation was removed. 7 new tests, 2
+  mutation-checked by hand (temporarily reverted each guard, confirmed the new test fails,
+  restored the fix). Commit `593513b`. **Proven on a real retest**, order `260731-003`:
+  verified directly against Stripe (`status: succeeded`, `amount_received` matches the
+  order total) and the DB (`payment_status: paid`, intent id correctly resolved)
 - **Rule**: **When three independent-looking surfaces (tablet, printer, email) all show the
-  same wrong thing, suspect one shared read path, not three separate bugs** — likely all
-  three just render `order.payment_status`/`payment_captured_at` faithfully, and the actual
-  fault is upstream of all of them. Check the database and Stripe directly for ground
-  truth before trusting any UI surface, including the "it looks fixed" ones
+  same wrong thing, suspect one shared read path, not three separate bugs** — confirmed
+  correct here: all three were faithfully rendering `order.stripe_payment_intent_id`/
+  `payment_status`, and the actual fault was one field never getting persisted upstream of
+  all of them. Also: **never assume a third-party object field is populated synchronously
+  just because a comment says so** — the wrong assumption here ("payment_intent is an id
+  string when the session is created") was written confidently in the original code and
+  was simply false; a two-line throwaway probe against the real sandbox proved it in
+  seconds and should have been done before writing that comment in the first place
+
+### 2026-07-31/2026-08-01 (session M/N) — A prefetched print ticket kept printing "NOT PAID" after the order was genuinely captured
+- **Error**: Order `260731-003`'s card was captured correctly (proven against Stripe and
+  the DB), but the printed kitchen ticket read "*** NOT PAID *** COLLECT £19.28" anyway
+- **Context**: Surfaced immediately after the OI-41 fix above was proven working, in the
+  same live retest with Imran
+- **Root Cause**: `frontend/src/pages/online-orders/OnlineOrdersPage.tsx`'s ticket is a
+  self-contained, fully-rendered ESC/POS payload (`rawbt:base64,...`), fetched and cached
+  in `ticketUrls` the moment an order enters the pending queue — deliberately, so the
+  Print button can navigate to it synchronously from a tap without Chrome dropping the
+  `rawbt:` handoff (an `await` before navigating ends the user gesture, see the
+  2026-07-29 entry on the same file). Nothing ever invalidated that cache once the
+  order's payment status actually changed on Accept, so both the automatic best-effort
+  print and the manual "Print ticket" button kept reusing a payload rendered while the
+  order still genuinely was unpaid
+- **Fix**: new `invalidateTicket(orderId)` deletes the cached entry and kicks off a
+  background re-fetch — never awaited, so it cannot itself become the next `await` that
+  drops a print's user gesture — called right after Accept, Mark paid, and a
+  cash-settled handover, everywhere `payment_status` can change. Commit `b90057c`
+- **Rule**: **A client-side cache built to satisfy one hard platform constraint (here,
+  "must navigate synchronously from a gesture") needs its own explicit invalidation
+  rule tied to whatever makes its content stale — it does not get one for free just
+  because the constraint that created it was solved.** The prefetch loop in `refresh()`
+  already skips re-fetching any id it has ("if (ticketUrls.current.has(order.id)) return"),
+  so a cached entry is permanent until something explicitly deletes it.
 
 ### 2026-07-31 (session M) — Told Malik a Shutterstock photo had no visible watermark; it did
 - **Error**: Said "no visible watermark" about a `shutterstock.com` preview image based on a
