@@ -113,17 +113,28 @@ def _collecting(order: Order) -> bool:
     return (order.service_type or "collection") != "delivery"
 
 
-def _payment_status_text(order: Order) -> str:
+def _payment_status_text(order: Order, *, intends_card_payment: bool = False) -> str:
     """Same three states, same reasoning, as `OrderConfirmation.tsx` on the
     website: money is only TAKEN when the shop accepts, so a card order sitting
     between checkout and acceptance is "held", not "paid" -- the customer's
     bank shows a pending amount and nothing has actually left their account.
     An email claiming "paid" here, followed by the shop rejecting the order,
-    would make the email a lie."""
+    would make the email a lie.
+
+    `intends_card_payment` covers a fourth state neither the order's own
+    columns nor `OrderConfirmation.tsx` can see: the "order received" email
+    fires immediately on creation, before the customer has even been sent to
+    Stripe, so `stripe_payment_intent_id` is never set yet for a card order at
+    this point -- without this explicit, caller-supplied signal every card
+    order would silently fall through to the cash wording below. See
+    `PublicOrderCreate.payment_method`.
+    """
     if order.payment_status == "paid":
         return "Paid by card."
     if order.stripe_payment_intent_id and order.payment_captured_at is None:
         return "Card details taken. We only charge you once the shop accepts your order."
+    if intends_card_payment:
+        return "Prepaid by card -- we only charge you once the shop accepts your order."
     return f"Payable on {'collection' if _collecting(order) else 'delivery'}."
 
 
@@ -272,14 +283,16 @@ def _html_shell(
 </html>"""
 
 
-def _html_received(order: Order, shop: str, currency: str) -> str:
+def _html_received(
+    order: Order, shop: str, currency: str, intends_card_payment: bool = False
+) -> str:
     name = html_escape(order.customer_name or "there")
     content = (
         _html_order_label(order)
         + _html_items_table(order, currency)
         + _html_totals_table(order, currency)
         + f'<p style="margin:16px 0 0 0; font-size:13px; color:{_C_MUTED};">{_html_fulfilment_line(order)}</p>'
-        + f'<p style="margin:4px 0 0 0; font-size:13px; color:{_C_MUTED};">{html_escape(_payment_status_text(order))}</p>'
+        + f'<p style="margin:4px 0 0 0; font-size:13px; color:{_C_MUTED};">{html_escape(_payment_status_text(order, intends_card_payment=intends_card_payment))}</p>'
         + _html_tracking_button(order)
         + f'<p style="margin:16px 0 0 0; font-size:14px; color:{_C_BODY_TEXT};">'
         f"We&rsquo;ll email you again as soon as the shop confirms your "
@@ -387,7 +400,9 @@ _HTML_BUILDERS = {
 # ---------------------------------------------------------------------------
 
 
-def _body_received(order: Order, shop: str, currency: str) -> tuple[str, str]:
+def _body_received(
+    order: Order, shop: str, currency: str, intends_card_payment: bool = False
+) -> tuple[str, str]:
     subject = f"{shop}: we've got your order {order.order_number}"
     body = f"""Hi {order.customer_name or 'there'},
 
@@ -400,7 +415,7 @@ Order {order.order_number}
 {_totals(order, currency)}
 
 {'Collection' if _collecting(order) else 'Delivery to: ' + (order.delivery_address or '')}
-{_payment_status_text(order)}
+{_payment_status_text(order, intends_card_payment=intends_card_payment)}
 {_tracking_line(order)}
 We'll email you again as soon as the shop confirms your {'collection' if _collecting(order) else 'delivery'} time.
 
@@ -576,6 +591,7 @@ async def send_order_email(
     *,
     shop_name: str = "Chick Shack",
     currency: str = "GBP",
+    intends_card_payment: bool = False,
 ) -> bool:
     """Send one order email. Returns True only if it actually went out.
 
@@ -604,8 +620,13 @@ async def send_order_email(
         )
         return False
 
-    subject, text = _BUILDERS[event](order, shop_name, currency)
-    html = _HTML_BUILDERS[event](order, shop_name, currency)
+    # Only the "received" builders accept this kwarg -- it is the sole event
+    # sent before any Stripe interaction has happened, see
+    # `_payment_status_text`. An empty dict for every other event keeps their
+    # signatures untouched.
+    extra = {"intends_card_payment": intends_card_payment} if event == "received" else {}
+    subject, text = _BUILDERS[event](order, shop_name, currency, **extra)
+    html = _HTML_BUILDERS[event](order, shop_name, currency, **extra)
 
     try:
         if settings.BREVO_API_KEY:

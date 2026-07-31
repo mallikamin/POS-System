@@ -228,6 +228,37 @@ async def test_notify_customer_never_waits_for_the_transport(
         )
 
 
+@pytest.mark.asyncio
+async def test_notify_customer_forwards_the_stated_payment_intent(
+    db: AsyncSession, tenant: Tenant, admin_user: User
+) -> None:
+    """`create_public_order`'s caller decides this per-request from
+    `PublicOrderCreate.payment_method` -- `notify_customer` must pass it
+    straight through, unchanged, to `send_order_email`.
+
+    `notify_customer` schedules the send via `asyncio.create_task` and returns
+    immediately by design -- the same reason the test above needs an Event,
+    not a bare await, to observe what the background task actually did."""
+    captured: dict = {}
+    done = asyncio.Event()
+
+    async def _capture_send(*_a, **kwargs) -> bool:
+        captured.update(kwargs)
+        done.set()
+        return True
+
+    order = _online_order(tenant, admin_user, order_number="L250101-006")
+    with patch.object(
+        public_order_service.email_service, "send_order_email", new=_capture_send
+    ):
+        await public_order_service.notify_customer(
+            db, tenant.id, order, "received", intends_card_payment=True
+        )
+        await asyncio.wait_for(done.wait(), timeout=2)
+
+    assert captured.get("intends_card_payment") is True
+
+
 # ---------------------------------------------------------------------------
 # email_service -- it must never raise
 # ---------------------------------------------------------------------------
@@ -588,6 +619,34 @@ def test_received_email_says_payable_on_collection_for_cash() -> None:
     _, body = email_service._body_received(order, "Chick Shack", "GBP")
     assert "payable on collection" in body.lower()
     assert "card" not in body.lower()
+
+
+def test_received_email_says_prepaid_for_a_card_order_before_stripe_runs() -> None:
+    """The real 260731-004 bug: `received` fires before checkout-session even
+    exists, so `stripe_payment_intent_id` is never set yet for a card order at
+    this point. Without `intends_card_payment`, this would silently fall
+    through to "Payable on delivery" -- identical to a cash order."""
+    order = _emailable(
+        payment_status="unpaid", stripe_payment_intent_id=None, service_type="delivery"
+    )
+    _, body = email_service._body_received(order, "Chick Shack", "GBP", intends_card_payment=True)
+    html = email_service._html_received(order, "Chick Shack", "GBP", intends_card_payment=True)
+    assert "prepaid by card" in body.lower()
+    assert "prepaid by card" in html.lower()
+    assert "payable on delivery" not in body.lower()
+
+
+def test_received_email_stripe_state_still_wins_over_stated_intent() -> None:
+    """If Stripe has already authorised by the time this renders, that real
+    state takes priority over the customer's earlier stated intent."""
+    order = _emailable(
+        payment_status="unpaid",
+        stripe_payment_intent_id="pi_test_123",
+        payment_captured_at=None,
+    )
+    _, body = email_service._body_received(order, "Chick Shack", "GBP", intends_card_payment=True)
+    assert "we only charge you once the shop accepts" in body.lower()
+    assert "prepaid" not in body.lower()
 
 
 # ---------------------------------------------------------------------------

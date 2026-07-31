@@ -99,6 +99,26 @@ def test_collection_needs_no_address() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Payment intent -- request-only, never persisted, see `email_service.
+# _payment_status_text`. Defaults to "cash" so every existing caller that
+# never sends this field keeps behaving exactly as before.
+# ---------------------------------------------------------------------------
+
+
+def test_payment_method_defaults_to_cash() -> None:
+    assert PublicOrderCreate(**_order()).payment_method == "cash"
+
+
+def test_payment_method_accepts_card() -> None:
+    assert PublicOrderCreate(**_order(payment_method="card")).payment_method == "card"
+
+
+def test_payment_method_rejects_anything_else() -> None:
+    with pytest.raises(ValidationError):
+        PublicOrderCreate(**_order(payment_method="bank_transfer"))
+
+
+# ---------------------------------------------------------------------------
 # Basket sanity
 # ---------------------------------------------------------------------------
 

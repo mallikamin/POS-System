@@ -113,6 +113,7 @@ export default function Checkout({ onBack, onPlaced }: Props) {
         customer_phone: phone.trim(),
         ...(email.trim() ? { customer_email: email.trim() } : {}),
         items: orderLinesOf(useCart.getState().lines),
+        payment_method: payment,
         ...(notes.trim() ? { notes: notes.trim() } : {}),
         ...(service === "delivery"
           ? {

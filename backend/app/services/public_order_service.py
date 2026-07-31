@@ -102,7 +102,12 @@ _email_tasks: set[asyncio.Task] = set()
 
 
 async def notify_customer(
-    db: AsyncSession, tenant_id: uuid.UUID, order: Order, event: str
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    order: Order,
+    event: str,
+    *,
+    intends_card_payment: bool = False,
 ) -> None:
     """Schedule the customer's email without making anyone wait for it.
 
@@ -123,7 +128,11 @@ async def notify_customer(
     shop_name = await get_shop_name(db, tenant_id)
     task = asyncio.create_task(
         email_service.send_order_email(
-            order, event, shop_name=shop_name, currency=currency
+            order,
+            event,
+            shop_name=shop_name,
+            currency=currency,
+            intends_card_payment=intends_card_payment,
         )
     )
     _email_tasks.add(task)

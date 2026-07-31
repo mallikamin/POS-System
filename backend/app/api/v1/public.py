@@ -168,7 +168,13 @@ async def create_public_order(
 
     # After the commit, never before: an email announcing an order that then
     # failed to commit cannot be recalled. Never raises.
-    await public_order_service.notify_customer(db, tenant_id, order, "received")
+    await public_order_service.notify_customer(
+        db,
+        tenant_id,
+        order,
+        "received",
+        intends_card_payment=body.payment_method == "card",
+    )
 
     currency = await public_order_service.get_currency(db, tenant_id)
     return _to_public_response(order, currency)

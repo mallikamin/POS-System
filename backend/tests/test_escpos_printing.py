@@ -271,6 +271,19 @@ def test_paid_order_does_not_ask_for_money():
     assert "COLLECT £" not in out
 
 
+def test_paid_online_line_is_double_size_and_bold_like_not_paid():
+    """"Unpaid is shouted, not whispered" was already this ticket's design
+    principle -- paid now shouts too, at the same weight, so a driver reads it
+    just as unmistakably (session N pending item 2, 2026-08-01)."""
+    payload = build_online_order_ticket(
+        _order(payment_status="paid"), shop_name="Chick Shack"
+    )
+    big_bold = (
+        escpos.SIZE_DOUBLE + escpos.BOLD_ON + escpos.encode("*** PAID ONLINE ***") + b"\n"
+    )
+    assert big_bold in payload
+
+
 def test_item_modifiers_and_notes_are_printed():
     order = _order()
     order.items[0].notes = "no salt"
@@ -326,10 +339,12 @@ def test_three_copies_ride_in_one_payload_each_with_its_own_cut():
     assert escpos.preview(payload).count("ORDER 260727-001") == 3
 
 
-def test_each_copy_is_labelled_so_three_slips_do_not_read_as_three_orders():
+def test_copies_carry_no_copy_label():
+    """Imran, 2026-08-01: remove "COPY n OF 3" entirely -- all three slips go
+    to separate stations, none of them is "the extra one". The daily number
+    above it is untouched (see the test below)."""
     out = _preview(_order(), copies=3)
-    for n in (1, 2, 3):
-        assert f"COPY {n} OF 3" in out
+    assert "COPY" not in out
 
 
 def test_single_copy_carries_no_copy_label():

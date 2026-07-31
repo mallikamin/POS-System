@@ -100,22 +100,21 @@ def build_online_order_ticket(
     single most expensive thing to get wrong on a ticket.
 
     `copies` repeats the whole ticket inside ONE payload, each copy cut into
-    its own slip and labelled "COPY n OF N". The repeat lives here and not in
-    the tablet because every `rawbt:` navigation is a separate chance for
-    Chrome to drop or coalesce the handoff (see ERROR_LOG 2026-07-29): one
-    payload, one navigation, N slips.
+    its own slip -- identical, unlabelled: all three go to separate stations,
+    none of them is "the extra one" (Imran, 2026-08-01). The repeat lives here
+    and not in the tablet because every `rawbt:` navigation is a separate
+    chance for Chrome to drop or coalesce the handoff (see ERROR_LOG
+    2026-07-29): one payload, one navigation, N slips.
     """
     t = Ticket(width=width)
     copies = max(1, copies)
-    for copy_number in range(1, copies + 1):
+    for _ in range(copies):
         _render_copy(
             t,
             order,
             shop_name=shop_name,
             currency=currency,
             utc_offset_minutes=utc_offset_minutes,
-            copy_number=copy_number,
-            copies=copies,
         )
     return t.bytes()
 
@@ -127,8 +126,6 @@ def _render_copy(
     shop_name: str,
     currency: str,
     utc_offset_minutes: int,
-    copy_number: int,
-    copies: int,
 ) -> None:
     """One complete slip, ending in its own cut."""
     is_delivery = (order.service_type or "").lower() == "delivery"
@@ -140,9 +137,6 @@ def _render_copy(
     daily = _daily_number(order.order_number)
     if daily:
         t.center(f"#{daily}", bold=True, big=True)
-    if copies > 1:
-        # Three identical slips must not be read as three orders.
-        t.center(f"COPY {copy_number} OF {copies}", bold=True)
     t.rule()
 
     t.center(shop_name, bold=True, big=True)
@@ -216,7 +210,9 @@ def _render_copy(
     t.feed()
     paid = (order.payment_status or "").lower() in {"paid", "refunded"}
     if paid:
-        t.center("*** PAID ONLINE ***", bold=True)
+        # Unpaid is shouted, not whispered -- paid shouts too, just a calmer
+        # message. Same bold+big weight as the NOT PAID line below.
+        t.center("*** PAID ONLINE ***", bold=True, big=True)
     else:
         # Loud on purpose. A driver who assumes an order is prepaid does not
         # come back with the money.

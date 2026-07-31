@@ -540,3 +540,30 @@ Each entry follows:
 - **Root Cause**: the same class of issue already known for this box (`memory/server-deployment-rules.md` Rule 3) — nginx does not clear its upstream DNS/IP cache on its own, and briefly holds the old backend container's address after a fresh one is created. `sleep 10` is not always long enough for that window to close. A second deploy 40 seconds later (the STATE.md-only follow-up commit) recreated nginx again and its own health check passed clean
 - **Fix**: none needed to the code — verified live, independently, right after: both `pos-demo.duckdns.org` and `eats.sitaratech.info` returned `200` on `/api/v1/health` moments later, and the actual running containers (checked directly, not inferred from the Action) held the correct, just-deployed code on both the backend and frontend sides
 - **Rule**: **A failed "Verify deployment" step is not automatically a bad deploy — read which specific check failed before assuming the code is broken.** A red X after every real deploy step passed, on the health-check line specifically, is this project's known transient-nginx-IP window, not a new defect. Re-check live, from a real browser-UA request, before either redeploying blind or telling anyone the fix isn't live.
+
+### 2026-08-01 (session O) — Two test failures, unrelated to this session's diff, surfaced by a full `pytest` run
+- **Error**: `tests/test_p1a_features.py::TestVoidHardening::test_void_with_reason_succeeds`
+  (`401` instead of `200`) and
+  `tests/test_pay_first.py::TestPayFirstTransitionBlock::test_transition_blocked_without_payment`
+  (asserts the literal string `"Payment required"`, but the actual detail message is
+  `"This order is pending payment. Please complete payment first — go to the order and
+  click Pay to proceed."`) both fail, on top of the documented 12 pre-existing
+  QB-Desktop/parked failures
+- **Context**: Running the full suite while building session O's 4 pending UX fixes
+  (email wording, ticket PAID styling, COPY-line removal, chime loudness) — none of
+  which touch auth, void, or the pay-first transition guard
+- **Root Cause**: Not investigated (out of scope for this session's 4 items). Confirmed
+  NOT caused by this session's diff: `git stash push` on every file this session touched,
+  re-ran both tests against the resulting HEAD-only code, and both failed identically
+  (`401`; the same wording mismatch). Stash was popped back immediately after
+  confirming. Root cause is either a genuinely broken assertion (the pay-first one reads
+  like a stale string literal after the error message was reworded some other session)
+  or an environment-dependent flake (the auth one) — not diagnosed further here
+- **Fix**: None applied. Flagging per this project's standing rule against scope drift
+  — these are unrelated to the 4 items this session was scoped to
+- **Rule**: **Before fixing a test failure discovered mid-task, confirm it is actually
+  caused by the current diff** — `git stash push -- <the exact files this session
+  touched>` (never a bare `git stash`, which would also stash this repo's ~99 pre-existing
+  uncommitted markdown files), re-run the failing test, then `git stash pop`. If it still
+  fails against unmodified code, it is pre-existing and out of scope; log it and move on
+  rather than silently expanding the task.

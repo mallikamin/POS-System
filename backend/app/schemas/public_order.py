@@ -16,6 +16,7 @@ If you ever find yourself adding a price to a request schema here, stop.
 
 import uuid
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -114,6 +115,16 @@ class PublicOrderCreate(BaseModel):
 
     items: list[PublicOrderItemRequest] = Field(..., min_length=1, max_length=60)
     notes: str | None = Field(None, max_length=500)
+
+    # The customer's stated INTENT, chosen on the checkout page before this
+    # request is even sent. Never used to decide whether money actually moves
+    # -- Stripe's own state (checked via a separate `/checkout-session` call
+    # made only after this one) is what governs that. This exists purely so
+    # the "order received" email, which fires immediately on creation and
+    # therefore before any Stripe interaction has happened, can say "prepaid"
+    # rather than the misleading default "payable on delivery" for someone who
+    # is about to be sent to Stripe. See `email_service._payment_status_text`.
+    payment_method: Literal["cash", "card"] = "cash"
 
     # Delivery only. The AREA is sent, never the fee -- the server looks the fee
     # up. Chick Shack prices delivery by village (Garelochhead GBP 3, Arrochar

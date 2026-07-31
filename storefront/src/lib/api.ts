@@ -93,6 +93,14 @@ export interface ApiOrderRequest {
   /** The area CODE, e.g. "arrochar". The server looks the fee up from it. */
   delivery_area_id?: string | null;
   delivery_address?: string | null;
+  /**
+   * The customer's chosen payment method, sent so the "order received" email
+   * -- which goes out immediately, before Stripe Checkout even starts -- can
+   * say "prepaid" for a card order instead of the misleading default
+   * "payable on delivery". Never used server-side to decide whether money
+   * actually moves; that is Stripe's own state, checked separately.
+   */
+  payment_method?: "cash" | "card";
 }
 
 export interface ApiOrderLine {

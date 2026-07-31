@@ -112,26 +112,50 @@ function stageLabel(order: OnlineOrder): string {
  * Notification-style ascending 3-tone chime, reused from the (already
  * noise-tested) pattern in `C:\FBAI\bilal-app\src\worker.js`'s `playChime()`
  * -- built specifically because a single quiet beep didn't carry across a
- * busy office. Pushed louder again here, per Malik's explicit ask for this
- * restaurant floor, and the whole sequence repeats once immediately after --
- * one pass is easy to miss over dinner-rush noise. Gain is capped just under
- * 1.0: a sine oscillator's own peak is 1.0, so anything higher clips into a
- * harsh, distorted sound rather than a genuinely louder one.
+ * busy office.
+ *
+ * Still too quiet on this restaurant floor even with the tablet's own media
+ * volume already maxed (Malik, 2026-08-01, after the first louder-gain pass).
+ * A sine oscillator's own peak is 1.0, so more gain was never available --
+ * genuine loudness needed a different technique, not a bigger number:
+ *   - square wave, not sine: far more harmonic energy at the same peak
+ *     amplitude, and reads as an alarm rather than a pleasant beep -- correct
+ *     for a noisy floor.
+ *   - two unison oscillators per tone (one an octave up): more simultaneous
+ *     acoustic energy hitting the ear than any single oscillator.
+ *   - a short attack + a near-peak hold instead of a smooth exponential
+ *     ramp, which spends much of the tone quiet.
+ *   - a DynamicsCompressorNode shared by every oscillator in the sequence:
+ *     this is what actually lets the extra energy from layering come out
+ *     louder instead of just clipping into distortion sooner.
+ *   - three passes, not two -- Malik: "need to increase at least 2-3x".
  */
 function playAlertTones(ctx: AudioContext): void {
   const now = ctx.currentTime;
+
+  const compressor = ctx.createDynamicsCompressor();
+  compressor.threshold.setValueAtTime(-24, now);
+  compressor.knee.setValueAtTime(12, now);
+  compressor.ratio.setValueAtTime(12, now);
+  compressor.attack.setValueAtTime(0.003, now);
+  compressor.release.setValueAtTime(0.15, now);
+  compressor.connect(ctx.destination);
+
   const tone = (freq: number, start: number, dur: number, peak: number) => {
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = "sine";
-    osc.frequency.setValueAtTime(freq, now + start);
-    gain.gain.setValueAtTime(0.0001, now + start);
-    gain.gain.exponentialRampToValueAtTime(peak, now + start + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + start + dur);
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start(now + start);
-    osc.stop(now + start + dur + 0.02);
+    for (const f of [freq, freq * 2]) {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "square";
+      osc.frequency.setValueAtTime(f, now + start);
+      gain.gain.setValueAtTime(0.0001, now + start);
+      gain.gain.exponentialRampToValueAtTime(peak, now + start + 0.008);
+      gain.gain.setValueAtTime(peak, now + start + Math.max(0.008, dur - 0.03));
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + start + dur);
+      osc.connect(gain);
+      gain.connect(compressor);
+      osc.start(now + start);
+      osc.stop(now + start + dur + 0.02);
+    }
   };
   const sequence = (offset: number) => {
     tone(987.8, offset + 0.0, 0.22, 0.9); // B5
@@ -139,7 +163,8 @@ function playAlertTones(ctx: AudioContext): void {
     tone(1568.0, offset + 0.36, 0.4, 0.95); // G6 -- slightly longer tail
   };
   sequence(0);
-  sequence(0.85); // repeat once
+  sequence(0.85);
+  sequence(1.7); // third pass
 }
 
 /**
