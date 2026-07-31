@@ -44,7 +44,7 @@ import secrets
 import uuid
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import async_session_factory
@@ -371,6 +371,22 @@ async def _seed_items(
                 ),
             )
 
+        # `menu_item_modifier_groups` has no ordering column, so the API's
+        # unordered `selectin` relationship falls back to physical/insertion
+        # order. `_link()` is additive by design for the SET of linked
+        # groups (safe to re-run, never duplicates), but that same
+        # additive-only behaviour meant an item's group ORDER was frozen at
+        # whatever it happened to be the first time each link was created --
+        # reordering `modifierGroups` in menu.ts and reseeding changed
+        # nothing live. Caught twice in one session (Meal items showing
+        # dips before the required drink; several solo items showing dips
+        # before a required Heat choice) via `AskUserQuestion` walkthroughs
+        # is exactly the wrong way to keep finding this. Delete and
+        # recreate every item's links on every reseed instead, in the exact
+        # order this entry's `modifierGroups` specifies, so an order fix in
+        # menu.ts always takes effect on the next `seed_chick_shack.py` run
+        # -- no separate one-off reorder script needed again.
+        group_ids: list[uuid.UUID] = []
         for group_def in entry.get("modifierGroups") or []:
             key = group_def["id"]
             if key not in shared_groups:
@@ -386,7 +402,20 @@ async def _seed_items(
                         for o in group_def.get("options", [])
                     ],
                 )
-            await _link(db, tenant, item, shared_groups[key])
+            group_ids.append(shared_groups[key].id)
+
+        await db.execute(
+            delete(MenuItemModifierGroup).where(
+                MenuItemModifierGroup.menu_item_id == item.id
+            )
+        )
+        for gid in group_ids:
+            db.add(
+                MenuItemModifierGroup(
+                    tenant_id=tenant.id, menu_item_id=item.id, modifier_group_id=gid
+                )
+            )
+        await db.flush()
 
     print(f"  Menu items: {count}")
     print(f"  Shared modifier groups: {len(shared_groups)}")
