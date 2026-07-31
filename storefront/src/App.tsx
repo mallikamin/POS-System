@@ -141,6 +141,17 @@ export default function App() {
                 when we open.
               </p>
             )}
+            {/* Same notice and styling as the one on Checkout — shown here too
+                so it's visible before a customer starts choosing items, not
+                only once they reach the end of ordering. */}
+            <div className="mt-4 card p-3 border-ember/40 bg-ember/10">
+              <p className="text-xs font-bold uppercase tracking-wide text-ember">
+                Allergen Notice
+              </p>
+              <p className="text-xs text-cream/70 leading-relaxed mt-1">
+                {SHOP.allergenNotice}
+              </p>
+            </div>
           </section>
           <MenuBrowser />
         </>
