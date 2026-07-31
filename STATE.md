@@ -2,6 +2,27 @@
 
 **Last refreshed:** 2026-07-31 (session L) · **Branch:** `main`
 
+**Session L, later rounds (commits `55373da` through `57f6915`):** Continued live photo
+sourcing + Imran's UAT feedback. Wired in 22 more real photos total (Boneless Breast, Peri
+Burger, Chicken Fillet Burger, Fish/Veggie Burger and Veggie Wrap — previously had NO photo at
+all, Chicken Fillet/Peri Wrap, Sides category fallback, Onion Rings, Peri+Plain Wedges, Corn
+Cob, Mozzarella Sticks, Hash Brown, and the full drinks set: Irn Bru, Diet Irn Bru, Rubicon
+Passionfruit, Levi Roots, Water, Pepsi, Pepsi Max, Fanta Orange, 7up, plus Chilli Cheese Bites).
+Two photos deliberately NOT used — "Simply Fruity" bottles sent for Fruit Shoot are a different
+brand entirely, same class of mismatch as the Coca-Cola photo rejected in OI-56. Also built:
+drink serving-size labels (all soft drinks now "(Can)", Water "(500ml)", Fruit Shoot "(330ml)")
+— required a production DB rename (`rename_chick_shack_drinks_2026_07_31.py`, same idempotent
+in-place-UPDATE pattern as the earlier item/dip renames this session, `pg_dump` backed up first,
+verified live via API: zero duplicates, zero stale old names, 87 items unchanged) — and a
+delivery service-fee disclaimer on Checkout's Payment section, matching the printed menu board's
+exact wording. Generated `Chick_Shack_Photo_Review.pdf` (local `fpdf2` + Pillow, no external
+service) as a client-facing deliverable for Malik to send Imran — one row per photo with source
+link, source thumbnail, live-site thumbnail, and status; regenerated after each round. Saved to
+`C:\Users\Malik\Desktop\Chick_Shack_Photo_Review.pdf`, NOT git-tracked. Every one of Imran's 29
+photo/feedback links sent this session has now been reviewed and either deployed or explicitly
+flagged as not used — nothing outstanding. Full ledger in `PAUSE_CHECKPOINT_2026-07-31-D.md`
+and `-E`.
+
 **Session L in one line:** Built the per-item kitchen-notes feature Malik asked for right after
 approving UAT item (iv) — design confirmed with him first via `AskUserQuestion` (two rounds;
 his second answer corrected a too-abstract first framing), then built: a free-text "Anything
