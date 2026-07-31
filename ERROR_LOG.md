@@ -567,3 +567,21 @@ Each entry follows:
   uncommitted markdown files), re-run the failing test, then `git stash pop`. If it still
   fails against unmodified code, it is pre-existing and out of scope; log it and move on
   rather than silently expanding the task.
+
+### 2026-08-01 (session O) — `Deploy to Staging` (AWS) is red on every push -- not a regression, never touched
+- **Error**: `gh run list` shows a `Deploy to Staging` GitHub Actions workflow failing on every
+  push tonight, `##[error]Credentials could not be loaded` from `aws-actions/configure-aws-credentials`
+  (targets `pos-staging` ECS in `me-south-1`)
+- **Context**: Noticed while watching the real deploy (`Deploy to Production`, DigitalOcean) succeed
+  after this session's push. Nobody asked for or touched anything AWS-related this session
+- **Root Cause**: This workflow has been failing identically on every one of the last 5+ pushes,
+  including several from before this session started — the AWS credentials secret it needs was
+  never configured (or was removed) in this repo's GitHub Actions secrets. It is dead, unused
+  infrastructure: this project's actual, working deploy path is `Deploy to Production` to the
+  DigitalOcean box, documented in `docs/DEPLOYMENT_PLAYBOOK.md`
+- **Fix**: None applied — out of scope, and disabling/editing a CI workflow wasn't asked for
+- **Rule**: **A red workflow name in `gh run list` is not automatically about the commit that
+  triggered it.** Check `gh run list --workflow "<name>" --limit 5` before assuming a new push
+  broke something — if it was already red on prior, unrelated pushes, it's pre-existing noise, not
+  a regression. This specific one (`Deploy to Staging`, AWS) can be ignored until Malik decides to
+  either fix the credentials or delete the workflow.
