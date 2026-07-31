@@ -131,6 +131,46 @@ fixes, all shipped and verified:**
    did print an order yesterday which we received and 3 copies printed" — closing the last open
    piece of OI-51/52.
 
+**Same session, severe regression found and fixed while building item #2 above: every
+multi-variant item had silently lost its size/quantity selector, live.** While verifying why the
+new variant-visibility subtitle had nothing to show for "Fried Chicken", the live API confirmed
+the item had NO Choice modifier group at all, despite `menu.ts` and `chick_shack_menu.json` both
+having one. Root cause: `97ec8c8` (earlier today, session K) made `_seed_items` delete and
+recreate every item's `menu_item_modifier_groups` links from `entry["modifierGroups"]` to fix
+group ORDER — but a multi-variant item's "<name> -- Choice" group is linked separately, and that
+delete step ran unconditionally, wiping the Choice-group link out again before session K's own
+reseed finished, with nothing in the recreate list to restore it. **Every multi-variant item on
+the live site — Half/Full Chicken on the Bone, Boneless Breast 2pc/4pc, Peri Wings, Peri Tenders,
+Fried Chicken, Fried Chicken Combo, Spicy Fried Wings, Fried Tenders, and all their Meal
+versions — showed only its cheapest price with zero way to select size, piece-count, or
+rice/chips/half-half**, silently, no error anywhere (`menuAdapter.ts`'s own documented
+flat-price fallback absorbed it cleanly). Fixed by building one `group_ids` list (variant group +
+`entry["modifierGroups"]`) and doing a single delete+recreate pass; removed the now-dead
+`_link()` helper. `pg_dump` backed up (88.6KB, 42 tables), deployed, reseeded, verified live via
+the API: all 16 affected items now correctly expose their full option list, zero duplicates.
+Independent confirmation: Imran sent a voice note (transcribed locally with `faster-whisper`,
+since it isn't directly playable) describing this exact same missing-selector problem, item by
+item, unprompted — everything he listed matched what the fix restored, so no separate feature
+work was needed for that note. Malik explicitly declined a check of whether any real customer
+order was placed during the broken window ("forget the existing orders, just fix and deploy").
+
+**Same session, 3 stock photos replaced with real photography, Imran-supplied reference links.**
+Two from `chunkychicken.com` (confirmed same UK "Chunky Chicken" franchise brand as the OI-56
+source, `chunky-chicken.uk` — not a different, unvetted business): grilled chicken quarters now
+the **Peri Peri Grilled Chicken category fallback** (`peri-grilled.webp`, was still original
+stock), and grilled wings now the **Peri Peri Wings** item photo (`peri-wings.webp`, also still
+original stock). A third link was a Google Images thumbnail-cache URL (`gstatic.com`) with no
+identifiable original source — flagged to Malik as the same class of unclear-provenance risk
+already rejected once in OI-56 (the Coca-Cola can, the fake-branded box); **Malik explicitly
+overrode that caution** ("just add the picture its fine") and it was used as a new **Peri
+Tenders** per-item photo (previously had none, inherited the category image) — grilled tender
+strips with chips, added as a new `ImageName` entry. All three sources had genuine alpha
+transparency (verified with PIL before cropping), so none needed the white-patch fix the nuggets
+photo required. Cropped to thumb (240×180) and hero (720×480) separately per the established
+convention, deployed, and verified live — all 6 image URLs return the correct byte-exact files
+(one `peri-tenders` URL hit the known Cloudflare mid-propagation SPA-fallback issue on first
+check, resolved after a longer wait and confirmed on retry).
+
 **Next action:** UAT item (vi), chunky-chicken photos — in progress now.
 
 **Session J in one line:** Finished the photo-integration work session I left in progress
@@ -243,7 +283,7 @@ orders are accepted as labelled pre-orders, never refused.
 | Served / delivered gap | ✅ **CLOSED and deployed.** Tablet has out-for-delivery / delivered / mark-paid; completed orders leave the Active tab; the customer's page follows it | `_state/open-items.md` OI-44 |
 | Customer emails | ✅ **RESOLVED 2026-07-30 — Brevo live, real order proved it, then branded.** Order `260729-003`: confirmation delivered in 2 seconds, Gmail "Show original" — SPF PASS, DKIM PASS (`d=chickshackg84.com`), DMARC PASS. Domain authentication needed a fix along the way (Brevo requires its own DMARC record to flip `authenticated`; resolved by editing Imran's single `_dmarc` record in place, same `p=none` policy, not duplicating it). **Same session: all 4 emails (received/accepted/rejected/on_the_way) given branded HTML** — ink/flame/ember from `tailwind.config.js`, no logo (none exists), inline-style table layout for client compat, every customer-supplied string `html.escape()`'d (checkout form is public input). Shipped `3ab141b`, deployed, verified live via order `260730-001` — real Gmail screenshot confirms it renders as designed. Test suite: 45/45 email tests, 432/444 full suite (12 pre-existing, unrelated). Runbook: `docs/EMAIL_SETUP_RUNBOOK.md` | `_state/open-items.md` **OI-55** |
 | Menu modifier prompts | ✅ **BUILT and deployed to production, 2026-07-31.** Peri-Peri Heat renamed to match his till; "make it a meal" is now 25 real Meal sibling products (drink + chips upgrade), not a flat +£3 tick. Exclusion ticks (no lettuce etc.) turned out to already be built. Verified against the live API: 87 items, no duplicates | `_state/open-items.md` OI-45 |
-| Storefront photos | ✅ **9 real chunky-chicken-sourced photos live, replacing stock, deployed 2026-07-31.** 6 of 15 approved photos rejected on re-verification (2 for undisclosed trademark issues, 4 for product mismatch) rather than forced in. Verified against the live bundle + all 18 image URLs, not the deploy log | `_state/open-items.md` OI-56 |
+| Storefront photos | ✅ **12 real photos live now** (9 from OI-56 + 3 more session L, same-day): Peri Grilled category fallback, Peri Wings, and a new Peri Tenders photo. 6 of the original 15 rejected on re-verification (2 trademark, 4 product mismatch). Only **fried-chicken, fried-tenders, sides-chips** still on original stock. Meal-item "with chips & drink" composite photos still needed — flagged, deferred, no safe asset exists | `_state/open-items.md` OI-56 |
 | Backend test suite | ✅ **409 passing — run and verified 2026-07-29 session E**, not inherited. Session E started from a verified **393** (session D's "391" was two short) and added **16** for the Stripe hardening. Same **12 pre-existing failures** throughout (10 failed + 2 errors), all in QuickBooks-Desktop/parked code | `ERROR_LOG.md` |
 | Core POS (10 phases) | ✅ Production, 98/99 UAT | `_state/pos-platform.md` |
 | QuickBooks Online | ✅ Live. Sync is **manual by design**, not broken | `_state/pos-platform.md` |
