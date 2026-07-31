@@ -53,7 +53,20 @@ export type ImageName =
   | "peri-tenders"
   | "sides-chips"
   | "kids-popcorn"
-  | "kids-nuggets";
+  | "kids-nuggets"
+  | "boneless-breast"
+  | "peri-burger"
+  | "chicken-fillet-burger"
+  | "fish-burger"
+  | "veggie-burger"
+  | "veggie-wrap"
+  | "chicken-wrap"
+  | "peri-wrap"
+  | "onion-rings"
+  | "peri-wedges"
+  | "corn-cob"
+  | "mozzarella-sticks"
+  | "hash-brown";
 
 export const imageThumb = (n: ImageName) => `/img/thumb/${n}.webp`;
 export const imageHero = (n: ImageName) => `/img/hero/${n}.webp`;
