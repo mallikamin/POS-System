@@ -78,20 +78,31 @@ six items:
   tablet himself rather than a second device/tab. Not yet checked either way.
 - (iii) Allergy notice + kitchen notes box — ✅ approved
 - (iv) Remove-selections ("leave it out" ticks) — ✅ approved, after fixing a real bug (see above)
-- (v) Burger name suffixes — **not yet reached**
-- (vi) Chunky-chicken photos — **not yet reached** (built and deployed in session I/J, but not
-  yet walked through as part of THIS structured UAT pass)
+- (v) Burger name suffixes — ✅ approved. Pre-checked server-side by sweeping the live production
+  API (`GET /public/chick-shack/menu`, all 87 items) before asking Malik to look: all 10 burger
+  items end "…Burger", all 6 wrap items end "…Wrap", Meal siblings correctly read "…Burger Meal" /
+  "…Wrap Meal", zero duplicate names anywhere — ruling out the stale-duplicate-row failure mode
+  `ERROR_LOG.md` documented for this exact rename. Malik then confirmed visually on the live site.
+- (vi) Chunky-chicken photos — **in progress** (built and deployed in session I/J, being walked
+  through now as part of THIS structured UAT pass)
 
-**Per-item notes ask from Malik right after approving (iv) — ✅ BUILT, deployed live, session L.**
-Design was confirmed with him via two rounds of `AskUserQuestion` before any code was written:
-ticket style = same bold treatment as exclusions; connection = the item note is written straight
-into the same Checkout "Notes for the kitchen" box, editable from there. Full technical writeup
-in the session L summary above. **Not yet walked through with Malik** — needs its own manual
-check, same pattern as the six numbered items, before being considered UAT-approved.
+**Per-item notes ask from Malik right after approving (iv) — ✅ BUILT, deployed, live-tested by
+Malik, session L.** Design confirmed via two rounds of `AskUserQuestion` before any code was
+written: ticket style = same bold treatment as exclusions; connection = the item note is written
+straight into the same Checkout "Notes for the kitchen" box, editable from there. Malik tried it
+live and found one real UX issue: the auto-inserted text was prefixed `"ItemName: comment"`,
+which reads as clutter with several items each carrying a note. Fixed to insert the plain comment
+text only (no item-name prefix) — the per-line note still reaches the kitchen ticket correctly
+attached to its own item regardless of what the checkout box says. Redeployed, verified live.
+Same session, two more of his live-testing findings, both shipped: the allergen notice was
+checkout-only and is now also on the homepage; the Meal-item photos still show the solo item's
+photo with no chips/drink in frame — **flagged as needing real photography, not fixed**, since
+the only prior candidate photos showing a full meal composition (`menuitem-6.jpg`,
+`menuitem-8.jpg` from the session J chunky-chicken source set) were deliberately rejected at the
+time for showing a rival Coca-Cola can and a fake competitor-branded box — there is no safe
+existing asset to pull from. Malik said to let it wait.
 
-**Next action:** present the per-item notes feature to Malik for a manual check (it's new,
-unreviewed, not one of the original six items), then continue the UAT walkthrough at item (v),
-then (vi), then return to (ii) whenever Malik is at the tablet.
+**Next action:** UAT item (vi), chunky-chicken photos — in progress now.
 
 **Session J in one line:** Finished the photo-integration work session I left in progress
 (`PAUSE_CHECKPOINT_2026-07-31.md`). Re-verified every proposed photo→item mapping in
