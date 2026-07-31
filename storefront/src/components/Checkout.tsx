@@ -293,6 +293,14 @@ export default function Checkout({ onBack, onPlaced }: Props) {
 
       <section>
         <h2 className="label">Payment</h2>
+        {/* Same wording as the printed menu board's "Delivery Charges" box.
+            Delivery-only: a service fee for long-distance delivery has
+            nothing to say to a customer collecting in person. */}
+        {service === "delivery" && (
+          <p className="text-xs text-cream/50 mb-3">
+            A service fee may be applied for long distance deliveries.
+          </p>
+        )}
         {/* Card is hidden, not merely unselected, until it is proven end to
             end. Offering "Pay now by card" while the server holds test keys
             would decline every real customer's real card for no reason they

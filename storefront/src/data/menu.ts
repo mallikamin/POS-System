@@ -362,7 +362,7 @@ const BASE_ITEMS: MenuItem[] = [
   flat("s-chips-large", "sides", "Large Chips", 399),
   flat("s-peri-chips", "sides", "Peri Chips", 429),
   flat("s-onion-rings", "sides", "Onion Rings (12)", 599, [], undefined, "onion-rings"),
-  flat("s-wedges-plain", "sides", "Plain Wedges", 429),
+  flat("s-wedges-plain", "sides", "Plain Wedges", 429, [], undefined, "peri-wedges"),
   flat("s-wedges-peri", "sides", "Peri Wedges", 479, [], undefined, "peri-wedges"),
   flat("s-chilli-cheese-bites", "sides", "Chilli Cheese Bites (8)", 499, [], undefined, "chilli-cheese-bites"),
   flat("s-corn-cob", "sides", "Corn Cob", 299, [], undefined, "corn-cob"),
@@ -423,22 +423,28 @@ const BASE_ITEMS: MenuItem[] = [
   flat("d-algerian", "dips", "Algerian Sauce", 99),
 
   // --- Drinks --------------------------------------------------------------
-  flat("dr-pepsi", "drinks", "Pepsi", 179),
-  flat("dr-pepsi-max", "drinks", "Pepsi Max", 179),
-  flat("dr-fanta-orange", "drinks", "Fanta Orange", 179),
-  flat("dr-7up", "drinks", "7up", 179),
+  // Serving-size labels ("(Can)" / "(500ml)" / "(330ml)") added on Imran's
+  // instruction, 2026-07-31. These are RENAMES on the database side — see
+  // rename_chick_shack_drinks_2026_07_31.py, which must run on production
+  // BEFORE the next reseed, same reasoning as the item-name and dip-modifier
+  // renames earlier this session (seed_chick_shack.py matches by name; a
+  // blind rename here would duplicate the row rather than rename it).
+  flat("dr-pepsi", "drinks", "Pepsi (Can)", 179, [], undefined, "pepsi"),
+  flat("dr-pepsi-max", "drinks", "Pepsi Max (Can)", 179, [], undefined, "pepsi-max"),
+  flat("dr-fanta-orange", "drinks", "Fanta Orange (Can)", 179, [], undefined, "fanta-orange"),
+  flat("dr-7up", "drinks", "7up (Can)", 179, [], undefined, "7up"),
   // Fanta Pineapple Grapefruit removed and these two added on Imran's
   // instruction, 2026-07-27 — they are on neither the printed board nor
   // chick-shack.com.
-  flat("dr-rubicon-passion", "drinks", "Rubicon Passionfruit", 179, [], undefined, "rubicon-passion"),
-  flat("dr-levi-roots", "drinks", "Levi Roots Caribbean Crush", 179, [], undefined, "levi-roots"),
-  flat("dr-irn-bru", "drinks", "Irn Bru", 179, [], undefined, "irn-bru"),
-  flat("dr-irn-bru-diet", "drinks", "Diet Irn Bru", 179, [], undefined, "irn-bru-diet"),
-  flat("dr-water", "drinks", "Water", 149, [], undefined, "water"),
+  flat("dr-rubicon-passion", "drinks", "Rubicon Passionfruit (Can)", 179, [], undefined, "rubicon-passion"),
+  flat("dr-levi-roots", "drinks", "Levi Roots Caribbean Crush (Can)", 179, [], undefined, "levi-roots"),
+  flat("dr-irn-bru", "drinks", "Irn Bru (Can)", 179, [], undefined, "irn-bru"),
+  flat("dr-irn-bru-diet", "drinks", "Diet Irn Bru (Can)", 179, [], undefined, "irn-bru-diet"),
+  flat("dr-water", "drinks", "Water (500ml)", 149, [], undefined, "water"),
   {
     id: "dr-fruit-shoot",
     categoryId: "drinks",
-    name: "Fruit Shoot",
+    name: "Fruit Shoot (330ml)",
     variants: [
       { id: "fs-orange", name: "Orange", price: 149 },
       { id: "fs-blackcurrant", name: "Blackcurrant", price: 149 },

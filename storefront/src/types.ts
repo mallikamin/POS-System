@@ -72,7 +72,11 @@ export type ImageName =
   | "rubicon-passion"
   | "levi-roots"
   | "water"
-  | "chilli-cheese-bites";
+  | "chilli-cheese-bites"
+  | "pepsi"
+  | "pepsi-max"
+  | "fanta-orange"
+  | "7up";
 
 export const imageThumb = (n: ImageName) => `/img/thumb/${n}.webp`;
 export const imageHero = (n: ImageName) => `/img/hero/${n}.webp`;
