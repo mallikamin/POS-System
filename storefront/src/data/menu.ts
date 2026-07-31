@@ -366,7 +366,7 @@ const BASE_ITEMS: MenuItem[] = [
   flat("s-wedges-peri", "sides", "Peri Wedges", 479, [], undefined, "peri-wedges"),
   flat("s-chilli-cheese-bites", "sides", "Chilli Cheese Bites (8)", 499, [], undefined, "chilli-cheese-bites"),
   flat("s-corn-cob", "sides", "Corn Cob", 299, [], undefined, "corn-cob"),
-  flat("s-beans", "sides", "Beans (8oz)", 249),
+  flat("s-beans", "sides", "Beans (8oz)", 249, [], undefined, "beans"),
   flat("s-gravy", "sides", "Gravy (8oz)", 249, [], undefined, "gravy"),
   flat("s-coleslaw", "sides", "Coleslaw (8oz)", 249, [], undefined, "coleslaw"),
   flat("s-spicy-rice", "sides", "Spicy Rice", 399, [], undefined, "spicy-rice"),

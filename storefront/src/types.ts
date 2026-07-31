@@ -79,7 +79,8 @@ export type ImageName =
   | "7up"
   | "gravy"
   | "coleslaw"
-  | "spicy-rice";
+  | "spicy-rice"
+  | "beans";
 
 export const imageThumb = (n: ImageName) => `/img/thumb/${n}.webp`;
 export const imageHero = (n: ImageName) => `/img/hero/${n}.webp`;
