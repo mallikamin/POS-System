@@ -255,6 +255,7 @@ const BASE_ITEMS: MenuItem[] = [
       { id: "pt-7", name: "7 pc", price: 899 },
     ],
     modifierGroups: [HEAT, DIPS],
+    image: "peri-tenders",
   },
 
   // --- Fried Chicken -------------------------------------------------------

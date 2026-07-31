@@ -50,6 +50,7 @@ export type ImageName =
   | "burger-big-shack"
   | "wraps"
   | "wrap-hot-chick"
+  | "peri-tenders"
   | "sides-chips"
   | "kids-popcorn"
   | "kids-nuggets";
