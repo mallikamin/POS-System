@@ -7,6 +7,8 @@ import { unitPriceOf, useCart } from "../store/cart";
 
 interface Props {
   item: MenuItem;
+  /** Display name of item's category, resolved by the caller — see `exclusionsFor`. */
+  categoryName: string;
   onClose: () => void;
   /** The Meal/Solo counterpart of `item`, if the menu has one. */
   sibling?: MenuItem;
@@ -20,7 +22,7 @@ interface Props {
  * Variant prices are absolute (2pc £4.99 / 4pc £7.99), so selecting a variant
  * REPLACES the base price. Modifier deltas are then added on top.
  */
-export default function ItemModal({ item, onClose, sibling, onSwitch }: Props) {
+export default function ItemModal({ item, categoryName, onClose, sibling, onSwitch }: Props) {
   const add = useCart((s) => s.add);
 
   const [variant, setVariant] = useState<Variant>(item.variants[0]!);
@@ -29,7 +31,7 @@ export default function ItemModal({ item, onClose, sibling, onSwitch }: Props) {
 
   /** "Leave it out" ticks. Free, and only offered where salad and sauce exist. */
   const [excluded, setExcluded] = useState<string[]>([]);
-  const excludable = exclusionsFor(item);
+  const excludable = exclusionsFor(categoryName);
 
   /** null for items that deliberately have no photo — the modal just omits it. */
   const hero = itemImage(item);

@@ -145,6 +145,10 @@ export default function MenuBrowser() {
         <ItemModal
           key={open.id}
           item={open}
+          // `categories` and `items` come from the same source (local
+          // fallback or live API), so this always resolves correctly even
+          // though `open.categoryId` is a slug locally and a UUID live.
+          categoryName={categories.find((c) => c.id === open.categoryId)?.name ?? ""}
           sibling={siblingOf(open, items)}
           onSwitch={setOpen}
           onClose={() => setOpen(null)}

@@ -652,7 +652,7 @@ export const EXCLUSIONS = [
 ] as const;
 
 /**
- * Which categories get the ticks.
+ * Which categories get the ticks, by NAME rather than id.
  *
  * Salad and sauce only exist on the things you build: burgers, wraps and the
  * chicken plates. Offering "no lettuce" on a can of Irn Bru is noise, and noise
@@ -660,14 +660,21 @@ export const EXCLUSIONS = [
  *
  * ⚠️ The category list is **our** inference from his wording ("only with chicken
  * and a wrap"), not something he enumerated. Confirm it with him.
+ *
+ * By name, not id: `categoryId` is the local slug ("burgers") in the hardcoded
+ * fallback menu but a database UUID once the live menu loads from the API, and
+ * this Set was never updated for that second case. Result: this section has
+ * never actually appeared on the live site — caught in UAT, Malik saw no
+ * "leave it out" section at all on the real chickshackg84.com. Names survive
+ * both paths (see `menuAdapter.ts`'s "Names are the join key throughout").
  */
-const EXCLUDABLE_CATEGORIES = new Set([
-  "burgers",
-  "wraps",
-  "peri-grilled",
-  "fried-chicken",
+const EXCLUDABLE_CATEGORY_NAMES = new Set([
+  "Burgers",
+  "Wraps",
+  "Peri Peri Grilled Chicken",
+  "Fried Chicken",
 ]);
 
-export function exclusionsFor(item: MenuItem): readonly string[] {
-  return EXCLUDABLE_CATEGORIES.has(item.categoryId) ? EXCLUSIONS : [];
+export function exclusionsFor(categoryName: string): readonly string[] {
+  return EXCLUDABLE_CATEGORY_NAMES.has(categoryName) ? EXCLUSIONS : [];
 }
