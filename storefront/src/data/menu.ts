@@ -371,7 +371,7 @@ const BASE_ITEMS: MenuItem[] = [
   flat("s-coleslaw", "sides", "Coleslaw (8oz)", 249, [], undefined, "coleslaw"),
   flat("s-spicy-rice", "sides", "Spicy Rice", 399, [], undefined, "spicy-rice"),
   flat("s-hash-brown", "sides", "Hash Brown", 299, [], undefined, "hash-brown"),
-  flat("s-salad-box", "sides", "Salad Box", 299),
+  flat("s-salad-box", "sides", "Salad Box", 299, [], undefined, "salad-box"),
 
   // --- Kids ----------------------------------------------------------------
   {
@@ -450,6 +450,7 @@ const BASE_ITEMS: MenuItem[] = [
       { id: "fs-blackcurrant", name: "Blackcurrant", price: 149 },
     ],
     modifierGroups: [],
+    image: "fruit-shoot",
   },
 ];
 
