@@ -35,7 +35,37 @@ silently never matched. Same slug-vs-UUID class of bug already solved for images
 here. Fixed by matching on the category's NAME instead (resolved by `MenuBrowser` from its own
 always-correct `categories` list, passed to `ItemModal` as a plain prop) — no schema change.
 Pure frontend fix, no DB involved. `tsc` clean, deployed to Cloudflare, live bundle verified
-for the new code. Commit `a178d78`, pushed. Awaiting Malik's re-check.
+for the new code. Commit `a178d78`, pushed. **Malik confirmed fixed, approved.**
+
+## 🔴 Resume here (session K handoff, UAT of Imran's 07-31 six-item list in progress)
+
+Going one item at a time via `AskUserQuestion`-style manual checks, Malik approving or
+reporting back after each. Progress against
+`_context/clients/chick-shack-uk/voice-notes/2026-07-31_imran_meal-modifiers-and-photos.md`'s
+six items:
+- (i) Meal modifiers — ✅ approved, after 3 rounds of real fixes (see above)
+- (ii) New-order sound alert — **deferred by Malik**, he wants to test it live on the real
+  tablet himself rather than a second device/tab. Not yet checked either way.
+- (iii) Allergy notice + kitchen notes box — ✅ approved
+- (iv) Remove-selections ("leave it out" ticks) — ✅ approved, after fixing a real bug (see above)
+- (v) Burger name suffixes — **not yet reached**
+- (vi) Chunky-chicken photos — **not yet reached** (built and deployed in session I/J, but not
+  yet walked through as part of THIS structured UAT pass)
+
+**New, not-yet-started ask from Malik right after approving (iv):** add a small free-text
+comment field per item (near the "Anything to leave out?" ticks in `ItemModal.tsx`), and it
+must be "carried forward in the final comments box as well — both should be connected", i.e.
+flow into or alongside the order-level "Notes for the kitchen" box in `Checkout.tsx`, not sit
+siloed on the item. Needs design before building: where it lives on `CartLine` (types.ts
+already has `exclusions: string[]` per line as precedent), how it merges into the per-line
+`notes` that already reach the kitchen ticket, and how it should appear at checkout (auto-
+populate the summary box? list above it? both editable?). Confirm the design with Malik before
+wiring it in, given his explicit "don't want a screwup" standard from the photo work earlier
+this session.
+
+**Next action:** continue the UAT walkthrough at item (v), then (vi), then build the per-item
+notes feature (get Malik's sign-off on the design first), then return to (ii) whenever Malik
+is at the tablet.
 
 **Session J in one line:** Finished the photo-integration work session I left in progress
 (`PAUSE_CHECKPOINT_2026-07-31.md`). Re-verified every proposed photo→item mapping in
