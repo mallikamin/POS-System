@@ -448,6 +448,45 @@ Each entry follows:
 - **Fix**: the overwritten content was reconstructed from earlier in the same conversation (the file had been read in full near the start of the session, before being overwritten later) and restored to the plain filename with a "superseded" note; session K's content was moved to `PAUSE_CHECKPOINT_2026-07-31-C.md`, continuing this repo's own letter-suffix convention
 - **Rule**: **Before running `/pause` (directly or via `/handoff`) on a project that may have had an earlier session the same day, check for an existing `PAUSE_CHECKPOINT_[today's date].md` first** — if one exists, write to the next available letter suffix instead of overwriting it. This applies to any generic skill whose instructions assume a filename is safe to write unconditionally; a project's own established convention (visible in its file listing) should win over a skill's generic default.
 
+### 2026-07-31 (session M) — First live sandbox card test: Accept did not capture payment, and it's still open
+- **Error**: None thrown anywhere. Order `260731-001` went through Stripe sandbox Checkout
+  correctly (confirmation page: "Card details taken. We only charge you once the shop
+  accepts your order.") — but after Imran hit Accept on the tablet, the tablet, all 3
+  printed receipts, and the "Confirmed" customer email **all still showed unpaid/due on
+  delivery**, when a successful `capture_for_order` should have flipped all three
+- **Context**: The first real end-to-end test of OI-41, Imran live on the phone, using the
+  `?card=1` override to reveal the card button
+- **Root Cause**: **NOT YET FOUND — this entry is a placeholder, not a resolution.**
+  `docker logs` grepped for the order number, "stripe", "capture", "accept" returned zero
+  matches; grepped for "accept|POST" returned one unrelated alembic startup line, meaning
+  almost no request activity showed up in the access log for a window that must have had
+  several real requests. Investigation was interrupted by a `/handoff` before reaching the
+  database or Stripe API directly. See `PAUSE_CHECKPOINT_2026-07-31-F.md` for the exact
+  next steps and the diagnostics already ruled out
+- **Fix**: Not yet fixed. Do not swap to Stripe live keys until this is understood and a
+  retest passes clean
+- **Rule**: **When three independent-looking surfaces (tablet, printer, email) all show the
+  same wrong thing, suspect one shared read path, not three separate bugs** — likely all
+  three just render `order.payment_status`/`payment_captured_at` faithfully, and the actual
+  fault is upstream of all of them. Check the database and Stripe directly for ground
+  truth before trusting any UI surface, including the "it looks fixed" ones
+
+### 2026-07-31 (session M) — Told Malik a Shutterstock photo had no visible watermark; it did
+- **Error**: Said "no visible watermark" about a `shutterstock.com` preview image based on a
+  quick look; the actual crop had a legible "shutterstock.com · 83031757" credit line baked
+  into the bottom
+- **Context**: Vetting a photo Malik had already been given permission to use, before
+  deploying it live on the customer-facing menu
+- **Root Cause**: Judged the source image at a glance rather than zooming into the exact
+  region that would end up in the live crop
+- **Fix**: Caught while reviewing the generated crop (not the original), corrected course,
+  re-asked Malik with accurate information before he re-confirmed. Cropped the watermark
+  strip out before deploying
+- **Rule**: **"No visible watermark" is a claim to verify at full resolution on the exact
+  pixels that will ship, not a first impression from a thumbnail.** Re-verify a visual
+  claim before repeating it back to the user as fact, especially when it's the basis for
+  a decision they're about to make
+
 ### 2026-07-31 (session L) — Fixing modifier-group ORDER silently deleted every multi-variant item's size selector, live
 - **Error**: None surfaced by tooling. The live public API for "Fried Chicken" showed a single flat £4.99 price with no way to choose 2pc/3pc/4pc, despite `menu.ts` and the regenerated `chick_shack_menu.json` both correctly listing all three. Caught while verifying why a new "show variant options in the menu list" fix had nothing to display
 - **Context**: `97ec8c8`, the SAME DAY earlier in session K, changed `_seed_items` to unconditionally `DELETE` then recreate every item's `menu_item_modifier_groups` links from `entry["modifierGroups"]`, specifically to fix modifier-group ORDER (see the entry directly above this one). Multi-variant items link their `"<name> -- Choice"` group separately, via a standalone `_link()` call that ran a few lines BEFORE that delete
