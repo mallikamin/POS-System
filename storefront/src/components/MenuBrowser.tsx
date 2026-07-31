@@ -114,6 +114,15 @@ export default function MenuBrowser() {
                               {item.description}
                             </p>
                           )}
+                          {/* Imran: the piece-count options (2pc/3pc/4pc etc.) on
+                              fried chicken, wings, tenders and peri items weren't
+                              visible until you opened the item — only a "from"
+                              price hinted more than one option existed. */}
+                          {multi && (
+                            <p className="text-xs text-cream/40 mt-1">
+                              {item.variants.map((v) => v.name).join(" · ")}
+                            </p>
+                          )}
                           {isMealItem(item) && (
                             <span className="inline-block mt-2 text-[11px] font-semibold uppercase tracking-wide text-ember">
                               Meal Deal · includes a drink &amp; chips
