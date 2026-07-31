@@ -1,6 +1,29 @@
 # STATE — Restaurant POS System
 
-**Last refreshed:** 2026-07-31 (session K) · **Branch:** `main`
+**Last refreshed:** 2026-07-31 (session L) · **Branch:** `main`
+
+**Session L in one line:** Built the per-item kitchen-notes feature Malik asked for right after
+approving UAT item (iv) — design confirmed with him first via `AskUserQuestion` (two rounds;
+his second answer corrected a too-abstract first framing), then built: a free-text "Anything
+else?" field in `ItemModal.tsx` next to the "leave it out" ticks, travelling the same path as
+exclusions (`CartLine.note` is part of the line's identity like `exclusions`, joins the line's
+`notes` string, prints bold `** ` on the kitchen ticket — zero `print_service.py` changes
+needed). Connection to Checkout: `orderNotes` was lifted out of `Checkout.tsx` local state into
+the cart store itself, so `add()` can write `"ItemName: note"` straight into the same box the
+customer sees at checkout, and it survives navigating back to the menu (Checkout is conditionally
+unmounted, not just hidden). Basket persist version bumped 3→4 (same discard-at-boundary
+treatment as the exclusions bump). Caught and fixed one real bug before shipping: the new
+textarea's `text-sm` class silently overrode `index.css`'s global `textarea { font-size: 16px }`
+rule, which exists specifically to stop iOS Safari zooming the page on focus — switched to the
+same `.field` class every other input in the app uses. No backend/DB changes at all, so no
+`pg_dump` needed — pure frontend, `tsc`+`vite build` clean. Deployed via
+`cd storefront && npm run deploy`; first bundle fetch hit the same "mid-propagation SPA
+fallback" Cloudflare issue `ERROR_LOG.md` already documented from session J (200 OK, ~1KB of
+`index.html` instead of the real ~192KB bundle) — waited 8s, re-fetched, got the real
+192,520-byte bundle matching the build output exactly, with the new strings and the testing-mode
+banner both confirmed present. Commit `d0d3199`, pushed. Chrome extension tried again this
+session (4th session running) — still would not connect; verified structurally + via the live
+bundle instead, per the now-established pattern.
 
 **Session K in one line:** Malik's first live UAT pass on OI-45(b) surfaced 3 real issues,
 all fixed and deployed: (1) a solo item gave no hint a Meal version existed — Meal items were
@@ -37,7 +60,14 @@ always-correct `categories` list, passed to `ItemModal` as a plain prop) — no 
 Pure frontend fix, no DB involved. `tsc` clean, deployed to Cloudflare, live bundle verified
 for the new code. Commit `a178d78`, pushed. **Malik confirmed fixed, approved.**
 
-## 🔴 Resume here (session K handoff, UAT of Imran's 07-31 six-item list in progress)
+## 🔴 Resume here (session L, UAT of Imran's 07-31 six-item list in progress)
+
+**Per-item kitchen notes — BUILT and deployed, live, 2026-07-31 session L.** Design confirmed
+with Malik first (see session L summary above). Not yet Malik-verified live (he hasn't clicked
+through it yet) — this is a new, unreviewed feature, not one of the original six UAT items, so
+flag it to him explicitly rather than folding it silently into the (v)/(vi) walkthrough.
+
+
 
 Going one item at a time via `AskUserQuestion`-style manual checks, Malik approving or
 reporting back after each. Progress against
@@ -52,20 +82,16 @@ six items:
 - (vi) Chunky-chicken photos — **not yet reached** (built and deployed in session I/J, but not
   yet walked through as part of THIS structured UAT pass)
 
-**New, not-yet-started ask from Malik right after approving (iv):** add a small free-text
-comment field per item (near the "Anything to leave out?" ticks in `ItemModal.tsx`), and it
-must be "carried forward in the final comments box as well — both should be connected", i.e.
-flow into or alongside the order-level "Notes for the kitchen" box in `Checkout.tsx`, not sit
-siloed on the item. Needs design before building: where it lives on `CartLine` (types.ts
-already has `exclusions: string[]` per line as precedent), how it merges into the per-line
-`notes` that already reach the kitchen ticket, and how it should appear at checkout (auto-
-populate the summary box? list above it? both editable?). Confirm the design with Malik before
-wiring it in, given his explicit "don't want a screwup" standard from the photo work earlier
-this session.
+**Per-item notes ask from Malik right after approving (iv) — ✅ BUILT, deployed live, session L.**
+Design was confirmed with him via two rounds of `AskUserQuestion` before any code was written:
+ticket style = same bold treatment as exclusions; connection = the item note is written straight
+into the same Checkout "Notes for the kitchen" box, editable from there. Full technical writeup
+in the session L summary above. **Not yet walked through with Malik** — needs its own manual
+check, same pattern as the six numbered items, before being considered UAT-approved.
 
-**Next action:** continue the UAT walkthrough at item (v), then (vi), then build the per-item
-notes feature (get Malik's sign-off on the design first), then return to (ii) whenever Malik
-is at the tablet.
+**Next action:** present the per-item notes feature to Malik for a manual check (it's new,
+unreviewed, not one of the original six items), then continue the UAT walkthrough at item (v),
+then (vi), then return to (ii) whenever Malik is at the tablet.
 
 **Session J in one line:** Finished the photo-integration work session I left in progress
 (`PAUSE_CHECKPOINT_2026-07-31.md`). Re-verified every proposed photo→item mapping in
