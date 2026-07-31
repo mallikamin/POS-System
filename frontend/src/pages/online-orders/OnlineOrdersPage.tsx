@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Bell, BellOff } from "lucide-react";
 import {
   acceptOnlineOrder,
   completeOnlineOrder,
@@ -107,6 +108,20 @@ function stageLabel(order: OnlineOrder): string {
   return order.eta_minutes ? `Accepted · ${order.eta_minutes} min` : "Accepted";
 }
 
+/** A short, high beep -- the actual sound, shared by the real alert and the
+ * "Enable sound" button's own confirmation beep. */
+function playTone(ctx: AudioContext): void {
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.frequency.value = 880;
+  gain.gain.setValueAtTime(0.25, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.6);
+  osc.start();
+  osc.stop(ctx.currentTime + 0.6);
+}
+
 /** Older than this and the card starts shouting. A waiting customer is a lost one. */
 function urgency(minutes: number): string {
   // A pre-order placed overnight is not an emergency, and colouring it as one
@@ -138,63 +153,78 @@ export default function OnlineOrdersPage() {
   // from this, so it needs no re-render.
   const ticketUrls = useRef<Map<string, string>>(new Map());
 
-  const chime = useCallback(() => {
+  // ⚠️ One AudioContext for the whole page's life, not a fresh one per chime.
+  // Chrome -- Android especially, which is what this tablet runs -- creates
+  // every new AudioContext `suspended` until it is resumed from inside a
+  // genuine user gesture, and does this silently: no exception, just no
+  // sound. A poll timer is never a gesture, so a context built fresh inside
+  // one (the previous version of this code) can never actually play.
+  // Same rule that already bit the `rawbt:` print navigation once before --
+  // see the Print button below. Resuming ONE context on an explicit tap
+  // keeps it usable for every later chime fired from a poll.
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const [audioReady, setAudioReady] = useState(false);
+
+  const enableSound = useCallback(() => {
     try {
       const Ctx =
         window.AudioContext ||
         (window as unknown as { webkitAudioContext: typeof AudioContext })
           .webkitAudioContext;
-      const ctx = new Ctx();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.frequency.value = 880;
-      gain.gain.setValueAtTime(0.25, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.6);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.6);
+      if (!Ctx) return;
+      if (!audioCtxRef.current) audioCtxRef.current = new Ctx();
+      audioCtxRef.current.resume().catch(() => {
+        // Nothing to do; the button stays showing "Enable sound".
+      });
+      setAudioReady(true);
+      // Confirm immediately, from inside this same tap. If this is silent,
+      // it is the tablet's media volume or Chrome's per-site Sound setting,
+      // not this page -- worth knowing before the real order comes in.
+      playTone(audioCtxRef.current);
     } catch {
       // A tablet that refuses to make noise is not a reason to stop working.
     }
   }, []);
 
-  const refresh = useCallback(
-    async (which: OnlineOrderState) => {
-      try {
-        const next = await listOnlineOrders(which);
-        setOrders(next);
+  const chime = useCallback(() => {
+    const ctx = audioCtxRef.current;
+    if (!ctx) return; // sound was never enabled this session -- nothing to do
+    try {
+      // Defensive: a backgrounded tab can suspend an already-running context
+      // again. Resuming an already-running context is a harmless no-op.
+      void ctx.resume();
+      playTone(ctx);
+    } catch {
+      // A tablet that refuses to make noise is not a reason to stop working.
+    }
+  }, []);
 
-        // Fetch every ticket URL up front, in the background.
-        //
-        // Not an optimisation -- a correctness requirement. Chrome on Android
-        // only follows a custom scheme inside a real user gesture, and an
-        // `await` inside the tap handler ends that gesture, so the print was
-        // being dropped silently. Having the URL already in hand is what makes
-        // the Print button navigate synchronously and actually reach RawBT.
-        void Promise.all(
-          next.map(async (order) => {
-            if (ticketUrls.current.has(order.id)) return;
-            const url = await fetchTicketUrl(order.id);
-            if (url) ticketUrls.current.set(order.id, url);
-          }),
-        );
+  const refresh = useCallback(async (which: OnlineOrderState) => {
+    try {
+      const next = await listOnlineOrders(which);
+      setOrders(next);
 
-        if (which === "pending") {
-          const incoming = next.filter((o) => !knownIds.current.has(o.id));
-          if (incoming.length > 0 && !firstLoad.current) chime();
-          knownIds.current = new Set(next.map((o) => o.id));
-          firstLoad.current = false;
-        }
-      } catch {
-        // Deliberately silent. A dropped poll on a shop wifi is normal and a
-        // toast every 10 seconds would train them to ignore all toasts.
-      } finally {
-        setLoading(false);
-      }
-    },
-    [chime],
-  );
+      // Fetch every ticket URL up front, in the background.
+      //
+      // Not an optimisation -- a correctness requirement. Chrome on Android
+      // only follows a custom scheme inside a real user gesture, and an
+      // `await` inside the tap handler ends that gesture, so the print was
+      // being dropped silently. Having the URL already in hand is what makes
+      // the Print button navigate synchronously and actually reach RawBT.
+      void Promise.all(
+        next.map(async (order) => {
+          if (ticketUrls.current.has(order.id)) return;
+          const url = await fetchTicketUrl(order.id);
+          if (url) ticketUrls.current.set(order.id, url);
+        }),
+      );
+    } catch {
+      // Deliberately silent. A dropped poll on a shop wifi is normal and a
+      // toast every 10 seconds would train them to ignore all toasts.
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     setLoading(true);
@@ -202,6 +232,34 @@ export default function OnlineOrdersPage() {
     const id = window.setInterval(() => void refresh(state), POLL_MS);
     return () => window.clearInterval(id);
   }, [state, refresh]);
+
+  // Watches for new pending orders regardless of which tab is on screen --
+  // switching to "Active" or "All" must not silence the alert for whatever
+  // arrives next. Runs its own poll rather than reusing `refresh`'s tab-scoped
+  // one, on purpose, so it keeps working no matter what's currently displayed.
+  useEffect(() => {
+    let cancelled = false;
+
+    async function checkForNewOrders() {
+      try {
+        const pending = await listOnlineOrders("pending");
+        if (cancelled) return;
+        const incoming = pending.filter((o) => !knownIds.current.has(o.id));
+        if (incoming.length > 0 && !firstLoad.current) chime();
+        knownIds.current = new Set(pending.map((o) => o.id));
+        firstLoad.current = false;
+      } catch {
+        // Same as the main poll: a dropped request on shop wifi is normal.
+      }
+    }
+
+    void checkForNewOrders();
+    const id = window.setInterval(() => void checkForNewOrders(), POLL_MS);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [chime]);
 
   async function onAccept(order: OnlineOrder, eta: number) {
     setBusyId(order.id);
@@ -359,6 +417,26 @@ export default function OnlineOrdersPage() {
         </div>
 
         <div className="flex gap-2">
+          <button
+            onClick={enableSound}
+            title={
+              audioReady
+                ? "Sound is on for this session"
+                : "Tap once to enable the new-order alert sound"
+            }
+            className={`flex h-14 items-center gap-2 rounded-xl px-4 text-base font-semibold ${
+              audioReady
+                ? "bg-green-100 text-green-800"
+                : "animate-pulse bg-amber-100 text-amber-900"
+            }`}
+          >
+            {audioReady ? (
+              <Bell className="h-5 w-5" />
+            ) : (
+              <BellOff className="h-5 w-5" />
+            )}
+            {audioReady ? "Sound on" : "Enable sound"}
+          </button>
           {(["pending", "active", "all"] as OnlineOrderState[]).map((s) => (
             <button
               key={s}
