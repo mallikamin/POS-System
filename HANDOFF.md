@@ -7,49 +7,55 @@ Quality first. No scope drift.
 - Invoke the /refresh skill for this project (this directory).
 - It reads STATE.md (authoritative), then dated files newest to oldest including the
   latest PAUSE_CHECKPOINT, reconciles them, and flags any contradiction out loud.
-- `PAUSE_CHECKPOINT_2026-07-31-F.md` is the newest of six same-day checkpoints
-  (`.md`, `-B`, `-C`, `-D`, `-E`, `-F`) — read `-F` in full before anything else. It ends
-  mid-investigation of a live, unresolved bug — do not treat it as a completed session.
+- `PAUSE_CHECKPOINT_2026-08-01.md` is the newest checkpoint — read it in full before
+  anything else. OI-41 (Stripe capture-on-accept) is PROVEN and fixed this time,
+  verified directly against Stripe and the DB on a real order — do not re-investigate
+  that. Everything left is four specific, well-scoped UX/polish fixes, none of them
+  payment-correctness bugs.
 
 ## 2. Absorb the operating context
-- Read ERROR_LOG.md, especially the two newest entries (2026-07-31, session M) — one is
-  the exact unresolved bug you're picking up, the other is a lesson about verifying visual
-  claims at full resolution, not thumbnail size.
-- Read `docs/STRIPE_HARDENING_CHECKLIST.md` before touching anything payment-related — the
-  H-1...H-10 history and the exact test plan currently being run live one.
+- Read ERROR_LOG.md, especially the two entries updated/added 2026-08-01 (session N):
+  the capture-on-accept bug is now marked RESOLVED with its full root cause and fix, and
+  a new entry covers the stale-print-ticket-cache bug found in the same live retest.
 - Re-read this project's CLAUDE.md deployment rules: staged paths not `git add .`,
   no secrets in commits, correct repo and branch. Honor the global CLAUDE.md
   (credential safety, shell discipline).
 - `memory/server-deployment-rules.md` before touching the server, `memory/data-integrity.md`
-  before any DB op — `pg_dump` first, no exceptions.
+  before any DB op — `pg_dump` first, no exceptions. (Nothing in the 4 pending items
+  needs a DB op or server touch besides a normal `git push` deploy, but read them anyway
+  before assuming that stays true.)
 
 ## 3. Continue the work
-- Open `PAUSE_CHECKPOINT_2026-07-31-F.md` in this directory and resume from its "In
-  Progress" section — that IS the priority, not a side item.
-- Goal (unchanged): Chick Shack UK online ordering. Prove the Stripe **sandbox**
-  card-payment flow end to end (OI-41) with Imran, who is standing by ready to re-test the
-  moment this is fixed, then switch to **live** Stripe keys for one real transaction.
-- Priority next step: **A real sandbox test just failed** — order `260731-001` was card-
-  authorised correctly at checkout, but after Imran accepted it on the tablet, the tablet,
-  all 3 printed receipts, and the confirmation email all still showed unpaid. Root cause is
-  NOT yet found. The checkpoint's "In Progress" section lists the exact diagnostics already
-  tried (and their results) and the 6 concrete next steps, in order — start there rather
-  than re-deriving the investigation from scratch. Also confirm first thing whether commit
-  `e3bc6ea` (an unrelated email-copy fix, pushed just before the incident) actually finished
-  deploying — its GitHub Action was mid-run when this session was interrupted.
+- Open `PAUSE_CHECKPOINT_2026-08-01.md` in this directory and build its 4 "Pending"
+  items, in the order listed — each one has the exact file, root cause hypothesis (where
+  relevant), and what "done" looks like already written out.
+- Goal (unchanged): Chick Shack UK online ordering. OI-41 (Stripe capture-on-accept) is
+  proven and fixed; build the 4 remaining UX fixes surfaced by Malik's live retest with
+  Imran — the "order received" email wrongly reads "Payable on delivery" for a prepaid
+  card order, the receipt's "PAID ONLINE" line is too small/unbold, the "COPY n OF 3"
+  line needs removing from the printed ticket entirely, and the new-order chime is still
+  too quiet even at max device volume and needs a genuinely different technique (not
+  just a bigger gain number — see the checkpoint's exact reasoning: square wave,
+  layered oscillators, shorter envelope, a compressor to allow it safely).
+- Priority next step: build all 4 in the order listed in the checkpoint (email wording
+  is most customer-visible; the louder-chime item is last since it needs real-device
+  confirmation from Malik/Imran that no amount of local testing can substitute for). Test
+  each properly (pytest for the two backend items, tsc+vite build+eslint for the two
+  frontend items), commit, push, and **verify the live artifact directly** — this
+  project's own standing rule, restated because a recent deploy's own health check threw
+  a transient, self-resolved false alarm (see ERROR_LOG.md 2026-08-01) that had to be
+  independently checked rather than trusted either way. Do not tell Malik anything is
+  fixed until you've confirmed it in the actual running container/bundle.
+- Once all 4 are built and deployed, ask Malik/Imran for one more live retest — the
+  chime volume specifically cannot be confirmed any other way.
 
 ## Guardrails
-- No scope drift. Same goal, nothing new.
+- No scope drift. Same goal, nothing new. OI-41 itself is closed — do not reopen or
+  re-verify the payment mechanism unless something concrete suggests it broke again.
 - No compromise on quality.
-- **Do not move to live Stripe keys until the sandbox capture-on-accept bug is fully
-  understood, fixed, covered by a test that would have caught it, and retested clean with
-  Imran.** This was Malik's own explicit two-step plan.
 - Verify before any load-bearing DB, infra, credential, or deploy action — this project's
   established pattern is to verify against the live API/bundle/database, never the deploy
   log or script exit code alone.
-- DB and Stripe are ground truth for payment state; the tablet/receipt/email are just three
-  renderings of whatever they were told — if all three agree and are all wrong, look for
-  one shared upstream cause, not three separate bugs.
 - Never echo credential or secret values anywhere.
 - Before running `/pause` or `/handoff` again today, check for an existing
-  `PAUSE_CHECKPOINT_2026-07-31*.md` and suffix (`-G`, etc.) rather than overwrite.
+  `PAUSE_CHECKPOINT_2026-08-01*.md` and suffix (`-B`, etc.) rather than overwrite.
