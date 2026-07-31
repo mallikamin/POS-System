@@ -537,6 +537,44 @@ def test_rejection_falls_back_to_a_civil_reason() -> None:
 
 
 # ---------------------------------------------------------------------------
+# The "received" email's payment line -- mirrors OrderConfirmation.tsx's three
+# states exactly, since the website's confirmation page already gets this
+# right and the email was silent about it entirely until this was noticed on
+# a live sandbox card test.
+# ---------------------------------------------------------------------------
+
+
+def test_received_email_says_card_is_only_held_not_paid() -> None:
+    """A card order between checkout and Accept: authorised, not captured."""
+    order = _emailable(
+        payment_status="unpaid",
+        stripe_payment_intent_id="pi_test_123",
+        payment_captured_at=None,
+    )
+    _, body = email_service._body_received(order, "Chick Shack", "GBP")
+    html = email_service._html_received(order, "Chick Shack", "GBP")
+    assert "we only charge you once the shop accepts" in body.lower()
+    assert "we only charge you once the shop accepts" in html.lower()
+    assert "paid" not in body.lower().split("we only charge")[0].split("\n")[-1]
+
+
+def test_received_email_says_paid_once_captured() -> None:
+    order = _emailable(payment_status="paid", stripe_payment_intent_id="pi_test_123")
+    _, body = email_service._body_received(order, "Chick Shack", "GBP")
+    assert "paid by card" in body.lower()
+
+
+def test_received_email_says_payable_on_collection_for_cash() -> None:
+    """No PaymentIntent at all -- the ordinary cash/collection flow."""
+    order = _emailable(
+        payment_status="unpaid", stripe_payment_intent_id=None, service_type="collection"
+    )
+    _, body = email_service._body_received(order, "Chick Shack", "GBP")
+    assert "payable on collection" in body.lower()
+    assert "card" not in body.lower()
+
+
+# ---------------------------------------------------------------------------
 # Money -- this is a GBP client and the POS was born in paisa
 # ---------------------------------------------------------------------------
 

@@ -113,6 +113,20 @@ def _collecting(order: Order) -> bool:
     return (order.service_type or "collection") != "delivery"
 
 
+def _payment_status_text(order: Order) -> str:
+    """Same three states, same reasoning, as `OrderConfirmation.tsx` on the
+    website: money is only TAKEN when the shop accepts, so a card order sitting
+    between checkout and acceptance is "held", not "paid" -- the customer's
+    bank shows a pending amount and nothing has actually left their account.
+    An email claiming "paid" here, followed by the shop rejecting the order,
+    would make the email a lie."""
+    if order.payment_status == "paid":
+        return "Paid by card."
+    if order.stripe_payment_intent_id and order.payment_captured_at is None:
+        return "Card details taken. We only charge you once the shop accepts your order."
+    return f"Payable on {'collection' if _collecting(order) else 'delivery'}."
+
+
 # ---------------------------------------------------------------------------
 # HTML bodies
 #
@@ -265,6 +279,7 @@ def _html_received(order: Order, shop: str, currency: str) -> str:
         + _html_items_table(order, currency)
         + _html_totals_table(order, currency)
         + f'<p style="margin:16px 0 0 0; font-size:13px; color:{_C_MUTED};">{_html_fulfilment_line(order)}</p>'
+        + f'<p style="margin:4px 0 0 0; font-size:13px; color:{_C_MUTED};">{html_escape(_payment_status_text(order))}</p>'
         + _html_tracking_button(order)
         + f'<p style="margin:16px 0 0 0; font-size:14px; color:{_C_BODY_TEXT};">'
         f"We&rsquo;ll email you again as soon as the shop confirms your "
@@ -385,6 +400,7 @@ Order {order.order_number}
 {_totals(order, currency)}
 
 {'Collection' if _collecting(order) else 'Delivery to: ' + (order.delivery_address or '')}
+{_payment_status_text(order)}
 {_tracking_line(order)}
 We'll email you again as soon as the shop confirms your {'collection' if _collecting(order) else 'delivery'} time.
 
