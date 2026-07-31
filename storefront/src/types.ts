@@ -66,7 +66,13 @@ export type ImageName =
   | "peri-wedges"
   | "corn-cob"
   | "mozzarella-sticks"
-  | "hash-brown";
+  | "hash-brown"
+  | "irn-bru"
+  | "irn-bru-diet"
+  | "rubicon-passion"
+  | "levi-roots"
+  | "water"
+  | "chilli-cheese-bites";
 
 export const imageThumb = (n: ImageName) => `/img/thumb/${n}.webp`;
 export const imageHero = (n: ImageName) => `/img/hero/${n}.webp`;

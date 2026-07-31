@@ -364,7 +364,7 @@ const BASE_ITEMS: MenuItem[] = [
   flat("s-onion-rings", "sides", "Onion Rings (12)", 599, [], undefined, "onion-rings"),
   flat("s-wedges-plain", "sides", "Plain Wedges", 429),
   flat("s-wedges-peri", "sides", "Peri Wedges", 479, [], undefined, "peri-wedges"),
-  flat("s-chilli-cheese-bites", "sides", "Chilli Cheese Bites (8)", 499),
+  flat("s-chilli-cheese-bites", "sides", "Chilli Cheese Bites (8)", 499, [], undefined, "chilli-cheese-bites"),
   flat("s-corn-cob", "sides", "Corn Cob", 299, [], undefined, "corn-cob"),
   flat("s-beans", "sides", "Beans (8oz)", 249),
   flat("s-gravy", "sides", "Gravy (8oz)", 249),
@@ -430,11 +430,11 @@ const BASE_ITEMS: MenuItem[] = [
   // Fanta Pineapple Grapefruit removed and these two added on Imran's
   // instruction, 2026-07-27 — they are on neither the printed board nor
   // chick-shack.com.
-  flat("dr-rubicon-passion", "drinks", "Rubicon Passionfruit", 179),
-  flat("dr-levi-roots", "drinks", "Levi Roots Caribbean Crush", 179),
-  flat("dr-irn-bru", "drinks", "Irn Bru", 179),
-  flat("dr-irn-bru-diet", "drinks", "Diet Irn Bru", 179),
-  flat("dr-water", "drinks", "Water", 149),
+  flat("dr-rubicon-passion", "drinks", "Rubicon Passionfruit", 179, [], undefined, "rubicon-passion"),
+  flat("dr-levi-roots", "drinks", "Levi Roots Caribbean Crush", 179, [], undefined, "levi-roots"),
+  flat("dr-irn-bru", "drinks", "Irn Bru", 179, [], undefined, "irn-bru"),
+  flat("dr-irn-bru-diet", "drinks", "Diet Irn Bru", 179, [], undefined, "irn-bru-diet"),
+  flat("dr-water", "drinks", "Water", 149, [], undefined, "water"),
   {
     id: "dr-fruit-shoot",
     categoryId: "drinks",
