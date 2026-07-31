@@ -102,10 +102,14 @@ export const useCart = create<CartState>()(
           // Append into the shared order-notes text, once, at the moment this
           // becomes a genuinely new line — not on a quantity-merge above,
           // which would otherwise re-insert the same note every extra unit.
+          // Plain comment text only, no item-name prefix: with several items
+          // each carrying a note, "ItemName: ..." on every line reads as
+          // clutter. The per-line note still reaches the kitchen ticket
+          // correctly attached to its own item regardless of what this box
+          // says — see `orderLinesOf` — so this box is just the customer's
+          // own free text, not a structured summary.
           const orderNotes = trimmedNote
-            ? [state.orderNotes, `${item.name}: ${trimmedNote}`]
-                .filter(Boolean)
-                .join("\n")
+            ? [state.orderNotes, trimmedNote].filter(Boolean).join("\n")
             : state.orderNotes;
           return { lines: [...state.lines, line], orderNotes };
         }),
