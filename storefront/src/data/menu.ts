@@ -99,22 +99,34 @@ const MEAL_UPGRADE: ModifierGroup = {
   ],
 };
 
-/** Dips priced as per the DIPS TUBS (2oz) section. */
+/**
+ * Dips priced as per the DIPS TUBS (2oz) section.
+ *
+ * Option names carry "(Dip Tub)" — Imran (2026-07-31, via Malik): kitchen
+ * staff need the word "dip tub" so a ticket line reads as a separate 2oz tub,
+ * not an instruction to put it ON the burger/wrap. This group's own name
+ * ("Add a dip (2oz tub)") never reaches the printed ticket — print_service.py
+ * prints a bare modifier name with no group context — so the label has to
+ * live on each option itself. See `rename_chick_shack_dip_modifiers_2026_07_31.py`
+ * for the one-off DB rename this required (additive-only seeder, same class
+ * of bug as the item-name renames — a plain reseed would have duplicated
+ * every option rather than renaming it).
+ */
 const DIPS: ModifierGroup = {
   id: "dips",
   name: "Add a dip (2oz tub)",
   min: 0,
   max: 6,
   options: [
-    { id: "dip-ketchup", name: "Ketchup", priceDelta: 79 },
-    { id: "dip-mayo", name: "Mayo", priceDelta: 79 },
-    { id: "dip-garlic-mayo", name: "Garlic Mayo", priceDelta: 99 },
-    { id: "dip-bbq", name: "BBQ", priceDelta: 99 },
-    { id: "dip-burger", name: "Burger Sauce", priceDelta: 99 },
-    { id: "dip-chilli", name: "Chilli Sauce", priceDelta: 99 },
-    { id: "dip-peri", name: "Peri Peri Sauce", priceDelta: 99 },
-    { id: "dip-salsa", name: "Salsa Sauce", priceDelta: 99 },
-    { id: "dip-algerian", name: "Algerian Sauce", priceDelta: 99 },
+    { id: "dip-ketchup", name: "Ketchup (Dip Tub)", priceDelta: 79 },
+    { id: "dip-mayo", name: "Mayo (Dip Tub)", priceDelta: 79 },
+    { id: "dip-garlic-mayo", name: "Garlic Mayo (Dip Tub)", priceDelta: 99 },
+    { id: "dip-bbq", name: "BBQ (Dip Tub)", priceDelta: 99 },
+    { id: "dip-burger", name: "Burger Sauce (Dip Tub)", priceDelta: 99 },
+    { id: "dip-chilli", name: "Chilli Sauce (Dip Tub)", priceDelta: 99 },
+    { id: "dip-peri", name: "Peri Peri Sauce (Dip Tub)", priceDelta: 99 },
+    { id: "dip-salsa", name: "Salsa Sauce (Dip Tub)", priceDelta: 99 },
+    { id: "dip-algerian", name: "Algerian Sauce (Dip Tub)", priceDelta: 99 },
   ],
 };
 
