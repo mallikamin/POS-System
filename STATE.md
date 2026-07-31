@@ -102,6 +102,35 @@ the only prior candidate photos showing a full meal composition (`menuitem-6.jpg
 time for showing a rival Coca-Cola can and a fake competitor-branded box — there is no safe
 existing asset to pull from. Malik said to let it wait.
 
+**Same session, direct feedback from Imran (via Malik, WhatsApp screenshots) — three more real
+fixes, all shipped and verified:**
+1. **Exclusions scoping** — the "leave it out" ticks were showing on Peri Peri Grilled Chicken
+   and Fried Chicken too. Imran confirmed directly: only Burgers and Wraps should have it. The
+   code already carried a `⚠️` comment flagging this exact scope as an unconfirmed guess from an
+   earlier session ("confirm it with him") — now settled by his own words.
+   `EXCLUDABLE_CATEGORY_NAMES` cut to `{"Burgers", "Wraps"}`. Pure frontend, deployed, verified
+   live (bundle byte count matched build exactly).
+2. **Variant visibility** — piece-count options (2pc/3pc/4pc etc.) on fried chicken, wings,
+   tenders and peri items were invisible in the menu list; only a "from £X" hinted more than one
+   option existed. Added a subtitle to `MenuBrowser.tsx` list cards listing every variant name
+   for multi-variant items. Pure frontend, deployed, verified live.
+3. **Dip modifier naming** — Imran: kitchen staff need "dip tub" in the wording so a ticket line
+   like "- Ketchup" reads as a separate 2oz tub, not an instruction to put it ON the burger/wrap.
+   Root cause: `print_service.py` prints a bare `modifier.name` with zero group context, so the
+   dip group's own "(2oz tub)" label never reached the kitchen ticket. This one touched the
+   database, so handled carefully: `seed_chick_shack.py` matches `Modifier` rows by
+   `(tenant, group_id, name)`, so a blind rename in `menu.ts` would have created 9 duplicate
+   rows rather than renaming them (the exact additive-only-seeder class already documented for
+   item renames). Wrote `rename_chick_shack_dip_modifiers_2026_07_31.py`, same in-place-UPDATE
+   pattern as the earlier item-rename script. Sequence: `pg_dump` backup taken and verified
+   (88.5KB, 42 tables) → renamed the 9 existing rows in place on production → reseeded → verified
+   live via the public API: all 9 dip options now read "…(Dip Tub)", same group id (genuinely
+   the same row, not a new group), zero duplicates anywhere across all 87 items, and the 3
+   standalone Dips-category products (sold on their own, no ambiguity there) correctly left
+   untouched. Also closed in this round: **Imran confirmed printing on his own hardware** — "I
+   did print an order yesterday which we received and 3 copies printed" — closing the last open
+   piece of OI-51/52.
+
 **Next action:** UAT item (vi), chunky-chicken photos — in progress now.
 
 **Session J in one line:** Finished the photo-integration work session I left in progress
@@ -210,7 +239,7 @@ orders are accepted as labelled pre-orders, never refused.
 | Storefront checkout wiring | ✅ **Merged and PUBLISHED 2026-07-29.** Menu from the API, checkout posts, confirmation follows the order to delivered. Email required; "leave it out" ticks print on the ticket | `_state/open-items.md` OI-28 / OI-37 |
 | API access from the storefront domain | ✅ **Fixed on the server 2026-07-29.** `CORS_ORIGINS` now allows both Chick Shack origins; preflight verified, unknown origins still refused | `_state/open-items.md` OI-40 |
 | Stripe | 🔶 **DEPLOYED IN TEST MODE**, keys verified inside the container. Manual capture: authorise at checkout, **capture on Accept, cancel on Reject**, so a rejected order is never charged — this is exactly why proving it needs the shop genuinely open (Malik, 2026-07-30): the capture-on-accept step only fires when someone accepts a real order on the tablet. `cardPaymentEnabled` is **false** by design (not a bug — flagged off until a test card completes end to end, so no real customer's card gets silently declined against TEST keys). **Test override exists:** `chickshackg84.com/?card=1` shows the card button to whoever has that link only, `storefront/src/lib/cardPayment.ts`. **36 tests**, proven against the real sandbox. **Hardening H-1…H-10 done except H-6** — the four money-critical guards were **mutation-checked**, i.e. each was shown to fail when the code it defends is broken | `docs/STRIPE_HARDENING_CHECKLIST.md` · OI-20 / OI-41 |
-| Printing | ✅ **ON PAPER (photographed 2026-07-29)**, and session F built Imran's two asks: **3 labelled copies per ticket in ONE payload** (one `rawbt:` navigation) and the **daily `#NNN` double-size at the top of each copy**. Byte-level verified + tested; **paper check on his printer still pending** | OI-51 / OI-52 ✅ built · `ERROR_LOG.md` |
+| Printing | ✅ **ON PAPER (photographed 2026-07-29)**, session F built Imran's two asks: **3 labelled copies per ticket in ONE payload** (one `rawbt:` navigation) and the **daily `#NNN` double-size at the top of each copy**. **Paper check on his own printer now CONFIRMED 2026-07-31 (session L)** — Imran, to Malik: "I did print an order yesterday which we received and 3 copies printed." Closes the last open item under OI-51/52 | OI-51 / OI-52 ✅ built + ✅ confirmed on real hardware · `ERROR_LOG.md` |
 | Served / delivered gap | ✅ **CLOSED and deployed.** Tablet has out-for-delivery / delivered / mark-paid; completed orders leave the Active tab; the customer's page follows it | `_state/open-items.md` OI-44 |
 | Customer emails | ✅ **RESOLVED 2026-07-30 — Brevo live, real order proved it, then branded.** Order `260729-003`: confirmation delivered in 2 seconds, Gmail "Show original" — SPF PASS, DKIM PASS (`d=chickshackg84.com`), DMARC PASS. Domain authentication needed a fix along the way (Brevo requires its own DMARC record to flip `authenticated`; resolved by editing Imran's single `_dmarc` record in place, same `p=none` policy, not duplicating it). **Same session: all 4 emails (received/accepted/rejected/on_the_way) given branded HTML** — ink/flame/ember from `tailwind.config.js`, no logo (none exists), inline-style table layout for client compat, every customer-supplied string `html.escape()`'d (checkout form is public input). Shipped `3ab141b`, deployed, verified live via order `260730-001` — real Gmail screenshot confirms it renders as designed. Test suite: 45/45 email tests, 432/444 full suite (12 pre-existing, unrelated). Runbook: `docs/EMAIL_SETUP_RUNBOOK.md` | `_state/open-items.md` **OI-55** |
 | Menu modifier prompts | ✅ **BUILT and deployed to production, 2026-07-31.** Peri-Peri Heat renamed to match his till; "make it a meal" is now 25 real Meal sibling products (drink + chips upgrade), not a flat +£3 tick. Exclusion ticks (no lettuce etc.) turned out to already be built. Verified against the live API: 87 items, no duplicates | `_state/open-items.md` OI-45 |
