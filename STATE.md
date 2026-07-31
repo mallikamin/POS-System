@@ -14,7 +14,18 @@ the bottom of the page — `view` swaps screens in place rather than routing, so
 carried over; added scroll-to-top on every view change. Backend: `pg_dump` backed up, reseed +
 reorder script run on production, verified via the live API (item order + group order both
 correct). Storefront: deployed to Cloudflare, live bundle verified for the new code, testing-mode
-banner reconfirmed present. Commit `8017321`, pushed. UAT continuing — see Malik for next item.
+banner reconfirmed present. Commit `8017321`, pushed.
+
+**Same session, follow-up:** the modifier-group fix above was too narrow — Malik caught the
+identical bug on **solo** items too (Peri Peri Burger showing Dips before the required
+Peri-Peri Heat), live. Root cause fixed properly this time in `seed_chick_shack.py` itself:
+`_seed_items` now deletes and recreates every item's `menu_item_modifier_groups` links on
+every reseed, in the order that item's `modifierGroups` specifies, instead of the old
+additive-only `_link()` that never repositioned an existing link. Closes the whole class of
+bug for good — any future reorder in menu.ts now takes effect on the next plain reseed, no
+one-off script needed. `pg_dump` backed up, reseeded on production, and **swept all 87 live
+menu items programmatically**: zero items show an optional group before a required one.
+Commit `97ec8c8`, pushed.
 
 **Session J in one line:** Finished the photo-integration work session I left in progress
 (`PAUSE_CHECKPOINT_2026-07-31.md`). Re-verified every proposed photo→item mapping in
