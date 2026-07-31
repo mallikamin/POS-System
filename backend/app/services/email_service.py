@@ -304,7 +304,7 @@ def _html_accepted(order: Order, shop: str, currency: str) -> str:
         else f"confirmed &mdash; on its way to you {when}."
     )
     payment_line = (
-        "Paid"
+        f'<strong style="color:{_C_BODY_TEXT};">Paid</strong>'
         if order.payment_status == "paid"
         else f"Due on {'collection' if _collecting(order) else 'delivery'}"
     )
@@ -429,7 +429,7 @@ Order {order.order_number}
 {_totals(order, currency)}
 
 {'Collection' if _collecting(order) else 'Delivery to: ' + (order.delivery_address or '')}
-Payment: {'paid' if order.payment_status == 'paid' else 'due on ' + ('collection' if _collecting(order) else 'delivery')}
+Payment: {'PAID' if order.payment_status == 'paid' else 'due on ' + ('collection' if _collecting(order) else 'delivery')}
 {_tracking_line(order)}
 {shop}
 """

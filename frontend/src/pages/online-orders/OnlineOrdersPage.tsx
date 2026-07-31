@@ -108,18 +108,61 @@ function stageLabel(order: OnlineOrder): string {
   return order.eta_minutes ? `Accepted · ${order.eta_minutes} min` : "Accepted";
 }
 
-/** A short, high beep -- the actual sound, shared by the real alert and the
- * "Enable sound" button's own confirmation beep. */
-function playTone(ctx: AudioContext): void {
-  const osc = ctx.createOscillator();
-  const gain = ctx.createGain();
-  osc.connect(gain);
-  gain.connect(ctx.destination);
-  osc.frequency.value = 880;
-  gain.gain.setValueAtTime(0.25, ctx.currentTime);
-  gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.6);
-  osc.start();
-  osc.stop(ctx.currentTime + 0.6);
+/**
+ * Notification-style ascending 3-tone chime, reused from the (already
+ * noise-tested) pattern in `C:\FBAI\bilal-app\src\worker.js`'s `playChime()`
+ * -- built specifically because a single quiet beep didn't carry across a
+ * busy office. Pushed louder again here, per Malik's explicit ask for this
+ * restaurant floor, and the whole sequence repeats once immediately after --
+ * one pass is easy to miss over dinner-rush noise. Gain is capped just under
+ * 1.0: a sine oscillator's own peak is 1.0, so anything higher clips into a
+ * harsh, distorted sound rather than a genuinely louder one.
+ */
+function playAlertTones(ctx: AudioContext): void {
+  const now = ctx.currentTime;
+  const tone = (freq: number, start: number, dur: number, peak: number) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(freq, now + start);
+    gain.gain.setValueAtTime(0.0001, now + start);
+    gain.gain.exponentialRampToValueAtTime(peak, now + start + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + start + dur);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now + start);
+    osc.stop(now + start + dur + 0.02);
+  };
+  const sequence = (offset: number) => {
+    tone(987.8, offset + 0.0, 0.22, 0.9); // B5
+    tone(1318.5, offset + 0.18, 0.22, 0.9); // E6
+    tone(1568.0, offset + 0.36, 0.4, 0.95); // G6 -- slightly longer tail
+  };
+  sequence(0);
+  sequence(0.85); // repeat once
+}
+
+/**
+ * A native OS notification for a new order -- its own sound, appears even if
+ * the tablet's screen is dim or Chrome is briefly backgrounded. A second,
+ * independent channel alongside the Web Audio chime, not a replacement for
+ * it. Reused from `C:\FBAI\bilal-app`'s `showOSNotification`.
+ */
+function showNewOrderNotification(order: OnlineOrder): void {
+  if (!("Notification" in window) || Notification.permission !== "granted") return;
+  try {
+    const n = new Notification("New online order", {
+      body: `${order.order_number} — ${formatMoney(order.total, order.currency)}`,
+      tag: `online-order-${order.id}`,
+      requireInteraction: false,
+    });
+    n.onclick = () => {
+      window.focus();
+      n.close();
+    };
+  } catch {
+    // Notifications are best-effort; the chime is the primary alert.
+  }
 }
 
 /** Older than this and the card starts shouting. A waiting customer is a lost one. */
@@ -153,6 +196,25 @@ export default function OnlineOrdersPage() {
   // from this, so it needs no re-render.
   const ticketUrls = useRef<Map<string, string>>(new Map());
 
+  // ⚠️ A cached ticket is a fully-rendered, one-shot ESC/POS payload -- see
+  // `refresh` below -- and it goes stale the instant an order's payment
+  // status actually changes (a card captured on Accept, cash settled on
+  // Mark paid or handover). `refresh`'s own prefetch loop never re-fetches
+  // an id it already has, so without this, whatever prints next -- the
+  // automatic attempt or a later manual tap -- keeps printing the payment
+  // state from *before* the money moved. This is exactly the bug that
+  // printed "NOT PAID" on a genuinely captured card order (260731-003,
+  // 2026-08-01): the ticket was prefetched while the order still sat
+  // pending, and nothing ever told the cache the order had since been paid.
+  // The re-fetch is never awaited here, on purpose -- this must not become
+  // one more `await` standing between a tap and a `rawbt:` navigation.
+  const invalidateTicket = useCallback((orderId: string) => {
+    ticketUrls.current.delete(orderId);
+    void fetchTicketUrl(orderId).then((url) => {
+      if (url) ticketUrls.current.set(orderId, url);
+    });
+  }, []);
+
   // ⚠️ One AudioContext for the whole page's life, not a fresh one per chime.
   // Chrome -- Android especially, which is what this tablet runs -- creates
   // every new AudioContext `suspended` until it is resumed from inside a
@@ -173,14 +235,28 @@ export default function OnlineOrdersPage() {
           .webkitAudioContext;
       if (!Ctx) return;
       if (!audioCtxRef.current) audioCtxRef.current = new Ctx();
-      audioCtxRef.current.resume().catch(() => {
+      const ctx = audioCtxRef.current;
+      ctx.resume().catch(() => {
         // Nothing to do; the button stays showing "Enable sound".
       });
+      // A silent buffer, played right after resume -- belt-and-suspenders for
+      // browsers that need actual playback (not just `.resume()`) inside the
+      // gesture to consider the context genuinely unlocked.
+      const silent = ctx.createBuffer(1, 1, 22050);
+      const src = ctx.createBufferSource();
+      src.buffer = silent;
+      src.connect(ctx.destination);
+      src.start(0);
       setAudioReady(true);
       // Confirm immediately, from inside this same tap. If this is silent,
       // it is the tablet's media volume or Chrome's per-site Sound setting,
       // not this page -- worth knowing before the real order comes in.
-      playTone(audioCtxRef.current);
+      playAlertTones(ctx);
+      // Same tap arms the OS notification channel too -- one button, both
+      // alerts, so staff never have to find a second permission prompt.
+      if ("Notification" in window && Notification.permission === "default") {
+        void Notification.requestPermission();
+      }
     } catch {
       // A tablet that refuses to make noise is not a reason to stop working.
     }
@@ -193,7 +269,7 @@ export default function OnlineOrdersPage() {
       // Defensive: a backgrounded tab can suspend an already-running context
       // again. Resuming an already-running context is a harmless no-op.
       void ctx.resume();
-      playTone(ctx);
+      playAlertTones(ctx);
     } catch {
       // A tablet that refuses to make noise is not a reason to stop working.
     }
@@ -245,7 +321,13 @@ export default function OnlineOrdersPage() {
         const pending = await listOnlineOrders("pending");
         if (cancelled) return;
         const incoming = pending.filter((o) => !knownIds.current.has(o.id));
-        if (incoming.length > 0 && !firstLoad.current) chime();
+        if (incoming.length > 0 && !firstLoad.current) {
+          chime();
+          // A second, independent alert channel -- fires the OS's own
+          // notification sound and shows even if Chrome is briefly
+          // backgrounded. Best-effort; the chime above is the primary alert.
+          incoming.forEach(showNewOrderNotification);
+        }
         knownIds.current = new Set(pending.map((o) => o.id));
         firstLoad.current = false;
       } catch {
@@ -266,6 +348,9 @@ export default function OnlineOrdersPage() {
     setEtaFor(null);
     try {
       await acceptOnlineOrder(order.id, eta);
+      // See `invalidateTicket` -- a card order's cached ticket was rendered
+      // before payment was captured and must not be trusted below.
+      invalidateTicket(order.id);
       toast({
         title: `Order ${order.order_number} accepted`,
         description: `${eta} minutes. Sending to the printer…`,
@@ -348,6 +433,9 @@ export default function OnlineOrdersPage() {
     setBusyId(order.id);
     try {
       await action();
+      // Mark paid and a cash-settled handover can also flip payment_status --
+      // same staleness risk as Accept. See `invalidateTicket`.
+      invalidateTicket(order.id);
       toast(success);
     } catch (err) {
       const detail =
@@ -421,8 +509,8 @@ export default function OnlineOrdersPage() {
             onClick={enableSound}
             title={
               audioReady
-                ? "Sound is on for this session"
-                : "Tap once to enable the new-order alert sound"
+                ? "Sound + notifications are on for this session"
+                : "Tap once to enable the new-order alert sound and notifications"
             }
             className={`flex h-14 items-center gap-2 rounded-xl px-4 text-base font-semibold ${
               audioReady

@@ -512,6 +512,22 @@ def test_accepted_email_carries_the_lead_time() -> None:
     assert "45 minutes" in body
 
 
+def test_accepted_email_bolds_paid_but_not_due() -> None:
+    """A muted grey "Payment: Paid" reads as an afterthought -- it must stand
+    out. "Due on delivery/collection" is not money already taken and stays
+    plain, so the two do not look identical at a glance."""
+    paid_html = email_service._html_accepted(
+        _emailable(payment_status="paid"), "Chick Shack", "GBP"
+    )
+    assert "<strong" in paid_html and ">Paid<" in paid_html
+
+    unpaid_html = email_service._html_accepted(
+        _emailable(payment_status="unpaid"), "Chick Shack", "GBP"
+    )
+    assert "<strong" not in unpaid_html
+    assert "Due on delivery" in unpaid_html
+
+
 def test_collection_is_never_described_as_delivery() -> None:
     subject, body = email_service._body_on_the_way(
         _emailable(service_type="collection"), "Chick Shack", "GBP"
