@@ -230,8 +230,15 @@ async def create_checkout_session(
         ) from exc
 
     order.stripe_checkout_session_id = session_id
-    order.stripe_payment_intent_id = payment_intent_id or None
-    order.payment_authorized_at = stripe_service.authorization_timestamp()
+    if payment_intent_id:
+        # Usually empty at this point -- Stripe has not created the
+        # PaymentIntent yet, confirmed against the real sandbox. Kept as a
+        # cheap opportunistic write; `resolve_payment_intent_id` is the
+        # reliable path, used at Accept. `payment_authorized_at` is
+        # deliberately NOT set here: nothing has been authorised yet, only a
+        # session was created -- it is set once authorisation is actually
+        # confirmed, by the webhook or by Accept resolving it.
+        order.stripe_payment_intent_id = payment_intent_id
     await db.commit()
 
     return {"checkout_url": url, "session_id": session_id}
@@ -297,6 +304,15 @@ async def stripe_webhook(
     # Idempotent by construction: every branch below is a no-op if the state is
     # already what the event describes, so a duplicate delivery changes nothing.
     if event_type == "payment_intent.amount_capturable_updated":
+        # This event's own object IS the PaymentIntent -- the one reliable
+        # place besides Accept's own resolve step to learn its id. Guarded
+        # independently of `payment_authorized_at` below: a bug once tied
+        # this write to that same guard, and since `payment_authorized_at`
+        # could already be set from elsewhere, the id was never backfilled.
+        intent_obj = stripe_service.field(stripe_service.field(event, "data", {}), "object", {})
+        intent_id = stripe_service.field(intent_obj, "id")
+        if intent_id and order.stripe_payment_intent_id is None:
+            order.stripe_payment_intent_id = intent_id
         if order.payment_authorized_at is None:
             order.payment_authorized_at = stripe_service.authorization_timestamp()
     elif event_type == "payment_intent.succeeded":

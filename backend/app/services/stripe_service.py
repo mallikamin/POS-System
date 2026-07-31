@@ -310,8 +310,15 @@ async def create_checkout_session(
         logger.exception("Stripe checkout session failed for order %s", order.order_number)
         raise StripeError(str(exc)) from exc
 
-    # `payment_intent` is an id string when the session is created, but an
-    # expanded object if anyone ever adds `expand`. Handle both.
+    # ⚠️ Usually `None` here, confirmed against the real sandbox: Stripe does
+    # not create the PaymentIntent when the session itself is created, only
+    # once the customer actually submits payment on the Checkout page. This
+    # write is opportunistic only and must not be relied on -- a comment here
+    # once claimed it was always an id string at this point, and that claim
+    # was wrong, which is exactly how `orders.stripe_payment_intent_id` ended
+    # up permanently `None` for a real, successfully-authorised order (2026-07-31).
+    # `resolve_payment_intent_id` below is the reliable path, used right
+    # before capture.
     payment_intent = field(session, "payment_intent") or ""
     if not isinstance(payment_intent, str):
         payment_intent = field(payment_intent, "id", "")
@@ -320,6 +327,39 @@ async def create_checkout_session(
         "Created checkout session %s for order %s", session["id"], order.order_number
     )
     return session["url"], session["id"], str(payment_intent)
+
+
+def _retrieve_session_blocking(checkout_session_id: str) -> Any:
+    stripe = _client()
+    return stripe.checkout.Session.retrieve(checkout_session_id)
+
+
+async def resolve_payment_intent_id(checkout_session_id: str) -> str | None:
+    """Look up the PaymentIntent Stripe actually attached to a Checkout Session.
+
+    The reliable way to find it -- `create_checkout_session` returns one only
+    opportunistically, because Stripe has usually not created it yet at that
+    point. Call this once the session has had a chance to complete (e.g.
+    right before capturing on Accept) rather than trusting whatever was
+    captured at session-creation time.
+
+    Returns `None` when the customer never actually completed the Checkout
+    page (session still `open`/`expired`) -- an ordinary abandoned card
+    checkout, not an error. The caller should treat that exactly like a cash
+    order: nothing to capture.
+    """
+    try:
+        session = await asyncio.to_thread(_retrieve_session_blocking, checkout_session_id)
+    except StripeNotConfigured:
+        raise
+    except Exception as exc:
+        logger.exception("Could not retrieve Checkout Session %s", checkout_session_id)
+        raise StripeError(str(exc)) from exc
+
+    payment_intent = field(session, "payment_intent") or ""
+    if not isinstance(payment_intent, str):
+        payment_intent = field(payment_intent, "id", "")
+    return payment_intent or None
 
 
 # ---------------------------------------------------------------------------

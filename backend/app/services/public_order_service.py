@@ -550,31 +550,53 @@ async def accept_order(
     """
     order = await _get_pending_online_order(db, tenant_id, order_id)
 
-    # Card orders only. Cash on handover is the default and has nothing to take.
-    if order.stripe_payment_intent_id and order.payment_captured_at is None:
-        try:
-            # Bounded by what the order is worth NOW, not by what was authorised
-            # when the customer paid. If the shop struck an item in between, the
-            # customer must not be charged the original figure.
-            status = await stripe_service.capture_for_order(
-                order.stripe_payment_intent_id, order.total
+    # A checkout session, not the payment intent id, is what reliably marks
+    # this as a card order -- it is written the instant the session is
+    # created, whereas `stripe_payment_intent_id` is often still unresolved at
+    # this point (see `resolve_payment_intent_id`). Guarding on the intent id
+    # instead is exactly the bug that let a real, successfully-authorised
+    # order (260731-001, 2026-07-31) sail through Accept without ever being
+    # captured: the field was still `None` and this whole block silently
+    # never ran, with no error and nothing logged.
+    if order.stripe_checkout_session_id and order.payment_captured_at is None:
+        intent_id = order.stripe_payment_intent_id
+        if intent_id is None:
+            intent_id = await stripe_service.resolve_payment_intent_id(
+                order.stripe_checkout_session_id
             )
-        except stripe_service.StripeError as exc:
-            raise PublicOrderError(
-                f"Could not take the payment, so the order has not been accepted. {exc}"
-            ) from exc
+            if intent_id:
+                order.stripe_payment_intent_id = intent_id
+                if order.payment_authorized_at is None:
+                    order.payment_authorized_at = datetime.now(timezone.utc)
 
-        if status != "succeeded":
-            raise PublicOrderError(
-                f"The payment did not complete (status: {status}). "
-                "The order has not been accepted."
-            )
-        order.payment_captured_at = datetime.now(timezone.utc)
-        # Stripe holding the money is not the same as this system knowing about
-        # it. Reports, the drawer session and the Z-report all read the payments
-        # table, so a capture that writes no Payment row is money the shop
-        # cannot see -- the same trap `mark_order_paid` exists to avoid.
-        await _record_card_payment(db, tenant_id, order, user_id)
+        # `None` here means the customer opened Checkout but never actually
+        # paid -- Stripe never created a PaymentIntent for the session. An
+        # ordinary abandoned card checkout, not an error: fall through and
+        # accept it like any other unpaid order.
+        if intent_id:
+            try:
+                # Bounded by what the order is worth NOW, not by what was
+                # authorised when the customer paid. If the shop struck an
+                # item in between, the customer must not be charged the
+                # original figure.
+                status = await stripe_service.capture_for_order(intent_id, order.total)
+            except stripe_service.StripeError as exc:
+                raise PublicOrderError(
+                    f"Could not take the payment, so the order has not been accepted. {exc}"
+                ) from exc
+
+            if status != "succeeded":
+                raise PublicOrderError(
+                    f"The payment did not complete (status: {status}). "
+                    "The order has not been accepted."
+                )
+            order.payment_captured_at = datetime.now(timezone.utc)
+            # Stripe holding the money is not the same as this system knowing
+            # about it. Reports, the drawer session and the Z-report all read
+            # the payments table, so a capture that writes no Payment row is
+            # money the shop cannot see -- the same trap `mark_order_paid`
+            # exists to avoid.
+            await _record_card_payment(db, tenant_id, order, user_id)
 
     order.accepted_at = datetime.now(timezone.utc)
     order.eta_minutes = eta_minutes

@@ -76,6 +76,30 @@ async def card_order(db: AsyncSession, tenant: Tenant, admin_user: User) -> Orde
 
 
 @pytest_asyncio.fixture
+async def card_order_pending_intent(
+    db: AsyncSession, tenant: Tenant, admin_user: User
+) -> Order:
+    """A real card order whose Checkout Session was created but whose
+    PaymentIntent id never landed on the order -- the exact shape of the
+    260731-001 incident (2026-07-31): `stripe_checkout_session_id` set,
+    `stripe_payment_intent_id` and `payment_authorized_at` both still `None`,
+    because Stripe had not created the PaymentIntent yet at the moment the
+    session was created and nothing ever went back to resolve it.
+    """
+    order = _card_order(
+        tenant,
+        admin_user,
+        order_number="S250101-004",
+        stripe_payment_intent_id=None,
+        payment_authorized_at=None,
+    )
+    db.add(order)
+    await db.flush()
+    await db.commit()
+    return order
+
+
+@pytest_asyncio.fixture
 async def cash_order(db: AsyncSession, tenant: Tenant, admin_user: User) -> Order:
     """The default: no card anywhere near it."""
     order = _card_order(
@@ -170,6 +194,70 @@ async def test_a_capture_that_does_not_succeed_is_treated_as_failure(
             await public_order_service.accept_order(
                 db, tenant.id, card_order.id, admin_user.id, 30
             )
+
+
+@pytest.mark.asyncio
+async def test_accepting_a_card_order_resolves_a_missing_intent_id_and_captures_it(
+    db: AsyncSession,
+    tenant: Tenant,
+    admin_user: User,
+    card_order_pending_intent: Order,
+) -> None:
+    """The exact real-world failure, order 260731-001 (2026-07-31): a checkout
+    session that completed on Stripe's side, but whose PaymentIntent id never
+    landed on the order. Accept must resolve it from Stripe and still
+    capture -- not silently skip, which is what shipped that day: the order
+    reached the kitchen as `in_kitchen` with `payment_status` still `unpaid`
+    while Stripe was sitting on a fully authorised, capturable £12.99.
+    """
+    with (
+        patch.object(
+            stripe_service,
+            "resolve_payment_intent_id",
+            new=AsyncMock(return_value="pi_resolved_456"),
+        ) as resolve,
+        patch.object(
+            stripe_service, "capture_for_order", new=AsyncMock(return_value="succeeded")
+        ) as capture,
+    ):
+        order = await public_order_service.accept_order(
+            db, tenant.id, card_order_pending_intent.id, admin_user.id, 30
+        )
+
+    resolve.assert_awaited_once_with("cs_test_123")
+    capture.assert_awaited_once_with("pi_resolved_456", 1300)
+    assert order.stripe_payment_intent_id == "pi_resolved_456"
+    assert order.payment_captured_at is not None
+    assert order.payment_authorized_at is not None
+    assert order.accepted_at is not None
+
+
+@pytest.mark.asyncio
+async def test_an_abandoned_card_checkout_accepts_without_touching_stripe(
+    db: AsyncSession,
+    tenant: Tenant,
+    admin_user: User,
+    card_order_pending_intent: Order,
+) -> None:
+    """The customer opened Checkout but never actually paid -- Stripe never
+    created a PaymentIntent for the session, so resolution correctly comes
+    back empty. Must fall through and accept exactly like an ordinary unpaid
+    order, not raise and not attempt a capture with nothing to capture.
+    """
+    with (
+        patch.object(
+            stripe_service, "resolve_payment_intent_id", new=AsyncMock(return_value=None)
+        ),
+        patch.object(stripe_service, "capture_for_order", new=AsyncMock()) as capture,
+    ):
+        order = await public_order_service.accept_order(
+            db, tenant.id, card_order_pending_intent.id, admin_user.id, 30
+        )
+
+    capture.assert_not_awaited()
+    assert order.accepted_at is not None
+    assert order.payment_captured_at is None
+    assert order.stripe_payment_intent_id is None
 
 
 @pytest.mark.asyncio
@@ -501,6 +589,53 @@ async def test_capture_raises_when_the_authorisation_is_gone() -> None:
     with patch.object(stripe_service, "_retrieve_blocking", return_value=intent):
         with pytest.raises(StripeError, match="No money is being held"):
             await stripe_service.capture_for_order("pi_x", 1300)
+
+
+# --- resolve_payment_intent_id: the fix for the 260731-001 incident ---------
+# `create_checkout_session` only writes `stripe_payment_intent_id`
+# opportunistically -- confirmed against the real sandbox, Stripe has usually
+# not created the PaymentIntent yet at that point. This is the reliable path,
+# used at Accept.
+
+
+@pytest.mark.asyncio
+async def test_resolve_payment_intent_id_reads_the_id_off_the_session() -> None:
+    session = _StripeLike({"id": "cs_x", "payment_intent": "pi_resolved"})
+
+    with patch.object(stripe_service, "_retrieve_session_blocking", return_value=session):
+        result = await stripe_service.resolve_payment_intent_id("cs_x")
+
+    assert result == "pi_resolved"
+
+
+@pytest.mark.asyncio
+async def test_resolve_payment_intent_id_handles_an_expanded_payment_intent() -> None:
+    """`payment_intent` is an id string normally, but an expanded object if
+    anyone ever adds `expand=["payment_intent"]`. Handle both, like `field`
+    already documents for other Stripe responses.
+    """
+    session = _StripeLike(
+        {"id": "cs_x", "payment_intent": _StripeLike({"id": "pi_expanded"})}
+    )
+
+    with patch.object(stripe_service, "_retrieve_session_blocking", return_value=session):
+        result = await stripe_service.resolve_payment_intent_id("cs_x")
+
+    assert result == "pi_expanded"
+
+
+@pytest.mark.asyncio
+async def test_resolve_payment_intent_id_is_none_for_an_abandoned_checkout() -> None:
+    """The customer never actually paid -- Stripe never created a
+    PaymentIntent for the session. `None`, not an error: an ordinary
+    abandoned card checkout.
+    """
+    session = _StripeLike({"id": "cs_x", "payment_intent": None})
+
+    with patch.object(stripe_service, "_retrieve_session_blocking", return_value=session):
+        result = await stripe_service.resolve_payment_intent_id("cs_x")
+
+    assert result is None
 
 
 # --- H-2: a test event must not drive production ---------------------------
@@ -880,3 +1015,89 @@ async def test_a_duplicate_webhook_delivery_changes_nothing(
         await db.execute(select(Order).where(Order.id == card_order.id))
     ).scalar_one()
     assert again.payment_captured_at == captured_at, "a replay must not rewrite state"
+
+
+def _capturable_event(order_id, tenant_id, *, intent_id: str) -> object:
+    """`payment_intent.amount_capturable_updated`, whose object IS the intent.
+
+    Unlike `_intent_event`, this one carries the PaymentIntent's own `id` --
+    the field the webhook must now read to backfill
+    `orders.stripe_payment_intent_id`.
+    """
+    return _StripeLike(
+        {
+            "id": "evt_test_capturable",
+            "type": "payment_intent.amount_capturable_updated",
+            "livemode": False,
+            "data": _StripeLike(
+                {
+                    "object": _StripeLike(
+                        {
+                            "id": intent_id,
+                            "metadata": _StripeLike(
+                                {
+                                    "order_id": str(order_id),
+                                    "tenant_id": str(tenant_id),
+                                }
+                            ),
+                        }
+                    )
+                }
+            ),
+        }
+    )
+
+
+@pytest.mark.asyncio
+async def test_webhook_backfills_a_missing_intent_id_from_the_event_itself(
+    client,
+    db: AsyncSession,
+    tenant: Tenant,
+    admin_user: User,
+    card_order_pending_intent: Order,
+) -> None:
+    """Defense in depth for the 260731-001 incident: `amount_capturable_updated`
+    fires exactly when authorisation completes and its own object IS the
+    PaymentIntent, so this is a second reliable place (besides Accept's own
+    `resolve_payment_intent_id` call) to learn its id -- provided the write
+    is not gated on `payment_authorized_at`, which is exactly the mistake
+    that let this go unbackfilled originally.
+    """
+    event = _capturable_event(
+        card_order_pending_intent.id, tenant.id, intent_id="pi_from_webhook"
+    )
+
+    with patch.object(stripe_service, "verify_webhook", return_value=event):
+        response = await client.post("/api/v1/public/stripe/webhook", content=b"{}")
+
+    assert response.status_code == 200
+
+    db.expunge_all()
+    refreshed = (
+        await db.execute(
+            select(Order).where(Order.id == card_order_pending_intent.id)
+        )
+    ).scalar_one()
+    assert refreshed.stripe_payment_intent_id == "pi_from_webhook"
+    assert refreshed.payment_authorized_at is not None
+
+
+@pytest.mark.asyncio
+async def test_webhook_never_overwrites_an_intent_id_already_on_the_order(
+    client, db: AsyncSession, tenant: Tenant, admin_user: User, card_order: Order
+) -> None:
+    """`card_order` already carries `pi_test_123`. A replayed or out-of-order
+    event must not clobber it with a different id.
+    """
+    event = _capturable_event(card_order.id, tenant.id, intent_id="pi_someone_elses")
+
+    with patch.object(stripe_service, "verify_webhook", return_value=event):
+        response = await client.post("/api/v1/public/stripe/webhook", content=b"{}")
+
+    assert response.status_code == 200
+
+    db.expunge_all()
+    refreshed = (
+        await db.execute(select(Order).where(Order.id == card_order.id))
+    ).scalar_one()
+    assert refreshed.stripe_payment_intent_id == "pi_test_123"
