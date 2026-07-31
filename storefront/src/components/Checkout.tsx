@@ -27,6 +27,12 @@ export default function Checkout({ onBack, onPlaced }: Props) {
   const clear = useCart((s) => s.clear);
   const reconcile = useCart((s) => s.reconcile);
   const subtotal = subtotalOf(lines);
+  // Lifted into the cart store (not local state here) so a per-item note
+  // typed in ItemModal lands in this same box — see cart.ts `add()` — and
+  // survives this component unmounting when the customer goes back to the
+  // menu to add more.
+  const notes = useCart((s) => s.orderNotes);
+  const setNotes = useCart((s) => s.setOrderNotes);
 
   const menuItems = useMenu((s) => s.items);
   const menuSource = useMenu((s) => s.source);
@@ -46,7 +52,6 @@ export default function Checkout({ onBack, onPlaced }: Props) {
   const [address, setAddress] = useState("");
   const [areaId, setAreaId] = useState("");
   const [postcode, setPostcode] = useState("");
-  const [notes, setNotes] = useState("");
   // Card is only offered once Stripe is wired and proven. Until then the order
   // is created unpaid and settled in the shop, so cash is not merely the
   // default, it is the only truthful option. See the Payment section below.
@@ -336,6 +341,7 @@ export default function Checkout({ onBack, onPlaced }: Props) {
           placeholder="Allergies, no salad, extra napkins…"
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
+          maxLength={500}
         />
       </section>
 

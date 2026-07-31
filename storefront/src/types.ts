@@ -145,6 +145,15 @@ export interface CartLine {
    * to whoever is making them, so they must not merge into one line of two.
    */
   exclusions: string[];
+  /**
+   * Free-text instruction for this item — "extra crispy", "cut in half".
+   *
+   * Same treatment as `exclusions`: joins the line's `notes` field to the
+   * server and prints bold on the kitchen ticket, and is part of the line's
+   * identity so two units of the same item with different notes stay on
+   * separate lines rather than silently merging.
+   */
+  note?: string;
 }
 
 /**

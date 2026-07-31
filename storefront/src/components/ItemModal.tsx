@@ -33,6 +33,14 @@ export default function ItemModal({ item, categoryName, onClose, sibling, onSwit
   const [excluded, setExcluded] = useState<string[]>([]);
   const excludable = exclusionsFor(categoryName);
 
+  /**
+   * Free-text instruction for this item, e.g. "extra crispy". Capped well
+   * under the 300-char per-line limit the server enforces (`public_order.py`)
+   * so it can never fail at submit time next to exclusion ticks.
+   */
+  const [note, setNote] = useState("");
+  const NOTE_MAX = 120;
+
   /** null for items that deliberately have no photo — the modal just omits it. */
   const hero = itemImage(item);
 
@@ -217,6 +225,25 @@ export default function ItemModal({ item, categoryName, onClose, sibling, onSwit
               </div>
             </section>
           )}
+
+          {/* Free-text instruction for this item. Carried into the Checkout
+              page's "Notes for the kitchen" box when added — see cart.ts
+              `add()` — so the customer sees it there too and can still edit
+              it before submitting. */}
+          <section>
+            <h3 className="label">Anything else?</h3>
+            <p className="text-sm text-cream/50 mb-2">
+              Optional — e.g. extra crispy, cut in half.
+            </p>
+            <textarea
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              maxLength={NOTE_MAX}
+              rows={2}
+              placeholder="A note for the kitchen about this item…"
+              className="field resize-none"
+            />
+          </section>
         </div>
 
         <footer className="p-5 border-t border-ink-line space-y-3">
@@ -243,7 +270,7 @@ export default function ItemModal({ item, categoryName, onClose, sibling, onSwit
             <button
               disabled={unmet.length > 0}
               onClick={() => {
-                add(item, variant, chosenOptions, quantity, excluded);
+                add(item, variant, chosenOptions, quantity, excluded, note);
                 onClose();
               }}
               className="btn-primary tap flex-1 h-12"

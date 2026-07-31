@@ -64,6 +64,11 @@ export default function CartPanel({ onClose, onCheckout }: Props) {
                       {line.exclusions.join(", ")}
                     </p>
                   )}
+                  {line.note && (
+                    <p className="text-sm text-cream/45 italic mt-0.5">
+                      "{line.note}"
+                    </p>
+                  )}
                 </div>
                 <span className="font-semibold shrink-0">
                   {formatGBP(line.unitPrice * line.quantity)}

@@ -23,13 +23,16 @@ function lineKey(
   variantId: string,
   modifiers: ModifierOption[],
   exclusions: string[] = [],
+  note = "",
 ): string {
   const mods = modifiers.map((m) => m.id).sort().join("+");
   // Exclusions are part of identity, not decoration. A plain wrap and a
   // no-onion wrap are two different jobs in the kitchen and must stay two
-  // lines, however identical their price.
+  // lines, however identical their price. Same reasoning for the free-text
+  // note: "extra crispy" and "well done" are different instructions and must
+  // not collapse into a single line that can only show one of them.
   const without = [...exclusions].sort().join("+");
-  return `${itemId}|${variantId}|${mods}|${without}`;
+  return `${itemId}|${variantId}|${mods}|${without}|${note}`;
 }
 
 export function unitPriceOf(variant: Variant, modifiers: ModifierOption[]): Pence {
@@ -38,16 +41,27 @@ export function unitPriceOf(variant: Variant, modifiers: ModifierOption[]): Penc
 
 interface CartState {
   lines: CartLine[];
+  /**
+   * The Checkout page's "Notes for the kitchen" textarea, lifted up here
+   * (rather than local state in Checkout) so it survives Checkout
+   * unmounting when the customer goes back to the menu, and so `add()` can
+   * append a per-item note into it directly. Single source of truth: once
+   * appended, the text is just text — the customer can edit or delete any
+   * of it, including the auto-inserted part, from the Checkout box.
+   */
+  orderNotes: string;
   add: (
     item: MenuItem,
     variant: Variant,
     modifiers: ModifierOption[],
     quantity?: number,
     exclusions?: string[],
+    note?: string,
   ) => void;
   setQuantity: (key: string, quantity: number) => void;
   remove: (key: string) => void;
   clear: () => void;
+  setOrderNotes: (text: string) => void;
   /**
    * Re-check every basket line against the live menu. Returns how many lines
    * were dropped, so the customer can be told rather than quietly short-changed.
@@ -59,10 +73,12 @@ export const useCart = create<CartState>()(
   persist(
     (set, get) => ({
       lines: [],
+      orderNotes: "",
 
-      add: (item, variant, modifiers, quantity = 1, exclusions = []) =>
+      add: (item, variant, modifiers, quantity = 1, exclusions = [], note) =>
         set((state) => {
-          const key = lineKey(item.id, variant.id, modifiers, exclusions);
+          const trimmedNote = note?.trim() || "";
+          const key = lineKey(item.id, variant.id, modifiers, exclusions, trimmedNote);
           const existing = state.lines.find((l) => l.key === key);
           if (existing) {
             return {
@@ -81,8 +97,17 @@ export const useCart = create<CartState>()(
             quantity,
             unitPrice: unitPriceOf(variant, modifiers),
             exclusions,
+            ...(trimmedNote ? { note: trimmedNote } : {}),
           };
-          return { lines: [...state.lines, line] };
+          // Append into the shared order-notes text, once, at the moment this
+          // becomes a genuinely new line — not on a quantity-merge above,
+          // which would otherwise re-insert the same note every extra unit.
+          const orderNotes = trimmedNote
+            ? [state.orderNotes, `${item.name}: ${trimmedNote}`]
+                .filter(Boolean)
+                .join("\n")
+            : state.orderNotes;
+          return { lines: [...state.lines, line], orderNotes };
         }),
 
       setQuantity: (key, quantity) =>
@@ -96,7 +121,9 @@ export const useCart = create<CartState>()(
       remove: (key) =>
         set((state) => ({ lines: state.lines.filter((l) => l.key !== key) })),
 
-      clear: () => set({ lines: [] }),
+      clear: () => set({ lines: [], orderNotes: "" }),
+
+      setOrderNotes: (text) => set({ orderNotes: text }),
 
       /**
        * Reconcile the basket against the menu currently on screen.
@@ -183,9 +210,12 @@ export const useCart = create<CartState>()(
       //     persisted under v2 has neither the field nor the key format, and
       //     `reconcile` would keep it happily. Discarding once at the version
       //     boundary is deterministic and needs no menu to be loaded.
-      version: 3,
-      partialize: (state) => ({ lines: state.lines }),
-      migrate: () => ({ lines: [] }),
+      // v4: lines gained `note` (also part of the key), and the store gained
+      //     `orderNotes`. Same reasoning as v3 — discard rather than carry a
+      //     basket whose keys were built without it.
+      version: 4,
+      partialize: (state) => ({ lines: state.lines, orderNotes: state.orderNotes }),
+      migrate: () => ({ lines: [], orderNotes: "" }),
     },
   ),
 );
@@ -202,19 +232,25 @@ export const useCart = create<CartState>()(
  * marker rather than a real id and is dropped here — sending it would be a 422.
  */
 export function orderLinesOf(lines: CartLine[]): ApiOrderLineRequest[] {
-  return lines.map((line) => ({
-    menu_item_id: line.itemId,
-    quantity: line.quantity,
-    modifier_ids: [
-      ...(line.variantId === NO_VARIANT ? [] : [line.variantId]),
-      ...line.modifiers.map((modifier) => modifier.id),
-    ],
+  return lines.map((line) => {
     // One per line: `print_service` splits notes on newlines and prints each
-    // in bold, so the kitchen gets "** No onion" on its own row rather than a
-    // sentence to parse. Omitted entirely when nothing was ticked, so an
-    // untouched order carries no empty notes field.
-    ...(line.exclusions?.length ? { notes: line.exclusions.join("\n") } : {}),
-  }));
+    // in bold, so the kitchen gets "** No onion" / "** extra crispy" each on
+    // its own row rather than a sentence to parse. The free-text note is
+    // deliberately given the same bold treatment as an exclusion tick — both
+    // are "read this" instructions to whoever is making the item. Omitted
+    // entirely when there's nothing, so an untouched order carries no empty
+    // notes field.
+    const noteLines = [...line.exclusions, ...(line.note ? [line.note] : [])];
+    return {
+      menu_item_id: line.itemId,
+      quantity: line.quantity,
+      modifier_ids: [
+        ...(line.variantId === NO_VARIANT ? [] : [line.variantId]),
+        ...line.modifiers.map((modifier) => modifier.id),
+      ],
+      ...(noteLines.length ? { notes: noteLines.join("\n") } : {}),
+    };
+  });
 }
 
 /** Goods total, excluding any delivery fee. */
