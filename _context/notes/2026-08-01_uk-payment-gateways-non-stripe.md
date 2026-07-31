@@ -71,6 +71,31 @@ worth knowing **any card acquirer (Cardnet, Worldpay, Opayo included) does simil
 underwriting** — switching away from Stripe doesn't automatically avoid it. Open Banking is the one
 option here that sidesteps card-network risk assessment entirely, at the cost described above.
 
+## Fee comparison (researched 2026-08-01, verify before quoting to the client)
+
+Two of these (Cardnet, Worldpay) don't publish a real price list — the numbers below are their
+lowest advertised/starting rates, not a guaranteed quote. Stripe, Opayo and PayPal publish actual
+flat-rate PAYG pricing that applies without negotiation.
+
+| Provider | Online transaction rate | Monthly/gateway fee | Setup/joining fee | Notes |
+|---|---|---|---|---|
+| **Stripe** | 1.5% + 20p (UK cards), 1.9%+20p premium/corporate cards, 2.5%+20p EU, 3.0%+20p international | None | None | Already the shape this project's Stripe integration is built against |
+| **Cardnet** (Lloyds/Bank of Scotland) | No public rate — quoted after a sales call, typically 1%-2.5% depending on turnover/ticket size/card mix; ~1.25% quoted for existing Lloyds/BoS business banking customers | £15/month minimum; PCI compliance £5+VAT/month (or £13+VAT/month "Compliance Plus") | £175 joining fee if no existing Lloyds/BoS business account | Rates are opaque until you talk to them — budget on the higher end (~2%) until a real quote exists |
+| **Worldpay** (= Clydesdale underneath) | PAYG ecommerce plan: **1.3% + 20p**, fixed, published. Volume >£75k/year can get custom rates from 0.75%+4.5p | **None** on the PAYG ecommerce plan | None on the PAYG ecommerce plan | The cleanest published online-only rate of the bank-linked options, and next-business-day settlement |
+| **Opayo** (Elavon) | 1.5% per txn (fixed-pricing plan, £49 one-off join) or 1.99% + 12p gateway click-fee (PAYG plan, £99 one-off join) | £25+VAT/month for up to 350 transactions, rising to ~£75/month for 3,000 | £49 (fixed plan) or £99 (PAYG plan) | Gateway fee is separate from card-processing rate — cheap per-transaction only once volume is high enough to absorb the flat £25-75/month |
+| **PayPal** | 2.9% + 30p UK domestic, 3.4%+30p EU cross-border, 4.4%+30p international, 5%+5p micropayments (sub-£5) | None | None | Highest published rate of the five, but PayPal Orders API supports `intent=AUTHORIZE` then a separate capture call — compatible with this project's charge-on-accept model; strongest customer-side brand recognition |
+
+**Worked example — 150 orders/month, £15 average order (£2,250/month revenue):**
+- Stripe: ~£63.75 (1.5%×£2,250 + 150×20p)
+- Worldpay PAYG ecommerce: ~£59.25 (1.3%×£2,250 + 150×20p)
+- Opayo fixed plan: ~£58.75 (1.5%×£2,250 + £25 gateway, first 350 txns free)
+- Cardnet (assuming a realistic ~1.75% quote): ~£54.38 + £15 min = worth confirming a real quote
+- PayPal: ~£110.25 (2.9%×£2,250 + 150×30p) — clearly the most expensive of the five at this volume
+
+At low restaurant-scale volume, Worldpay's PAYG ecommerce plan and Stripe land within a few pounds
+of each other; PayPal is the outlier on cost. Opayo's flat monthly gateway fee means its true cost
+per order improves as volume grows past ~350/month; Cardnet needs an actual quote to compare fairly.
+
 ## Open question before building anything
 
 **What specifically went wrong with Stripe for this client?** The right recommendation depends on
@@ -103,3 +128,14 @@ Sources:
 - [Stripe Account on Reserve UK | Why It Happens & What To Do](https://www.wetranxact.co.uk/stripe-account-on-reserve-uk/)
 - [Pay by Bank & open banking payments | TrueLayer](https://truelayer.com/payments/)
 - [Pay by Bank – Support Centre | GoCardless](https://support.gocardless.com/hc/en-gb/articles/4411785453714-Instant-Bank-Pay)
+- [Stripe Fees UK 2026 — 1.5% + 20p Complete Guide | We Are Founders](https://www.wearefounders.uk/stripe-fees-uk-2026/)
+- [Stripe Fee Calculator UK 2026 | FeeCalcPro](https://www.feecalcpro.com/blog/stripe-fees-uk-guide/)
+- [PayPal Business Fees in the UK (2026 Overview) — Wise](https://wise.com/gb/blog/paypal-fees-business-uk)
+- [PayPal Fee Calculator UK 2026 | Global Fee Calculator](https://globalfeecalculator.com/paypal-fee-uk/)
+- [Opayo Review 2026 | Card Processing Fees | Compare Card Fees](https://www.comparecardfees.co.uk/payment-providers/opayo/)
+- [Opayo: UK Fees & Reviews (2026) | Merchant Machine](https://merchantmachine.co.uk/opayo/)
+- [Elavon Review & Latest Fees — 2026 | Merchant Savvy](https://www.merchantsavvy.co.uk/payment-processors/elavon-review-fees/)
+- [Worldpay UK Review 2026: Fees, Pricing & Comparison | ExpertSure](https://www.expertsure.com/uk/merchant-accounts/worldpay-review/)
+- [Worldpay Review Including Transaction Fees (2026) | Merchant Savvy](https://www.merchantsavvy.co.uk/payment-processors/worldpay-review-fees/)
+- [Lloyds Cardnet Review & Latest Fees — 2026 | Merchant Savvy](https://www.merchantsavvy.co.uk/payment-processors/lloyds-cardnet-review/)
+- [Lloyds Cardnet Payments Reviews: UK Fees & Pricing (2026) | Merchant Machine](https://merchantmachine.co.uk/lloyds-bank-cardnet/)
