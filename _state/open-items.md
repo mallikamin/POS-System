@@ -83,7 +83,7 @@ carrying his business email is the one change that could damage it.
 **OI-43 (superseded) · Provider chosen, DNS + env outstanding.**
 Parts 1 and 2 were done first: `orders.customer_email` persists, email is **required** at
 checkout, and `Reply-To` is set (`e0168c4`) — a sending domain is not a mailbox.
-**Full step-by-step in `docs/EMAIL_SETUP_RUNBOOK.md`.**
+**Full step-by-step in `_context/clients/chick-shack-uk/EMAIL_SETUP_RUNBOOK.md`.**
 
 *Original description, kept for context:*
 
@@ -287,7 +287,7 @@ watching 4 tests fail. Never-fail-an-order guards re-proven for the API path.
 **Found and fixed underneath it:** the inline `await` on the send was adding **~15 silent
 seconds to every live checkout and tablet tap** while the dead SMTP config sat on the
 server — `notify_customer` is now fire-and-forget (tested). See `ERROR_LOG.md` session F.
-**Remaining (Malik, ~20 min): `docs/EMAIL_SETUP_RUNBOOK.md`** — rewritten for Brevo:
+**Remaining (Malik, ~20 min): `_context/clients/chick-shack-uk/EMAIL_SETUP_RUNBOOK.md`** — rewritten for Brevo:
 account, domain auth records in Cloudflare (**additive only, never touch MX/SPF/livemail***),
 `BREVO_API_KEY` onto the server env, deploy, **read the value back inside the container**,
 then a real order with a real inbox as the only accepted proof.

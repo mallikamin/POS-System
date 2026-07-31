@@ -22,6 +22,7 @@ known false.
 | Client | Folder | Status |
 |---|---|---|
 | **Chick Shack UK** (Imran R) | `_context/clients/chick-shack-uk/` | **Active, building.** Reference material only — **status lives in `STATE.md`**, per the rule above. (The old status text here had gone stale twice: the custom domain is long since live and the ordering API shipped.) |
+| **New UK referral (name TBD)** | Not yet created — see `_context/notes/2026-08-01_uk-payment-gateways-non-stripe.md` in the meantime | **Lead, 2026-08-01.** Sourced by Imran (Chick Shack), happy with tonight's UAT and offered to refer another restaurant. UK-based, wants to avoid Stripe ("has some issue," not yet specified), mentioned Bank of Scotland/Lloyds and Clydesdale Bank as preferred payment options. Once Malik has a name, create `_context/clients/<slug>/` and move the payment-gateway note into it. |
 | BPO World (Younis Kamran) | `docs/` — partner pricing + MOU | Partner, 50/50 revenue share. See root `MOU-Sitara-Vera-BPO-World.md`. |
 | TastyBites (Faizan) | `C:\ST\Sitara Infotech\Faizan TastyBites\` | Lead. Runs the same EposNow system as Chick Shack. |
 
