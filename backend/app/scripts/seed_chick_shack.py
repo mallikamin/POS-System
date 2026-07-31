@@ -280,26 +280,6 @@ async def _get_or_create_group(
     return group
 
 
-async def _link(
-    db: AsyncSession, tenant: Tenant, item: MenuItem, group: ModifierGroup
-) -> None:
-    exists = (
-        await db.execute(
-            select(MenuItemModifierGroup).where(
-                MenuItemModifierGroup.menu_item_id == item.id,
-                MenuItemModifierGroup.modifier_group_id == group.id,
-            )
-        )
-    ).scalar_one_or_none()
-    if exists is None:
-        db.add(
-            MenuItemModifierGroup(
-                tenant_id=tenant.id, menu_item_id=item.id, modifier_group_id=group.id
-            )
-        )
-        await db.flush()
-
-
 async def _seed_items(
     db: AsyncSession,
     tenant: Tenant,
@@ -347,46 +327,47 @@ async def _seed_items(
         await db.flush()
         count += 1
 
+        # `menu_item_modifier_groups` has no ordering column, so the API's
+        # unordered `selectin` relationship falls back to physical/insertion
+        # order. Delete and recreate every item's links on every reseed, in
+        # the exact order intended, so an order fix in menu.ts always takes
+        # effect on the next `seed_chick_shack.py` run -- no separate one-off
+        # reorder script needed. This list is built from EVERY group this
+        # item should link to, in one pass, and recreated in one delete+
+        # insert below -- deliberately not split into "link the variant
+        # group" then "delete and recreate everything else", which is what
+        # this code did until 2026-07-31: the variant Choice group was
+        # linked first via a standalone `_link()` call, then immediately
+        # wiped out by the unconditional delete a few lines later, which only
+        # knew about `entry["modifierGroups"]`. Net effect: every multi-
+        # variant item's Choice group existed in the database with the right
+        # options, but was never actually linked to the item after a
+        # reseed, so the live API exposed a single flat (cheapest) price
+        # with no size/quantity choice at all -- caught comparing the live
+        # API response for "Fried Chicken" against `menu.ts`, which still
+        # correctly listed 2pc/3pc/4pc.
+        group_ids: list[uuid.UUID] = []
+
         if len(variants) > 1:
             # Per-item, because the options and their deltas are specific to
             # this dish -- "with Rice +100" means nothing on another item.
-            await _link(
+            variant_group = await _get_or_create_group(
                 db,
                 tenant,
-                item,
-                await _get_or_create_group(
-                    db,
-                    tenant,
-                    f"{entry['name']} -- {VARIANT_GROUP_NAME}",
-                    required=True,
-                    min_selections=1,
-                    max_selections=1,
-                    options=[
-                        {
-                            "name": v["name"],
-                            "price_adjustment": v["price"] - base_price,
-                        }
-                        for v in variants
-                    ],
-                ),
+                f"{entry['name']} -- {VARIANT_GROUP_NAME}",
+                required=True,
+                min_selections=1,
+                max_selections=1,
+                options=[
+                    {
+                        "name": v["name"],
+                        "price_adjustment": v["price"] - base_price,
+                    }
+                    for v in variants
+                ],
             )
+            group_ids.append(variant_group.id)
 
-        # `menu_item_modifier_groups` has no ordering column, so the API's
-        # unordered `selectin` relationship falls back to physical/insertion
-        # order. `_link()` is additive by design for the SET of linked
-        # groups (safe to re-run, never duplicates), but that same
-        # additive-only behaviour meant an item's group ORDER was frozen at
-        # whatever it happened to be the first time each link was created --
-        # reordering `modifierGroups` in menu.ts and reseeding changed
-        # nothing live. Caught twice in one session (Meal items showing
-        # dips before the required drink; several solo items showing dips
-        # before a required Heat choice) via `AskUserQuestion` walkthroughs
-        # is exactly the wrong way to keep finding this. Delete and
-        # recreate every item's links on every reseed instead, in the exact
-        # order this entry's `modifierGroups` specifies, so an order fix in
-        # menu.ts always takes effect on the next `seed_chick_shack.py` run
-        # -- no separate one-off reorder script needed again.
-        group_ids: list[uuid.UUID] = []
         for group_def in entry.get("modifierGroups") or []:
             key = group_def["id"]
             if key not in shared_groups:
