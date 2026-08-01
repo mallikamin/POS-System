@@ -1,7 +1,151 @@
 # Open items register
 
-**Last updated:** 2026-07-31 (session J) — **OI-56 CLOSED**: chunky-chicken source photos
-integrated and deployed, replacing stock placeholders. See entry below.
+**Last updated:** 2026-08-01 (session O) — **OI-57 and OI-58 opened**: online-orders queue
+filtering/pagination/sort, and Chick Shack reporting. NOT yet built — full spec below, written for
+a fresh session to pick up via `/handoff`. See entries below, they are long and deliberately so —
+Malik's instruction was "no half-cooked jobs," confirm only once curl-tested and report formatting
+is actually checked.
+
+**OI-57 🔴 NOT BUILT · Online-orders queue: date filter, pagination, sort.** Requested 2026-08-01,
+Malik: *"would need date wise filters, toggle buttons across pending active all tab - so previous
+day orders dont reflect in today orders - need pagination - sorted from most recent to oldest
+(add a sort button too)."*
+
+Current state, confirmed by reading the actual code (not assumed):
+- `GET /public/manage/orders` (`backend/app/api/v1/public.py:392`) accepts exactly two query
+  params: `state` (pending/active/all) and `limit` (1-200, default 50). **No date filter, no
+  offset/cursor, no sort param exist today.**
+- `list_merchant_orders` (`backend/app/services/public_order_service.py:806-848`) hardcodes the
+  order per state: **pending** = `accepted_at IS NULL AND rejected_at IS NULL`, oldest-first
+  (`created_at.asc()`) — deliberately FIFO, "work the queue in the order it arrived." **active** =
+  accepted-but-not-finished, newest-first. **all** = every online order ever, newest-first. **None
+  of the three branches has any date/time bound in its WHERE clause** — `created_at` is used only
+  for ordering, never for scoping to "today."
+- Proven concretely in the local dev DB: **7 total online orders exist for chick-shack, all dated
+  2026-07-28.** 5 of them are still `confirmed` with no `accepted_at`/`rejected_at` — i.e. today
+  (08-01), the Pending tab already shows 3-day-old test orders mixed in, with nothing to age them
+  out or separate them from anything genuinely new. This is the exact bug Malik is describing,
+  reproducible right now, not a hypothetical future-volume concern.
+- `MerchantOrderSummary.placed_at` (`backend/app/schemas/public_order.py:223`) is the timestamp
+  field already on the response — use this, don't add a duplicate.
+
+**Scope to build:**
+1. **Date scoping.** Pending and Active should default to **today only**, in the shop's local
+   timezone (the existing `utc_offset_minutes`/timezone-resolution pattern already used by
+   `print_service.py`/`email_service.py` for Chick Shack — reuse it, don't invent a second
+   timezone mechanism). Add an explicit date param (`date: date | None` — default today) so staff
+   can still look at a specific past day if they need to, and a `date_from`/`date_to` range for the
+   "All" tab specifically (it's documented as "a log," so range browsing makes sense there in a way
+   it doesn't for a live work queue).
+2. **Pagination.** Add `offset` alongside the existing `limit`, and have `MerchantQueueResponse`
+   return a `total_count` (or `has_more` boolean) so the frontend can render actual page controls,
+   not just silently truncate at 50/200.
+3. **Sort.** Add a `sort: "asc" | "desc"` param and a toggle button in `OnlineOrdersPage.tsx`.
+   **Judgment call made here, not yet confirmed by Malik — flag this explicitly during the UAT
+   walkthrough rather than silently deciding it's obviously right:** Pending's current oldest-first
+   FIFO order is a deliberate, already-correct design (you serve the oldest ticket first) and
+   should **stay the default** even though Malik's message reads as "sorted from most recent to
+   oldest" — that phrasing most likely describes Active/All (the log-style views, where newest-first
+   is already the default and just needs a user-facing toggle to flip it), not a request to break
+   the queue-work-order for Pending. Build the toggle for Active/All; leave Pending's default alone
+   unless Malik says otherwise on UAT.
+4. Backend: `list_merchant_orders` (service + route), `MerchantQueueResponse` schema.
+5. Frontend: `onlineOrdersApi.ts`'s `listOnlineOrders` signature, a date picker + pagination
+   controls + sort toggle in `OnlineOrdersPage.tsx`. Keep the existing "Enable sound"/new-order-watch
+   logic untouched — it already runs its own independent `pending`-scoped poll and must keep working
+   exactly as it does today regardless of what date/page/sort the visible tab is showing.
+
+**Definition of done (Malik's own bar, don't skip):** curl-test the new endpoint directly with a
+real JWT (log in as `imran@chickshackg84.com` or `malik@sitaratech.info` via `POST /auth/login`)
+across at least: today with orders, today with zero orders, a past date, a date range on "all,"
+page 2 of a paginated result, both sort directions — confirm each response shape and count by hand
+against the DB, not just a 200. `tsc`+`vite build`+eslint clean. Only then deploy and confirm to
+Malik.
+
+---
+
+**OI-58 🔴 NOT BUILT · Chick Shack reporting: lean branded reports tab.** Requested 2026-08-01,
+Malik: *"the native POS already has reporting - just need to reflect reports/dashboards tab here
+as well. Chick Shack headers. lean format. Daily Orders/Sales Report (custom date range) - Prepaid
+vs Cash on Delivery Report | Rejected Orders Report | maybe a stripe specific report to
+reconcile?"*
+
+**Access is NOT the gap — confirmed by reading the actual routing code.** `online_ordering_only`
+(`DashboardPage.tsx:73-75`) only redirects `/` → `/online-orders`; it does not gate `/admin/reports`
+in any way (`AdminLayout.tsx` only checks `isAuthenticated` + role, never this flag).
+`imran@chickshackg84.com` and `malik@sitaratech.info` are both already seeded as `admin` role
+(`seed_chick_shack.py:409-430`) and could log into the existing `/admin/reports` today with zero new
+code. **The real gap is that online orders are invisible inside the existing reports, and the
+existing reports page is the wrong shape for a single-channel, no-tables, no-waiters tenant.**
+
+Confirmed gaps, by reading `report_service.py`/`zreport_service.py`/`ReportsPage.tsx`/
+`AdminDashboard.tsx`/`dashboard_service.py` directly:
+- `get_sales_summary` (`report_service.py:15-124`) computes a per-`order_type` breakdown internally
+  (`channels` dict, DOES include an `"online"` key for Chick Shack) but then **only reads out
+  `dine_in`/`takeaway`/`call_center`** in its return statement — `channels["online"]` is silently
+  discarded. `SalesSummary` (`schemas/report.py`) has no `online_revenue`/`online_orders` field.
+  The **top-level** `total_revenue`/`total_orders` in the same response is NOT channel-filtered, so
+  it already includes online revenue — it just never appears broken out anywhere.
+- `ReportsPage.tsx:73-99`'s channel-breakdown card and `AdminDashboard.tsx:453-472`'s live-ops
+  columns both **hardcode exactly 3 channels** (dine_in/takeaway/call_center) — an online row would
+  not render even if the backend field existed. `dashboard_service.py:114-118` filters online orders
+  out of every live-ops bucket entirely.
+- `zreport_service.py`'s `by_channel` (`:278-281`) is genuinely channel-agnostic and would already
+  show `{"channel": "online", ...}` correctly — worth building the new lean report off this
+  function's pattern rather than `get_sales_summary`'s, or fixing `get_sales_summary` to match it.
+- **No prepaid-vs-COD report exists anywhere.** Nothing in `report_service.py`/`zreport_service.py`
+  references `payment_status`, `stripe_payment_intent_id`, or `service_type`. Needs new logic:
+  bucket online orders (excluding `status == 'voided'`, matching the existing void-report
+  convention) by whether `stripe_checkout_session_id IS NOT NULL` (prepaid/card) vs `NULL`
+  (cash/pay-on-delivery), summed revenue + count each way, for a custom date range.
+- **Rejected orders are counted but not reported on directly.** `get_void_report` DOES include
+  rejected online orders in its `total_voids`/`total_voided_value` (since `reject_order` sets
+  `status = "voided"`), but its `by_reason` breakdown reads `OrderStatusLog.note`, which
+  `reject_order` (`public_order_service.py:760-798`) never sets — so every rejected online order
+  currently shows "No reason provided" even though the real reason sits on `Order.rejection_reason`,
+  right there unread. **Don't try to retrofit the generic void report** — build the "Rejected Orders
+  Report" as its own direct query on `Order.rejected_at IS NOT NULL AND rejection_reason` for
+  `order_type='online'` in the date range; simpler and correct for what's actually being asked.
+  (Optionally also fix `reject_order` to set `OrderStatusLog.note = reason` while in there, so the
+  *general* void report stops showing "No reason provided" for online rejections too — small,
+  same-mechanism fix, worth doing since it's a two-line change once you're already in that
+  function, but the dedicated Rejected Orders Report does not depend on it.)
+- **No Stripe reconciliation exists.** Every Stripe call in `stripe_service.py` (582 lines, read in
+  full) is single-order, keyed off an ID we already have — no `list()` call anywhere. Malik flagged
+  this one with "maybe," so build it **last, and only after the other three are solid** — for a date
+  range, pull our own DB's online orders with `stripe_payment_intent_id` set, then
+  `PaymentIntent.retrieve` each one individually (NOT a blind account-wide `PaymentIntent.list`,
+  which isn't tenant-scoped and would mix in any other Stripe account activity) and diff DB
+  `payment_status`/`payment_captured_at` against Stripe's actual `status`/`amount_received`. This is
+  the same manual check done by hand for OI-41 tonight, made repeatable.
+
+**Scope to build:**
+1. **Fix the mechanism first, platform-wide** (per this project's own established rule — a narrow
+   Chick-Shack-only patch would leave the same gap for the next online-ordering tenant): add
+   `online_revenue`/`online_orders` to `SalesSummary`, stop discarding `channels.get("online")` in
+   `get_sales_summary`, extend the 3-hardcoded-channel arrays in `ReportsPage.tsx`/
+   `AdminDashboard.tsx`/`dashboard_service.py` to include online. This benefits the whole platform,
+   not just Chick Shack.
+2. **A new lean, branded route** — e.g. `/online-orders/reports`, sibling to the existing
+   `/online-orders` page, no `AdminLayout` sidebar/dine-in/waiter-performance clutter. Style it with
+   the same ink/flame/ember palette already used for Chick Shack's branded emails
+   (`tailwind.config.js`), but pull the shop NAME from `restaurant_configs`/config store rather than
+   hardcoding the string "Chick Shack" — this tenant won't be the only `online_ordering_only` one
+   for long (see [[new-uk-referral-pipeline]] in memory), and the whole point of building it once,
+   correctly, is that it should just work for the next one too.
+3. Reports to include, in this priority order: (a) Daily Orders/Sales, custom date range — use the
+   fixed `online_revenue`/`online_orders` fields; (b) Prepaid vs Cash-on-Delivery — new; (c)
+   Rejected Orders — new, dedicated query as described above; (d) Stripe reconciliation — new,
+   explicitly lower priority ("maybe"), build last.
+4. CSV/download for each, matching the existing `sales-summary/csv` pattern — Malik explicitly
+   wants downloaded reports checked for formatting before this is called done.
+
+**Definition of done (Malik's own bar, don't skip):** every new/changed endpoint curl-tested with a
+real JWT against real data — verify counts/sums by hand against the DB for at least one date with
+known orders. Every downloadable report actually downloaded and opened, formatting checked, not
+just "the request returned 200." `tsc`+`vite build`+eslint clean, backend test suite green (new
+tests for the new report logic, not just manual curl). Only once ALL of the above is true — Malik's
+own words, "2000% done" — confirm back to him. He does UAT after that, not before.
 
 **Previously, same day (session H/I):** **OI-45(a) and (b) BUILT and deployed to
 production**: meal deal modifiers as real Meal products, matching Imran's till exactly. Two
