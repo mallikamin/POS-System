@@ -1,6 +1,53 @@
 # STATE — Restaurant POS System
 
-**Last refreshed:** 2026-08-01 (session P — resumed from `HANDOFF.md`/`PAUSE_CHECKPOINT_2026-08-01-B.md` via `/refresh`, no drift found; HEAD `ffb07aa`) · **Branch:** `main`
+**Last refreshed:** 2026-08-02 (session Q) · **Branch:** `main`
+
+**Session Q in one line: Malik asked to double-check the card-payment flow for a specific loophole
+("do we ever assume the customer has paid when he hasn't?"). Traced the whole pipeline (tablet,
+ticket, email, confirmation page) and confirmed no such loophole exists — all four independently key
+off the same server-derived `payment_status`, which only flips to `paid` via a real captured Payment
+row. Found one real, narrower gap instead: a race between the shop answering an order (Accept/Reject)
+and the customer's card finishing authorisation — fixed and deployed, commit `dfc88e9`. Also added a
+durable Stripe audit trail per Malik's request ("keep all logs ... so any dispute can easily be
+addressed"). Malik explicitly said "yes commit push deploy live" before any of this happened. Deploy
+verified live beyond the green Action — see below.**
+
+- **The race window**: `accept_order`/`reject_order` only ever act on a Stripe PaymentIntent that
+  already exists at the moment they run. If staff tap Accept/Reject while the customer is still
+  entering card details, there is nothing yet to capture/cancel — correct, falls through as an
+  ordinary unpaid order (tablet shows "NOT PAID — COLLECT"). But if the authorisation then lands a
+  few seconds later, nothing was previously watching for it: the hold just sat there until Stripe
+  auto-expired it days later (no revenue loss or double-charge risk, but a dangling, unreconciled
+  authorisation and potential customer confusion). **Fixed**: `reconcile_late_authorization()`,
+  triggered from the same `payment_intent.amount_capturable_updated` webhook event that already
+  backfills the intent id, closes it symmetrically — captures if the order was already accepted
+  (kitchen already committed to the food), releases if already rejected, no-ops if still pending or
+  already captured. A late capture that itself fails is logged loudly (`stripe_capture_failed`) as an
+  unavoidable, human-needs-to-know case — food already made, card genuinely declined at the capture
+  moment, cannot be fixed programmatically.
+- **Durable Stripe audit trail**: every Stripe transaction now writes to the existing `audit_logs`
+  table (tenant-scoped, queryable by `entity_id` = order id) — checkout session created, capture on
+  Accept, cancel on Reject, and every webhook delivery received, *including* `payment_intent.canceled`/
+  `payment_intent.payment_failed`, which deliberately change nothing on the order but are still real
+  events a dispute conversation may need evidence of. Each row carries the Stripe event/intent id,
+  amount, and who did it (staff user id for Accept/Reject, "Stripe webhook" for automated events).
+  **Caveat**: DB-only for now, no viewer page — look it up via `make psql` filtering
+  `entity_type='order' AND entity_id=<order id>` until/unless a report UI is asked for.
+- 9 new tests (functional: late-capture, late-cancel, still-pending no-op, no-double-capture-on-
+  replay, failed-late-capture; audit: checkout/accept/reject/webhook-event logging). Full suite:
+  **479 passed**, same 14 pre-existing unrelated failures as session P (2 session-O + 12 QB-Desktop/
+  parked) — zero new regressions, exact expected delta. `ruff check` clean.
+- **Deployed and independently verified live, commit `dfc88e9`.** `git push origin main` (backend-
+  only, no `storefront/` changes). "Deploy to Production" Action green including its own "Verify
+  deployment" health check. Independently confirmed beyond the green Action: SSH'd in, `git log` on
+  the server matches `dfc88e9` exactly, `pos-system-backend-1` freshly recreated and healthy; **the
+  new code was grepped directly out of the running container** (`reconcile_late_authorization` present
+  in `/app/app/services/public_order_service.py`, plus the new `stripe_checkout_created`/
+  `stripe_capture_failed` audit action strings) — not assumed from the diff.
+- **Next action**: nothing outstanding from this session. The fix is dormant until the specific race
+  timing occurs again in production; no live UAT step is needed (it is not a UI-visible feature).
+
+---
 
 **Session P in one line: OI-57 (online-orders date filter/pagination/sort) and OI-58 (Chick Shack
 reporting) are both BUILT, tested, and DEPLOYED to production, commit `55ac6de`. Malik confirmed
