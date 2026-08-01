@@ -35,7 +35,7 @@ from app.models.restaurant_config import RestaurantConfig
 from app.models.user import Role, User
 from app.models.tenant import Tenant
 from app.schemas.public_order import PublicOrderCreate
-from app.services import email_service, order_service, stripe_service
+from app.services import audit_service, email_service, order_service, stripe_service
 from app.utils.security import hash_password
 
 logger = logging.getLogger(__name__)
@@ -523,6 +523,86 @@ async def _link_customer(
 # ---------------------------------------------------------------------------
 
 
+async def _log_stripe_event(
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    order: Order,
+    *,
+    action: str,
+    detail: str,
+    changes: dict,
+    user_id: uuid.UUID | None = None,
+) -> None:
+    """Durable, per-order record of every Stripe transaction and event.
+
+    Money moved through Stripe is exactly the kind of thing a chargeback or a
+    "did I actually pay?" query asks about weeks later, by which point an
+    ephemeral application log has usually rotated away. `audit_logs` already
+    exists, is tenant-scoped, is queryable by `entity_id`, and is isolated in
+    its own SAVEPOINT (see `audit_service.log_action`) so a logging failure
+    can never take a payment down with it -- so Stripe events are recorded
+    through it rather than inventing a second logging path.
+
+    `user_id=None` marks an event nobody at the shop triggered: a webhook
+    delivery. A staff Accept/Reject passes its own `user_id` instead, so the
+    trail shows who took the action, not just that Stripe reported it.
+    """
+    await audit_service.log_action(
+        db,
+        tenant_id=tenant_id,
+        user_id=user_id,
+        user_name=None if user_id else "Stripe webhook",
+        entity_type="order",
+        entity_id=order.id,
+        action=action,
+        changes=changes,
+        detail=detail,
+    )
+
+
+async def log_stripe_checkout_session_created(
+    db: AsyncSession,
+    order: Order,
+    *,
+    session_id: str,
+    intent_id: str | None,
+) -> None:
+    """Record that the customer was sent to Stripe to pay -- the start of the
+    money trail for this order, called from the public checkout-session route.
+    """
+    await _log_stripe_event(
+        db,
+        order.tenant_id,
+        order,
+        action="stripe_checkout_created",
+        detail=f"Checkout session started for {order.order_number}.",
+        changes={"session_id": session_id, "intent_id": intent_id},
+    )
+
+
+async def log_stripe_webhook_event(
+    db: AsyncSession,
+    order: Order,
+    *,
+    event_type: str,
+    event_id: str | None,
+    intent_id: str | None,
+) -> None:
+    """Record every Stripe webhook delivery for this order, whether or not we
+    acted on it -- including `payment_intent.canceled`/`payment_intent.
+    payment_failed`, which deliberately change nothing on the order but are
+    still real events on the money side that a dispute conversation may need.
+    """
+    await _log_stripe_event(
+        db,
+        order.tenant_id,
+        order,
+        action=f"stripe_webhook_{event_type}",
+        detail=f"Stripe reported {event_type} for {order.order_number}.",
+        changes={"event_id": event_id, "event_type": event_type, "intent_id": intent_id},
+    )
+
+
 async def _record_card_payment(
     db: AsyncSession,
     tenant_id: uuid.UUID,
@@ -643,6 +723,15 @@ async def accept_order(
             # money the shop cannot see -- the same trap `mark_order_paid`
             # exists to avoid.
             await _record_card_payment(db, tenant_id, order, user_id)
+            await _log_stripe_event(
+                db,
+                tenant_id,
+                order,
+                action="stripe_captured",
+                detail=f"Captured {order.total} for {order.order_number} on accept.",
+                changes={"intent_id": intent_id, "amount": order.total, "status": status},
+                user_id=user_id,
+            )
 
     order.accepted_at = datetime.now(timezone.utc)
     order.eta_minutes = eta_minutes
@@ -816,7 +905,16 @@ async def reject_order(
     order = await _get_pending_online_order(db, tenant_id, order_id)
 
     if order.stripe_payment_intent_id and order.payment_captured_at is None:
-        await stripe_service.cancel(order.stripe_payment_intent_id)
+        released = await stripe_service.cancel(order.stripe_payment_intent_id)
+        await _log_stripe_event(
+            db,
+            tenant_id,
+            order,
+            action="stripe_canceled",
+            detail=f"Released hold on {order.order_number} at reject.",
+            changes={"intent_id": order.stripe_payment_intent_id, "released": released},
+            user_id=user_id,
+        )
 
     order.rejected_at = datetime.now(timezone.utc)
     order.rejection_reason = reason
@@ -833,6 +931,108 @@ async def reject_order(
     )
     await db.flush()
     return await order_service.get_order(db, order.id, tenant_id)  # type: ignore[return-value]
+
+
+async def reconcile_late_authorization(
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    order: Order,
+    intent_id: str,
+) -> None:
+    """Close the race between the shop answering an order and the customer's
+    card actually finishing authorisation, whichever happens first.
+
+    `accept_order` resolves and captures a PaymentIntent that already exists;
+    `reject_order` cancels one that already exists. Neither can act on an
+    authorisation that shows up *after* the order was already answered --
+    e.g. staff tap Accept while the customer is still entering card details,
+    and the hold only lands a few seconds later. Triggered by the webhook's
+    `payment_intent.amount_capturable_updated` event, which fires exactly
+    when that authorisation completes.
+
+    A no-op if the order is still awaiting an answer -- Accept/Reject handle
+    it themselves when they happen -- or if the money is already captured.
+    """
+    if order.payment_captured_at is not None:
+        return
+
+    if order.rejected_at is not None:
+        released = await stripe_service.cancel(intent_id)
+        await _log_stripe_event(
+            db,
+            tenant_id,
+            order,
+            action="stripe_canceled",
+            detail=(
+                f"Released a late authorisation on already-rejected order "
+                f"{order.order_number}."
+            ),
+            changes={"intent_id": intent_id, "released": released},
+        )
+        return
+
+    if order.accepted_at is None:
+        # Still pending. Accept will resolve and capture this live when it
+        # happens, exactly as it does today -- nothing to do yet.
+        return
+
+    # Already accepted: the kitchen has committed to the food. Take the
+    # payment now, same capture call accept_order makes.
+    try:
+        capture_status = await stripe_service.capture_for_order(intent_id, order.total)
+    except stripe_service.StripeError:
+        logger.exception(
+            "Late capture failed for already-accepted order %s (%s). Food may already "
+            "be in the kitchen with payment still uncaptured -- needs manual follow-up.",
+            order.order_number,
+            intent_id,
+        )
+        await _log_stripe_event(
+            db,
+            tenant_id,
+            order,
+            action="stripe_capture_failed",
+            detail=(
+                f"Late capture failed on already-accepted order {order.order_number}. "
+                "Needs manual follow-up -- food may already be made."
+            ),
+            changes={"intent_id": intent_id, "amount": order.total},
+        )
+        return
+
+    if capture_status != "succeeded":
+        logger.warning(
+            "Late capture for accepted order %s did not succeed (status=%s)",
+            order.order_number,
+            capture_status,
+        )
+        await _log_stripe_event(
+            db,
+            tenant_id,
+            order,
+            action="stripe_capture_failed",
+            detail=(
+                f"Late capture on already-accepted order {order.order_number} returned "
+                f"status {capture_status}, not succeeded. Needs manual follow-up."
+            ),
+            changes={"intent_id": intent_id, "status": capture_status},
+        )
+        return
+
+    order.payment_captured_at = datetime.now(timezone.utc)
+    system_user = await _get_or_create_online_user(db, tenant_id)
+    await _record_card_payment(db, tenant_id, order, system_user.id)
+    await _log_stripe_event(
+        db,
+        tenant_id,
+        order,
+        action="stripe_captured",
+        detail=(
+            f"Captured {order.total} for {order.order_number} via a late-arriving "
+            "authorisation (order was already accepted)."
+        ),
+        changes={"intent_id": intent_id, "amount": order.total, "status": capture_status},
+    )
 
 
 # ---------------------------------------------------------------------------

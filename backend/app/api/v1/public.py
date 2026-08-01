@@ -246,6 +246,9 @@ async def create_checkout_session(
         # session was created -- it is set once authorisation is actually
         # confirmed, by the webhook or by Accept resolving it.
         order.stripe_payment_intent_id = payment_intent_id
+    await public_order_service.log_stripe_checkout_session_created(
+        db, order, session_id=session_id, intent_id=payment_intent_id
+    )
     await db.commit()
 
     return {"checkout_url": url, "session_id": session_id}
@@ -308,6 +311,9 @@ async def stripe_webhook(
         )
         return {"status": "ignored"}
 
+    intent_obj = stripe_service.field(stripe_service.field(event, "data", {}), "object", {})
+    event_intent_id = stripe_service.field(intent_obj, "id")
+
     # Idempotent by construction: every branch below is a no-op if the state is
     # already what the event describes, so a duplicate delivery changes nothing.
     if event_type == "payment_intent.amount_capturable_updated":
@@ -316,13 +322,30 @@ async def stripe_webhook(
         # independently of `payment_authorized_at` below: a bug once tied
         # this write to that same guard, and since `payment_authorized_at`
         # could already be set from elsewhere, the id was never backfilled.
-        intent_obj = stripe_service.field(stripe_service.field(event, "data", {}), "object", {})
-        intent_id = stripe_service.field(intent_obj, "id")
-        if intent_id and order.stripe_payment_intent_id is None:
-            order.stripe_payment_intent_id = intent_id
+        if event_intent_id and order.stripe_payment_intent_id is None:
+            order.stripe_payment_intent_id = event_intent_id
         if order.payment_authorized_at is None:
             order.payment_authorized_at = stripe_service.authorization_timestamp()
+
+        await public_order_service.log_stripe_webhook_event(
+            db, order, event_type=event_type, event_id=stripe_service.field(event, "id"),
+            intent_id=event_intent_id,
+        )
+
+        # The authorisation can land *after* the shop has already answered the
+        # order -- e.g. staff tap Accept while the customer is still entering
+        # their card details. Whichever happens first, Accept/Reject's own
+        # logic handles it; this closes the other ordering, symmetrically.
+        resolved_intent_id = order.stripe_payment_intent_id or event_intent_id
+        if resolved_intent_id:
+            await public_order_service.reconcile_late_authorization(
+                db, order.tenant_id, order, resolved_intent_id
+            )
     elif event_type == "payment_intent.succeeded":
+        await public_order_service.log_stripe_webhook_event(
+            db, order, event_type=event_type, event_id=stripe_service.field(event, "id"),
+            intent_id=event_intent_id,
+        )
         if order.payment_captured_at is None:
             order.payment_captured_at = stripe_service.authorization_timestamp()
             logger.info(
@@ -334,6 +357,10 @@ async def stripe_webhook(
         # should void an order is the shop's call, not Stripe's -- they may
         # still want to take it in cash.
         logger.info("Stripe reports %s for order %s", event_type, order.order_number)
+        await public_order_service.log_stripe_webhook_event(
+            db, order, event_type=event_type, event_id=stripe_service.field(event, "id"),
+            intent_id=event_intent_id,
+        )
     else:
         return {"status": "ignored"}
 

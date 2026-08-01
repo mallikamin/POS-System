@@ -34,7 +34,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.order import Order
 from app.models.tenant import Tenant
 from app.models.user import User
-from app.services import public_order_service, stripe_service
+from app.services import audit_service, public_order_service, stripe_service
 from app.services.public_order_service import PublicOrderError
 from app.services.stripe_service import StripeError, StripeNotConfigured
 
@@ -1101,3 +1101,335 @@ async def test_webhook_never_overwrites_an_intent_id_already_on_the_order(
         await db.execute(select(Order).where(Order.id == card_order.id))
     ).scalar_one()
     assert refreshed.stripe_payment_intent_id == "pi_test_123"
+
+
+# ---------------------------------------------------------------------------
+# Late authorisation -- the customer finishes paying *after* the shop has
+# already answered the order (Accept or Reject), not before.
+#
+# `accept_order`/`reject_order` only ever act on a PaymentIntent that already
+# exists. Both leave a gap for the ordinary case where the card is still
+# authorising when staff tap the button: the order is answered with nothing
+# to capture/cancel, and if the authorisation lands moments later nothing was
+# previously watching for it. `reconcile_late_authorization`, triggered from
+# the same `amount_capturable_updated` event that already backfills the
+# intent id, closes that gap. These tests are the same shape as the Accept/
+# Reject tests above, just triggered from the webhook instead of the button.
+# ---------------------------------------------------------------------------
+
+
+def _calls_with_action(mock: AsyncMock, action: str) -> list:
+    return [c for c in mock.await_args_list if c.kwargs.get("action") == action]
+
+
+@pytest_asyncio.fixture
+async def accepted_card_order_pending_intent(
+    db: AsyncSession, tenant: Tenant, admin_user: User
+) -> Order:
+    """Staff tapped Accept before the customer's card finished authorising.
+
+    Same shape as `card_order_pending_intent` -- no intent id yet, so Accept's
+    own live resolve found nothing to capture and fell through as an ordinary
+    unpaid order -- except the order really was accepted and the kitchen is
+    already cooking. This is exactly the state a late `amount_capturable_
+    updated` event must reconcile.
+    """
+    order = _card_order(
+        tenant,
+        admin_user,
+        order_number="S250101-005",
+        stripe_payment_intent_id=None,
+        payment_authorized_at=None,
+        accepted_at=datetime.now(timezone.utc),
+        status="in_kitchen",
+    )
+    db.add(order)
+    await db.flush()
+    await db.commit()
+    return order
+
+
+@pytest_asyncio.fixture
+async def rejected_card_order_pending_intent(
+    db: AsyncSession, tenant: Tenant, admin_user: User
+) -> Order:
+    """Staff tapped Reject before the customer's card finished authorising.
+
+    Reject's own cancel step had nothing to release yet. A late `amount_
+    capturable_updated` event must release the hold once it does exist,
+    rather than leaving it to expire on its own days later.
+    """
+    order = _card_order(
+        tenant,
+        admin_user,
+        order_number="S250101-006",
+        stripe_payment_intent_id=None,
+        payment_authorized_at=None,
+        rejected_at=datetime.now(timezone.utc),
+        status="voided",
+    )
+    db.add(order)
+    await db.flush()
+    await db.commit()
+    return order
+
+
+@pytest.mark.asyncio
+async def test_late_authorization_captures_an_already_accepted_order(
+    client,
+    db: AsyncSession,
+    tenant: Tenant,
+    admin_user: User,
+    accepted_card_order_pending_intent: Order,
+) -> None:
+    """The race this mechanism exists for. The kitchen already committed to
+    the food -- take the payment now, exactly as Accept itself would have if
+    the authorisation had landed a few seconds earlier.
+    """
+    from app.models.payment import Payment
+
+    order_id = accepted_card_order_pending_intent.id
+    event = _capturable_event(order_id, tenant.id, intent_id="pi_late_capture")
+
+    with patch.object(stripe_service, "verify_webhook", return_value=event), patch.object(
+        stripe_service, "capture_for_order", new=AsyncMock(return_value="succeeded")
+    ) as capture, patch.object(
+        audit_service, "log_action", new=AsyncMock()
+    ) as log_action:
+        response = await client.post("/api/v1/public/stripe/webhook", content=b"{}")
+
+    assert response.status_code == 200
+    capture.assert_awaited_once_with("pi_late_capture", 1300)
+
+    db.expunge_all()
+    refreshed = (
+        await db.execute(select(Order).where(Order.id == order_id))
+    ).scalar_one()
+    assert refreshed.payment_captured_at is not None
+    assert refreshed.payment_status == "paid", (
+        "the tablet must stop showing NOT PAID once the late capture lands"
+    )
+
+    payments = (
+        await db.execute(select(Payment).where(Payment.order_id == order_id))
+    ).scalars().all()
+    assert len(payments) == 1, "exactly one Payment row, same as a normal Accept capture"
+    assert payments[0].amount == 1300
+    assert payments[0].reference == "pi_late_capture"
+
+    captured_calls = _calls_with_action(log_action, "stripe_captured")
+    assert len(captured_calls) == 1, "the late capture must leave a durable audit trail"
+    assert captured_calls[0].kwargs["entity_id"] == order_id
+
+
+@pytest.mark.asyncio
+async def test_late_authorization_releases_an_already_rejected_order(
+    client,
+    db: AsyncSession,
+    tenant: Tenant,
+    admin_user: User,
+    rejected_card_order_pending_intent: Order,
+) -> None:
+    """The mirror case: the shop already said no before the hold existed to
+    release. Once it exists, it must not be left to just expire quietly --
+    same principle as `reject_order`'s own cancel step, triggered late.
+    """
+    order_id = rejected_card_order_pending_intent.id
+    event = _capturable_event(order_id, tenant.id, intent_id="pi_late_cancel")
+
+    with patch.object(stripe_service, "verify_webhook", return_value=event), patch.object(
+        stripe_service, "cancel", new=AsyncMock(return_value=True)
+    ) as cancel, patch.object(audit_service, "log_action", new=AsyncMock()) as log_action:
+        response = await client.post("/api/v1/public/stripe/webhook", content=b"{}")
+
+    assert response.status_code == 200
+    cancel.assert_awaited_once_with("pi_late_cancel")
+
+    db.expunge_all()
+    refreshed = (
+        await db.execute(select(Order).where(Order.id == order_id))
+    ).scalar_one()
+    assert refreshed.payment_captured_at is None
+    assert refreshed.status == "voided", "still rejected, not resurrected by a late hold"
+
+    assert len(_calls_with_action(log_action, "stripe_canceled")) == 1
+
+
+@pytest.mark.asyncio
+async def test_late_authorization_does_nothing_while_still_pending(
+    client,
+    db: AsyncSession,
+    tenant: Tenant,
+    admin_user: User,
+    card_order_pending_intent: Order,
+) -> None:
+    """An order still awaiting an answer is untouched by this path -- Accept's
+    own live resolve-and-capture handles it when the shop actually answers,
+    exactly as it does today.
+    """
+    order_id = card_order_pending_intent.id
+    event = _capturable_event(order_id, tenant.id, intent_id="pi_still_pending")
+
+    with patch.object(stripe_service, "verify_webhook", return_value=event), patch.object(
+        stripe_service, "capture_for_order", new=AsyncMock()
+    ) as capture, patch.object(stripe_service, "cancel", new=AsyncMock()) as cancel:
+        response = await client.post("/api/v1/public/stripe/webhook", content=b"{}")
+
+    assert response.status_code == 200
+    capture.assert_not_awaited()
+    cancel.assert_not_awaited()
+
+    db.expunge_all()
+    refreshed = (
+        await db.execute(select(Order).where(Order.id == order_id))
+    ).scalar_one()
+    assert refreshed.stripe_payment_intent_id == "pi_still_pending"
+    assert refreshed.payment_captured_at is None
+
+
+@pytest.mark.asyncio
+async def test_late_authorization_does_not_double_capture_on_replay(
+    client, db: AsyncSession, tenant: Tenant, admin_user: User
+) -> None:
+    """Stripe can redeliver the same event. A second delivery for an order
+    already captured must not charge the customer again -- the same
+    `payment_captured_at is None` guard `accept_order` itself relies on.
+    """
+    order = _card_order(
+        tenant,
+        admin_user,
+        order_number="S250101-007",
+        stripe_payment_intent_id="pi_already_captured",
+        payment_authorized_at=datetime.now(timezone.utc),
+        accepted_at=datetime.now(timezone.utc),
+        status="in_kitchen",
+        payment_captured_at=datetime.now(timezone.utc),
+    )
+    db.add(order)
+    await db.flush()
+    await db.commit()
+
+    event = _capturable_event(order.id, tenant.id, intent_id="pi_already_captured")
+
+    with patch.object(stripe_service, "verify_webhook", return_value=event), patch.object(
+        stripe_service, "capture_for_order", new=AsyncMock()
+    ) as capture:
+        response = await client.post("/api/v1/public/stripe/webhook", content=b"{}")
+
+    assert response.status_code == 200
+    capture.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_a_late_capture_that_fails_leaves_the_order_accepted_and_uncaptured(
+    client,
+    db: AsyncSession,
+    tenant: Tenant,
+    admin_user: User,
+    accepted_card_order_pending_intent: Order,
+) -> None:
+    """The one outcome this mechanism cannot fix: food already made, the card
+    genuinely fails at the capture moment. The order must not be silently
+    corrupted (still accepted, still uncaptured) and Stripe must still get a
+    2xx -- retrying cannot change a declined card, so there is nothing to gain
+    by making Stripe retry forever. The failure must still be durably logged
+    so a human can follow up.
+    """
+    order_id = accepted_card_order_pending_intent.id
+    event = _capturable_event(order_id, tenant.id, intent_id="pi_late_fail")
+
+    with patch.object(stripe_service, "verify_webhook", return_value=event), patch.object(
+        stripe_service,
+        "capture_for_order",
+        new=AsyncMock(side_effect=StripeError("card declined")),
+    ), patch.object(audit_service, "log_action", new=AsyncMock()) as log_action:
+        response = await client.post("/api/v1/public/stripe/webhook", content=b"{}")
+
+    assert response.status_code == 200
+
+    db.expunge_all()
+    refreshed = (
+        await db.execute(select(Order).where(Order.id == order_id))
+    ).scalar_one()
+    assert refreshed.payment_captured_at is None
+    assert refreshed.accepted_at is not None, "the order stays accepted -- it cannot be undone"
+
+    assert len(_calls_with_action(log_action, "stripe_capture_failed")) == 1
+
+
+# ---------------------------------------------------------------------------
+# Durable Stripe audit trail -- every transaction, so a dispute can be
+# answered from our own records rather than only Stripe's.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_checkout_session_creation_is_audit_logged(
+    db: AsyncSession, cash_order: Order
+) -> None:
+    with patch.object(audit_service, "log_action", new=AsyncMock()) as log_action:
+        await public_order_service.log_stripe_checkout_session_created(
+            db, cash_order, session_id="cs_new_123", intent_id=None
+        )
+
+    calls = _calls_with_action(log_action, "stripe_checkout_created")
+    assert len(calls) == 1
+    assert calls[0].kwargs["entity_id"] == cash_order.id
+    assert calls[0].kwargs["changes"]["session_id"] == "cs_new_123"
+
+
+@pytest.mark.asyncio
+async def test_accept_capture_is_audit_logged(
+    db: AsyncSession, tenant: Tenant, admin_user: User, card_order: Order
+) -> None:
+    with patch.object(
+        stripe_service, "capture_for_order", new=AsyncMock(return_value="succeeded")
+    ), patch.object(audit_service, "log_action", new=AsyncMock()) as log_action:
+        await public_order_service.accept_order(
+            db, tenant.id, card_order.id, admin_user.id, 30
+        )
+
+    calls = _calls_with_action(log_action, "stripe_captured")
+    assert len(calls) == 1
+    assert calls[0].kwargs["user_id"] == admin_user.id, (
+        "attributed to the staff member who tapped Accept, not left blank"
+    )
+
+
+@pytest.mark.asyncio
+async def test_reject_cancel_is_audit_logged(
+    db: AsyncSession, tenant: Tenant, admin_user: User, card_order: Order
+) -> None:
+    with patch.object(
+        stripe_service, "cancel", new=AsyncMock(return_value=True)
+    ), patch.object(audit_service, "log_action", new=AsyncMock()) as log_action:
+        await public_order_service.reject_order(
+            db, tenant.id, card_order.id, admin_user.id, "Too busy"
+        )
+
+    calls = _calls_with_action(log_action, "stripe_canceled")
+    assert len(calls) == 1
+    assert calls[0].kwargs["user_id"] == admin_user.id
+
+
+@pytest.mark.asyncio
+async def test_a_webhook_event_that_changes_nothing_is_still_audit_logged(
+    client, db: AsyncSession, tenant: Tenant, admin_user: User, card_order: Order
+) -> None:
+    """`payment_intent.payment_failed` deliberately leaves the order untouched
+    -- the shop may still take cash -- but it is a real Stripe event a dispute
+    conversation may need evidence of, so it is logged regardless.
+    """
+    event = _intent_event("payment_intent.payment_failed", card_order.id, tenant.id)
+
+    with patch.object(stripe_service, "verify_webhook", return_value=event), patch.object(
+        audit_service, "log_action", new=AsyncMock()
+    ) as log_action:
+        response = await client.post("/api/v1/public/stripe/webhook", content=b"{}")
+
+    assert response.status_code == 200
+    calls = _calls_with_action(
+        log_action, "stripe_webhook_payment_intent.payment_failed"
+    )
+    assert len(calls) == 1
+    assert calls[0].kwargs["entity_id"] == card_order.id
