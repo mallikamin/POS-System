@@ -3,10 +3,9 @@
 **Last refreshed:** 2026-08-01 (session P — resumed from `HANDOFF.md`/`PAUSE_CHECKPOINT_2026-08-01-B.md` via `/refresh`, no drift found; HEAD `ffb07aa`) · **Branch:** `main`
 
 **Session P in one line: OI-57 (online-orders date filter/pagination/sort) and OI-58 (Chick Shack
-reporting) are both fully BUILT and curl-verified against real local dev Postgres data — but
-**NOT YET COMMITTED, PUSHED OR DEPLOYED**. Deploying a live 24/7 ordering system is being held for
-Malik's explicit go-ahead rather than pushed autonomously; everything is sitting as uncommitted
-working-tree changes, ready to go. See `_state/open-items.md` OI-57/OI-58 for the full detail.**
+reporting) are both BUILT, tested, and DEPLOYED to production, commit `55ac6de`. Malik confirmed
+"commit and push" explicitly before either happened. Deploy verified live, not just green CI — see
+below. Awaiting Malik's UAT.**
 
 - **OI-57 built**: `list_merchant_orders` gained `date`/`date_from`/`date_to`/`offset`/`sort`
   (shop-timezone-aware day bounds, same fallback pattern as `print_service._offset_minutes`);
@@ -42,10 +41,22 @@ working-tree changes, ready to go. See `_state/open-items.md` OI-57/OI-58 for th
   connect, consistent with every session this week (see session L/M/N notes below) — verified
   instead via the production build output and by calling the exact same API endpoints the page
   calls, with hand-checked responses.
-- **Next action for whoever picks this up: get explicit sign-off from Malik before deploying**, then
-  `git push origin main` (single pipeline for this work — no storefront changes here), verify the
-  deployed commit/schema/container start time per the playbook, and only then ask Malik to UAT both
-  OI-57 and OI-58 live.
+- **Deployed and independently verified live, commit `55ac6de`.** `git push origin main` (single
+  pipeline — no `storefront/` changes this session). "Deploy to Production" Action green including
+  its own "Verify deployment" health check (no transient 502 this time). Independently confirmed
+  beyond the green Action, per this project's own "verify the effect, never the exit code" rule:
+  SSH'd in, `git log` on the server matches `55ac6de` exactly, all 5 containers healthy/freshly
+  recreated; the 6 new `/reports/online/*` routes are genuinely registered inside the running
+  backend (checked via `app.routes`, not assumed from the diff); the live frontend bundle contains
+  `OnlineReportsPage-3KnZgxlW.js` — **byte-identical chunk hash to the local build**, not just "a
+  file exists"; and all 5 new/changed endpoints called for real over the actual public HTTPS domain
+  (`eats.sitaratech.info`, with a browser User-Agent — nginx 444s bare curl-style clients here) came
+  back `200` with exactly the expected new response shape (`total_count`/`offset`/`limit`/`sort` on
+  the queue; `online_revenue`/`online_orders` on sales-summary; the three new online-report bodies).
+  `Deploy to Staging` (AWS) failed identically to every prior push — confirmed pre-existing, not a
+  regression from this deploy.
+- **Next action: Malik UATs both OI-57 and OI-58 live** at `eats.sitaratech.info/online-orders` and
+  its new "Reports" button. Nothing else is outstanding from this session's own work.
 
 ---
 
@@ -60,17 +71,19 @@ working-tree changes, ready to go. See `_state/open-items.md` OI-57/OI-58 for th
 - **Same session, Imran confirmed the chime is loud (his exact words: "Yes it was loud. And annoying. Good") — item 4 CONFIRMED working on the real tablet.** Also confirmed already-correct (no code change needed): the new-order chime already fires regardless of which in-app tab (Pending/Active/All) is on screen, on its own independent poll — verified by re-reading `OnlineOrdersPage.tsx`'s `checkForNewOrders` effect and comparing directly against `C:\FBAI\bilal-app\src\worker.js`'s `pollInbound`/`playChime`/`showOSNotification`, same technique. Separately, a real printer incident: printer switched off mid-order, reprint came out truncated — assessed as a printer/RawBT stuck-buffer issue (full power-cycle + fresh order suggested), not caused by tonight's `print_service.py` changes, since that diff only removed text and didn't touch how the payload streams. **Not yet independently confirmed clean on a retest.**
 - **New lead, same evening: Imran is referring a second UK restaurant** (wants to avoid Stripe, prefers Bank of Scotland/Lloyds or Clydesdale Bank — name not yet known). Payment-gateway research (Cardnet/Worldpay/Opayo/PayPal/Stripe fees compared) written up in `_context/notes/2026-08-01_uk-payment-gateways-non-stripe.md`; open question is what specifically went wrong with Stripe for this client, not yet answered. Also fixed two Chick-Shack docs that were sitting outside `_context/clients/chick-shack-uk/` and logged the multi-tenant client-folder convention as a standing rule (`memory/multi-tenant-client-folders.md`).
 
-## ✅ OI-57 / OI-58 built session P (2026-08-01) — resume here for deploy + UAT, not more building
+## ✅ OI-57 / OI-58 built AND deployed session P (2026-08-01) — resume here for Malik's UAT only
 
-**Both fully built and curl-verified — see the top of this file and `_state/open-items.md` for
-complete detail.** Malik's own words, still the bar for calling this closed: *"no half cooked
-jobs... once everything is 2000% done only then confirm, i will then do UAT."* That bar is met for
-the build-and-test half; **deployment and Malik's UAT are the two things still outstanding.**
+**Both fully built, curl-verified, and deployed live — see the top of this file and
+`_state/open-items.md` for complete detail.** Malik's own words, the bar for calling this closed:
+*"no half cooked jobs... once everything is 2000% done only then confirm, i will then do UAT."*
+That bar is met and Malik explicitly said "commit and push" before either commit or deploy
+happened. **The only thing outstanding is Malik's own UAT — do not re-build either item.**
 
-- **OI-57 — online-orders queue date filter/pagination/sort — ✅ BUILT**, not deployed.
-- **OI-58 — Chick Shack lean branded reports — ✅ BUILT**, not deployed.
-- Do not re-build either of these. If picking this up fresh: confirm with Malik whether to deploy
-  now, `git push origin main`, verify the deploy per the playbook, then ask him to UAT both.
+- **OI-57 — online-orders queue date filter/pagination/sort — ✅ BUILT + DEPLOYED**, commit `55ac6de`.
+- **OI-58 — Chick Shack lean branded reports — ✅ BUILT + DEPLOYED**, commit `55ac6de`.
+- If picking this up fresh: don't rebuild, don't redeploy. Point Malik at
+  `eats.sitaratech.info/online-orders` (date/pagination/sort controls) and its new "Reports" button
+  (`/online-orders/reports`) for UAT.
 
 <details><summary>Original ask, kept for reference (both now built per this spec)</summary>
 

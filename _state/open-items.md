@@ -1,14 +1,17 @@
 # Open items register
 
-**Last updated:** 2026-08-01 (session P) — **OI-57 and OI-58 both BUILT and curl-verified against
-real local dev Postgres data** (hand-checked counts, every CSV actually downloaded and inspected).
-**NOT YET DEPLOYED** — `git status` shows everything as uncommitted; deploying a live 24/7 ordering
-system needs Malik's explicit go-ahead, not an autonomous push. See each entry below for what was
-verified. `tsc`/`vite build`/eslint clean for `frontend/`; backend suite 470 passed, same
-pre-existing failures as session O (2 flagged unrelated, 12 QB-Desktop/parked) plus this session's
-own 19 new passing tests. Browser click-through was **not possible** — Chrome extension still not
-connecting, consistent with every session this week — verified via build output + direct curl
-against the real API instead.
+**Last updated:** 2026-08-01 (session P) — **OI-57 and OI-58 both BUILT, curl-verified against real
+local dev Postgres data, committed, pushed and DEPLOYED to production** (commit `55ac6de`, Malik
+explicitly said "commit and push" first). Deploy independently verified live — not just a green
+Action: server's `git log` matches the commit, all 6 new `/reports/online/*` routes genuinely
+registered in the running backend, the live frontend bundle's `OnlineReportsPage` chunk is
+byte-identical to the local build, and all 5 new/changed endpoints called for real over
+`eats.sitaratech.info` (the actual public domain) came back correct. `tsc`/`vite build`/eslint
+clean for `frontend/`; backend suite 470 passed, same pre-existing failures as session O (2 flagged
+unrelated, 12 QB-Desktop/parked) plus this session's own 19 new passing tests. Browser
+click-through of the UI was **not possible** — Chrome extension still not connecting, consistent
+with every session this week — verified via build output + real API calls instead.
+**Only Malik's own UAT remains.**
 
 **OI-59 🔵 LOW PRIORITY, NOT SCHEDULED · The backend test suite cannot verify ANY date-ranged
 report's actual numbers.** Discovered while building OI-58a's tests, 2026-08-01 (session O) — see
@@ -25,7 +28,7 @@ touches a date filter. Fixing it means switching every one of those call sites t
 `Order.created_at >= / <` datetime-range comparison (the pattern OI-58c's new reports already use,
 specifically to avoid this). Not scheduled — flagging so it isn't independently rediscovered.
 
-**OI-57 ✅ BUILT 2026-08-01 (session P), NOT YET DEPLOYED · Online-orders queue: date filter,
+**OI-57 ✅ BUILT + DEPLOYED 2026-08-01 (session P), commit `55ac6de` · Online-orders queue: date filter,
 pagination, sort.** Requested 2026-08-01, Malik: *"would need date wise filters, toggle buttons
 across pending active all tab - so previous day orders dont reflect in today orders - need
 pagination - sorted from most recent to oldest (add a sort button too)."*
@@ -104,7 +107,7 @@ Malik.
 
 ---
 
-**OI-58 ✅ BUILT 2026-08-01 (session P), NOT YET DEPLOYED · Chick Shack reporting: lean branded
+**OI-58 ✅ BUILT + DEPLOYED 2026-08-01 (session P), commit `55ac6de` · Chick Shack reporting: lean branded
 reports tab.** Requested 2026-08-01,
 Malik: *"the native POS already has reporting - just need to reflect reports/dashboards tab here
 as well. Chick Shack headers. lean format. Daily Orders/Sales Report (custom date range) - Prepaid
