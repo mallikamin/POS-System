@@ -120,6 +120,8 @@ async def get_sales_summary(
         "takeaway_orders": channels.get("takeaway", {}).get("orders", 0),
         "call_center_revenue": channels.get("call_center", {}).get("revenue", 0),
         "call_center_orders": channels.get("call_center", {}).get("orders", 0),
+        "online_revenue": channels.get("online", {}).get("revenue", 0),
+        "online_orders": channels.get("online", {}).get("orders", 0),
         "discount_breakdown": discount_breakdown,
     }
 

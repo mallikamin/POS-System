@@ -45,19 +45,48 @@ export interface OnlineOrder {
   eta_minutes: number | null;
 }
 
-interface QueueResponse {
+export type OnlineOrderSort = "asc" | "desc";
+
+export interface QueueResponse {
   state: OnlineOrderState;
   count: number;
+  total_count: number;
+  offset: number;
+  limit: number;
+  sort: OnlineOrderSort;
   orders: OnlineOrder[];
 }
 
+export interface ListOnlineOrdersParams {
+  state?: OnlineOrderState;
+  limit?: number;
+  offset?: number;
+  /** pending/active only — a single day (YYYY-MM-DD) in the shop's own timezone. Defaults to today. */
+  date?: string;
+  /** all only — start of a date range (YYYY-MM-DD, shop's timezone). */
+  dateFrom?: string;
+  /** all only — end of a date range (YYYY-MM-DD, shop's timezone). */
+  dateTo?: string;
+  /** Overrides the default order (pending=asc, active/all=desc). */
+  sort?: OnlineOrderSort;
+}
+
 export async function listOnlineOrders(
-  state: OnlineOrderState = "pending",
-): Promise<OnlineOrder[]> {
+  params: ListOnlineOrdersParams = {},
+): Promise<QueueResponse> {
+  const { state = "pending", limit, offset, date, dateFrom, dateTo, sort } = params;
   const { data } = await api.get<QueueResponse>("/public/manage/orders", {
-    params: { state },
+    params: {
+      state,
+      limit,
+      offset,
+      date,
+      date_from: dateFrom,
+      date_to: dateTo,
+      sort,
+    },
   });
-  return data.orders;
+  return data;
 }
 
 export async function acceptOnlineOrder(

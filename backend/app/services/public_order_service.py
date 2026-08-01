@@ -18,9 +18,12 @@ import asyncio
 import logging
 import secrets
 import uuid
-from datetime import datetime, timezone
+from datetime import date as date_
+from datetime import datetime, time, timedelta, timezone
+from typing import Literal
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -88,6 +91,40 @@ async def get_currency(db: AsyncSession, tenant_id: uuid.UUID) -> str:
         )
     )
     return result.scalar_one_or_none() or "PKR"
+
+
+async def get_timezone(db: AsyncSession, tenant_id: uuid.UUID) -> str:
+    result = await db.execute(
+        select(RestaurantConfig.timezone).where(
+            RestaurantConfig.tenant_id == tenant_id
+        )
+    )
+    return result.scalar_one_or_none() or "UTC"
+
+
+def _zone(tz_name: str) -> ZoneInfo | timezone:
+    """Same fallback-to-UTC-on-bad-name behaviour as `print_service._offset_minutes`."""
+    try:
+        return ZoneInfo(tz_name)
+    except (ZoneInfoNotFoundError, ValueError):
+        return timezone.utc
+
+
+def _today_in_timezone(tz_name: str) -> date_:
+    return datetime.now(timezone.utc).astimezone(_zone(tz_name)).date()
+
+
+def _local_day_bounds_utc(tz_name: str, local_date: date_) -> tuple[datetime, datetime]:
+    """[start, end) of one calendar day in the shop's own timezone, in UTC.
+
+    Computed from the shop's local wall-clock day rather than a raw UTC date
+    cast, so "today" for a UK shop actually means its own midnight-to-midnight,
+    not whatever the server's UTC clock happens to be at the boundary.
+    """
+    tz = _zone(tz_name)
+    start_local = datetime.combine(local_date, time.min, tzinfo=tz)
+    end_local = start_local + timedelta(days=1)
+    return start_local.astimezone(timezone.utc), end_local.astimezone(timezone.utc)
 
 
 async def get_shop_name(db: AsyncSession, tenant_id: uuid.UUID) -> str:
@@ -803,12 +840,22 @@ async def reject_order(
 # ---------------------------------------------------------------------------
 
 
+def default_sort_for_state(state: str) -> Literal["asc", "desc"]:
+    """The sort `list_merchant_orders` applies when the caller doesn't override it."""
+    return "asc" if state == "pending" else "desc"
+
+
 async def list_merchant_orders(
     db: AsyncSession,
     tenant_id: uuid.UUID,
     state: str = "pending",
     limit: int = 50,
-) -> list[Order]:
+    offset: int = 0,
+    date: date_ | None = None,
+    date_from: date_ | None = None,
+    date_to: date_ | None = None,
+    sort: Literal["asc", "desc"] | None = None,
+) -> tuple[list[Order], int]:
     """Online orders for the shop's order-queue tablet.
 
     `state`:
@@ -816,36 +863,70 @@ async def list_merchant_orders(
       `active`  -- accepted and still being worked: cooking, or out for delivery.
       `all`     -- everything online including rejected, for looking something up.
 
-    **Pending is ordered oldest-first and everything else newest-first**, which
-    is deliberate rather than an inconsistency. Pending is a work queue, and the
-    customer who has been waiting four minutes needs answering before the one
-    who ordered ten seconds ago. The other views are a log, where the most
-    recent thing is the thing you came to look at.
+    **Pending is ordered oldest-first and everything else newest-first by
+    default**, which is deliberate rather than an inconsistency. Pending is a
+    work queue, and the customer who has been waiting four minutes needs
+    answering before the one who ordered ten seconds ago. The other views are a
+    log, where the most recent thing is the thing you came to look at. `sort`
+    overrides the default when the caller (Active/All's sort toggle) asks for
+    it explicitly; nothing sends it for Pending today, so its default holds.
+
+    `pending`/`active` scope to a single calendar day in the shop's own
+    timezone -- `date` if given, else today -- so a multi-day-old test order
+    doesn't sit in the live queue forever. `all` is a browsable log instead:
+    it stays unscoped unless `date_from`/`date_to` narrow it, matching its own
+    "everything, for looking something up" purpose.
 
     Modifiers are eagerly loaded two levels deep on purpose. `item.modifiers` on
     a lazily loaded item raises `MissingGreenlet` under async SQLAlchemy, and
     the tablet renders every modifier on every line of every card.
+
+    Returns `(orders, total_count)` -- `total_count` is the full match count
+    before `limit`/`offset`, for the tablet to render real page controls.
     """
-    stmt = (
-        select(Order)
-        .where(Order.tenant_id == tenant_id, Order.order_type == "online")
-        .options(selectinload(Order.items).selectinload(OrderItem.modifiers))
-    )
+    conditions = [Order.tenant_id == tenant_id, Order.order_type == "online"]
 
     if state == "pending":
-        stmt = stmt.where(
-            Order.accepted_at.is_(None), Order.rejected_at.is_(None)
-        ).order_by(Order.created_at.asc())
+        conditions += [Order.accepted_at.is_(None), Order.rejected_at.is_(None)]
     elif state == "active":
-        stmt = stmt.where(
+        conditions += [
             Order.accepted_at.is_not(None),
             Order.status.not_in(("completed", "voided")),
-        ).order_by(Order.created_at.desc())
-    else:
-        stmt = stmt.order_by(Order.created_at.desc())
+        ]
+    default_sort = default_sort_for_state(state)
 
-    result = await db.execute(stmt.limit(limit))
-    return list(result.scalars().all())
+    if state in ("pending", "active"):
+        tz_name = await get_timezone(db, tenant_id)
+        start_utc, end_utc = _local_day_bounds_utc(
+            tz_name, date or _today_in_timezone(tz_name)
+        )
+        conditions += [Order.created_at >= start_utc, Order.created_at < end_utc]
+    elif date_from or date_to:
+        tz_name = await get_timezone(db, tenant_id)
+        start_utc, _ = _local_day_bounds_utc(tz_name, date_from or date_to)  # type: ignore[arg-type]
+        _, end_utc = _local_day_bounds_utc(tz_name, date_to or date_from)  # type: ignore[arg-type]
+        conditions += [Order.created_at >= start_utc, Order.created_at < end_utc]
+
+    count_result = await db.execute(
+        select(func.count()).select_from(Order).where(*conditions)
+    )
+    total_count = count_result.scalar_one()
+
+    order_by = (
+        Order.created_at.asc()
+        if (sort or default_sort) == "asc"
+        else Order.created_at.desc()
+    )
+    stmt = (
+        select(Order)
+        .where(*conditions)
+        .options(selectinload(Order.items).selectinload(OrderItem.modifiers))
+        .order_by(order_by)
+        .offset(offset)
+        .limit(limit)
+    )
+    result = await db.execute(stmt)
+    return list(result.scalars().all()), total_count
 
 
 async def _get_pending_online_order(

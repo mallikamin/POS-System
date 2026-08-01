@@ -585,3 +585,45 @@ Each entry follows:
   broke something — if it was already red on prior, unrelated pushes, it's pre-existing noise, not
   a regression. This specific one (`Deploy to Staging`, AWS) can be ignored until Malik decides to
   either fix the credentials or delete the workflow.
+
+### 2026-08-01 (session O) — Every date-ranged report query returns zero rows under this suite's SQLite test DB, regardless of the actual dates
+- **Error**: While adding a test for OI-58a (online orders now counted in `get_sales_summary`'s
+  channel breakdown), a real order created inside the test — with `date_from`/`date_to` set to an
+  enormous `2000-01-01`..`2100-01-01` range — still came back with `total_revenue: 0,
+  total_orders: 0` from the live HTTP response. Not an online-specific bug: dine-in and takeaway
+  totals were zero too
+- **Context**: Building and testing OI-58's report/dashboard changes. No prior test in this suite
+  creates a real order via the ORM and then asserts a nonzero number through a date-ranged report
+  endpoint — every existing report test either uses zero orders (structural assertions only, e.g.
+  `TestSalesSummaryStructure`) or doesn't touch a date filter at all, so this had never surfaced
+- **Root Cause**: `report_service.py`/`dashboard_service.py` filter dates with
+  `func.cast(Order.created_at, Date) >= date_from`. Confirmed directly with a raw query
+  (`SELECT typeof(created_at), created_at, CAST(created_at AS DATE) FROM orders`) against this
+  suite's in-memory SQLite DB: `created_at` is stored as TEXT (`'2026-08-01 00:36:50'`), and
+  `CAST(... AS DATE)` gets NUMERIC affinity (SQLite has no real DATE type) — NUMERIC affinity on a
+  TEXT value extracts only the leading digit run, so the cast returns the **integer `2026`**, not
+  a date. Comparing that INTEGER against a TEXT-bound date parameter is governed by SQLite's
+  storage-class ordering, where NUMERIC always sorts below TEXT regardless of value — so
+  `2026 >= '2000-01-01'` is unconditionally **false**. Every date-filtered WHERE clause built this
+  way therefore matches nothing, for any dates, for any tenant. Real Postgres has an actual DATE
+  type and truncates the cast correctly — confirmed separately this same session via OI-57's direct
+  curl-testing against the real local dev Postgres DB, which returned exactly the expected rows for
+  every date scenario
+- **Fix**: None applied to `report_service.py`/`dashboard_service.py` — this is a pre-existing gap
+  across every `func.cast(..., Date)` call site in both files (item performance, hourly breakdown,
+  void report, z-report, payment method report, waiter performance — grep for the pattern), fixing
+  all of it is a cross-cutting change well outside OI-58's scope. Production is unaffected since it
+  runs real Postgres. Worked around locally: OI-58a's own new pytest coverage is a structural
+  zero-orders assertion (mirrors the existing convention) instead of an order-then-assert-the-number
+  test, with the real non-zero behaviour confirmed by curl against local dev Postgres instead. The
+  brand-new OI-58c report queries (prepaid/COD, rejected orders) use plain `Order.created_at >=
+  / <` datetime-range comparisons instead of `func.cast(..., Date)`, specifically so they don't
+  inherit this landmine and stay meaningfully testable in this suite
+- **Rule**: **Don't trust a date-ranged report test in this suite just because it returns 200 with
+  zero orders and passes — that proves nothing about whether real data would ever be counted.** If
+  you need to verify a report actually aggregates real rows correctly, either test with plain
+  datetime-range comparisons (portable across SQLite and Postgres) or verify it directly against a
+  real Postgres DB (local dev or production), the same way OI-57 was curl-verified. This is worth
+  fixing properly at some point — every `func.cast(col, Date)` site in `report_service.py` and
+  `dashboard_service.py` is silently unverifiable by this test suite today, which is a large blind
+  spot, but it is out of scope for OI-57/OI-58 to fix wholesale.

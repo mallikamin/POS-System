@@ -27,6 +27,7 @@ import {
   Phone,
   Clock,
   RefreshCw,
+  Globe,
 } from "lucide-react";
 
 /* ---------- helpers ---------- */
@@ -450,7 +451,7 @@ function AdminDashboard() {
         <h2 className="mb-3 text-pos-lg font-semibold text-secondary-700">
           Live Operations
         </h2>
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
           <LiveColumn
             title="Dine-In"
             icon={UtensilsCrossed}
@@ -468,6 +469,12 @@ function AdminDashboard() {
             icon={Phone}
             iconColor="text-warning-500"
             orders={live?.call_center ?? []}
+          />
+          <LiveColumn
+            title="Online"
+            icon={Globe}
+            iconColor="text-blue-500"
+            orders={live?.online ?? []}
           />
         </div>
       </div>

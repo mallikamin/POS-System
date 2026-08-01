@@ -8,6 +8,7 @@ from app.api.v1.floor import router as floor_router
 from app.api.v1.orders import router as orders_router
 from app.api.v1.dashboard import router as dashboard_router
 from app.api.v1.reports import router as reports_router
+from app.api.v1.online_reports import router as online_reports_router
 from app.api.v1.quickbooks import router as quickbooks_router
 from app.api.v1.qbwc import router as qbwc_router  # QB Desktop Week 1+2
 from app.api.v1.payments import router as payments_router
@@ -30,6 +31,7 @@ api_v1_router.include_router(floor_router)
 api_v1_router.include_router(orders_router)
 api_v1_router.include_router(dashboard_router)
 api_v1_router.include_router(reports_router)
+api_v1_router.include_router(online_reports_router)
 api_v1_router.include_router(quickbooks_router)
 api_v1_router.include_router(qbwc_router)  # QB Desktop Week 1+2 COMPLETE
 api_v1_router.include_router(payments_router)

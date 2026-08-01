@@ -28,6 +28,7 @@ deliberately thin. See PublicOrderStatusResponse.
 
 import logging
 import uuid
+from datetime import date as date_
 from typing import Literal
 
 from fastapi import (
@@ -397,6 +398,22 @@ async def list_merchant_orders(
         "still being worked; all = everything including rejected",
     ),
     limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    date: date_ | None = Query(
+        None,
+        description="pending/active only -- a single day in the shop's own "
+        "timezone. Defaults to today; ignored for state=all.",
+    ),
+    date_from: date_ | None = Query(
+        None, description="all only -- start of a date range (shop's timezone)."
+    ),
+    date_to: date_ | None = Query(
+        None, description="all only -- end of a date range (shop's timezone)."
+    ),
+    sort: Literal["asc", "desc"] | None = Query(
+        None,
+        description="Overrides the default order (pending=asc, active/all=desc).",
+    ),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> MerchantQueueResponse:
@@ -407,14 +424,26 @@ async def list_merchant_orders(
     nobody is logged in. That means a staff member cannot read another
     restaurant's orders by editing a path segment.
     """
-    orders = await public_order_service.list_merchant_orders(
-        db, current_user.tenant_id, state=state, limit=limit
+    orders, total_count = await public_order_service.list_merchant_orders(
+        db,
+        current_user.tenant_id,
+        state=state,
+        limit=limit,
+        offset=offset,
+        date=date,
+        date_from=date_from,
+        date_to=date_to,
+        sort=sort,
     )
     currency = await public_order_service.get_currency(db, current_user.tenant_id)
 
     return MerchantQueueResponse(
         state=state,
         count=len(orders),
+        total_count=total_count,
+        offset=offset,
+        limit=limit,
+        sort=sort or public_order_service.default_sort_for_state(state),
         orders=[_to_merchant_summary(order, currency) for order in orders],
     )
 

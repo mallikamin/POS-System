@@ -26,6 +26,8 @@ class SalesSummary(BaseModel):
     takeaway_orders: int
     call_center_revenue: int
     call_center_orders: int
+    online_revenue: int = 0
+    online_orders: int = 0
     discount_breakdown: list[DiscountBreakdownEntry] = []
 
 

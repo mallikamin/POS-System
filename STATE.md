@@ -1,6 +1,53 @@
 # STATE — Restaurant POS System
 
-**Last refreshed:** 2026-08-01 (session O — resumed from `PAUSE_CHECKPOINT_2026-08-01.md` via `/refresh`, no drift found; HEAD `2fe15ea`) · **Branch:** `main`
+**Last refreshed:** 2026-08-01 (session P — resumed from `HANDOFF.md`/`PAUSE_CHECKPOINT_2026-08-01-B.md` via `/refresh`, no drift found; HEAD `ffb07aa`) · **Branch:** `main`
+
+**Session P in one line: OI-57 (online-orders date filter/pagination/sort) and OI-58 (Chick Shack
+reporting) are both fully BUILT and curl-verified against real local dev Postgres data — but
+**NOT YET COMMITTED, PUSHED OR DEPLOYED**. Deploying a live 24/7 ordering system is being held for
+Malik's explicit go-ahead rather than pushed autonomously; everything is sitting as uncommitted
+working-tree changes, ready to go. See `_state/open-items.md` OI-57/OI-58 for the full detail.**
+
+- **OI-57 built**: `list_merchant_orders` gained `date`/`date_from`/`date_to`/`offset`/`sort`
+  (shop-timezone-aware day bounds, same fallback pattern as `print_service._offset_minutes`);
+  `MerchantQueueResponse` gained `total_count`/`offset`/`limit`/`sort`; `OnlineOrdersPage.tsx` got a
+  date picker, pagination controls and a sort toggle for Active/All (Pending's FIFO default kept,
+  exactly as flagged for UAT). 8 new backend tests reproduce the exact reported bug and prove it
+  fixed. Curl-verified against the known 7-orders-from-2026-07-28 local dataset: today-only default
+  correctly shows 0 pending, an explicit `date=2026-07-28` correctly shows the 5 unaccepted ones,
+  pagination and both sort directions all hand-checked.
+- **OI-58 built, all four reports, in priority order**: fixed the mechanism first —
+  `get_sales_summary` now exposes `online_revenue`/`online_orders` (was computed then silently
+  discarded) and `get_live_operations` gained an `online` bucket, both platform-wide fixes, not
+  Chick-Shack-only. New lean route `/online-orders/reports` (`OnlineReportsPage.tsx`), ink/flame/
+  ember branded, shop name from `useConfigStore` (never hardcoded). Daily Sales reuses the
+  now-fixed sales-summary endpoint; Prepaid vs Cash-on-Delivery and Rejected Orders are new
+  dedicated queries (`online_report_service.py`); Stripe reconciliation (built last, per Malik's
+  "maybe") added a read-only `stripe_service.retrieve_payment_intent` and degrades to an error row
+  instead of a 500 when Stripe isn't configured (confirmed live in local dev, which has no Stripe
+  key). 19 new backend tests. Curl-verified against real Postgres with a hand-built prepaid/COD/
+  rejected order trio; every CSV actually downloaded and its content read, not just status-checked.
+- ⚠️ **Real, separate bug found and deliberately NOT fixed (logged, not silently absorbed)**: this
+  whole project's `func.cast(Order.created_at, Date)` report date-filter pattern is silently
+  unverifiable by the backend's own pytest suite (SQLite casts it to a bare integer year, which can
+  never compare true against a date bound) — every date-ranged report test that has ever passed did
+  so with zero real orders behind it. Production is unaffected (real Postgres casts correctly,
+  confirmed live). New OI-58c/d queries were written with plain datetime-range comparisons
+  specifically to avoid inheriting this. Full root-cause in `ERROR_LOG.md` 2026-08-01, tracked as
+  **OI-59** (low priority, not scheduled).
+- Backend suite: **470 passed** (450 baseline + 19 new + 1 fixture change), same 2 pre-existing
+  unrelated failures from session O plus the same 12 QB-Desktop/parked ones — nothing new broken.
+  `tsc`/`vite build`/eslint clean for `frontend/`.
+- **Browser click-through of the new UI was not possible** — the Chrome extension still will not
+  connect, consistent with every session this week (see session L/M/N notes below) — verified
+  instead via the production build output and by calling the exact same API endpoints the page
+  calls, with hand-checked responses.
+- **Next action for whoever picks this up: get explicit sign-off from Malik before deploying**, then
+  `git push origin main` (single pipeline for this work — no storefront changes here), verify the
+  deployed commit/schema/container start time per the playbook, and only then ask Malik to UAT both
+  OI-57 and OI-58 live.
+
+---
 
 **Session O in one line: all 4 of session N's pending UX/polish items are built, tested and pushed — email wording, bold PAID ticket line, COPY-line removal, and a genuinely different (not just louder) chime technique. Awaiting Malik/Imran's live retest, the chime especially.**
 
@@ -13,12 +60,19 @@
 - **Same session, Imran confirmed the chime is loud (his exact words: "Yes it was loud. And annoying. Good") — item 4 CONFIRMED working on the real tablet.** Also confirmed already-correct (no code change needed): the new-order chime already fires regardless of which in-app tab (Pending/Active/All) is on screen, on its own independent poll — verified by re-reading `OnlineOrdersPage.tsx`'s `checkForNewOrders` effect and comparing directly against `C:\FBAI\bilal-app\src\worker.js`'s `pollInbound`/`playChime`/`showOSNotification`, same technique. Separately, a real printer incident: printer switched off mid-order, reprint came out truncated — assessed as a printer/RawBT stuck-buffer issue (full power-cycle + fresh order suggested), not caused by tonight's `print_service.py` changes, since that diff only removed text and didn't touch how the payload streams. **Not yet independently confirmed clean on a retest.**
 - **New lead, same evening: Imran is referring a second UK restaurant** (wants to avoid Stripe, prefers Bank of Scotland/Lloyds or Clydesdale Bank — name not yet known). Payment-gateway research (Cardnet/Worldpay/Opayo/PayPal/Stripe fees compared) written up in `_context/notes/2026-08-01_uk-payment-gateways-non-stripe.md`; open question is what specifically went wrong with Stripe for this client, not yet answered. Also fixed two Chick-Shack docs that were sitting outside `_context/clients/chick-shack-uk/` and logged the multi-tenant client-folder convention as a standing rule (`memory/multi-tenant-client-folders.md`).
 
-## 🔴 Resume here (session O, handed off — NOT yet built)
+## ✅ OI-57 / OI-58 built session P (2026-08-01) — resume here for deploy + UAT, not more building
 
-**Two new open items from Malik, 2026-08-01, full spec in `_state/open-items.md`.** Malik's own
-words: *"no half cooked jobs... once everything is 2000% done only then confirm, i will then do
-UAT."* Do not report either done until curl-tested against real data and (for OI-58's CSV/reports)
-actually downloaded and checked for formatting.
+**Both fully built and curl-verified — see the top of this file and `_state/open-items.md` for
+complete detail.** Malik's own words, still the bar for calling this closed: *"no half cooked
+jobs... once everything is 2000% done only then confirm, i will then do UAT."* That bar is met for
+the build-and-test half; **deployment and Malik's UAT are the two things still outstanding.**
+
+- **OI-57 — online-orders queue date filter/pagination/sort — ✅ BUILT**, not deployed.
+- **OI-58 — Chick Shack lean branded reports — ✅ BUILT**, not deployed.
+- Do not re-build either of these. If picking this up fresh: confirm with Malik whether to deploy
+  now, `git push origin main`, verify the deploy per the playbook, then ask him to UAT both.
+
+<details><summary>Original ask, kept for reference (both now built per this spec)</summary>
 
 - **OI-57 — online-orders queue: date filter (today-only default, not all-time), pagination
   (`offset`+`total_count`, not just a bare `limit`), and a sort toggle** for Active/All (Pending's
@@ -35,6 +89,8 @@ actually downloaded and checked for formatting.
   (custom range), Prepaid vs Cash-on-Delivery (new), Rejected Orders (new), and a Stripe
   reconciliation report last (Malik flagged it "maybe" — lower priority, build after the other
   three are solid).
+
+</details>
 
 - **Capture-on-accept (OI-41), root cause found.** `create_checkout_session` read `session["payment_intent"]` immediately after `Session.create()` and stored it on the order -- but confirmed against the real sandbox (a throwaway probe session), Stripe does **not** create the PaymentIntent at that point, only once the customer actually submits payment. `orders.stripe_payment_intent_id` was written `None` and stayed that way forever: the webhook's own backstop (`payment_intent.amount_capturable_updated`) never persisted it either, and was itself blocked by an unrelated, prematurely-set `payment_authorized_at`. `accept_order`'s guard on `stripe_payment_intent_id` then silently no-opped on Accept -- no exception, nothing logged, straight through to `in_kitchen` with `payment_status` still `unpaid`. Confirmed against the real order (`260731-001`): DB had `stripe_checkout_session_id` + `payment_authorized_at` set but `stripe_payment_intent_id` still `None`; Stripe's own PaymentIntent (`pi_3TzL3jFnGj7KcDjJ0NYqItbA`) was sitting fully authorised, `requires_capture`, `amount_capturable: 1299` -- the money was never lost, just never captured.
   **Fix (commit `593513b`):** `accept_order` now guards on `stripe_checkout_session_id` (reliably set at session-creation) and resolves the missing intent id from Stripe directly via new `stripe_service.resolve_payment_intent_id`. The webhook independently backfills the id from its own event object. The premature `payment_authorized_at` write at session-creation was removed. **7 new tests, 2 mutation-checked by hand** (temporarily reverted each guard to its old shape, confirmed the new test fails, restored the fix). Full suite: 442 passed, same 12 pre-existing QB-Desktop/parked failures. Deployed and **verified live inside the container** (both the new function and the corrected guard read back from the running backend, not just a green Action).

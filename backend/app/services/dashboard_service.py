@@ -116,4 +116,5 @@ async def get_live_operations(db: AsyncSession, tenant_id: uuid.UUID) -> dict:
         "call_center": [
             to_live_item(o) for o in orders if o.order_type == "call_center"
         ],
+        "online": [to_live_item(o) for o in orders if o.order_type == "online"],
     }

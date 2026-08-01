@@ -461,6 +461,28 @@ async def capture_for_order(payment_intent_id: str, order_total: int) -> str:
     return await capture(payment_intent_id, amount=order_total)
 
 
+async def retrieve_payment_intent(payment_intent_id: str) -> dict[str, Any]:
+    """Read-only lookup for reconciliation (OI-58d) -- never mutates Stripe state.
+
+    Unlike `capture_for_order`, this is not on any money-moving path, so a
+    failure here should be reported to the caller as a diagnosable error
+    rather than treated as an outage to work around.
+    """
+    try:
+        intent = await asyncio.to_thread(_retrieve_blocking, payment_intent_id)
+    except StripeNotConfigured:
+        raise
+    except Exception as exc:
+        logger.exception("Could not read PaymentIntent %s", payment_intent_id)
+        raise StripeError(str(exc)) from exc
+
+    return {
+        "status": str(field(intent, "status", "")),
+        "amount_received": int(field(intent, "amount_received", 0) or 0),
+        "amount_capturable": int(field(intent, "amount_capturable", 0) or 0),
+    }
+
+
 def _cancel_blocking(payment_intent_id: str) -> Any:
     stripe = _client()
     return stripe.PaymentIntent.cancel(payment_intent_id)

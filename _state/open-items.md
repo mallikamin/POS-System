@@ -1,15 +1,53 @@
 # Open items register
 
-**Last updated:** 2026-08-01 (session O) — **OI-57 and OI-58 opened**: online-orders queue
-filtering/pagination/sort, and Chick Shack reporting. NOT yet built — full spec below, written for
-a fresh session to pick up via `/handoff`. See entries below, they are long and deliberately so —
-Malik's instruction was "no half-cooked jobs," confirm only once curl-tested and report formatting
-is actually checked.
+**Last updated:** 2026-08-01 (session P) — **OI-57 and OI-58 both BUILT and curl-verified against
+real local dev Postgres data** (hand-checked counts, every CSV actually downloaded and inspected).
+**NOT YET DEPLOYED** — `git status` shows everything as uncommitted; deploying a live 24/7 ordering
+system needs Malik's explicit go-ahead, not an autonomous push. See each entry below for what was
+verified. `tsc`/`vite build`/eslint clean for `frontend/`; backend suite 470 passed, same
+pre-existing failures as session O (2 flagged unrelated, 12 QB-Desktop/parked) plus this session's
+own 19 new passing tests. Browser click-through was **not possible** — Chrome extension still not
+connecting, consistent with every session this week — verified via build output + direct curl
+against the real API instead.
 
-**OI-57 🔴 NOT BUILT · Online-orders queue: date filter, pagination, sort.** Requested 2026-08-01,
-Malik: *"would need date wise filters, toggle buttons across pending active all tab - so previous
-day orders dont reflect in today orders - need pagination - sorted from most recent to oldest
-(add a sort button too)."*
+**OI-59 🔵 LOW PRIORITY, NOT SCHEDULED · The backend test suite cannot verify ANY date-ranged
+report's actual numbers.** Discovered while building OI-58a's tests, 2026-08-01 (session O) — see
+`ERROR_LOG.md` same date for the full root-cause writeup. `report_service.py`/`dashboard_service.py`
+filter dates with `func.cast(Order.created_at, Date) >= date_from`; under this suite's in-memory
+SQLite DB that CAST returns the leading-digit-run as an INTEGER (e.g. `2026`) rather than a real
+date, and SQLite's storage-class ordering makes an INTEGER always compare less than a TEXT date
+bound — so the WHERE clause matches **zero rows for any date range, on every report that uses this
+pattern** (item performance, hourly breakdown, void report, z-report, payment method report, waiter
+performance — grep `func.cast(.*Date)` in both files). Production is unaffected (real Postgres casts
+correctly); this is purely a test-harness gap, but it means none of these reports' actual aggregation
+math has ever really been verified by `pytest` — every passing test either uses zero orders or never
+touches a date filter. Fixing it means switching every one of those call sites to a plain
+`Order.created_at >= / <` datetime-range comparison (the pattern OI-58c's new reports already use,
+specifically to avoid this). Not scheduled — flagging so it isn't independently rediscovered.
+
+**OI-57 ✅ BUILT 2026-08-01 (session P), NOT YET DEPLOYED · Online-orders queue: date filter,
+pagination, sort.** Requested 2026-08-01, Malik: *"would need date wise filters, toggle buttons
+across pending active all tab - so previous day orders dont reflect in today orders - need
+pagination - sorted from most recent to oldest (add a sort button too)."*
+
+**Built exactly per the spec below, all judgment calls kept as documented.** Backend:
+`list_merchant_orders` (`public_order_service.py`) now takes `date`/`date_from`/`date_to`/`offset`/
+`sort`, using the shop's own timezone (`get_timezone` helper, same fallback-to-UTC pattern as
+`print_service._offset_minutes`) to compute local-day bounds; `MerchantQueueResponse` gained
+`total_count`/`offset`/`limit`/`sort`. Frontend: `OnlineOrdersPage.tsx` gained a date picker
+(Pending/Active), a from/to range (All), pagination controls, and a sort toggle for Active/All —
+Pending's FIFO default is untouched, exactly as flagged below. 8 new backend tests (all passing)
+reproduce the exact bug (a 3-day-old order polluting today's Pending) and prove it's fixed.
+**Curl-verified against the real local dev Postgres DB** (not just pytest): today-with-orders,
+today-zero-orders, an explicit past date, a date range on All, page 2 of a paginated result, and
+both sort directions — every response hand-checked against the known 7-orders-from-2026-07-28
+dataset, matching exactly (5 pending on that date, 7 total, pagination boundaries correct, sort
+correctly reversed). `tsc`/`vite build`/eslint clean. **Malik has not yet UAT'd this — do so before
+considering it closed**, per his own "confirm only once curl-tested... I will then do UAT" bar.
+
+<details><summary>Original spec (still accurate, kept for reference)</summary>
+
+
 
 Current state, confirmed by reading the actual code (not assumed):
 - `GET /public/manage/orders` (`backend/app/api/v1/public.py:392`) accepts exactly two query
@@ -62,13 +100,51 @@ page 2 of a paginated result, both sort directions — confirm each response sha
 against the DB, not just a 200. `tsc`+`vite build`+eslint clean. Only then deploy and confirm to
 Malik.
 
+</details>
+
 ---
 
-**OI-58 🔴 NOT BUILT · Chick Shack reporting: lean branded reports tab.** Requested 2026-08-01,
+**OI-58 ✅ BUILT 2026-08-01 (session P), NOT YET DEPLOYED · Chick Shack reporting: lean branded
+reports tab.** Requested 2026-08-01,
 Malik: *"the native POS already has reporting - just need to reflect reports/dashboards tab here
 as well. Chick Shack headers. lean format. Daily Orders/Sales Report (custom date range) - Prepaid
 vs Cash on Delivery Report | Rejected Orders Report | maybe a stripe specific report to
 reconcile?"*
+
+**Built exactly in the priority order given below, all four reports.** Mechanism fixed first,
+platform-wide: `get_sales_summary` now returns `online_revenue`/`online_orders` (was silently
+computed then discarded), `get_live_operations` gained an `online` bucket, and the 3-hardcoded-
+channel arrays in `ReportsPage.tsx`/`AdminDashboard.tsx` now include Online — benefits every future
+`online_ordering_only` tenant, not just this one. New lean route `/online-orders/reports`
+(`OnlineReportsPage.tsx`), styled with the same ink/flame/ember palette as the branded emails, shop
+NAME pulled from `useConfigStore` (never hardcoded "Chick Shack") — reachable via a new "Reports"
+button on `/online-orders`. Daily Sales reuses the now-fixed `/reports/sales-summary` (+CSV)
+directly rather than duplicating it. Prepaid vs Cash-on-Delivery and Rejected Orders are new,
+dedicated queries in a new `online_report_service.py`/`online_reports.py` (route prefix
+`/reports/online/`), each with its own CSV export. Stripe reconciliation (built last, as flagged
+"maybe") added `stripe_service.retrieve_payment_intent` (read-only, never mutates) and reports a
+lookup failure as an error row rather than crashing the whole report — confirmed live against local
+dev, where Stripe isn't configured, without a 500.
+
+⚠️ **A real, separate bug was found and deliberately NOT fixed here** (out of scope, logged instead):
+this project's whole `func.cast(Order.created_at, Date)` date-filter pattern (used by
+`get_sales_summary` and every other report in `report_service.py`) is silently unverifiable by the
+backend's own pytest suite — see **OI-59** above and `ERROR_LOG.md` 2026-08-01. Production is fine
+(real Postgres casts correctly, confirmed by curl against local dev), but the new OI-58c/d report
+queries were deliberately written with plain `Order.created_at >= / <` comparisons instead, so they
+don't inherit it and stay genuinely tested by pytest, not just structurally.
+
+**Curl-verified against the real local dev Postgres DB**, not just pytest: created a prepaid order,
+a cash-on-delivery order and a rejected order, hand-checked every report's numbers against them
+(online_revenue/orders, prepaid/cod split, rejected count and reason, Stripe reconciliation's
+graceful "not configured" error row), and downloaded + read every CSV's actual content, not just its
+status code. 19 new backend tests, all passing (9 in `test_online_channel_reports.py` +
+`test_online_reports.py`'s 9, plus 1 more from the fixture change). `tsc`/`vite build`/eslint clean.
+Browser click-through of the new page was **not possible** — Chrome extension still won't connect —
+verified via the build output and the exact same API calls the page makes instead.
+**Malik has not yet UAT'd this — do so before considering it closed.**
+
+<details><summary>Original spec (still accurate, kept for reference)</summary>
 
 **Access is NOT the gap — confirmed by reading the actual routing code.** `online_ordering_only`
 (`DashboardPage.tsx:73-75`) only redirects `/` → `/online-orders`; it does not gate `/admin/reports`
@@ -146,6 +222,8 @@ known orders. Every downloadable report actually downloaded and opened, formatti
 just "the request returned 200." `tsc`+`vite build`+eslint clean, backend test suite green (new
 tests for the new report logic, not just manual curl). Only once ALL of the above is true — Malik's
 own words, "2000% done" — confirm back to him. He does UAT after that, not before.
+
+</details>
 
 **Previously, same day (session H/I):** **OI-45(a) and (b) BUILT and deployed to
 production**: meal deal modifiers as real Meal products, matching Imran's till exactly. Two

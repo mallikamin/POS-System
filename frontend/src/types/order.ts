@@ -122,6 +122,7 @@ export interface LiveOperations {
   dine_in: LiveOrderItem[];
   takeaway: LiveOrderItem[];
   call_center: LiveOrderItem[];
+  online: LiveOrderItem[];
 }
 
 /* Report types */
@@ -149,6 +150,8 @@ export interface SalesSummary {
   takeaway_orders: number;
   call_center_revenue: number;
   call_center_orders: number;
+  online_revenue: number;
+  online_orders: number;
   discount_breakdown: DiscountBreakdownEntry[];
 }
 

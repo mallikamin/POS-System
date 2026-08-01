@@ -222,10 +222,12 @@ async def _online_order(
     number: str,
     *,
     minutes_ago: int = 0,
+    days_ago: int = 0,
     accepted: bool = False,
     rejected: bool = False,
 ) -> Order:
     now = datetime.now(timezone.utc)
+    placed_at = now - timedelta(minutes=minutes_ago, days=days_ago)
     order = Order(
         tenant_id=tenant_id,
         order_number=number,
@@ -243,9 +245,9 @@ async def _online_order(
         delivery_address="12 Feorlin Way",
         delivery_area="Garelochhead",
         created_by=user_id,
-        created_at=now - timedelta(minutes=minutes_ago),
-        accepted_at=now if accepted else None,
-        rejected_at=now if rejected else None,
+        created_at=placed_at,
+        accepted_at=placed_at if accepted else None,
+        rejected_at=placed_at if rejected else None,
         eta_minutes=30 if accepted else None,
     )
     db.add(order)
@@ -354,3 +356,197 @@ async def test_queue_card_carries_what_the_shop_needs_to_work_the_order(
     assert card["delivery_address"] == "12 Feorlin Way"
     assert card["delivery_area"] == "Garelochhead"
     assert card["currency"] == "GBP"
+
+
+# ---------------------------------------------------------------------------
+# OI-57 -- date scoping, pagination, sort
+# ---------------------------------------------------------------------------
+
+
+async def test_pending_defaults_to_today_only(
+    client: AsyncClient,
+    db: AsyncSession,
+    tenant: Tenant,
+    admin_user: User,
+    admin_token: str,
+    uk_menu: MenuItem,
+):
+    """The exact bug reported: a 3-day-old unaccepted order was polluting
+    today's Pending tab with nothing to age it out."""
+    await _online_order(db, tenant.id, admin_user.id, "260728-old", days_ago=3)
+    await _online_order(db, tenant.id, admin_user.id, "260728-today")
+
+    resp = await client.get(QUEUE_URL, headers=_auth(admin_token))
+    body = resp.json()
+    numbers = [o["order_number"] for o in body["orders"]]
+    assert numbers == ["260728-today"]
+    assert body["total_count"] == 1
+
+
+async def test_active_also_defaults_to_today_only(
+    client: AsyncClient,
+    db: AsyncSession,
+    tenant: Tenant,
+    admin_user: User,
+    admin_token: str,
+    uk_menu: MenuItem,
+):
+    await _online_order(
+        db, tenant.id, admin_user.id, "260728-old", days_ago=3, accepted=True
+    )
+    await _online_order(
+        db, tenant.id, admin_user.id, "260728-today", accepted=True
+    )
+
+    resp = await client.get(
+        QUEUE_URL, params={"state": "active"}, headers=_auth(admin_token)
+    )
+    numbers = [o["order_number"] for o in resp.json()["orders"]]
+    assert numbers == ["260728-today"]
+
+
+async def test_all_stays_unscoped_without_a_date_range(
+    client: AsyncClient,
+    db: AsyncSession,
+    tenant: Tenant,
+    admin_user: User,
+    admin_token: str,
+    uk_menu: MenuItem,
+):
+    """`all` is a browsable log -- it must keep showing old orders unless a
+    date range explicitly narrows it, unlike Pending/Active."""
+    await _online_order(db, tenant.id, admin_user.id, "260728-old", days_ago=3)
+    await _online_order(db, tenant.id, admin_user.id, "260728-today")
+
+    resp = await client.get(
+        QUEUE_URL, params={"state": "all"}, headers=_auth(admin_token)
+    )
+    numbers = {o["order_number"] for o in resp.json()["orders"]}
+    assert numbers == {"260728-old", "260728-today"}
+
+
+async def test_explicit_date_reaches_a_past_days_pending_orders(
+    client: AsyncClient,
+    db: AsyncSession,
+    tenant: Tenant,
+    admin_user: User,
+    admin_token: str,
+    uk_menu: MenuItem,
+):
+    old_order = await _online_order(
+        db, tenant.id, admin_user.id, "260728-old", days_ago=3
+    )
+    await _online_order(db, tenant.id, admin_user.id, "260728-today")
+
+    target_date = old_order.created_at.date().isoformat()
+    resp = await client.get(
+        QUEUE_URL, params={"date": target_date}, headers=_auth(admin_token)
+    )
+    numbers = [o["order_number"] for o in resp.json()["orders"]]
+    assert numbers == ["260728-old"]
+
+
+async def test_date_range_scopes_the_all_tab(
+    client: AsyncClient,
+    db: AsyncSession,
+    tenant: Tenant,
+    admin_user: User,
+    admin_token: str,
+    uk_menu: MenuItem,
+):
+    old_order = await _online_order(
+        db, tenant.id, admin_user.id, "260728-old", days_ago=3
+    )
+    await _online_order(db, tenant.id, admin_user.id, "260728-today")
+
+    target_date = old_order.created_at.date().isoformat()
+    resp = await client.get(
+        QUEUE_URL,
+        params={"state": "all", "date_from": target_date, "date_to": target_date},
+        headers=_auth(admin_token),
+    )
+    numbers = [o["order_number"] for o in resp.json()["orders"]]
+    assert numbers == ["260728-old"]
+
+
+async def test_pagination_offset_and_total_count(
+    client: AsyncClient,
+    db: AsyncSession,
+    tenant: Tenant,
+    admin_user: User,
+    admin_token: str,
+    uk_menu: MenuItem,
+):
+    for i in range(3):
+        await _online_order(
+            db, tenant.id, admin_user.id, f"260728-{i}", minutes_ago=(3 - i)
+        )
+
+    first_page = await client.get(
+        QUEUE_URL,
+        params={"state": "all", "limit": 2, "offset": 0},
+        headers=_auth(admin_token),
+    )
+    body = first_page.json()
+    assert body["total_count"] == 3
+    assert body["count"] == 2
+    assert body["offset"] == 0
+    assert body["limit"] == 2
+
+    second_page = await client.get(
+        QUEUE_URL,
+        params={"state": "all", "limit": 2, "offset": 2},
+        headers=_auth(admin_token),
+    )
+    body2 = second_page.json()
+    assert body2["total_count"] == 3
+    assert body2["count"] == 1
+
+    seen = [o["order_number"] for o in body["orders"]] + [
+        o["order_number"] for o in body2["orders"]
+    ]
+    assert sorted(seen) == ["260728-0", "260728-1", "260728-2"]
+
+
+async def test_sort_toggle_overrides_the_default_for_active_and_all(
+    client: AsyncClient,
+    db: AsyncSession,
+    tenant: Tenant,
+    admin_user: User,
+    admin_token: str,
+    uk_menu: MenuItem,
+):
+    await _online_order(
+        db, tenant.id, admin_user.id, "260728-new", minutes_ago=1, accepted=True
+    )
+    await _online_order(
+        db, tenant.id, admin_user.id, "260728-old", minutes_ago=20, accepted=True
+    )
+
+    default_resp = await client.get(
+        QUEUE_URL, params={"state": "active"}, headers=_auth(admin_token)
+    )
+    assert default_resp.json()["sort"] == "desc"
+    default_numbers = [o["order_number"] for o in default_resp.json()["orders"]]
+    assert default_numbers == ["260728-new", "260728-old"]
+
+    asc_resp = await client.get(
+        QUEUE_URL,
+        params={"state": "active", "sort": "asc"},
+        headers=_auth(admin_token),
+    )
+    assert asc_resp.json()["sort"] == "asc"
+    asc_numbers = [o["order_number"] for o in asc_resp.json()["orders"]]
+    assert asc_numbers == ["260728-old", "260728-new"]
+
+
+async def test_pending_response_reports_its_default_sort(
+    client: AsyncClient,
+    db: AsyncSession,
+    tenant: Tenant,
+    admin_user: User,
+    admin_token: str,
+    uk_menu: MenuItem,
+):
+    resp = await client.get(QUEUE_URL, headers=_auth(admin_token))
+    assert resp.json()["sort"] == "asc"

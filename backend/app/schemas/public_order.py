@@ -244,4 +244,8 @@ class MerchantOrderSummary(BaseModel):
 class MerchantQueueResponse(BaseModel):
     state: str
     count: int
+    total_count: int
+    offset: int
+    limit: int
+    sort: Literal["asc", "desc"]
     orders: list[MerchantOrderSummary] = []

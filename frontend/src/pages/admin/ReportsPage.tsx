@@ -71,7 +71,7 @@ const presets: DatePreset[] = [
 /* ---------- channel config ---------- */
 
 interface ChannelInfo {
-  key: "dine_in" | "takeaway" | "call_center";
+  key: "dine_in" | "takeaway" | "call_center" | "online";
   label: string;
   color: string;
   bgColor: string;
@@ -95,6 +95,12 @@ const channels: ChannelInfo[] = [
     label: "Call Center",
     color: "bg-accent-500",
     bgColor: "bg-accent-50",
+  },
+  {
+    key: "online",
+    label: "Online",
+    color: "bg-blue-500",
+    bgColor: "bg-blue-50",
   },
 ];
 

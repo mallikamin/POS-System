@@ -82,6 +82,15 @@ export default {
           900: "#7f1d1d",
           950: "#450a0a",
         },
+        // OI-58b: same palette as the storefront's branded emails
+        // (storefront/tailwind.config.js) -- charcoal shell, hot flame accent.
+        // Used for the online-ordering reports view; not tenant-specific by
+        // name (the page itself pulls the shop name from config), but the
+        // look is deliberately this one for now.
+        ink: { DEFAULT: "#12100f", soft: "#1c1917", line: "#2a2523" },
+        flame: { DEFAULT: "#e2361d", dark: "#b82413", light: "#ff5c42" },
+        ember: "#f5a524",
+        cream: "#faf7f2",
       },
       fontSize: {
         "pos-xs": ["0.875rem", { lineHeight: "1.25rem" }],

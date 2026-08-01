@@ -34,3 +34,4 @@ class LiveOperations(BaseModel):
     dine_in: list[LiveOrderItem]
     takeaway: list[LiveOrderItem]
     call_center: list[LiveOrderItem]
+    online: list[LiveOrderItem] = []

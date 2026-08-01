@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Bell, BellOff } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Bell, BellOff, BarChart3 } from "lucide-react";
 import {
   acceptOnlineOrder,
   completeOnlineOrder,
@@ -11,6 +12,7 @@ import {
   rejectOnlineOrder,
   sendToPrinter,
   type OnlineOrder,
+  type OnlineOrderSort,
   type OnlineOrderState,
 } from "@/services/onlineOrdersApi";
 import { formatMoney } from "@/utils/currency";
@@ -43,6 +45,8 @@ import { useToast } from "@/hooks/use-toast";
 
 const POLL_MS = 10_000;
 const ETA_CHOICES = [15, 20, 30, 45, 60, 90];
+/** OI-57: a fixed page size, small enough that "Next" is a real, useful control on a tablet grid. */
+const PAGE_SIZE = 24;
 
 const REJECT_REASONS = [
   "Too busy right now",
@@ -204,10 +208,55 @@ export default function OnlineOrdersPage() {
   const { toast } = useToast();
   const [state, setState] = useState<OnlineOrderState>("pending");
   const [orders, setOrders] = useState<OnlineOrder[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [etaFor, setEtaFor] = useState<string | null>(null);
   const [rejectFor, setRejectFor] = useState<string | null>(null);
+
+  // OI-57: date filter, pagination and sort. `dateFilter` is Pending/Active's
+  // single-day override ("" = today, the backend's own default); `dateFrom`/
+  // `dateTo` are All's range, shared across the tab (both empty = All stays
+  // the full unscoped log). `sortOverride` is undefined until the toggle is
+  // used, so each tab's own default (asc for Pending, desc for Active/All)
+  // holds until a staff member explicitly flips it; `effectiveSort` mirrors
+  // back whatever the server actually applied, including that default, so the
+  // toggle's label is always honest even before it's been touched.
+  const [dateFilter, setDateFilter] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [sortOverride, setSortOverride] = useState<OnlineOrderSort | undefined>(
+    undefined,
+  );
+  const [effectiveSort, setEffectiveSort] = useState<OnlineOrderSort>("asc");
+  const [page, setPage] = useState(0);
+
+  function changeTab(next: OnlineOrderState) {
+    setState(next);
+    setPage(0);
+    // A sort flipped on one tab silently carrying over to another (with a
+    // different default) would be confusing -- start each tab fresh. The date
+    // filters are left alone: picking "look at the 28th" is a deliberate
+    // choice worth keeping while flipping between Pending and Active for the
+    // same day.
+    setSortOverride(undefined);
+  }
+
+  function changeDateFilter(next: string) {
+    setDateFilter(next);
+    setPage(0);
+  }
+
+  function changeDateRange(from: string, to: string) {
+    setDateFrom(from);
+    setDateTo(to);
+    setPage(0);
+  }
+
+  function toggleSort() {
+    setSortOverride(effectiveSort === "asc" ? "desc" : "asc");
+    setPage(0);
+  }
 
   // Used only to decide whether to chime. Comparing against the rendered list
   // would re-chime on every poll that returns the same orders.
@@ -300,39 +349,79 @@ export default function OnlineOrdersPage() {
     }
   }, []);
 
-  const refresh = useCallback(async (which: OnlineOrderState) => {
-    try {
-      const next = await listOnlineOrders(which);
-      setOrders(next);
+  const refresh = useCallback(
+    async (opts: {
+      which: OnlineOrderState;
+      pageIndex: number;
+      sort?: OnlineOrderSort;
+      date: string;
+      dateFrom: string;
+      dateTo: string;
+    }) => {
+      try {
+        const resp = await listOnlineOrders({
+          state: opts.which,
+          limit: PAGE_SIZE,
+          offset: opts.pageIndex * PAGE_SIZE,
+          date: opts.which !== "all" ? opts.date || undefined : undefined,
+          dateFrom: opts.which === "all" ? opts.dateFrom || undefined : undefined,
+          dateTo: opts.which === "all" ? opts.dateTo || undefined : undefined,
+          sort: opts.sort,
+        });
+        setOrders(resp.orders);
+        setTotalCount(resp.total_count);
+        setEffectiveSort(resp.sort);
 
-      // Fetch every ticket URL up front, in the background.
-      //
-      // Not an optimisation -- a correctness requirement. Chrome on Android
-      // only follows a custom scheme inside a real user gesture, and an
-      // `await` inside the tap handler ends that gesture, so the print was
-      // being dropped silently. Having the URL already in hand is what makes
-      // the Print button navigate synchronously and actually reach RawBT.
-      void Promise.all(
-        next.map(async (order) => {
-          if (ticketUrls.current.has(order.id)) return;
-          const url = await fetchTicketUrl(order.id);
-          if (url) ticketUrls.current.set(order.id, url);
-        }),
-      );
-    } catch {
-      // Deliberately silent. A dropped poll on a shop wifi is normal and a
-      // toast every 10 seconds would train them to ignore all toasts.
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+        // Fetch every ticket URL up front, in the background.
+        //
+        // Not an optimisation -- a correctness requirement. Chrome on Android
+        // only follows a custom scheme inside a real user gesture, and an
+        // `await` inside the tap handler ends that gesture, so the print was
+        // being dropped silently. Having the URL already in hand is what makes
+        // the Print button navigate synchronously and actually reach RawBT.
+        void Promise.all(
+          resp.orders.map(async (order) => {
+            if (ticketUrls.current.has(order.id)) return;
+            const url = await fetchTicketUrl(order.id);
+            if (url) ticketUrls.current.set(order.id, url);
+          }),
+        );
+      } catch {
+        // Deliberately silent. A dropped poll on a shop wifi is normal and a
+        // toast every 10 seconds would train them to ignore all toasts.
+      } finally {
+        setLoading(false);
+      }
+    },
+    [],
+  );
+
+  /** Re-fetches whatever the tablet is currently looking at -- same tab, page, date and sort. */
+  function refreshCurrent() {
+    return refresh({
+      which: state,
+      pageIndex: page,
+      sort: sortOverride,
+      date: dateFilter,
+      dateFrom,
+      dateTo,
+    });
+  }
 
   useEffect(() => {
     setLoading(true);
-    void refresh(state);
-    const id = window.setInterval(() => void refresh(state), POLL_MS);
+    const opts = {
+      which: state,
+      pageIndex: page,
+      sort: sortOverride,
+      date: dateFilter,
+      dateFrom,
+      dateTo,
+    };
+    void refresh(opts);
+    const id = window.setInterval(() => void refresh(opts), POLL_MS);
     return () => window.clearInterval(id);
-  }, [state, refresh]);
+  }, [state, page, sortOverride, dateFilter, dateFrom, dateTo, refresh]);
 
   // Watches for new pending orders regardless of which tab is on screen --
   // switching to "Active" or "All" must not silence the alert for whatever
@@ -343,9 +432,13 @@ export default function OnlineOrdersPage() {
 
     async function checkForNewOrders() {
       try {
-        const pending = await listOnlineOrders("pending");
+        // Deliberately bare -- no date/sort/page override from whatever the
+        // visible tab is showing. This watch always means "today's pending
+        // queue, from the top", regardless of what a staff member is
+        // currently browsing in the grid below.
+        const pending = await listOnlineOrders({ state: "pending" });
         if (cancelled) return;
-        const incoming = pending.filter((o) => !knownIds.current.has(o.id));
+        const incoming = pending.orders.filter((o) => !knownIds.current.has(o.id));
         if (incoming.length > 0 && !firstLoad.current) {
           chime();
           // A second, independent alert channel -- fires the OS's own
@@ -353,7 +446,7 @@ export default function OnlineOrdersPage() {
           // backgrounded. Best-effort; the chime above is the primary alert.
           incoming.forEach(showNewOrderNotification);
         }
-        knownIds.current = new Set(pending.map((o) => o.id));
+        knownIds.current = new Set(pending.orders.map((o) => o.id));
         firstLoad.current = false;
       } catch {
         // Same as the main poll: a dropped request on shop wifi is normal.
@@ -408,13 +501,13 @@ export default function OnlineOrdersPage() {
           });
         }
       }
-      await refresh(state);
+      await refreshCurrent();
     } catch (err) {
       const detail =
         (err as { response?: { data?: { detail?: string } } })?.response?.data
           ?.detail ?? "Could not accept this order.";
       toast({ title: "Not accepted", description: detail, variant: "destructive" });
-      await refresh(state);
+      await refreshCurrent();
     } finally {
       setBusyId(null);
     }
@@ -426,13 +519,13 @@ export default function OnlineOrdersPage() {
     try {
       await rejectOnlineOrder(order.id, reason);
       toast({ title: `Order ${order.order_number} rejected`, description: reason });
-      await refresh(state);
+      await refreshCurrent();
     } catch (err) {
       const detail =
         (err as { response?: { data?: { detail?: string } } })?.response?.data
           ?.detail ?? "Could not reject this order.";
       toast({ title: "Not rejected", description: detail, variant: "destructive" });
-      await refresh(state);
+      await refreshCurrent();
     } finally {
       setBusyId(null);
     }
@@ -468,7 +561,7 @@ export default function OnlineOrdersPage() {
           ?.detail ?? "Please try again.";
       toast({ title: failTitle, description: detail, variant: "destructive" });
     } finally {
-      await refresh(state);
+      await refreshCurrent();
       setBusyId(null);
     }
   }
@@ -530,6 +623,13 @@ export default function OnlineOrdersPage() {
         </div>
 
         <div className="flex gap-2">
+          <Link
+            to="/online-orders/reports"
+            className="flex h-14 items-center gap-2 rounded-xl border border-secondary-200 bg-white px-4 text-base font-semibold text-secondary-700"
+          >
+            <BarChart3 className="h-5 w-5" />
+            Reports
+          </Link>
           <button
             onClick={enableSound}
             title={
@@ -553,7 +653,7 @@ export default function OnlineOrdersPage() {
           {(["pending", "active", "all"] as OnlineOrderState[]).map((s) => (
             <button
               key={s}
-              onClick={() => setState(s)}
+              onClick={() => changeTab(s)}
               className={`h-14 min-w-[7rem] rounded-xl px-5 text-base font-semibold capitalize transition ${
                 state === s
                   ? "bg-primary-600 text-white shadow"
@@ -561,15 +661,104 @@ export default function OnlineOrdersPage() {
               }`}
             >
               {s}
-              {s === "pending" && orders.length > 0 && state === "pending" ? (
+              {/* `totalCount`, not `orders.length` -- since OI-57's pagination,
+                  the visible page is often smaller than the real queue, and a
+                  badge reading "24" while 31 orders wait would undersell it. */}
+              {s === "pending" && state === "pending" && totalCount > 0 ? (
                 <span className="ml-2 rounded-full bg-white/25 px-2 py-0.5 text-sm">
-                  {orders.length}
+                  {totalCount}
                 </span>
               ) : null}
             </button>
           ))}
         </div>
       </header>
+
+      <div className="mb-4 flex flex-wrap items-center gap-3 rounded-2xl border border-secondary-200 bg-white p-3">
+        {state !== "all" ? (
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium text-secondary-700">Date</label>
+            <input
+              type="date"
+              value={dateFilter}
+              onChange={(e) => changeDateFilter(e.target.value)}
+              className="h-11 rounded-lg border border-secondary-300 px-3 text-sm"
+            />
+            {dateFilter ? (
+              <button
+                onClick={() => changeDateFilter("")}
+                className="h-11 rounded-lg border border-secondary-300 px-3 text-sm font-medium text-secondary-700"
+              >
+                Today
+              </button>
+            ) : (
+              <span className="text-sm text-secondary-500">Showing today</span>
+            )}
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium text-secondary-700">From</label>
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => changeDateRange(e.target.value, dateTo)}
+              className="h-11 rounded-lg border border-secondary-300 px-3 text-sm"
+            />
+            <label className="text-sm font-medium text-secondary-700">To</label>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => changeDateRange(dateFrom, e.target.value)}
+              className="h-11 rounded-lg border border-secondary-300 px-3 text-sm"
+            />
+            {dateFrom || dateTo ? (
+              <button
+                onClick={() => changeDateRange("", "")}
+                className="h-11 rounded-lg border border-secondary-300 px-3 text-sm font-medium text-secondary-700"
+              >
+                Clear
+              </button>
+            ) : (
+              <span className="text-sm text-secondary-500">Showing everything</span>
+            )}
+          </div>
+        )}
+
+        {state !== "pending" ? (
+          <button
+            onClick={toggleSort}
+            title="Pending's oldest-first queue order always stays the same -- this only reorders Active/All"
+            className="h-11 rounded-lg border border-secondary-300 px-3 text-sm font-medium text-secondary-700"
+          >
+            Sort: {effectiveSort === "asc" ? "Oldest first" : "Newest first"} ⇅
+          </button>
+        ) : null}
+
+        <div className="ml-auto flex items-center gap-2">
+          <button
+            disabled={page === 0}
+            onClick={() => setPage((p) => Math.max(0, p - 1))}
+            className="h-11 rounded-lg border border-secondary-300 px-3 text-sm font-medium text-secondary-700 disabled:opacity-40"
+          >
+            ← Prev
+          </button>
+          <span className="text-sm text-secondary-600">
+            {totalCount === 0
+              ? "0 of 0"
+              : `${page * PAGE_SIZE + 1}–${Math.min(
+                  totalCount,
+                  (page + 1) * PAGE_SIZE,
+                )} of ${totalCount}`}
+          </span>
+          <button
+            disabled={(page + 1) * PAGE_SIZE >= totalCount}
+            onClick={() => setPage((p) => p + 1)}
+            className="h-11 rounded-lg border border-secondary-300 px-3 text-sm font-medium text-secondary-700 disabled:opacity-40"
+          >
+            Next →
+          </button>
+        </div>
+      </div>
 
       {loading ? (
         <p className="p-8 text-center text-secondary-500">Loading…</p>

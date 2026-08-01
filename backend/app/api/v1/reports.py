@@ -99,6 +99,8 @@ async def export_sales_csv(
     writer.writerow(["Takeaway Orders", data["takeaway_orders"]])
     writer.writerow(["Call Center Revenue (PKR)", data["call_center_revenue"] / 100])
     writer.writerow(["Call Center Orders", data["call_center_orders"]])
+    writer.writerow(["Online Revenue (PKR)", data["online_revenue"] / 100])
+    writer.writerow(["Online Orders", data["online_orders"]])
     # Discount breakdown
     for entry in data.get("discount_breakdown", []):
         writer.writerow([f"Discount: {entry['label']} (PKR)", entry["total"] / 100])
