@@ -8,6 +8,7 @@ import {
   deliveryOffered,
   orderTiming,
 } from "../lib/delivery";
+import type { OrderTiming } from "../lib/delivery";
 import { orderLinesOf, subtotalOf, useCart } from "../store/cart";
 import { canOrder, useMenu } from "../store/menu";
 import { ApiError, createCheckoutSession, placeOrder } from "../lib/api";
@@ -17,7 +18,7 @@ import { cardPaymentOffered } from "../lib/cardPayment";
 
 interface Props {
   onBack: () => void;
-  onPlaced: (order: ApiOrderResponse) => void;
+  onPlaced: (order: ApiOrderResponse, timing: OrderTiming) => void;
 }
 
 type PaymentMethod = "card" | "cash";
@@ -40,8 +41,6 @@ export default function Checkout({ onBack, onPlaced }: Props) {
   // having come from the API. The clock never refuses an order — it only
   // decides whether this is for now or a pre-order for the next service.
   const orderingLive = canOrder(menuSource);
-  const timing = orderTiming();
-  const preOrder = !timing.immediate;
 
   const [service, setService] = useState<ServiceType>(
     collectionOffered() ? "collection" : "delivery",
@@ -52,6 +51,12 @@ export default function Checkout({ onBack, onPlaced }: Props) {
   const [address, setAddress] = useState("");
   const [areaId, setAreaId] = useState("");
   const [postcode, setPostcode] = useState("");
+
+  // Delivery gets its own, earlier cut-off than the shop's general close
+  // time (Imran, voice note 2026-08-02) — so this has to know which service
+  // and area are currently selected, not just the shop-wide clock.
+  const timing = orderTiming(new Date(), service, areaId);
+  const preOrder = !timing.immediate;
   // Card is only offered once Stripe is wired and proven. Until then the order
   // is created unpaid and settled in the shop, so cash is not merely the
   // default, it is the only truthful option. See the Payment section below.
@@ -135,8 +140,9 @@ export default function Checkout({ onBack, onPlaced }: Props) {
           const { checkout_url } = await createCheckoutSession(order.id);
           // Stash before leaving. Stripe returns the browser here as a fresh
           // page load, and without this the customer lands on an empty menu
-          // having just paid.
-          savePendingOrder(order);
+          // having just paid. `timing` travels with it — service/area are
+          // this component's state and won't exist after the round trip.
+          savePendingOrder(order, timing);
           window.location.assign(checkout_url);
           // Deliberately leave `submitting` set. The page is being replaced,
           // and re-enabling the button invites a second tap on the way out.
@@ -147,13 +153,13 @@ export default function Checkout({ onBack, onPlaced }: Props) {
           // rather than an error: telling someone their order failed when it
           // is sitting on the shop's tablet is worse than telling them nothing.
           setSubmitting(false);
-          onPlaced(order);
+          onPlaced(order, timing);
           return;
         }
       }
 
       setSubmitting(false);
-      onPlaced(order);
+      onPlaced(order, timing);
     } catch (cause) {
       // A 409 carries a sentence written for the customer ("We do not deliver
       // to that area."). Anything else gets the generic line.
@@ -388,10 +394,23 @@ export default function Checkout({ onBack, onPlaced }: Props) {
               was. */}
           {preOrder && (
             <p className="card p-3 text-sm text-ember border-ember/40">
-              We're closed at the moment, so this will be a{" "}
-              <strong className="text-cream">pre-order</strong>. We'll take it
-              now and the shop will confirm it when we open at{" "}
-              <strong className="text-cream">{timing.opensAt}</strong>.
+              {timing.closedReason === "delivery_cutoff" ? (
+                <>
+                  Online delivery has finished for tonight, so this will be a{" "}
+                  <strong className="text-cream">pre-order</strong>. We'll take
+                  it now and it'll be accepted when we open at{" "}
+                  <strong className="text-cream">{timing.opensAt}</strong> —
+                  you'll get a confirmation email then too.
+                </>
+              ) : (
+                <>
+                  We're closed at the moment, so this will be a{" "}
+                  <strong className="text-cream">pre-order</strong>. We'll take
+                  it now and it'll be accepted when we open at{" "}
+                  <strong className="text-cream">{timing.opensAt}</strong> —
+                  you'll get a confirmation email then too.
+                </>
+              )}
             </p>
           )}
           <button onClick={place} disabled={!canPlace} className="btn-primary tap w-full h-14">

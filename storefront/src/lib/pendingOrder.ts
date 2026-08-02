@@ -23,6 +23,7 @@
  */
 
 import type { ApiOrderResponse } from "./api";
+import type { OrderTiming } from "./delivery";
 
 const STORAGE_KEY = "chickshack.pendingOrder";
 
@@ -38,13 +39,21 @@ const MAX_AGE_MS = 60 * 60 * 1000;
 
 interface Stashed {
   order: ApiOrderResponse;
+  // Computed once, at the moment of placing, from state (service/area) that
+  // only exists on this page — Stripe's redirect is a fresh page load, so
+  // this is the only way the confirmation screen can show the SAME pre-order
+  // decision rather than a possibly-different one re-derived after the trip.
+  timing: OrderTiming;
   savedAt: number;
 }
 
 /** Stash the placed order immediately before handing the browser to Stripe. */
-export function savePendingOrder(order: ApiOrderResponse): void {
+export function savePendingOrder(
+  order: ApiOrderResponse,
+  timing: OrderTiming,
+): void {
   try {
-    const payload: Stashed = { order, savedAt: Date.now() };
+    const payload: Stashed = { order, timing, savedAt: Date.now() };
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
   } catch {
     // Private browsing, a full quota, storage disabled. Not worth failing the
@@ -85,7 +94,9 @@ export function returnFromStripe(): { orderId: string; paid: boolean } | null {
  * recent. A mismatch means the stash belongs to some other attempt, and showing
  * it would tell the customer about an order they did not just pay for.
  */
-export function takePendingOrder(orderId: string): ApiOrderResponse | null {
+export function takePendingOrder(
+  orderId: string,
+): { order: ApiOrderResponse; timing: OrderTiming } | null {
   let raw: string | null = null;
   try {
     raw = window.localStorage.getItem(STORAGE_KEY);
@@ -110,7 +121,7 @@ export function takePendingOrder(orderId: string): ApiOrderResponse | null {
   // Consumed either way: a stash that did not match is stale by definition, and
   // leaving it would keep it eligible for some later page load.
   clearPendingOrder();
-  return usable ? stashed.order : null;
+  return usable ? { order: stashed.order, timing: stashed.timing } : null;
 }
 
 /**

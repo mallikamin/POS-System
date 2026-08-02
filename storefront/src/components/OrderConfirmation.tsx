@@ -2,12 +2,19 @@ import { useEffect, useState } from "react";
 import { SHOP } from "../data/menu";
 import { formatGBP } from "../lib/money";
 import { fetchOrderStatus } from "../lib/api";
-import { orderTiming } from "../lib/delivery";
+import type { OrderTiming } from "../lib/delivery";
 import type { ApiOrderResponse, ApiOrderStatus } from "../lib/api";
 
 interface Props {
   order: ApiOrderResponse;
   onDone: () => void;
+  /**
+   * The same pre-order decision Checkout made when the order was placed —
+   * passed in rather than re-derived here so a Stripe round trip (or just
+   * the clock ticking past a cut-off while this page is open) can never show
+   * a different answer to the one the customer already saw.
+   */
+  timing: OrderTiming;
   /**
    * The customer has just come back from Stripe having completed the Checkout
    * page, so their card is AUTHORISED — the money is held, not taken.
@@ -58,6 +65,7 @@ const ACCEPTED_POLL_WINDOW_MS = 2 * 60 * 60 * 1000;
  */
 export default function OrderConfirmation({
   order,
+  timing,
   onDone,
   cardAuthorised = false,
 }: Props) {
@@ -106,10 +114,11 @@ export default function OrderConfirmation({
     };
   }, [order.id]);
 
-  // A pre-order is not a slow order. Placed while the shop is shut, it will not
-  // be answered until they open — so this page must never tell the customer it
-  // is "taking longer than usual" and send them to ring a closed shop.
-  const preOrder = !orderTiming().immediate;
+  // A pre-order is not a slow order. Placed while the shop is shut (or, for
+  // delivery, past its cut-off), it will not be answered until they open —
+  // so this page must never tell the customer it is "taking longer than
+  // usual" and send them to ring a closed shop.
+  const preOrder = !timing.immediate;
 
   const collecting = order.service_type !== "delivery";
   const accepted = status?.accepted === true;
@@ -212,10 +221,14 @@ export default function OrderConfirmation({
           <p className="text-sm text-cream/60 mt-1">
             {preOrder ? (
               <>
-                We've got it. The shop is closed at the moment and will confirm
-                your order when we open at{" "}
-                <strong className="text-cream">{SHOP.openTime}</strong>. Nothing
-                more for you to do — keep your order number safe.
+                We've got it.{" "}
+                {timing.closedReason === "delivery_cutoff"
+                  ? "Online delivery has finished for tonight, so it"
+                  : "The shop is closed at the moment, so it"}{" "}
+                will be accepted when we open at{" "}
+                <strong className="text-cream">{timing.opensAt}</strong> —
+                you'll get a confirmation email then too. Nothing more for
+                you to do — keep your order number safe.
               </>
             ) : gaveUp ? (
               "This is taking longer than usual. Please give us a ring to check."

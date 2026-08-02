@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { SHOP } from "./data/menu";
 import { formatGBP } from "./lib/money";
 import { isOpenNow } from "./lib/delivery";
+import type { OrderTiming } from "./lib/delivery";
 import { itemCountOf, subtotalOf, useCart } from "./store/cart";
 import { useMenu } from "./store/menu";
 import type { ApiOrderResponse } from "./lib/api";
@@ -21,6 +22,10 @@ export default function App() {
   const [view, setView] = useState<View>("menu");
   const [cartOpen, setCartOpen] = useState(false);
   const [placed, setPlaced] = useState<ApiOrderResponse | null>(null);
+  // Computed once at the moment of placing (Checkout knows the selected
+  // service/area; nothing downstream should re-derive it and risk a
+  // different answer if real time has moved on, e.g. during a Stripe trip).
+  const [timing, setTiming] = useState<OrderTiming | null>(null);
   // True only when the customer has just returned from Stripe having paid. The
   // order itself cannot tell us — it was stashed before the redirect.
   const [cardAuthorised, setCardAuthorised] = useState(false);
@@ -57,7 +62,8 @@ export default function App() {
     // shared. The order is real and the shop can see it either way, so send
     // them to the menu rather than inventing a confirmation we cannot back up.
     if (restored) {
-      setPlaced(restored);
+      setPlaced(restored.order);
+      setTiming(restored.timing);
       setCardAuthorised(back.paid);
       setView("done");
     }
@@ -88,22 +94,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen">
-      {/* Testing-mode notice. Sits above the header inside one sticky wrapper so
-          it stays visible on every view (menu, checkout, confirmation) until
-          Malik removes it — this is not tied to open/closed or ordering state. */}
       <div className="sticky top-0 z-50">
-        <div className="bg-ember text-ink px-4 py-2.5 text-center border-b-2 border-ink">
-          <p className="font-bold text-sm sm:text-base leading-snug">
-            This website is under testing — please do not place an order here.
-          </p>
-          <p className="text-xs sm:text-sm mt-0.5">
-            To place an order now, call us directly on{" "}
-            <a href="tel:07719566889" className="underline font-semibold">
-              07719 566 889
-            </a>
-            . Website ordering will be live shortly.
-          </p>
-        </div>
         <header className="bg-ink/95 backdrop-blur border-b border-ink-line">
           <div className="flex items-center justify-between px-4 h-14 max-w-3xl mx-auto">
             <button
@@ -160,19 +151,22 @@ export default function App() {
       {view === "checkout" && (
         <Checkout
           onBack={() => setView("menu")}
-          onPlaced={(order) => {
+          onPlaced={(order, orderTiming) => {
             setPlaced(order);
+            setTiming(orderTiming);
             setView("done");
           }}
         />
       )}
 
-      {view === "done" && placed && (
+      {view === "done" && placed && timing && (
         <OrderConfirmation
           order={placed}
+          timing={timing}
           cardAuthorised={cardAuthorised}
           onDone={() => {
             setPlaced(null);
+            setTiming(null);
             setCardAuthorised(false);
             setView("menu");
           }}

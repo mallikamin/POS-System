@@ -551,15 +551,20 @@ export const SHOP: ShopConfig = {
   // Pre-orders open two hours before service, matching Imran's own worked
   // example (placed 14:00, accepted 15:30, opens 16:00). INFERRED — confirm.
   orderFromTime: "14:00",
+  // Imran, voice note 2026-08-02: last online DELIVERY orders at 21:30 for
+  // every area except Garelochhead (21:45, see its DeliveryArea.closeTime
+  // override below) -- there needs to be runway before the shop shuts at
+  // 22:00. Collection is unaffected, stays open to closeTime as normal.
+  deliveryCloseTime: "21:30",
   // Orders are placed against POST /public/{tenant}/orders and appear on the
   // shop's tablet for accept/reject. Ordering additionally requires the menu to
   // have loaded from the API — see `canOrder` in store/menu.ts — so this flag
   // alone cannot produce an order the server would refuse.
   orderingEnabled: true,
-  // ⚠️ Stays false until Stripe Checkout and its signature-verified webhook are
-  // live. Orders are created unpaid and settled in the shop. Flipping this
-  // without Stripe means telling a customer they have paid when they have not.
-  cardPaymentEnabled: false,
+  // Stripe Checkout + its signature-verified webhook are live in production
+  // (proven with a real captured transaction, order 260801-004, 2026-08-02).
+  // Imran approved going fully live in writing the same day.
+  cardPaymentEnabled: true,
   services: ["collection", "delivery"],
   collectionMinutes: 20,
   deliveryMinutes: 45,
@@ -570,7 +575,7 @@ export const SHOP: ShopConfig = {
    * Imran whether that is on top of these, or already included.
    */
   deliveryAreas: [
-    { id: "garelochhead", name: "Garelochhead", fee: 300 },
+    { id: "garelochhead", name: "Garelochhead", fee: 300, closeTime: "21:45" },
     { id: "greenfields", name: "Greenfields Camp", fee: 300 },
     { id: "southgate", name: "Southgate & Shanden", fee: 400 },
     { id: "mambeg", name: "Mambeg, Clynder & Rahane", fee: 400 },

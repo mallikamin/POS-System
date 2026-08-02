@@ -1,4 +1,4 @@
-import type { DeliveryArea, Pence } from "../types";
+import type { DeliveryArea, Pence, ServiceType } from "../types";
 import { SHOP, areaById } from "../data/menu";
 
 /**
@@ -114,13 +114,42 @@ export type OrderTiming = {
   immediate: boolean;
   /** When the shop will next be answering, "HH:MM". */
   opensAt: string;
+  /** Why `immediate` is false. Absent when `immediate` is true. */
+  closedReason?: "shop_closed" | "delivery_cutoff";
 };
 
-export function orderTiming(now: Date = new Date()): OrderTiming {
+/** This area's own last-delivery-order time, or the shop-wide default. */
+function deliveryCloseTimeFor(areaId: string | undefined): string {
+  return (areaId && areaById(areaId)?.closeTime) || SHOP.deliveryCloseTime;
+}
+
+/**
+ * Same "never refuse, just say when we'll get to it" model as `isOpenNow`,
+ * but delivery gets its own, earlier cut-off (Imran, voice note 2026-08-02):
+ * the shop stays open for collection until `closeTime`, but online delivery
+ * needs to stop sooner so there is runway before the kitchen actually shuts.
+ * `service`/`areaId` are optional so existing shop-wide-only callers keep
+ * working — omit them and this behaves exactly as it did before delivery had
+ * its own cut-off.
+ */
+export function orderTiming(
+  now: Date = new Date(),
+  service?: ServiceType,
+  areaId?: string,
+): OrderTiming {
   const minutes = shopMinutesNow(now);
   const from = toMinutes(SHOP.orderFromTime || SHOP.openTime);
-  const immediate = minutes >= from && minutes < toMinutes(SHOP.closeTime);
-  return { immediate, opensAt: SHOP.openTime };
+  const shopOpen = minutes >= from && minutes < toMinutes(SHOP.closeTime);
+
+  if (!shopOpen) {
+    return { immediate: false, opensAt: SHOP.openTime, closedReason: "shop_closed" };
+  }
+
+  if (service === "delivery" && minutes >= toMinutes(deliveryCloseTimeFor(areaId))) {
+    return { immediate: false, opensAt: SHOP.openTime, closedReason: "delivery_cutoff" };
+  }
+
+  return { immediate: true, opensAt: SHOP.openTime };
 }
 
 export function deliveryOffered(): boolean {

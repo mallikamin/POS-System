@@ -200,6 +200,12 @@ export interface DeliveryArea {
   /** As printed on the menu, e.g. "Kilcreggan & Cove". */
   name: string;
   fee: Pence;
+  /**
+   * Override for `ShopConfig.deliveryCloseTime`, 24h "HH:MM". Garelochhead
+   * gets extra minutes over every other area (closest to the shop). Falls
+   * back to the shop-wide delivery cut-off when unset.
+   */
+  closeTime?: string;
 }
 
 export interface ShopConfig {
@@ -221,6 +227,13 @@ export interface ShopConfig {
    * a 3am order landing on a tablet nobody is watching.
    */
   orderFromTime: string;
+  /**
+   * Last time an online DELIVERY order is taken, 24h "HH:MM" — deliberately
+   * earlier than `closeTime`, so there is runway before the shop actually
+   * shuts. Collection is unaffected and stays open until `closeTime`.
+   * Per-area override: `DeliveryArea.closeTime`.
+   */
+  deliveryCloseTime: string;
   /**
    * Master switch for taking orders online.
    *
