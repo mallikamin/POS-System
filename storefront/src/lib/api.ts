@@ -121,6 +121,7 @@ export interface ApiOrderResponse {
   lines: ApiOrderLine[];
   subtotal: Pence;
   tax_amount: Pence;
+  service_fee: Pence;
   delivery_fee: Pence;
   total: Pence;
   currency: string;

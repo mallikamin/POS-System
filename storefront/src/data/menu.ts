@@ -568,6 +568,12 @@ export const SHOP: ShopConfig = {
   services: ["collection", "delivery"],
   collectionMinutes: 20,
   deliveryMinutes: 45,
+  // Imran, voice note 2026-08-02: flat 70p on every order, collection and
+  // delivery alike, to offset Stripe's own ~£0.72 processing fee. Distinct
+  // from the menu board's own "service fee may apply for long distance
+  // deliveries" note above `deliveryAreas` below, which is a separate,
+  // still-unconfirmed, distance-based idea — do not conflate the two.
+  serviceFee: 70,
 
   /**
    * Exactly as printed on the menu board, cheapest first. The board also notes:

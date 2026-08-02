@@ -265,6 +265,15 @@ export interface ShopConfig {
    * NOT STATED on their printed menu — confirm with Imran before go-live.
    */
   deliveryMinimum: Pence;
+  /**
+   * Flat service fee in pence, added to every order regardless of service
+   * type or payment method (Imran, voice note 2026-08-02 — offsets Stripe's
+   * own processing fee). 0 = disabled. This is a client-side display value
+   * only; the server computes and charges the authoritative figure from the
+   * tenant's own config, same as every other amount on this page — see
+   * `PublicOrderCreate`'s "browser never sends prices" rule.
+   */
+  serviceFee: Pence;
   /** Printed on the menu; must appear at checkout. */
   allergenNotice: string;
 }

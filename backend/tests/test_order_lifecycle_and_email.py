@@ -595,6 +595,7 @@ def test_received_email_says_card_is_only_held_not_paid() -> None:
     """A card order between checkout and Accept: authorised, not captured."""
     order = _emailable(
         payment_status="unpaid",
+        stripe_checkout_session_id="cs_test_123",
         stripe_payment_intent_id="pi_test_123",
         payment_captured_at=None,
     )
@@ -603,6 +604,23 @@ def test_received_email_says_card_is_only_held_not_paid() -> None:
     assert "we only charge you once the shop accepts" in body.lower()
     assert "we only charge you once the shop accepts" in html.lower()
     assert "paid" not in body.lower().split("we only charge")[0].split("\n")[-1]
+
+
+def test_received_email_says_card_processing_before_intent_exists() -> None:
+    """OI-61: checkout has started but Stripe hasn't created a PaymentIntent
+    yet -- the exact race window that told a real customer to expect a cash
+    collection despite having just paid online (2026-08-02). Keying this
+    branch off `stripe_checkout_session_id` rather than
+    `stripe_payment_intent_id` is what closes it."""
+    order = _emailable(
+        payment_status="unpaid",
+        stripe_checkout_session_id="cs_test_123",
+        stripe_payment_intent_id=None,
+        payment_captured_at=None,
+    )
+    _, body = email_service._body_received(order, "Chick Shack", "GBP")
+    assert "we only charge you once the shop accepts" in body.lower()
+    assert "payable on" not in body.lower()
 
 
 def test_received_email_says_paid_once_captured() -> None:
@@ -641,6 +659,7 @@ def test_received_email_stripe_state_still_wins_over_stated_intent() -> None:
     state takes priority over the customer's earlier stated intent."""
     order = _emailable(
         payment_status="unpaid",
+        stripe_checkout_session_id="cs_test_123",
         stripe_payment_intent_id="pi_test_123",
         payment_captured_at=None,
     )

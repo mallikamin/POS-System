@@ -314,6 +314,13 @@ async def stripe_webhook(
     intent_obj = stripe_service.field(stripe_service.field(event, "data", {}), "object", {})
     event_intent_id = stripe_service.field(intent_obj, "id")
 
+    # Set only by the `amount_capturable_updated` branch below, when THIS call
+    # is the one that performed a genuine late capture on an already-accepted
+    # order -- the "accepted" email already sent (if any) was built from the
+    # payment state at Accept time, which was still unpaid, and needs
+    # correcting now that the money has actually moved.
+    late_capture = False
+
     # Idempotent by construction: every branch below is a no-op if the state is
     # already what the event describes, so a duplicate delivery changes nothing.
     if event_type == "payment_intent.amount_capturable_updated":
@@ -338,7 +345,7 @@ async def stripe_webhook(
         # logic handles it; this closes the other ordering, symmetrically.
         resolved_intent_id = order.stripe_payment_intent_id or event_intent_id
         if resolved_intent_id:
-            await public_order_service.reconcile_late_authorization(
+            late_capture = await public_order_service.reconcile_late_authorization(
                 db, order.tenant_id, order, resolved_intent_id
             )
     elif event_type == "payment_intent.succeeded":
@@ -365,6 +372,21 @@ async def stripe_webhook(
         return {"status": "ignored"}
 
     await db.commit()
+
+    if late_capture:
+        # The "accepted" email already sent said "Payable on..." because the
+        # capture hadn't happened yet at Accept time. Re-send it now that
+        # payment_status is genuinely `paid`, so the customer isn't left
+        # holding the wrong one -- and re-fetch with the same eager-loaded
+        # getter every other caller of notify_customer uses, since the bare
+        # `db.get(Order, ...)` above never loaded `items` and the email
+        # template needs them.
+        refreshed = await order_service.get_order(db, order.id, order.tenant_id)
+        if refreshed is not None:
+            await public_order_service.notify_customer(
+                db, order.tenant_id, refreshed, "accepted"
+            )
+
     return {"status": "ok"}
 
 
@@ -704,6 +726,7 @@ def _to_merchant_summary(order: Order, currency: str) -> MerchantOrderSummary:
         order_number=order.order_number,
         status=order.status,
         payment_status=order.payment_status,
+        is_card_order=order.stripe_checkout_session_id is not None,
         service_type=order.service_type or "collection",
         placed_at=order.created_at,
         customer_name=order.customer_name or "",
@@ -723,6 +746,7 @@ def _to_merchant_summary(order: Order, currency: str) -> MerchantOrderSummary:
         ],
         subtotal=order.subtotal,
         tax_amount=order.tax_amount,
+        service_fee=order.service_fee,
         delivery_fee=order.delivery_fee,
         total=order.total,
         currency=currency,
@@ -753,6 +777,7 @@ def _to_public_response(order: Order, currency: str) -> PublicOrderResponse:
         ],
         subtotal=order.subtotal,
         tax_amount=order.tax_amount,
+        service_fee=order.service_fee,
         delivery_fee=order.delivery_fee,
         total=order.total,
         currency=currency,

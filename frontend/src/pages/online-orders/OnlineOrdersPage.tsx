@@ -90,6 +90,23 @@ function isPaid(order: OnlineOrder): boolean {
 }
 
 /**
+ * A card checkout was started and Stripe has not captured it yet -- money is
+ * very likely on its way (typically within seconds), NOT the same thing as
+ * genuinely unpaid. Conflating the two into one "unpaid" banner is what
+ * caused a real double-charge, 2026-08-02 (OI-61): staff read "NOT PAID" and
+ * took payment again in person while Stripe was in the middle of capturing
+ * the original online payment.
+ */
+function isCardProcessing(order: OnlineOrder): boolean {
+  return order.is_card_order && !isPaid(order);
+}
+
+/** Nothing is coming from Stripe for this order -- cash is genuinely owed. */
+function isCashOwed(order: OnlineOrder): boolean {
+  return !order.is_card_order && !isPaid(order);
+}
+
+/**
  * One button, two meanings — and the order's own service type decides which,
  * never the person tapping. A collecting customer must never be told their
  * food is driving to them.
@@ -270,6 +287,16 @@ export default function OnlineOrdersPage() {
   // from this, so it needs no re-render.
   const ticketUrls = useRef<Map<string, string>>(new Map());
 
+  // What `payment_status` each cached ticket was last rendered against --
+  // see `refresh`'s prefetch loop below. A plain `has(id)` check let a
+  // ticket cached while an order was still `unpaid` survive forever even
+  // after payment later landed via the Stripe webhook (reconcile_late_
+  // authorization -- see OI-61), because nothing client-initiated ever
+  // called `invalidateTicket` for that path. Tracking the signature lets the
+  // ordinary poll notice the change itself and refetch, with no new server
+  // event needed.
+  const ticketSig = useRef<Map<string, string>>(new Map());
+
   // ⚠️ A cached ticket is a fully-rendered, one-shot ESC/POS payload -- see
   // `refresh` below -- and it goes stale the instant an order's payment
   // status actually changes (a card captured on Accept, cash settled on
@@ -282,8 +309,14 @@ export default function OnlineOrdersPage() {
   // pending, and nothing ever told the cache the order had since been paid.
   // The re-fetch is never awaited here, on purpose -- this must not become
   // one more `await` standing between a tap and a `rawbt:` navigation.
+  //
+  // The signature is deliberately cleared, not set, here: the fetch below
+  // races the next poll tick, and letting the poll's own signature-compare
+  // (against fresh order data) decide what's current is safer than this
+  // call guessing at a value it was never handed.
   const invalidateTicket = useCallback((orderId: string) => {
     ticketUrls.current.delete(orderId);
+    ticketSig.current.delete(orderId);
     void fetchTicketUrl(orderId).then((url) => {
       if (url) ticketUrls.current.set(orderId, url);
     });
@@ -379,11 +412,26 @@ export default function OnlineOrdersPage() {
         // `await` inside the tap handler ends that gesture, so the print was
         // being dropped silently. Having the URL already in hand is what makes
         // the Print button navigate synchronously and actually reach RawBT.
+        // Signature is just `payment_status` -- the one field the printed
+        // PAID/PROCESSING/NOT-PAID line actually branches on (see
+        // `print_service.py`). A cached ticket whose order hasn't moved
+        // since it was fetched is left alone; one whose payment status has
+        // moved on (typically the OI-61 late-capture case) is refetched here,
+        // same as any never-before-seen order.
         void Promise.all(
           resp.orders.map(async (order) => {
-            if (ticketUrls.current.has(order.id)) return;
+            const sig = order.payment_status;
+            if (
+              ticketUrls.current.has(order.id) &&
+              ticketSig.current.get(order.id) === sig
+            ) {
+              return;
+            }
             const url = await fetchTicketUrl(order.id);
-            if (url) ticketUrls.current.set(order.id, url);
+            if (url) {
+              ticketUrls.current.set(order.id, url);
+              ticketSig.current.set(order.id, sig);
+            }
           }),
         );
       } catch {
@@ -581,7 +629,12 @@ export default function OnlineOrdersPage() {
    * the button says so rather than doing it quietly.
    */
   function onHandover(order: OnlineOrder) {
-    const settle = !isPaid(order);
+    // Only auto-settle as CASH when cash is genuinely owed. A card order
+    // that's still processing must never be silently recorded as cash on
+    // handover -- Stripe may capture the real payment moments later (or
+    // already has), and this app would otherwise be the one place claiming
+    // "cash" for money that was actually taken by card. See OI-61.
+    const settle = isCashOwed(order);
     return runLifecycle(
       order,
       () => completeOnlineOrder(order.id, settle),
@@ -777,7 +830,9 @@ export default function OnlineOrdersPage() {
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {orders.map((order) => {
             const waited = minutesSince(order.placed_at);
-            const unpaid = !isPaid(order);
+            const cashOwed = isCashOwed(order);
+            const cardProcessing = isCardProcessing(order);
+            const notPaidYet = cashOwed || cardProcessing;
             const isPending = !order.accepted_at && !order.rejected_at;
             const closed = CLOSED.includes(order.status);
             const made = MADE.includes(order.status);
@@ -814,11 +869,22 @@ export default function OnlineOrdersPage() {
                   </span>
                 </div>
 
-                {unpaid ? (
+                {cashOwed ? (
                   <p className="mt-3 rounded-lg bg-red-600 px-3 py-2 text-center text-base font-bold text-white">
                     NOT PAID — COLLECT {formatMoney(order.total, order.currency)}
                   </p>
-                ) : null}
+                ) : cardProcessing ? (
+                  // NOT the same as unpaid -- Stripe is very likely still
+                  // authorising/capturing (typically seconds). Staff must
+                  // not collect cash or re-charge a card here. See OI-61.
+                  <p className="mt-3 rounded-lg bg-amber-500 px-3 py-2 text-center text-base font-bold text-white">
+                    CARD — PAYMENT PROCESSING
+                  </p>
+                ) : (
+                  <p className="mt-3 rounded-lg bg-green-100 px-3 py-1.5 text-center text-sm font-semibold text-green-800">
+                    PAID · {order.is_card_order ? "CARD" : "CASH"}
+                  </p>
+                )}
 
                 <div className="mt-3 text-sm">
                   <p className="font-semibold text-secondary-900">
@@ -870,6 +936,12 @@ export default function OnlineOrdersPage() {
                 ) : null}
 
                 <div className="mt-3 border-t border-secondary-200 pt-2 text-sm">
+                  {order.service_fee > 0 ? (
+                    <div className="flex justify-between text-secondary-600">
+                      <span>Service Fee</span>
+                      <span>{formatMoney(order.service_fee, order.currency)}</span>
+                    </div>
+                  ) : null}
                   {order.delivery_fee > 0 ? (
                     <div className="flex justify-between text-secondary-600">
                       <span>Delivery</span>
@@ -932,7 +1004,7 @@ export default function OnlineOrdersPage() {
                         className="h-16 w-full rounded-xl bg-green-700 text-lg font-bold text-white disabled:opacity-50"
                       >
                         {handoverLabel(order)}
-                        {unpaid ? (
+                        {cashOwed ? (
                           <span className="block text-sm font-normal">
                             take {formatMoney(order.total, order.currency)}
                           </span>
@@ -948,7 +1020,7 @@ export default function OnlineOrdersPage() {
                       </button>
                     )}
 
-                    {unpaid ? (
+                    {notPaidYet ? (
                       <button
                         disabled={busyId === order.id}
                         onClick={() => void onMarkPaid(order)}

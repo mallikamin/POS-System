@@ -260,6 +260,12 @@ export default function OrderConfirmation({
             <span className="text-cream/70 shrink-0">{formatGBP(line.total)}</span>
           </div>
         ))}
+        {order.service_fee > 0 && (
+          <div className="flex justify-between text-sm text-cream/70 pt-2 border-t border-ink-line">
+            <span>Service Fee</span>
+            <span>{formatGBP(order.service_fee)}</span>
+          </div>
+        )}
         {order.delivery_fee > 0 && (
           <div className="flex justify-between text-sm text-cream/70 pt-2 border-t border-ink-line">
             <span>Delivery</span>

@@ -23,6 +23,11 @@ export interface OnlineOrder {
   order_number: string;
   status: string;
   payment_status: string;
+  /** Whether a card checkout was ever started, regardless of whether it has
+   * captured yet -- distinguishes "card, still processing" from "genuinely
+   * unpaid, collect cash", which `payment_status` alone cannot (both read
+   * "unpaid" until the money lands). See OI-61. */
+  is_card_order: boolean;
   service_type: "collection" | "delivery";
   placed_at: string;
 
@@ -35,6 +40,7 @@ export interface OnlineOrder {
   lines: OnlineOrderLine[];
   subtotal: number;
   tax_amount: number;
+  service_fee: number;
   delivery_fee: number;
   total: number;
   currency: string;

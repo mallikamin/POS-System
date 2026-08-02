@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { formatPKR } from "@/utils/currency";
+import { useConfigStore } from "@/stores/configStore";
 import api from "@/lib/axios";
 
 interface DrawerSummary {
@@ -70,6 +71,23 @@ function ZReportPage() {
   const [selectedDate, setSelectedDate] = useState(getToday);
   const [report, setReport] = useState<ZReport | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // `formatPKR`/`formatMoney` read a currency that is set once, globally, by
+  // configStore.fetchConfig() -- normally already done by POSLayout before
+  // any page renders. A hard refresh or a bookmarked/WhatsApp-linked landing
+  // directly on this route skips that mount (same gap OnlineReportsPage.tsx
+  // already closed for itself), so amounts rendered on the FIRST paint here
+  // used whatever currency was last set, defaulting to PKR for a session
+  // that never went through POSLayout at all -- confirmed as the cause of
+  // Imran's GBP tenant printing a Z-Report in PKR (voice note, 2026-08-03).
+  // Subscribing to `config` guarantees a re-render once fetchConfig()
+  // resolves, which is what actually picks up the corrected currency.
+  const config = useConfigStore((s) => s.config);
+  const fetchConfig = useConfigStore((s) => s.fetchConfig);
+
+  useEffect(() => {
+    if (!config) void fetchConfig();
+  }, [config, fetchConfig]);
 
   useEffect(() => {
     if (selectedDate) fetchReport();

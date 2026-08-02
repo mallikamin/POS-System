@@ -73,7 +73,8 @@ export default function Checkout({ onBack, onPlaced }: Props) {
   );
 
   const deliveryFee = delivery?.ok ? delivery.fee : 0;
-  const total = subtotal + deliveryFee;
+  const serviceFee = SHOP.serviceFee;
+  const total = subtotal + deliveryFee + serviceFee;
 
   // Email is REQUIRED, not a nicety. It is the channel the shop uses to tell the
   // customer their order was accepted and how long it will be — and Imran's own
@@ -365,6 +366,12 @@ export default function Checkout({ onBack, onPlaced }: Props) {
           <span>Subtotal</span>
           <span>{formatGBP(subtotal)}</span>
         </div>
+        {serviceFee > 0 && (
+          <div className="flex justify-between text-cream/70">
+            <span>Service Fee</span>
+            <span>{formatGBP(serviceFee)}</span>
+          </div>
+        )}
         {service === "delivery" && (
           <div className="flex justify-between text-cream/70">
             <span>Delivery</span>

@@ -23,6 +23,7 @@ Stripe's behaviour.
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, patch
 
@@ -1220,6 +1221,79 @@ async def test_late_authorization_captures_an_already_accepted_order(
     captured_calls = _calls_with_action(log_action, "stripe_captured")
     assert len(captured_calls) == 1, "the late capture must leave a durable audit trail"
     assert captured_calls[0].kwargs["entity_id"] == order_id
+
+
+@pytest.mark.asyncio
+async def test_late_authorization_resends_the_accepted_email_once_paid(
+    client,
+    db: AsyncSession,
+    tenant: Tenant,
+    admin_user: User,
+    accepted_card_order_pending_intent: Order,
+) -> None:
+    """OI-61: the "accepted" email already sent (if any) was built from the
+    payment state at Accept time, which was still unpaid, and told the
+    customer "Payable on..." -- confirmed as the direct cause of a real
+    double-charge, 2026-08-02 (staff took payment again in person, reading
+    that as genuinely unpaid). Once this webhook performs the late capture,
+    the "accepted" email must be re-sent so the customer holds a correct one.
+    """
+    order_id = accepted_card_order_pending_intent.id
+    event = _capturable_event(order_id, tenant.id, intent_id="pi_late_capture")
+
+    captured: list[tuple] = []
+    done = asyncio.Event()
+
+    async def _capture_send(*args, **kwargs) -> bool:
+        captured.append((args, kwargs))
+        done.set()
+        return True
+
+    with patch.object(stripe_service, "verify_webhook", return_value=event), patch.object(
+        stripe_service, "capture_for_order", new=AsyncMock(return_value="succeeded")
+    ), patch.object(
+        public_order_service.email_service, "send_order_email", new=_capture_send
+    ):
+        response = await client.post("/api/v1/public/stripe/webhook", content=b"{}")
+        assert response.status_code == 200
+        await asyncio.wait_for(done.wait(), timeout=2)
+        await asyncio.gather(
+            *public_order_service._email_tasks, return_exceptions=True
+        )
+
+    assert len(captured) == 1
+    args, _kwargs = captured[0]
+    sent_order, sent_event = args[0], args[1]
+    assert sent_event == "accepted"
+    assert sent_order.id == order_id
+    assert sent_order.payment_status == "paid", (
+        "the re-sent email must be built from the order AFTER the late "
+        "capture, not the stale pre-capture snapshot"
+    )
+
+
+@pytest.mark.asyncio
+async def test_late_authorization_does_not_resend_email_while_still_pending(
+    client,
+    db: AsyncSession,
+    tenant: Tenant,
+    admin_user: User,
+    card_order_pending_intent: Order,
+) -> None:
+    """No decision has been made yet, so no email was sent to correct -- must
+    not fire one now either."""
+    order_id = card_order_pending_intent.id
+    event = _capturable_event(order_id, tenant.id, intent_id="pi_still_pending")
+
+    with patch.object(stripe_service, "verify_webhook", return_value=event), patch.object(
+        stripe_service, "capture_for_order", new=AsyncMock()
+    ), patch.object(
+        public_order_service.email_service, "send_order_email", new=AsyncMock()
+    ) as send_email:
+        response = await client.post("/api/v1/public/stripe/webhook", content=b"{}")
+
+    assert response.status_code == 200
+    send_email.assert_not_awaited()
 
 
 @pytest.mark.asyncio

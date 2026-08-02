@@ -61,6 +61,14 @@ class RestaurantConfig(BaseMixin, Base):
         comment="Minimum basket for delivery in minor units. 0 = no minimum.",
     )
 
+    service_fee: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        nullable=False,
+        comment="Flat service fee in minor units, added to every online "
+        "order regardless of payment method. 0 = disabled.",
+    )
+
     online_ordering_only: Mapped[bool] = mapped_column(
         Boolean,
         default=False,

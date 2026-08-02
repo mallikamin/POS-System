@@ -23,7 +23,7 @@ from datetime import datetime, time, timedelta, timezone
 from typing import Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -41,6 +41,18 @@ from app.utils.security import hash_password
 logger = logging.getLogger(__name__)
 
 ONLINE_SYSTEM_EMAIL = "online-orders@system.local"
+
+# How long a card order can sit waiting for Stripe to confirm the
+# authorisation before the decision queue gives up waiting and shows it
+# anyway. See `list_merchant_orders`'s `pending` filter -- this is the actual
+# fix for OI-61's race (Imran, 2026-08-03: a customer's card was charged
+# online, but staff accepted and took payment again on the shop's card
+# machine because the order appeared "unpaid" before the authorisation had
+# landed). The longest such gap seen in real traffic on 2026-08-02 was 179s
+# (order 260802-003); this leaves real margin above that while still
+# resolving well within a customer's wait time if a card is genuinely
+# abandoned.
+PENDING_QUEUE_PAYMENT_GRACE = timedelta(minutes=5)
 
 
 class PublicOrderError(Exception):
@@ -100,6 +112,16 @@ async def get_timezone(db: AsyncSession, tenant_id: uuid.UUID) -> str:
         )
     )
     return result.scalar_one_or_none() or "UTC"
+
+
+async def get_service_fee(db: AsyncSession, tenant_id: uuid.UUID) -> int:
+    """Flat per-order fee in minor units. 0 for every tenant that doesn't charge one."""
+    result = await db.execute(
+        select(RestaurantConfig.service_fee).where(
+            RestaurantConfig.tenant_id == tenant_id
+        )
+    )
+    return result.scalar_one_or_none() or 0
 
 
 def _zone(tz_name: str) -> ZoneInfo | timezone:
@@ -405,11 +427,12 @@ async def create_public_order(
     """
     lines, subtotal = await _price_basket(db, tenant_id, data)
     delivery_fee, area_name = await _resolve_delivery(db, tenant_id, data, subtotal)
+    service_fee = await get_service_fee(db, tenant_id)
 
     tax_rate_bps = await order_service._get_tax_rate(db, tenant_id)
-    # Tax is charged on goods, not on the delivery fee.
+    # Tax is charged on goods, not on the delivery fee or the service fee.
     tax_amount = round(subtotal * tax_rate_bps / 10_000)
-    total = subtotal + tax_amount + delivery_fee
+    total = subtotal + tax_amount + delivery_fee + service_fee
 
     system_user = await _get_or_create_online_user(db, tenant_id)
 
@@ -459,6 +482,7 @@ async def create_public_order(
         delivery_address=data.delivery_address,
         delivery_area=area_name,
         delivery_fee=delivery_fee,
+        service_fee=service_fee,
         created_by=system_user.id,
         items=order_items,
     )
@@ -938,7 +962,7 @@ async def reconcile_late_authorization(
     tenant_id: uuid.UUID,
     order: Order,
     intent_id: str,
-) -> None:
+) -> bool:
     """Close the race between the shop answering an order and the customer's
     card actually finishing authorisation, whichever happens first.
 
@@ -950,11 +974,22 @@ async def reconcile_late_authorization(
     `payment_intent.amount_capturable_updated` event, which fires exactly
     when that authorisation completes.
 
-    A no-op if the order is still awaiting an answer -- Accept/Reject handle
-    it themselves when they happen -- or if the money is already captured.
+    Since OI-61 (2026-08-03), `list_merchant_orders` keeps a card order out of
+    the pending decision queue until this authorisation exists, so this
+    should now be a rare backstop rather than the common path it was before
+    -- but it stays, because a card order sitting unanswered past
+    `PENDING_QUEUE_PAYMENT_GRACE` still surfaces and can still be accepted
+    before its (very late) authorisation arrives.
+
+    A no-op, returning `False`, if the order is still awaiting an answer --
+    Accept/Reject handle it themselves when they happen -- or if the money is
+    already captured. Returns `True` only when THIS call is the one that
+    performed a genuine late capture, so the caller knows to re-notify the
+    customer: the "accepted" email already sent (if any) was built from the
+    payment state at Accept time, which was still unpaid.
     """
     if order.payment_captured_at is not None:
-        return
+        return False
 
     if order.rejected_at is not None:
         released = await stripe_service.cancel(intent_id)
@@ -969,12 +1004,12 @@ async def reconcile_late_authorization(
             ),
             changes={"intent_id": intent_id, "released": released},
         )
-        return
+        return False
 
     if order.accepted_at is None:
         # Still pending. Accept will resolve and capture this live when it
         # happens, exactly as it does today -- nothing to do yet.
-        return
+        return False
 
     # Already accepted: the kitchen has committed to the food. Take the
     # payment now, same capture call accept_order makes.
@@ -998,7 +1033,7 @@ async def reconcile_late_authorization(
             ),
             changes={"intent_id": intent_id, "amount": order.total},
         )
-        return
+        return False
 
     if capture_status != "succeeded":
         logger.warning(
@@ -1017,7 +1052,7 @@ async def reconcile_late_authorization(
             ),
             changes={"intent_id": intent_id, "status": capture_status},
         )
-        return
+        return False
 
     order.payment_captured_at = datetime.now(timezone.utc)
     system_user = await _get_or_create_online_user(db, tenant_id)
@@ -1033,6 +1068,7 @@ async def reconcile_late_authorization(
         ),
         changes={"intent_id": intent_id, "amount": order.total, "status": capture_status},
     )
+    return True
 
 
 # ---------------------------------------------------------------------------
@@ -1088,6 +1124,22 @@ async def list_merchant_orders(
 
     if state == "pending":
         conditions += [Order.accepted_at.is_(None), Order.rejected_at.is_(None)]
+        # Don't hand staff a card order to decide on before Stripe has
+        # actually confirmed the authorisation -- that decision (accept =
+        # take the food to the kitchen; is it paid or not?) is exactly what
+        # raced ahead of the money and caused a real double-charge. A cash
+        # order (no checkout session at all) is unaffected. A card order
+        # whose authorisation never lands -- an abandoned checkout -- still
+        # surfaces once `PENDING_QUEUE_PAYMENT_GRACE` has passed, so it is
+        # not silently lost; it just isn't offered as a decision while the
+        # money might still be seconds from confirming.
+        conditions += [
+            or_(
+                Order.stripe_checkout_session_id.is_(None),
+                Order.payment_authorized_at.is_not(None),
+                Order.created_at < datetime.now(timezone.utc) - PENDING_QUEUE_PAYMENT_GRACE,
+            )
+        ]
     elif state == "active":
         conditions += [
             Order.accepted_at.is_not(None),

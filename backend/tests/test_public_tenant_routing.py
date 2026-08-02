@@ -190,6 +190,62 @@ async def test_order_is_written_to_the_tenant_named_in_the_path(
     assert order.tenant_id == tenant.id
 
 
+async def test_service_fee_is_snapshotted_onto_the_order_from_tenant_config(
+    client: AsyncClient,
+    db: AsyncSession,
+    tenant: Tenant,
+    uk_menu: MenuItem,
+):
+    """Imran, voice note 2026-08-02: a flat per-order fee, all orders. Modelled
+    on `restaurant_configs` (0 for every tenant but the one that charges it)
+    and snapshotted onto the order at creation, same pattern as delivery_fee.
+    """
+    await db.execute(
+        RestaurantConfig.__table__.update()
+        .where(RestaurantConfig.tenant_id == tenant.id)
+        .values(service_fee=70)
+    )
+    await db.commit()
+
+    resp = await client.post(
+        "/api/v1/public/test-restaurant/orders",
+        json={
+            "service_type": "collection",
+            "customer_name": "Imran R",
+            "customer_phone": "07909313456",
+            "items": [{"menu_item_id": str(uk_menu.id), "quantity": 1}],
+        },
+    )
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+    assert body["service_fee"] == 70
+    assert body["total"] == body["subtotal"] + body["tax_amount"] + body["service_fee"]
+
+    order = await db.get(Order, uuid.UUID(body["id"]))
+    assert order.service_fee == 70
+
+
+async def test_zero_service_fee_tenant_is_unaffected(
+    client: AsyncClient,
+    uk_menu: MenuItem,
+):
+    """`uk_menu`'s config never sets `service_fee` -- confirms the 0-default
+    doesn't silently add a fee for every other tenant."""
+    resp = await client.post(
+        "/api/v1/public/test-restaurant/orders",
+        json={
+            "service_type": "collection",
+            "customer_name": "Imran R",
+            "customer_phone": "07909313456",
+            "items": [{"menu_item_id": str(uk_menu.id), "quantity": 1}],
+        },
+    )
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+    assert body["service_fee"] == 0
+    assert body["total"] == body["subtotal"] + body["tax_amount"]
+
+
 async def test_cannot_order_another_tenants_item_through_your_slug(
     client: AsyncClient, uk_menu: MenuItem, pk_menu: MenuItem
 ):
@@ -225,6 +281,8 @@ async def _online_order(
     days_ago: int = 0,
     accepted: bool = False,
     rejected: bool = False,
+    stripe_checkout_session_id: str | None = None,
+    payment_authorized_at: datetime | None = None,
 ) -> Order:
     now = datetime.now(timezone.utc)
     placed_at = now - timedelta(minutes=minutes_ago, days=days_ago)
@@ -249,6 +307,8 @@ async def _online_order(
         accepted_at=placed_at if accepted else None,
         rejected_at=placed_at if rejected else None,
         eta_minutes=30 if accepted else None,
+        stripe_checkout_session_id=stripe_checkout_session_id,
+        payment_authorized_at=payment_authorized_at,
     )
     db.add(order)
     await db.commit()
@@ -295,6 +355,95 @@ async def test_pending_excludes_accepted_and_rejected(
     resp = await client.get(QUEUE_URL, headers=_auth(admin_token))
     numbers = [o["order_number"] for o in resp.json()["orders"]]
     assert numbers == ["260728-001"]
+
+
+# ---------------------------------------------------------------------------
+# OI-61 -- a card order isn't offered to staff as a decision until Stripe has
+# actually confirmed the authorisation. Structural fix for the race that let
+# staff accept (and, on 2026-08-02, double-charge a customer for) an order
+# before its payment had landed: if it can't be seen, it can't be acted on
+# too early.
+# ---------------------------------------------------------------------------
+
+
+async def test_unauthorised_card_order_is_kept_off_the_pending_queue(
+    client: AsyncClient,
+    db: AsyncSession,
+    tenant: Tenant,
+    admin_user: User,
+    admin_token: str,
+    uk_menu: MenuItem,
+):
+    await _online_order(
+        db,
+        tenant.id,
+        admin_user.id,
+        "260803-card-pending",
+        stripe_checkout_session_id="cs_test_1",
+        payment_authorized_at=None,
+    )
+    resp = await client.get(QUEUE_URL, headers=_auth(admin_token))
+    numbers = [o["order_number"] for o in resp.json()["orders"]]
+    assert numbers == []
+
+
+async def test_authorised_card_order_is_offered_normally(
+    client: AsyncClient,
+    db: AsyncSession,
+    tenant: Tenant,
+    admin_user: User,
+    admin_token: str,
+    uk_menu: MenuItem,
+):
+    await _online_order(
+        db,
+        tenant.id,
+        admin_user.id,
+        "260803-card-authorised",
+        stripe_checkout_session_id="cs_test_2",
+        payment_authorized_at=datetime.now(timezone.utc),
+    )
+    resp = await client.get(QUEUE_URL, headers=_auth(admin_token))
+    numbers = [o["order_number"] for o in resp.json()["orders"]]
+    assert numbers == ["260803-card-authorised"]
+
+
+async def test_cash_order_is_unaffected_by_the_card_payment_gate(
+    client: AsyncClient,
+    db: AsyncSession,
+    tenant: Tenant,
+    admin_user: User,
+    admin_token: str,
+    uk_menu: MenuItem,
+):
+    await _online_order(db, tenant.id, admin_user.id, "260803-cash")
+    resp = await client.get(QUEUE_URL, headers=_auth(admin_token))
+    numbers = [o["order_number"] for o in resp.json()["orders"]]
+    assert numbers == ["260803-cash"]
+
+
+async def test_a_card_order_still_unauthorised_past_the_grace_window_surfaces_anyway(
+    client: AsyncClient,
+    db: AsyncSession,
+    tenant: Tenant,
+    admin_user: User,
+    admin_token: str,
+    uk_menu: MenuItem,
+):
+    """An abandoned checkout must not be lost forever -- just not offered as
+    a decision while the money might still be seconds from landing."""
+    await _online_order(
+        db,
+        tenant.id,
+        admin_user.id,
+        "260803-abandoned",
+        minutes_ago=10,
+        stripe_checkout_session_id="cs_test_3",
+        payment_authorized_at=None,
+    )
+    resp = await client.get(QUEUE_URL, headers=_auth(admin_token))
+    numbers = [o["order_number"] for o in resp.json()["orders"]]
+    assert numbers == ["260803-abandoned"]
 
 
 async def test_active_is_accepted_and_still_working(

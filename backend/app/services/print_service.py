@@ -46,6 +46,8 @@ _CURRENCY_SYMBOLS = {
     "AED": "AED ",
 }
 
+DIP_TUB_SUFFIX = " (Dip Tub)"
+
 
 def money(minor_units: int, currency: str) -> str:
     """Format integer minor units for print.
@@ -161,10 +163,33 @@ def _render_copy(
 
     t.rule()
 
+    # --- dip tubs, listed first and separately (Imran, voice note
+    # 2026-08-03) --- a dip tub chosen as a meal's modifier used to print as
+    # a buried sub-line under whichever item it was attached to, easy for a
+    # busy packer to miss entirely. Every dip-tub modifier, whichever item it
+    # came from, is rolled up here by name -- one number to count out,
+    # before any cooking starts. Standalone Dips-category items (sold on
+    # their own, no "(Dip Tub)" suffix) are unaffected and print in the cook
+    # list below exactly as before -- nothing was reported wrong there.
+    dip_tub_counts: dict[str, int] = {}
+    for item in order.items:
+        for modifier in item.modifiers:
+            if modifier.name.endswith(DIP_TUB_SUFFIX):
+                dip_tub_counts[modifier.name] = (
+                    dip_tub_counts.get(modifier.name, 0) + item.quantity
+                )
+    if dip_tub_counts:
+        t.bold("DIP TUBS")
+        for name, qty in sorted(dip_tub_counts.items()):
+            t.text(f"    {qty} x {name}")
+        t.rule()
+
     # --- what to cook ---
     for item in order.items:
         t.bold(f"{item.quantity} x {item.name}")
         for modifier in item.modifiers:
+            if modifier.name.endswith(DIP_TUB_SUFFIX):
+                continue  # printed above, not again here
             t.text(f"    - {modifier.name}")
         if item.notes:
             for line in item.notes.split("\n"):
@@ -203,16 +228,35 @@ def _render_copy(
         t.columns("Discount", f"-{money(order.discount_amount, currency)}")
     if order.tax_amount:
         t.columns("Tax", money(order.tax_amount, currency))
+    if order.service_fee:
+        t.columns("Service Fee", money(order.service_fee, currency))
     if order.delivery_fee:
         t.columns("Delivery", money(order.delivery_fee, currency))
     t.columns("TOTAL", money(order.total, currency), bold=True)
 
     t.feed()
     paid = (order.payment_status or "").lower() in {"paid", "refunded"}
+    # A checkout session with no capture yet is NOT the same as genuinely
+    # unpaid -- it is money that is very likely still on its way (Stripe
+    # confirming the card, typically seconds). Printing "NOT PAID" here is
+    # exactly what caused a real double-charge, 2026-08-02 (OI-61): a
+    # customer paid online, the ticket said NOT PAID because it printed
+    # before the authorisation landed, and staff took payment again on the
+    # shop's own card machine. `list_merchant_orders` now keeps a card order
+    # off the decision queue until it's authorised (see
+    # `PENDING_QUEUE_PAYMENT_GRACE`), so this branch should be rare -- but a
+    # ticket is a physical, un-recallable printout, so it gets its own
+    # unambiguous state rather than silently falling into "NOT PAID".
+    card_processing = not paid and order.stripe_checkout_session_id is not None
     if paid:
         # Unpaid is shouted, not whispered -- paid shouts too, just a calmer
         # message. Same bold+big weight as the NOT PAID line below.
         t.center("*** PAID ONLINE ***", bold=True, big=True)
+    elif card_processing:
+        # Short enough to survive double-size centering without wrapping --
+        # see "*** PAID ONLINE ***"/"*** NOT PAID ***" above, same constraint.
+        t.center("*** CARD PROCESSING ***", bold=True, big=True)
+        t.center("DO NOT COLLECT CASH OR RE-CHARGE", bold=True)
     else:
         # Loud on purpose. A driver who assumes an order is prepaid does not
         # come back with the money.

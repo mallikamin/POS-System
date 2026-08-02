@@ -96,6 +96,8 @@ def _totals(order: Order, currency: str) -> str:
     rows = [f"{'Subtotal':<48} {_money(order.subtotal, currency)}"]
     if order.tax_amount:
         rows.append(f"{'Tax':<48} {_money(order.tax_amount, currency)}")
+    if order.service_fee:
+        rows.append(f"{'Service Fee':<48} {_money(order.service_fee, currency)}")
     if order.delivery_fee:
         rows.append(f"{'Delivery':<48} {_money(order.delivery_fee, currency)}")
     rows.append(f"{'TOTAL':<48} {_money(order.total, currency)}")
@@ -131,7 +133,16 @@ def _payment_status_text(order: Order, *, intends_card_payment: bool = False) ->
     """
     if order.payment_status == "paid":
         return "Paid by card."
-    if order.stripe_payment_intent_id and order.payment_captured_at is None:
+    # `stripe_checkout_session_id`, not `stripe_payment_intent_id` -- the
+    # session is written the instant checkout starts, well before Stripe has
+    # necessarily created a PaymentIntent (see `accept_order`'s own comment on
+    # this exact distinction). Keying this off the intent id left a window,
+    # right after checkout started but before authorisation landed, where a
+    # card order fell through to the "Payable on..." branch below and told
+    # the customer to expect a cash collection despite having just paid --
+    # confirmed as the direct cause of a real double-charge, 2026-08-02
+    # (OI-61): staff read that as "unpaid" and took payment again in person.
+    if order.stripe_checkout_session_id and order.payment_captured_at is None:
         return "Card details taken. We only charge you once the shop accepts your order."
     if intends_card_payment:
         return "Prepaid by card -- we only charge you once the shop accepts your order."
@@ -181,6 +192,8 @@ def _html_totals_table(order: Order, currency: str) -> str:
     rows = [("Subtotal", order.subtotal, False)]
     if order.tax_amount:
         rows.append(("Tax", order.tax_amount, False))
+    if order.service_fee:
+        rows.append(("Service Fee", order.service_fee, False))
     if order.delivery_fee:
         rows.append(("Delivery", order.delivery_fee, False))
     rows.append(("TOTAL", order.total, True))

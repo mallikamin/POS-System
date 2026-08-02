@@ -170,6 +170,18 @@ def _line_items(order: Order, currency: str) -> list[dict[str, Any]]:
             }
         )
 
+    if order.service_fee:
+        lines.append(
+            {
+                "quantity": 1,
+                "price_data": {
+                    "currency": currency.lower(),
+                    "unit_amount": order.service_fee,
+                    "product_data": {"name": "Service Fee"},
+                },
+            }
+        )
+
     if order.delivery_fee:
         lines.append(
             {

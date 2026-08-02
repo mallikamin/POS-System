@@ -126,6 +126,13 @@ class Order(BaseMixin, Base):
         nullable=False,
         comment="Delivery fee in minor units. 0 for collection.",
     )
+    service_fee: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        nullable=False,
+        comment="Service fee in minor units, snapshotted from the tenant's "
+        "config at order creation. Charged regardless of service type.",
+    )
     accepted_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,

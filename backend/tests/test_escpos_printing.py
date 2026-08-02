@@ -234,6 +234,17 @@ def test_delivery_ticket_carries_the_address_and_area():
     assert "£15.00" in out  # the delivery fee line
 
 
+def test_service_fee_prints_as_its_own_line():
+    out = _preview(_order(service_fee=70, total=1770))
+    assert "Service Fee" in out
+    assert "£0.70" in out
+
+
+def test_zero_service_fee_prints_no_line():
+    out = _preview(_order(service_fee=0))
+    assert "Service Fee" not in out
+
+
 def test_ready_time_is_computed_not_left_as_minutes():
     """The kitchen must not have to add 30 minutes in their head mid-rush."""
     out = _preview(_order(), utc_offset_minutes=60)
@@ -291,6 +302,119 @@ def test_item_modifiers_and_notes_are_printed():
     assert "2 x Peri Peri Half Chicken" in out
     assert "- Hot" in out
     assert "no salt" in out
+
+
+# ---------------------------------------------------------------------------
+# OI-61 -- card payment still processing is not the same as unpaid
+# ---------------------------------------------------------------------------
+
+
+def test_card_checkout_started_but_not_captured_is_not_shouted_as_unpaid():
+    """A checkout session exists but nothing has captured yet -- the exact
+    state a ticket can print in when Accept lands before Stripe's
+    authorisation does. Confirmed as the direct cause of a real double-charge
+    2026-08-02: staff read "NOT PAID" and took payment again in person while
+    Stripe was still capturing the original online payment."""
+    out = _preview(
+        _order(
+            payment_status="unpaid",
+            stripe_checkout_session_id="cs_test_123",
+            total=3200,
+        )
+    )
+    assert "CARD PROCESSING" in out
+    assert "NOT PAID" not in out
+    assert "COLLECT £32.00" not in out
+    assert "DO NOT COLLECT CASH" in out
+
+
+def test_genuinely_cash_order_still_shouts_not_paid():
+    """No checkout session at all -- must not be softened by the new branch."""
+    out = _preview(
+        _order(payment_status="unpaid", stripe_checkout_session_id=None, total=3200)
+    )
+    assert "NOT PAID" in out
+    assert "COLLECT £32.00" in out
+    assert "CARD PROCESSING" not in out
+
+
+def test_captured_card_order_still_says_paid_online():
+    """Once captured, the ticket says PAID regardless of how it got there."""
+    out = _preview(
+        _order(payment_status="paid", stripe_checkout_session_id="cs_test_123")
+    )
+    assert "PAID ONLINE" in out
+    assert "CARD PROCESSING" not in out
+    assert "NOT PAID" not in out
+
+
+# ---------------------------------------------------------------------------
+# Dip tubs -- rolled up and printed first, not buried under whichever item
+# they were chosen for (Imran, voice note 2026-08-03)
+# ---------------------------------------------------------------------------
+
+
+def test_dip_tub_modifiers_are_grouped_before_the_cook_list():
+    order = _order()
+    order.items[0].modifiers = [
+        OrderItemModifier(id=uuid.uuid4(), name="Hot", price_adjustment=0),
+        OrderItemModifier(
+            id=uuid.uuid4(), name="Garlic Mayo (Dip Tub)", price_adjustment=0
+        ),
+    ]
+    out = _preview(order)
+    assert "DIP TUBS" in out
+    dip_pos = out.index("DIP TUBS")
+    cook_pos = out.index("2 x Peri Peri Half Chicken")
+    assert dip_pos < cook_pos
+    # Not printed a second time nested under the item.
+    assert out.count("Garlic Mayo (Dip Tub)") == 1
+    assert "- Hot" in out  # a non-dip modifier still prints where it always did
+
+
+def test_dip_tubs_from_different_items_are_rolled_up_by_name():
+    order = _order()
+    second_item = OrderItem(
+        id=uuid.uuid4(),
+        name="Peri Peri Wings Meal",
+        quantity=1,
+        unit_price=999,
+        total=999,
+        notes=None,
+    )
+    second_item.modifiers = [
+        OrderItemModifier(
+            id=uuid.uuid4(), name="Garlic Mayo (Dip Tub)", price_adjustment=0
+        )
+    ]
+    order.items[0].modifiers = [
+        OrderItemModifier(
+            id=uuid.uuid4(), name="Garlic Mayo (Dip Tub)", price_adjustment=0
+        )
+    ]
+    order.items.append(second_item)
+    out = _preview(order)
+    # 2x from the first item's quantity (2) + 1x from the second's quantity (1).
+    assert "3 x Garlic Mayo (Dip Tub)" in out
+
+
+def test_standalone_dips_category_item_is_unaffected():
+    """A dip sold as its own menu item (no modifier, no "(Dip Tub)" suffix
+    on the item name itself) is not part of this grouping -- nothing was
+    reported wrong there, only the nested-modifier case."""
+    order = _order()
+    dip_item = OrderItem(
+        id=uuid.uuid4(),
+        name="Peri Peri Sauce",
+        quantity=2,
+        unit_price=100,
+        total=200,
+        notes=None,
+    )
+    order.items.append(dip_item)
+    out = _preview(order)
+    assert "2 x Peri Peri Sauce" in out
+    assert "DIP TUBS" not in out
 
 
 def test_every_line_fits_the_paper():

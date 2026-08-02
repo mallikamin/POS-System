@@ -172,6 +172,7 @@ class PublicOrderResponse(BaseModel):
     lines: list[PublicOrderLine] = []
     subtotal: int
     tax_amount: int
+    service_fee: int
     delivery_fee: int
     total: int
     currency: str
@@ -219,6 +220,11 @@ class MerchantOrderSummary(BaseModel):
     order_number: str
     status: str
     payment_status: str
+    # Whether a card checkout was ever started for this order at all --
+    # distinguishes "genuinely unpaid, collect cash" from "card payment
+    # still processing", which `payment_status` alone cannot: both read
+    # `unpaid` until the money actually lands. See OI-61.
+    is_card_order: bool
     service_type: str
     placed_at: datetime
 
@@ -231,6 +237,7 @@ class MerchantOrderSummary(BaseModel):
     lines: list[PublicOrderLine] = []
     subtotal: int
     tax_amount: int
+    service_fee: int
     delivery_fee: int
     total: int
     currency: str
