@@ -242,11 +242,13 @@ def _render_copy(
     # exactly what caused a real double-charge, 2026-08-02 (OI-61): a
     # customer paid online, the ticket said NOT PAID because it printed
     # before the authorisation landed, and staff took payment again on the
-    # shop's own card machine. `list_merchant_orders` now keeps a card order
-    # off the decision queue until it's authorised (see
-    # `PENDING_QUEUE_PAYMENT_GRACE`), so this branch should be rare -- but a
-    # ticket is a physical, un-recallable printout, so it gets its own
-    # unambiguous state rather than silently falling into "NOT PAID".
+    # shop's own card machine. Since OI-65 a card order cannot reach the
+    # kitchen at all until Stripe has confirmed the money -- the queue hides it
+    # with no grace window, and `accept_order` refuses it outright -- so this
+    # branch should now be effectively unreachable in practice. It stays
+    # because a ticket is a physical, un-recallable printout: if it ever does
+    # print, it must say something unambiguous rather than silently falling
+    # into "NOT PAID" and inviting the exact same double-charge again.
     card_processing = not paid and order.stripe_checkout_session_id is not None
     if paid:
         # Unpaid is shouted, not whispered -- paid shouts too, just a calmer

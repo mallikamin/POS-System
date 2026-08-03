@@ -1019,12 +1019,15 @@ async def reconcile_late_authorization(
     `payment_intent.amount_capturable_updated` event, which fires exactly
     when that authorisation completes.
 
-    Since OI-61 (2026-08-03), `list_merchant_orders` keeps a card order out of
-    the pending decision queue until this authorisation exists, so this
-    should now be a rare backstop rather than the common path it was before
-    -- but it stays, because a card order sitting unanswered past
-    `PENDING_QUEUE_PAYMENT_GRACE` still surfaces and can still be accepted
-    before its (very late) authorisation arrives.
+    Since OI-65 (2026-08-04) the "already accepted" branch below is unreachable
+    for any NEW order: `accept_order` refuses outright until Stripe confirms the
+    money, and the queue never shows an unconfirmed card order in the first
+    place, with no grace window to release one. It is kept deliberately, for two
+    reasons that are still live: orders answered under the older behaviour (or
+    in flight across the deploy) can still have a late authorisation arrive, and
+    the `rejected` branch remains genuinely reachable -- a customer can complete
+    a payment after the shop has rejected the order, and that hold must be
+    released rather than left to expire on its own days later.
 
     A no-op, returning `False`, if the order is still awaiting an answer --
     Accept/Reject handle it themselves when they happen -- or if the money is
