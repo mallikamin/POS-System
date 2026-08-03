@@ -379,6 +379,61 @@ async def resolve_payment_intent_id(checkout_session_id: str) -> str | None:
 # ---------------------------------------------------------------------------
 
 
+#: PaymentIntent statuses that mean Stripe is genuinely holding (or has already
+#: taken) the customer's money. Everything else -- `requires_payment_method`,
+#: `requires_confirmation`, `requires_action` (3-D Secure still on screen),
+#: `processing`, `canceled` -- means the money is NOT confirmed, however far
+#: through the Checkout page the customer looks to be.
+AUTHORIZED_STATUSES = frozenset({"requires_capture", "succeeded"})
+
+
+def _retrieve_session_expanded_blocking(checkout_session_id: str) -> Any:
+    stripe = _client()
+    return stripe.checkout.Session.retrieve(
+        checkout_session_id, expand=["payment_intent"]
+    )
+
+
+async def authorization_for_session(checkout_session_id: str) -> tuple[str | None, bool]:
+    """Ask Stripe whether this Checkout Session's money is actually confirmed.
+
+    Returns `(payment_intent_id, is_authorized)`.
+
+    This is the question the order queue needs answered, and it is deliberately
+    NOT the same question `resolve_payment_intent_id` answers. An intent can
+    exist while the customer is still on the 3-D Secure step, or while Stripe
+    is `processing` it -- the id being non-`None` proves the customer started
+    paying, never that they finished. Publishing an order on "an intent
+    exists" would reintroduce OI-61/OI-65's whole failure mode one step later.
+
+    Expanded in a single round trip because this runs on the tablet's 10-second
+    poll: two sequential calls per unpublished order would put real latency in
+    front of the queue every time someone is mid-checkout.
+    """
+    try:
+        session = await asyncio.to_thread(
+            _retrieve_session_expanded_blocking, checkout_session_id
+        )
+    except StripeNotConfigured:
+        raise
+    except Exception as exc:
+        logger.exception("Could not retrieve Checkout Session %s", checkout_session_id)
+        raise StripeError(str(exc)) from exc
+
+    intent = field(session, "payment_intent")
+    if intent is None:
+        return None, False
+    if isinstance(intent, str):
+        # Not expanded (older API behaviour) -- we have the id but not the
+        # status, so we cannot claim it is authorised. Read it properly.
+        status = str(field(await asyncio.to_thread(_retrieve_blocking, intent), "status", ""))
+        return intent, status in AUTHORIZED_STATUSES
+
+    intent_id = field(intent, "id") or None
+    status = str(field(intent, "status", ""))
+    return intent_id, status in AUTHORIZED_STATUSES
+
+
 def _capture_blocking(payment_intent_id: str, amount: int | None) -> Any:
     stripe = _client()
     params: dict[str, Any] = {}

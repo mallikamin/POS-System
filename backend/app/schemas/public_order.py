@@ -225,6 +225,12 @@ class MerchantOrderSummary(BaseModel):
     # still processing", which `payment_status` alone cannot: both read
     # `unpaid` until the money actually lands. See OI-61.
     is_card_order: bool
+    # A card order whose money Stripe has not confirmed yet. Such an order is
+    # kept out of the pending queue entirely (OI-65) but is still visible in the
+    # "All" log, where it must NOT offer Accept -- that tab is exactly how
+    # OI-61's pending-only filter was bypassed on 2026-08-03. The server refuses
+    # it either way; this is so the tablet can say why instead of erroring.
+    awaiting_card_payment: bool = False
     service_type: str
     placed_at: datetime
 

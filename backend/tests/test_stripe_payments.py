@@ -214,8 +214,8 @@ async def test_accepting_a_card_order_resolves_a_missing_intent_id_and_captures_
     with (
         patch.object(
             stripe_service,
-            "resolve_payment_intent_id",
-            new=AsyncMock(return_value="pi_resolved_456"),
+            "authorization_for_session",
+            new=AsyncMock(return_value=("pi_resolved_456", True)),
         ) as resolve,
         patch.object(
             stripe_service, "capture_for_order", new=AsyncMock(return_value="succeeded")
@@ -234,31 +234,285 @@ async def test_accepting_a_card_order_resolves_a_missing_intent_id_and_captures_
 
 
 @pytest.mark.asyncio
-async def test_an_abandoned_card_checkout_accepts_without_touching_stripe(
+async def test_an_abandoned_card_checkout_is_refused_not_accepted(
     db: AsyncSession,
     tenant: Tenant,
     admin_user: User,
     card_order_pending_intent: Order,
 ) -> None:
-    """The customer opened Checkout but never actually paid -- Stripe never
-    created a PaymentIntent for the session, so resolution correctly comes
-    back empty. Must fall through and accept exactly like an ordinary unpaid
-    order, not raise and not attempt a capture with nothing to capture.
+    """OI-65 -- THE INVARIANT. Inverts this test's own previous expectation.
+
+    It used to assert that an abandoned card checkout "falls through and accepts
+    exactly like an ordinary unpaid order". That is precisely the hole: it makes
+    Accept willing to commit the kitchen against money nobody has confirmed, and
+    it is what the tablet's ungated "All" tab reached on 2026-08-03 (order
+    260803-003, accepted 2m34s in, authorised 3m36s later).
+
+    A card order is not acceptable until Stripe confirms the money -- by ANY
+    route, including a direct API call that never went near the queue filter.
     """
     with (
         patch.object(
-            stripe_service, "resolve_payment_intent_id", new=AsyncMock(return_value=None)
+            stripe_service,
+            "authorization_for_session",
+            new=AsyncMock(return_value=(None, False)),
         ),
         patch.object(stripe_service, "capture_for_order", new=AsyncMock()) as capture,
     ):
-        order = await public_order_service.accept_order(
-            db, tenant.id, card_order_pending_intent.id, admin_user.id, 30
-        )
+        with pytest.raises(
+            public_order_service.CardPaymentNotConfirmed, match="has not gone through"
+        ):
+            await public_order_service.accept_order(
+                db, tenant.id, card_order_pending_intent.id, admin_user.id, 30
+            )
 
     capture.assert_not_awaited()
-    assert order.accepted_at is not None
-    assert order.payment_captured_at is None
-    assert order.stripe_payment_intent_id is None
+    await db.refresh(card_order_pending_intent)
+    assert card_order_pending_intent.accepted_at is None
+    assert card_order_pending_intent.status == "confirmed"
+
+
+@pytest.mark.asyncio
+async def test_an_intent_that_exists_but_is_not_authorised_is_refused(
+    db: AsyncSession,
+    tenant: Tenant,
+    admin_user: User,
+    card_order_pending_intent: Order,
+) -> None:
+    """A PaymentIntent existing proves the customer STARTED paying, never that
+    they finished -- they may be sitting on the 3-D Secure step, or Stripe may
+    still be `processing`. Publishing (or accepting) on "an intent exists" would
+    reintroduce the whole failure mode one step later, which is why the gate
+    asks for the authorisation status and not just the id."""
+    with (
+        patch.object(
+            stripe_service,
+            "authorization_for_session",
+            new=AsyncMock(return_value=("pi_in_flight", False)),
+        ),
+        patch.object(stripe_service, "capture_for_order", new=AsyncMock()) as capture,
+    ):
+        with pytest.raises(public_order_service.CardPaymentNotConfirmed):
+            await public_order_service.accept_order(
+                db, tenant.id, card_order_pending_intent.id, admin_user.id, 30
+            )
+
+    capture.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_accept_refuses_when_stripe_cannot_be_reached(
+    db: AsyncSession,
+    tenant: Tenant,
+    admin_user: User,
+    card_order_pending_intent: Order,
+) -> None:
+    """Unable to confirm the money is not the same as confirmed, and must not be
+    treated as such. Refusing is recoverable -- staff retry in a moment. Cooking
+    against a payment we could not verify is not."""
+    with (
+        patch.object(
+            stripe_service,
+            "authorization_for_session",
+            new=AsyncMock(side_effect=StripeError("network down")),
+        ),
+        patch.object(stripe_service, "capture_for_order", new=AsyncMock()) as capture,
+    ):
+        with pytest.raises(PublicOrderError, match="Could not check the card payment"):
+            await public_order_service.accept_order(
+                db, tenant.id, card_order_pending_intent.id, admin_user.id, 30
+            )
+
+    capture.assert_not_awaited()
+    await db.refresh(card_order_pending_intent)
+    assert card_order_pending_intent.accepted_at is None
+
+
+# ---------------------------------------------------------------------------
+# OI-65 -- the queue re-derives authorisations from Stripe instead of waiting
+# to be told. Removing the grace window means a card order has no timeout to
+# release it, so publication must never hinge on one webhook delivery arriving.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_the_queue_publishes_a_card_order_stripe_has_authorised(
+    db: AsyncSession,
+    tenant: Tenant,
+    admin_user: User,
+    card_order_pending_intent: Order,
+) -> None:
+    """The webhook never arrived. The poll must still find the money and publish."""
+    with patch.object(
+        stripe_service,
+        "authorization_for_session",
+        new=AsyncMock(return_value=("pi_found_789", True)),
+    ):
+        published = await public_order_service.publish_authorized_card_orders(
+            db, tenant.id
+        )
+
+    assert [o.id for o in published] == [card_order_pending_intent.id]
+    await db.refresh(card_order_pending_intent)
+    assert card_order_pending_intent.payment_authorized_at is not None
+    assert card_order_pending_intent.stripe_payment_intent_id == "pi_found_789"
+
+
+@pytest.mark.asyncio
+async def test_the_queue_does_not_publish_an_unauthorised_card_order(
+    db: AsyncSession,
+    tenant: Tenant,
+    admin_user: User,
+    card_order_pending_intent: Order,
+) -> None:
+    """Still on the Checkout page. It stays invisible -- for as long as it takes."""
+    with patch.object(
+        stripe_service,
+        "authorization_for_session",
+        new=AsyncMock(return_value=(None, False)),
+    ):
+        published = await public_order_service.publish_authorized_card_orders(
+            db, tenant.id
+        )
+
+    assert published == []
+    await db.refresh(card_order_pending_intent)
+    assert card_order_pending_intent.payment_authorized_at is None
+
+
+@pytest.mark.asyncio
+async def test_a_stripe_outage_cannot_take_the_order_queue_down(
+    db: AsyncSession,
+    tenant: Tenant,
+    admin_user: User,
+    card_order_pending_intent: Order,
+) -> None:
+    """This runs on the tablet's 10-second poll. If it could raise, a Stripe
+    outage would stop the shop seeing its CASH orders too -- far worse than a
+    delayed card order. The order simply stays unpublished and is retried."""
+    with patch.object(
+        stripe_service,
+        "authorization_for_session",
+        new=AsyncMock(side_effect=StripeError("stripe is down")),
+    ):
+        published = await public_order_service.publish_authorized_card_orders(
+            db, tenant.id
+        )
+
+    assert published == []
+    await db.refresh(card_order_pending_intent)
+    assert card_order_pending_intent.payment_authorized_at is None
+
+
+@pytest.mark.asyncio
+async def test_only_one_caller_can_ever_publish_the_same_order(
+    db: AsyncSession,
+    tenant: Tenant,
+    admin_user: User,
+    card_order_pending_intent: Order,
+) -> None:
+    """Three things race to publish: the webhook and the tablet's two separate
+    10-second polls. Exactly one must win, or the customer gets two "order
+    received" emails for one order. The claim is a conditional UPDATE precisely
+    so the database picks the winner rather than a Python read-then-write."""
+    first = await public_order_service.mark_card_order_authorized(
+        db, card_order_pending_intent, "pi_race_a"
+    )
+    second = await public_order_service.mark_card_order_authorized(
+        db, card_order_pending_intent, "pi_race_b"
+    )
+
+    assert first is True
+    assert second is False, "the second caller must not also claim the publication"
+    # The loser must not have overwritten the winner's intent id either.
+    assert card_order_pending_intent.stripe_payment_intent_id == "pi_race_a"
+
+
+@pytest.mark.asyncio
+async def test_the_queue_never_re_publishes_an_already_published_order(
+    db: AsyncSession, tenant: Tenant, admin_user: User, card_order: Order
+) -> None:
+    """`card_order` is already authorised. Re-publishing would send the customer
+    a second "we've got your order" email on every single poll."""
+    with patch.object(
+        stripe_service, "authorization_for_session", new=AsyncMock()
+    ) as check:
+        published = await public_order_service.publish_authorized_card_orders(
+            db, tenant.id
+        )
+
+    check.assert_not_awaited()
+    assert published == []
+
+
+@pytest.mark.asyncio
+async def test_the_queue_never_asks_stripe_about_a_cash_order(
+    db: AsyncSession, tenant: Tenant, admin_user: User, cash_order: Order
+) -> None:
+    """Cash on delivery has no payment to process. It is never gated, never
+    delayed, and never the subject of a Stripe call."""
+    with patch.object(
+        stripe_service, "authorization_for_session", new=AsyncMock()
+    ) as check:
+        published = await public_order_service.publish_authorized_card_orders(
+            db, tenant.id
+        )
+
+    check.assert_not_awaited()
+    assert published == []
+
+
+@pytest.mark.asyncio
+async def test_a_card_order_gets_no_received_email_until_the_payment_lands(
+    db: AsyncSession, tenant: Tenant, admin_user: User
+) -> None:
+    """The "order received" email used to fire inside POST /orders, before the
+    customer had even reached Stripe's Checkout page. With no grace window that
+    becomes a lie: the shop never sees the order, so promising food for it is
+    wrong for exactly the customer who then abandons payment. It moves to the
+    moment the authorisation lands -- which is also the moment the shop can see
+    it. Cash on delivery is unaffected and still emails immediately.
+    """
+    order = _card_order(
+        tenant,
+        admin_user,
+        order_number="S250101-009",
+        stripe_payment_intent_id=None,
+        payment_authorized_at=None,
+        customer_email="leanne@example.com",
+    )
+    db.add(order)
+    await db.commit()
+
+    sent: list[str] = []
+
+    async def _record(_db, _tenant, _order, event, **_kw):
+        sent.append(event)
+
+    with (
+        patch.object(
+            stripe_service,
+            "authorization_for_session",
+            new=AsyncMock(return_value=("pi_late_001", True)),
+        ),
+        patch.object(public_order_service, "notify_customer", new=_record),
+    ):
+        published = await public_order_service.publish_authorized_card_orders(
+            db, tenant.id
+        )
+
+    # The service publishes; the route sends. Assert the publish half here and
+    # that it is reported exactly once, so the caller cannot double-send.
+    assert len(published) == 1
+    assert published[0].order_number == "S250101-009"
+
+    with patch.object(
+        stripe_service,
+        "authorization_for_session",
+        new=AsyncMock(return_value=("pi_late_001", True)),
+    ):
+        again = await public_order_service.publish_authorized_card_orders(db, tenant.id)
+    assert again == []
 
 
 @pytest.mark.asyncio
@@ -1280,20 +1534,37 @@ async def test_late_authorization_does_not_resend_email_while_still_pending(
     admin_user: User,
     card_order_pending_intent: Order,
 ) -> None:
-    """No decision has been made yet, so no email was sent to correct -- must
-    not fire one now either."""
+    """No decision has been made yet, so there is no "accepted" email to correct.
+
+    Since OI-65 this delivery is not silent, though: it is the moment the card
+    order becomes visible to the shop, so it sends the customer's one and only
+    "order received" email -- the one that no longer fires at order-placement
+    time. What must NOT fire is "accepted", because nobody has accepted it.
+    """
     order_id = card_order_pending_intent.id
     event = _capturable_event(order_id, tenant.id, intent_id="pi_still_pending")
+
+    captured: list[tuple] = []
+    done = asyncio.Event()
+
+    async def _capture_send(*args, **kwargs) -> bool:
+        captured.append((args, kwargs))
+        done.set()
+        return True
 
     with patch.object(stripe_service, "verify_webhook", return_value=event), patch.object(
         stripe_service, "capture_for_order", new=AsyncMock()
     ), patch.object(
-        public_order_service.email_service, "send_order_email", new=AsyncMock()
-    ) as send_email:
+        public_order_service.email_service, "send_order_email", new=_capture_send
+    ):
         response = await client.post("/api/v1/public/stripe/webhook", content=b"{}")
+        assert response.status_code == 200
+        await asyncio.wait_for(done.wait(), timeout=2)
+        await asyncio.gather(
+            *public_order_service._email_tasks, return_exceptions=True
+        )
 
-    assert response.status_code == 200
-    send_email.assert_not_awaited()
+    assert [args[1] for args, _ in captured] == ["received"]
 
 
 @pytest.mark.asyncio

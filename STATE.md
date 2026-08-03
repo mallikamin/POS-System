@@ -1,6 +1,86 @@
 # STATE — Restaurant POS System
 
-**Last refreshed:** 2026-08-02 (session Q) · **Branch:** `main`
+**Last refreshed:** 2026-08-04 — session T. **Branch:** `main`, HEAD `1f55cf1`.
+**🔴 Resume here: OI-65 is BUILT, TESTED and UNCOMMITTED, awaiting Malik's go-ahead to deploy.**
+Full detail in `_state/open-items.md` **OI-65**. `git push` alone ships it (no `storefront/` changes).
+
+**Session T in one line (2026-08-04): Imran's screenshot showed order `260803-003` reading "CARD —
+PAYMENT PROCESSING" while already accepted — i.e. OI-61's card-payment gate was bypassed in
+production within a day of shipping. Root-caused against the real DB, audit trail and live Stripe
+API; reconciled the money (clean, no loss, no double-charge); then rebuilt the gate as an actual
+invariant per Malik's rule that a card order must not land in the POS until Stripe approves it, with
+no timeout of any kind.**
+
+- ⚠️ **CORRECTION to session S's claim below.** Session S described OI-61 as *"the structural fix, so
+  staff can no longer act on money that isn't confirmed yet."* **That was overstated.** What shipped
+  was a `WHERE` clause on `list_merchant_orders(state="pending")` only. The tablet renders
+  Accept/Reject for any unanswered order on **every** tab, the "All" tab is ungated, and
+  `accept_order` had no server-side guard at all. Production found the hole the next day. Session S's
+  own "6 of 11 (55%)" figure did improve to **1 of 5 (20%)** on 08-03 — the fix helped materially, it
+  just was not the guarantee it was written up as.
+- **The money is fine, and this is verified, not assumed:** 16 card orders across 02–03 Aug ↔ 16 live
+  Stripe PaymentIntents, 1:1, all `succeeded`, `amount_received == amount` on every one. Zero
+  uncaptured, zero dangling authorisations, zero orphan charges, nothing to refund. `260803-003` was
+  charged exactly once, correctly, by a late capture at 17:11:02. **This was a real defect but not a
+  financial incident.** OI-61's *secondary* net (the amber "CARD — PAYMENT PROCESSING" banner instead
+  of red "NOT PAID — COLLECT") is why it surfaced as a question from Imran rather than a second
+  double-charge.
+- **The 5-minute grace window was the deeper error and is now gone entirely.** It would not have
+  saved this order regardless of the All-tab hole: it would have released it at 17:09:51, still 70s
+  before Stripe authorised at 17:11:01. The customer spent 6m06s on the Checkout page; the window had
+  been calibrated on one day's worst case (179s) and was exceeded the very next day.
+- **Malik's rule, implemented literally:** cash/COD lands as-is (no payment to process); a card order
+  lands only once Stripe approves, however long that takes. Enforced in three places rather than one
+  — the queue filter, a hard `accept_order` guard (`CardPaymentNotConfirmed`) that closes the All
+  tab / stale render / direct-API paths, and a poll-time Stripe re-check
+  (`publish_authorized_card_orders`) so publication never depends on a single webhook delivery. The
+  publication claim is an atomic conditional UPDATE so the webhook and the tablet's two 10s polls
+  cannot all "win" and triple-email the customer.
+- **The "order received" email moved to the authorisation moment** — it used to fire before the
+  customer had even reached Stripe, which under a hard gate would promise food for an order the shop
+  can never see. Cash on delivery is unchanged.
+- **496 passed** (baseline 485 + 11 new), failure list byte-identical to clean HEAD via a throwaway
+  `git worktree`, zero regressions. `ruff`/`tsc`/`vite build` clean. `authorization_for_session`
+  verified against the **real live Stripe API**, not only mocks.
+- **Not deployed.** 8 files, backend + tablet only. Commit by explicit filename — the tree carries
+  unrelated uncommitted work that must not be swept in.
+
+---
+
+**Session S in one line (2026-08-03): Imran reported (voice notes) a real double-charge — a
+customer paid online but the ticket and "accepted" email both said NOT PAID because staff accepted
+before Stripe's authorisation landed; staff took payment again on the card machine and had to
+refund. Confirmed 6 of 11 card orders that day (55%) hit this same race. Fixed at the source: a
+card order is now hidden from the tablet's pending decision queue until Stripe confirms
+authorisation (or a 5-minute grace window passes), so staff can no longer act on unconfirmed money
+— plus defense-in-depth (ticket auto-invalidation on payment-status change, a 3rd "CARD
+PROCESSING" ticket/tablet state, late-capture re-sends the "accepted" email, email wording keyed off
+`stripe_checkout_session_id` not `stripe_payment_intent_id`). Same commit also shipped a 70p flat
+service fee, dip-tub ticket consolidation, and a Z-Report currency-on-direct-landing fix.**
+
+- 18 new tests, 476 passed; 13 pre-existing failures confirmed unrelated via clean-HEAD `git stash`
+  comparison done BEFORE writing any code (logged as **OI-63**, not fixed — likely a date-boundary/
+  timezone bug in `online_report_service.py`, distinct from the older OI-59 SQLite `func.cast` issue).
+- `pg_dump` backup taken first (`~/backups/pre_oi61_20260803_045556.dump`). Committed (`f06979f`),
+  staged by explicit filename (not `git add -A`, to avoid sweeping in the ~119-file pre-existing doc
+  reorg sitting uncommitted in the tree). Pushed and deployed both pipelines — backend/tablet via
+  `git push` (GitHub Actions, server `git log` matches, new code grepped directly out of the running
+  container) and storefront via `cd storefront && npm run deploy` (Cloudflare, live bundle
+  byte-identical to the local build, contains the new "Service Fee" line).
+- **Malik's own retry/fallback idea and Imran's "pause accepting orders" toggle idea were
+  deliberately NOT built tonight** — logged as **OI-62** for later scoping, not rushed on a live
+  payments system under time pressure.
+- **New priority raised in the same session, not yet started**: Malik is travelling and unavailable
+  today, Imran is off, and the shop is staffed by people unfamiliar with the system. He wants a
+  couple of hours of stress testing to confirm the card-payment flow works end to end before trusting
+  it unsupervised. He has no live card and floated Stripe test/sandbox mode without disturbing the
+  live storefront (`chickshackg84.com`, real orders, live Stripe keys) — asked for a concrete plan,
+  not just validation of the idea. Full options already scoped in
+  `PAUSE_CHECKPOINT_2026-08-03.md`'s Pending section: direct-API test bypassing the storefront,
+  local dev's Stripe-key situation, whether real production traffic already exercises the fix enough
+  to skip a synthetic re-test. **This is the next action.**
+
+---
 
 **Session Q in one line: Malik asked to double-check the card-payment flow for a specific loophole
 ("do we ever assume the customer has paid when he hasn't?"). Traced the whole pipeline (tablet,
@@ -44,8 +124,167 @@ verified live beyond the green Action — see below.**
   new code was grepped directly out of the running container** (`reconcile_late_authorization` present
   in `/app/app/services/public_order_service.py`, plus the new `stripe_checkout_created`/
   `stripe_capture_failed` audit action strings) — not assumed from the diff.
-- **Next action**: nothing outstanding from this session. The fix is dormant until the specific race
-  timing occurs again in production; no live UAT step is needed (it is not a UI-visible feature).
+- **Next action for the Stripe fix itself**: nothing outstanding. The fix is dormant until the
+  specific race timing occurs again in production; no live UAT step is needed (it is not a UI-visible
+  feature).
+
+## 🔴 Resume here — session Q paused mid-task 2026-08-02, two open threads
+
+1. **Imran email check → found the real production log-retention gap → OI-60 opened → paused
+   mid-build, on Malik's instruction, to write this down properly before continuing.** Full detail,
+   design, and an exact done/pending file checklist: `_state/open-items.md` **OI-60**. Short version:
+   - Imran said he placed two dummy test orders (collection + delivery) and didn't get an email for
+     one. Checked the DB directly: the delivery order's email was typed `imzyyr@gmail.con` (missing
+     the "m"), the collection order's was correct. **Not a code bug** — confirmed the email-send path
+     has no service-type branching at all, and told Malik so.
+   - That check needed yesterday's backend logs, which were already gone — the container had been
+     recreated by this same session's own earlier deploy. Root cause: `backend`/`nginx` are
+     `read_only: true` with no persistent volume, and both are recreated on every `git push`, so
+     `docker logs` history resets on every deploy (this repo deploys several times a day).
+   - **OI-60a (backend fix) is fully designed and all 6 files are WRITTEN, but UNCOMMITTED** —
+     `backend/Dockerfile`, `backend/logging_config.json` (new), `backend/scripts/start.sh`,
+     `docker-compose.demo.yml`, `docker/logrotate/pos-backend.conf` (new), `scripts/deploy-remote.sh`.
+     The logging dictConfig was validated directly (`logging.config.dictConfig()`, not just read) and
+     one real duplicate-handler bug was caught and fixed before it ever reached a container. **Not yet
+     build-tested against the real Dockerfile** (local dev compose uses a different `Dockerfile.dev`,
+     so it won't exercise these changes) **and not committed/pushed/deployed.** OI-60's checklist in
+     `_state/open-items.md` has the exact resume point — read it before touching these files again,
+     don't rediscover the design from scratch.
+   - **OI-60b (nginx) is deferred and not started at all**, deliberately — nginx is shared with Orbit
+     CRM and this box has two prior nginx-recreation outages on record. Treat as fully separate,
+     re-derive its specific design (don't assume OI-60a's UID/handler approach transfers as-is).
+2. **Stripe went LIVE and was proven with a real transaction, 2026-08-02 (verbal from Malik + Imran,
+   cross-checked against our own DB — not yet independently re-verified by this session against a
+   fresh read after the fact).** Malik set the 3 live values (`STRIPE_SECRET_KEY`, `STRIPE_
+   PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET`) directly on the server himself (values never passed
+   through the assistant — verified only by safe prefix-count checks, e.g. confirming the running
+   container's key starts `sk_live_`, never printing it). Real order `260801-004` (collection, £2.78,
+   Imran's own card) was placed via the existing `?card=1` test override and accepted — **captured
+   for real**, confirmed three ways: Stripe's own live dashboard (Mastercard •••5881, "Succeeded")
+   and its "first payment" email, our `orders`/`payments` tables (matching amount and PaymentIntent
+   id), and this session's own new audit trail (`stripe_checkout_created` with a `cs_live_...` session
+   id → `stripe_captured` → `stripe_webhook_payment_intent.succeeded` landing 2s later, proving the
+   live webhook registration is genuinely working end to end, not just Accept's own direct capture).
+   **Imran approved going fully live, in writing (WhatsApp, shown to the assistant):** "Yes please...
+   Ready to go live tomorrow... we will see how things are."
+   - **Three things Imran asked for in the same message, now being built (2026-08-02, still same
+     session): make the card option live, remove the "under testing" banner, and add a delivery
+     cut-off mechanism.** Voice-note feedback on the third item was transcribed locally
+     (`faster-whisper`, matching the established pattern from session K) — see
+     `_context/clients/chick-shack-uk/voice-notes/` for a written copy once saved. Requirement:
+     online delivery stops being taken at **21:30** for every delivery area except **Garelochhead**
+     (**21:45**) — confirmed against the real `delivery_areas` table, not guessed from the mis-
+     transcribed "gear lockhead". Collection is unaffected, stays open to the shop's normal 22:00
+     close. **Malik corrected the assistant's first proposed design** (hiding the delivery option
+     entirely) — the actual ask: reuse the *existing* pre-order pattern (`lib/delivery.ts`
+     `orderTiming`/`isOpenNow` — "closed, opens at 16:00, your order will be accepted then, and
+     you'll get a confirmation email") but trigger it for delivery specifically at the earlier
+     cut-off, not just at the shop's overall close time. No backend/DB change expected — delivery
+     areas and shop hours are both plain storefront config (`storefront/src/data/menu.ts`), not
+     API-fetched.
+   - **Malik's own words, explicitly expected and fine, not a bug if seen:** deploying this outside
+     current opening hours means any real order placed overnight will correctly show as a pre-order
+     and get "accepted when the restaurant opens tomorrow" — that is the intended behavior, not a
+     regression.
+   - **⚠️ Malik then corrected the design a second time** (his message: "no dont remove the delivery
+     option - that will cause confusion"). Final, actually-being-built behavior: the delivery option
+     stays visible always. Past its cut-off (or before opening, or after the shop's general close),
+     it gets the SAME "closed, opens at 16:00, accepted then, confirmation email coming" pre-order
+     treatment already used shop-wide — never hidden, never a separate refusal path.
+
+## 🔴 Resume here — session Q paused via /handoff mid-build 2026-08-02, THREE threads
+
+**A — delivery cut-off + card-live + banner-removal feature: CODE MOSTLY WRITTEN, UNTESTED,
+UNCOMMITTED.** 7 storefront files touched (`git status --porcelain -- storefront/src` confirms
+exactly these, nothing else): `types.ts`, `data/menu.ts`, `lib/delivery.ts`, `lib/pendingOrder.ts`,
+`components/Checkout.tsx`, `components/OrderConfirmation.tsx`, `App.tsx`. What's actually done vs
+not — **read this list before touching these files, don't rediscover the design:**
+- [x] `types.ts` — `DeliveryArea.closeTime?` (per-area override) + `ShopConfig.deliveryCloseTime`.
+- [x] `data/menu.ts` — `deliveryCloseTime: "21:30"`; Garelochhead's entry gained `closeTime: "21:45"`.
+- [x] `lib/delivery.ts` — `orderTiming(now, service?, areaId?)` extended (backward compatible,
+      existing no-arg callers still work), returns a new `closedReason: "shop_closed" |
+      "delivery_cutoff"` field. New private `deliveryCloseTimeFor(areaId)` helper.
+- [x] `components/Checkout.tsx` — `timing` now computed from live `service`/`areaId` state (was
+      shop-wide only); pre-order banner copy branches on `closedReason` + now promises the
+      confirmation email; `onPlaced`/`savePendingOrder` signatures extended to carry `timing` through
+      (needed because the Stripe round-trip is a fresh page load — nothing survives except what's
+      explicitly stashed).
+- [x] `lib/pendingOrder.ts` — `Stashed`/`savePendingOrder`/`takePendingOrder` all carry `timing`
+      alongside the order now; **`takePendingOrder`'s return shape changed** from `ApiOrderResponse |
+      null` to `{ order, timing } | null` — this is the one signature change most likely to bite if
+      re-derived from memory instead of read.
+- [x] `App.tsx` — new `timing` state threaded through `onPlaced`/the Stripe-return effect/
+      `OrderConfirmation`/`onDone` reset. `restored` (from `takePendingOrder`) updated for the new
+      `{order, timing}` shape.
+- [x] `components/OrderConfirmation.tsx` — takes `timing` as a required prop instead of calling
+      `orderTiming()` itself (avoids a second, possibly-different computation after time has passed);
+      copy updated to branch on `closedReason` + mention the confirmation email, matching Checkout's.
+- [x] **`tsc`/`vite build` — DONE, session R (2026-08-02).** `tsc --noEmit` clean, `vite build` clean
+      (46 modules, no errors) — the Checkout↔App↔OrderConfirmation↔pendingOrder prop/return-shape
+      wiring is consistent.
+- [x] **Manual verification of the cut-off math — DONE, session R.** Bundled `delivery.ts` with
+      esbuild and ran the real `orderTiming()` (not a reimplementation) against 18 real-clock-time
+      cases in `Europe/London`/BST: pre-order window open (14:00), shop open/close (16:00/22:00),
+      21:29/21:30 non-Garelochhead delivery cutoff, 21:44/21:45 Garelochhead's own later cutoff,
+      collection unaffected through to 22:00, overnight pre-order, and both backward-compat fallback
+      paths (no `areaId`, no `service` at all). All 18 matched the intended design exactly — cutoff is
+      inclusive (>=), collection only stops at the shop's general close, Garelochhead's 21:45 override
+      is respected.
+- [x] **`cardPaymentEnabled: true` flip — DONE, session R** (`data/menu.ts` ~line 567).
+- [x] **"Under testing" banner — REMOVED, session R** (`App.tsx`, was lines ~97-112; the sticky
+      header wrapper itself was kept, only the banner `<div>` and its comment were deleted). Rebuilt
+      after both changes — `tsc`/`vite build` clean again, and the built `dist/` bundle greped clean
+      of the "under testing" string.
+- [x] **DEPLOYED AND VERIFIED LIVE, 2026-08-02 ~18:00 PK / ~14:00 UK, commit `678cdde`.** Malik
+      pinged with explicit go-ahead ("we can initiate the deployment. over to u") after his ~2hr gap.
+      Committed the 7 storefront files only (not the unrelated, still-unfinished OI-60 backend files),
+      `git push origin main`, then `cd storefront && npm run deploy` (`vite build && wrangler deploy`
+      — Cloudflare Workers, separate pipeline from the DO backend). **Verified beyond the exit code**:
+      live `index.html` references the exact just-built bundle hashes (`index-a54c_nbI.js`/
+      `index-iaUHhEfe.css`); the live JS bundle fetched from `chickshackg84.com` is **byte-identical**
+      to the local build output (194,249 bytes, `diff` clean); the "under testing" banner string has
+      **zero occurrences** in the live bundle. Both `chickshackg84.com` and `www.chickshackg84.com`
+      serving the new version. **Real customers now see the live card-payment option, the delivery
+      cut-off (21:30/21:45 Garelochhead) is active, and the testing banner is gone.**
+- [x] **"Stripe Reconciliation" mismatch — INVESTIGATED, CONFIRMED, and the underlying test orders
+      CLEANED UP, session R (2026-08-02).** Confirmed against the real DB (not just STATE.md prose):
+      `260801-002`/`-003` had `cs_test_...` checkout session ids, created 17:48/19:21 UTC on
+      2026-08-01 — before the live key went on the server at ~20:01 UTC that same day (right before
+      `260801-004`, which has `cs_live_...`). Stripe correctly refuses to find a test-mode
+      PaymentIntent via a live key — expected behavior, not a money-safety bug (`cardPaymentEnabled`
+      was `false` for real customers the entire time Stripe was in test mode, so these could only have
+      been internal `?card=1`-override tests, never a real customer). **Malik then asked to clear
+      test orders for a clean slate.** Pulled all 17 orders ever placed for the tenant, classified
+      them, and got his explicit scope: pg_dump backup taken and verified (42 tables, `orders` table
+      confirmed present) → checked for `inventory_transactions` FK blockers (none) → deleted 11 orders
+      (`260729-001/002/003`, `260730-001`, `260731-001/003/004/005`, `260801-001/002/003`) plus 3
+      orphaned `audit_logs` rows tied to `260801-003`, in one transaction, verified via row-count
+      output (`DELETE 3` / `DELETE 11`) and a post-delete re-query. **Deliberately kept, per Malik's
+      explicit choice**: `260801-004` (the one proven real-money live capture — now the only
+      `payment_status='paid' AND stripe_payment_intent_id IS NOT NULL` row left, confirmed by query —
+      reconciliation will now show 1 checked / 0 mismatches), plus 4 orders with real-looking UK
+      customer details (Jill Cochrane `260730-002`, Daisy Glover `260730-003`, Gregg Ross `260730-004`,
+      Rachel Mccoll `260730-005`, all `voided`) that were NOT confirmed as test data — left untouched,
+      not silently assumed to be test orders.
+- [ ] **Separately flagged, not yet acted on: `260731-002` ("Leanna") is sitting `in_kitchen`,
+      unpaid, since 2026-07-31 20:01 — neither voided nor completed.** Not part of the cleanup scope
+      (real-looking customer details, same ambiguity as the 4 kept-voided orders above). May be a
+      genuinely unresolved real order Imran's team never closed out — worth asking him about, not
+      assumed either way.
+
+**B — Malik asked (2026-08-02) whether deployment can be scheduled automatically for "tomorrow",**
+since that's when Imran said he's ready to go live, rather than needing a live session at the exact
+moment. **Not yet investigated or answered.** Real considerations for whoever picks this up:
+`schedule`/`CronCreate` tooling exists and could fire `cd storefront && npm run deploy` at a set
+time, but `DEPLOYMENT_PLAYBOOK.md` is explicit that a storefront deploy is "the UAT trigger... run it
+only when he is at the tablet and expecting it. Time it with him" — "tomorrow" is not a time. Get an
+actual HH:MM from Malik/Imran before building any automation, and confirm whether Imran wants to be
+online watching at that exact moment (matching how the live Stripe test itself was coordinated) or is
+genuinely fine with an unattended scheduled push.
+
+**C — OI-60 (backend log persistence) is still separately paused from earlier in this same session,
+untouched since.** See the OI-60 entry above and `_state/open-items.md` — unrelated to A/B, don't
+conflate.
 
 ---
 
@@ -470,7 +709,7 @@ orders are accepted as labelled pre-orders, never refused.
 | Order-queue tablet view | ✅ **Deployed with the full lifecycle** at `/online-orders`. Accept → out for delivery → delivered/paid; completed orders leave Active. **Not yet opened on Imran's real tablet** | `_state/open-items.md` OI-36 |
 | Storefront checkout wiring | ✅ **Merged and PUBLISHED 2026-07-29.** Menu from the API, checkout posts, confirmation follows the order to delivered. Email required; "leave it out" ticks print on the ticket | `_state/open-items.md` OI-28 / OI-37 |
 | API access from the storefront domain | ✅ **Fixed on the server 2026-07-29.** `CORS_ORIGINS` now allows both Chick Shack origins; preflight verified, unknown origins still refused | `_state/open-items.md` OI-40 |
-| Stripe | 🔶 **DEPLOYED IN TEST MODE**, keys verified inside the container. Manual capture: authorise at checkout, **capture on Accept, cancel on Reject**. **First live sandbox test (2026-07-31, order `260731-001`) found a real bug — capture silently never ran on Accept.** Root-caused and fixed session N (2026-08-01, commit `593513b`): the PaymentIntent id was never persisted onto the order (Stripe creates it lazily, not at checkout-session creation); `accept_order` now resolves it from Stripe directly when missing, webhook independently backfills it too. 7 new tests, 2 mutation-checked, deployed and verified live in the container. **Imran has not yet re-run the test — do not consider OI-41 closed until he does.** `cardPaymentEnabled` is **false** by design, unchanged. **Test override exists:** `chickshackg84.com/?card=1`. **H-1 through H-10 all actually done**, incl. **H-6** — confirmed directly against the Stripe API session N (webhook registered, enabled, all 4 events subscribed); this row previously said H-6 was outstanding, which was stale | `docs/STRIPE_HARDENING_CHECKLIST.md` · OI-20 / OI-41 |
+| Stripe | ✅ **LIVE MODE, proven with a real transaction, 2026-08-02 — as of now (source: Malik + Imran verbal/WhatsApp, cross-checked against our own DB same session).** Order `260801-004`, £2.78, Imran's real card, captured for real — confirmed against Stripe's live dashboard, our `payments` table, and the audit trail. Live keys set directly on the server by Malik (never passed through the assistant). **Imran approved going fully live in writing.** `cardPaymentEnabled` is **still false as of this row** — flipping it, removing the testing banner, and shipping a new delivery cut-off feature are in progress this same session, not yet deployed; see the session Q "Resume here" section above for exact status. **Test override still exists:** `chickshackg84.com/?card=1`. H-1 through H-10 previously all confirmed done | `docs/STRIPE_HARDENING_CHECKLIST.md` · OI-20 / OI-41 |
 | Printing | ✅ **ON PAPER (photographed 2026-07-29)**, session F built Imran's two asks: **3 labelled copies per ticket in ONE payload** (one `rawbt:` navigation) and the **daily `#NNN` double-size at the top of each copy**. **Paper check on his own printer now CONFIRMED 2026-07-31 (session L)** — Imran, to Malik: "I did print an order yesterday which we received and 3 copies printed." Closes the last open item under OI-51/52 | OI-51 / OI-52 ✅ built + ✅ confirmed on real hardware · `ERROR_LOG.md` |
 | Served / delivered gap | ✅ **CLOSED and deployed.** Tablet has out-for-delivery / delivered / mark-paid; completed orders leave the Active tab; the customer's page follows it | `_state/open-items.md` OI-44 |
 | Customer emails | ✅ **RESOLVED 2026-07-30 — Brevo live, real order proved it, then branded.** Order `260729-003`: confirmation delivered in 2 seconds, Gmail "Show original" — SPF PASS, DKIM PASS (`d=chickshackg84.com`), DMARC PASS. Domain authentication needed a fix along the way (Brevo requires its own DMARC record to flip `authenticated`; resolved by editing Imran's single `_dmarc` record in place, same `p=none` policy, not duplicating it). **Same session: all 4 emails (received/accepted/rejected/on_the_way) given branded HTML** — ink/flame/ember from `tailwind.config.js`, no logo (none exists), inline-style table layout for client compat, every customer-supplied string `html.escape()`'d (checkout form is public input). Shipped `3ab141b`, deployed, verified live via order `260730-001` — real Gmail screenshot confirms it renders as designed. Test suite: 45/45 email tests, 432/444 full suite (12 pre-existing, unrelated). Runbook: `_context/clients/chick-shack-uk/EMAIL_SETUP_RUNBOOK.md` | `_state/open-items.md` **OI-55** |
@@ -482,6 +721,7 @@ orders are accepted as labelled pre-orders, never refused.
 | POS demo sites | ✅ Green (`pos-demo.duckdns.org`, `eats.sitaratech.info`) | `_state/infrastructure.md` |
 | CI (`ci.yml`) | ❌ **Red on every commit.** Ruff + ESLint fail; Ruff exits before the test step, so **CI has never run the suite**. All findings are in parked code, none are live bugs. Deploys are a separate workflow and are green | `_state/open-items.md` OI-47 |
 | Nightly demo-data cron | ❌ **Has never run** | `_state/open-items.md` OI-11 |
+| Production log persistence | 🟡 **Backend fix designed and written, PAUSED uncommitted, session Q (2026-08-02).** `backend`/`nginx` are recreated on every deploy and are `read_only:true` with no persistent volume, so `docker logs` history is lost every push — sometimes within hours. All 6 backend files edited/written, config validated directly, but not build-tested, not committed, not deployed — resume from OI-60a's checklist, don't redesign. nginx not started | `_state/open-items.md` **OI-60** |
 
 ---
 

@@ -422,7 +422,7 @@ async def test_cash_order_is_unaffected_by_the_card_payment_gate(
     assert numbers == ["260803-cash"]
 
 
-async def test_a_card_order_still_unauthorised_past_the_grace_window_surfaces_anyway(
+async def test_an_unpaid_card_order_never_surfaces_however_old_it_gets(
     client: AsyncClient,
     db: AsyncSession,
     tenant: Tenant,
@@ -430,20 +430,72 @@ async def test_a_card_order_still_unauthorised_past_the_grace_window_surfaces_an
     admin_token: str,
     uk_menu: MenuItem,
 ):
-    """An abandoned checkout must not be lost forever -- just not offered as
-    a decision while the money might still be seconds from landing."""
+    """OI-65: there is NO grace window. The payment is the only thing that publishes.
+
+    This inverts OI-61's original behaviour deliberately. That version showed an
+    unauthorised card order once 5 minutes had passed, so an abandoned checkout
+    wouldn't be "lost" -- and production disproved the trade the next day: order
+    260803-003 (2026-08-03) took 366s to authorise, the window expired, and the
+    order became acceptable while the money was still unconfirmed.
+
+    An abandoned checkout SHOULD be lost. Nobody paid, so there is nothing to
+    cook. If the customer takes two hours, the order appears in two hours.
+    """
+    for age in (10, 6 * 60, 20 * 60):
+        await _online_order(
+            db,
+            tenant.id,
+            admin_user.id,
+            f"260803-abandoned-{age}",
+            minutes_ago=age,
+            stripe_checkout_session_id=f"cs_test_{age}",
+            payment_authorized_at=None,
+        )
+    resp = await client.get(QUEUE_URL, headers=_auth(admin_token))
+    assert [o["order_number"] for o in resp.json()["orders"]] == []
+
+
+async def test_an_unpaid_card_order_is_visible_in_the_all_log_but_flagged(
+    client: AsyncClient,
+    db: AsyncSession,
+    tenant: Tenant,
+    admin_user: User,
+    admin_token: str,
+    uk_menu: MenuItem,
+):
+    """The "All" tab is a log of everything, so it still shows the order --
+    but it must carry the flag that stops the tablet offering Accept. That tab
+    rendering a live Accept button is exactly how OI-61's pending-only filter
+    was bypassed on 2026-08-03."""
     await _online_order(
         db,
         tenant.id,
         admin_user.id,
-        "260803-abandoned",
-        minutes_ago=10,
-        stripe_checkout_session_id="cs_test_3",
+        "260803-unpaid-card",
+        stripe_checkout_session_id="cs_test_all",
         payment_authorized_at=None,
     )
+    resp = await client.get(f"{QUEUE_URL}?state=all", headers=_auth(admin_token))
+    rows = {o["order_number"]: o for o in resp.json()["orders"]}
+    assert rows["260803-unpaid-card"]["awaiting_card_payment"] is True
+    assert rows["260803-unpaid-card"]["is_card_order"] is True
+
+
+async def test_a_cash_order_is_never_flagged_as_awaiting_card_payment(
+    client: AsyncClient,
+    db: AsyncSession,
+    tenant: Tenant,
+    admin_user: User,
+    admin_token: str,
+    uk_menu: MenuItem,
+):
+    """Cash on delivery has no payment to process, so it lands as-is."""
+    await _online_order(db, tenant.id, admin_user.id, "260803-cash-flag")
     resp = await client.get(QUEUE_URL, headers=_auth(admin_token))
-    numbers = [o["order_number"] for o in resp.json()["orders"]]
-    assert numbers == ["260803-abandoned"]
+    row = resp.json()["orders"][0]
+    assert row["order_number"] == "260803-cash-flag"
+    assert row["awaiting_card_payment"] is False
+    assert row["is_card_order"] is False
 
 
 async def test_active_is_accepted_and_still_working(

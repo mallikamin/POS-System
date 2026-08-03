@@ -23,7 +23,7 @@ from datetime import datetime, time, timedelta, timezone
 from typing import Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -42,21 +42,44 @@ logger = logging.getLogger(__name__)
 
 ONLINE_SYSTEM_EMAIL = "online-orders@system.local"
 
-# How long a card order can sit waiting for Stripe to confirm the
-# authorisation before the decision queue gives up waiting and shows it
-# anyway. See `list_merchant_orders`'s `pending` filter -- this is the actual
-# fix for OI-61's race (Imran, 2026-08-03: a customer's card was charged
-# online, but staff accepted and took payment again on the shop's card
-# machine because the order appeared "unpaid" before the authorisation had
-# landed). The longest such gap seen in real traffic on 2026-08-02 was 179s
-# (order 260802-003); this leaves real margin above that while still
-# resolving well within a customer's wait time if a card is genuinely
-# abandoned.
-PENDING_QUEUE_PAYMENT_GRACE = timedelta(minutes=5)
+# A card order becomes visible to the shop when Stripe confirms the money, and
+# at no other time. There is deliberately NO timeout, grace period or
+# show-it-anyway fallback here -- the payment event is the only thing that
+# publishes the order, exactly as Uber Eats and Foodpanda behave.
+#
+# OI-61 (2026-08-03) originally shipped a 5-minute grace window so an abandoned
+# checkout would still surface. That was the wrong trade twice over, and
+# production proved it the next day (OI-65):
+#
+#   * It was calibrated on one day's sample -- the worst gap on 2026-08-02 was
+#     179s, so 5 minutes "left real margin". On 2026-08-03 order 260803-003 took
+#     366s, the window expired, and the order was publishable while unpaid.
+#   * An abandoned checkout SHOULD be lost. Nobody paid, so there is no order to
+#     cook. Surfacing it buys nothing and costs the money guarantee.
+#
+# The cost of removing the timeout is that publication now depends entirely on
+# learning about the authorisation -- so it must never depend on a single
+# webhook delivery. `publish_authorized_card_orders` re-derives it straight from
+# Stripe on every queue poll; the webhook is only the fast path.
+CARD_ORDER_UNPUBLISHED_MAX_AGE = timedelta(hours=24)
+
+#: Most unpublished card orders to re-check against Stripe on one queue poll.
+#: Bounded so a burst of abandoned checkouts can never turn the tablet's
+#: 10-second poll into a long serial walk of the Stripe API.
+CARD_ORDER_RECONCILE_BATCH = 8
 
 
 class PublicOrderError(Exception):
     """Rejected for a reason the customer should see. Maps to HTTP 409."""
+
+
+class CardPaymentNotConfirmed(PublicOrderError):
+    """Accept was attempted on a card order whose money Stripe has not confirmed.
+
+    Its own type because this one is not a fault to be reported as an error:
+    it is the system correctly refusing, and the tablet should say "waiting for
+    the customer's card payment", not "something went wrong".
+    """
 
 
 # ---------------------------------------------------------------------------
@@ -710,19 +733,41 @@ async def accept_order(
     # never ran, with no error and nothing logged.
     if order.stripe_checkout_session_id and order.payment_captured_at is None:
         intent_id = order.stripe_payment_intent_id
-        if intent_id is None:
-            intent_id = await stripe_service.resolve_payment_intent_id(
-                order.stripe_checkout_session_id
-            )
-            if intent_id:
-                order.stripe_payment_intent_id = intent_id
-                if order.payment_authorized_at is None:
-                    order.payment_authorized_at = datetime.now(timezone.utc)
 
-        # `None` here means the customer opened Checkout but never actually
-        # paid -- Stripe never created a PaymentIntent for the session. An
-        # ordinary abandoned card checkout, not an error: fall through and
-        # accept it like any other unpaid order.
+        # ⚠️ THE INVARIANT (OI-65). An unconfirmed card order cannot be
+        # accepted, by any route, ever. `list_merchant_orders` also hides it,
+        # but a query filter only protects the query it is written on: OI-61
+        # shipped exactly that filter, and it was bypassed within a day from
+        # the tablet's "All" tab, which renders Accept for any unanswered
+        # order and is not gated (order 260803-003, 2026-08-03 -- accepted
+        # 2m34s in, authorised 3m36s later). A stale render or a direct API
+        # call would do the same. This check is what actually makes the rule
+        # true, because it sits on the one path that commits food.
+        if order.payment_authorized_at is None or intent_id is None:
+            try:
+                resolved_id, authorized = await stripe_service.authorization_for_session(
+                    order.stripe_checkout_session_id
+                )
+            except stripe_service.StripeError as exc:
+                # Cannot confirm the money, so cannot commit the kitchen.
+                # Refusing is recoverable -- staff retry in a moment. Cooking
+                # against a payment we could not verify is not.
+                raise PublicOrderError(
+                    "Could not check the card payment with Stripe, so the order "
+                    f"has not been accepted. Try again in a moment. ({exc})"
+                ) from exc
+
+            if not authorized:
+                raise CardPaymentNotConfirmed(
+                    "The customer's card payment has not gone through yet, so "
+                    "this order has not been accepted. It will appear by itself "
+                    "the moment Stripe confirms the payment -- and if the "
+                    "customer never completes it, there is nothing to make."
+                )
+
+            intent_id = resolved_id
+            await mark_card_order_authorized(db, order, intent_id)
+
         if intent_id:
             try:
                 # Bounded by what the order is worth NOW, not by what was
@@ -1071,6 +1116,150 @@ async def reconcile_late_authorization(
     return True
 
 
+async def mark_card_order_authorized(
+    db: AsyncSession, order: Order, intent_id: str | None
+) -> bool:
+    """Record that Stripe has confirmed the money for a card order.
+
+    This is the single moment a card order becomes real to the shop, so both
+    routes that can learn it -- the `amount_capturable_updated` webhook and
+    `publish_authorized_card_orders`'s poll-time check -- go through here
+    rather than each setting the fields their own way.
+
+    Returns `True` only when THIS call published the order, so the caller knows
+    to send the customer's "we've got your order" email exactly once.
+
+    ⚠️ The claim is a conditional UPDATE rather than a read-then-write, and that
+    matters: there are now three independent things that can publish the same
+    order within a few hundred milliseconds of each other -- the webhook and the
+    tablet's two separate 10-second polls (`refresh` and `checkForNewOrders`).
+    Testing `order.payment_authorized_at is None` in Python reads a value loaded
+    before the others committed, so two callers would both believe they won and
+    the customer would get two "order received" emails. `WHERE
+    payment_authorized_at IS NULL` makes the database pick exactly one winner.
+    """
+    if intent_id and order.stripe_payment_intent_id is None:
+        order.stripe_payment_intent_id = intent_id
+
+    authorized_at = stripe_service.authorization_timestamp()
+    result = await db.execute(
+        update(Order)
+        .where(Order.id == order.id, Order.payment_authorized_at.is_(None))
+        .values(payment_authorized_at=authorized_at)
+        .execution_options(synchronize_session=False)
+    )
+    if not result.rowcount:
+        return False
+
+    # Keep the in-session object consistent with the row we just wrote, using
+    # the same timestamp so a later flush cannot rewrite it to a different one.
+    order.payment_authorized_at = authorized_at
+    return True
+
+
+async def publish_authorized_card_orders(
+    db: AsyncSession, tenant_id: uuid.UUID
+) -> list[Order]:
+    """Re-derive card authorisations straight from Stripe. Returns newly published orders.
+
+    Since OI-65 a card order has no timeout: it appears when Stripe confirms the
+    money and never before. That guarantee is only as good as our knowledge of
+    the authorisation -- and `payment_authorized_at` was previously written in
+    exactly one place, the `payment_intent.amount_capturable_updated` webhook.
+    A single dropped or delayed delivery would therefore mean a customer whose
+    card is authorised, whose order the shop never sees, and no expiry to save
+    it. That is a worse failure than the double-charge this all started with.
+
+    So the queue does not wait to be told. Every poll, any card order still
+    unpublished is checked against Stripe directly and published if the money is
+    there. The webhook stays as the fast path (typically 1-2s); this is what
+    makes the guarantee hold without it.
+
+    Deliberately defensive: bounded to `CARD_ORDER_RECONCILE_BATCH` orders and
+    to those younger than `CARD_ORDER_UNPUBLISHED_MAX_AGE`, run concurrently,
+    and every Stripe failure is swallowed after logging. A Stripe outage must
+    slow or degrade this backstop, never take the shop's order queue down with
+    it -- cash orders and every already-published card order must keep flowing.
+    """
+    result = await db.execute(
+        select(Order)
+        .where(
+            Order.tenant_id == tenant_id,
+            Order.order_type == "online",
+            Order.stripe_checkout_session_id.is_not(None),
+            Order.payment_authorized_at.is_(None),
+            Order.accepted_at.is_(None),
+            Order.rejected_at.is_(None),
+            Order.created_at >= datetime.now(timezone.utc) - CARD_ORDER_UNPUBLISHED_MAX_AGE,
+        )
+        .order_by(Order.created_at.desc())
+        .limit(CARD_ORDER_RECONCILE_BATCH)
+    )
+    waiting = list(result.scalars().all())
+    if not waiting:
+        return []
+
+    async def _check(order: Order) -> tuple[Order, str | None, bool]:
+        try:
+            intent_id, authorized = await stripe_service.authorization_for_session(
+                order.stripe_checkout_session_id  # type: ignore[arg-type]
+            )
+        except stripe_service.StripeNotConfigured:
+            return order, None, False
+        except Exception:
+            # Deliberately broad. This is a backstop on the tablet's polling
+            # path: whatever goes wrong reaching Stripe, the order simply stays
+            # unpublished and is retried on the next poll ten seconds later.
+            # Letting anything escape here would take the whole order queue
+            # down -- including the cash orders that have nothing to do with
+            # Stripe -- which is far worse than a delayed card order.
+            logger.warning(
+                "Could not re-check the Stripe authorisation for %s; it stays "
+                "unpublished and will be retried on the next poll.",
+                order.order_number,
+                exc_info=True,
+            )
+            return order, None, False
+        return order, intent_id, authorized
+
+    published: list[Order] = []
+    for order, intent_id, authorized in await asyncio.gather(
+        *(_check(order) for order in waiting)
+    ):
+        if not authorized:
+            continue
+        if await mark_card_order_authorized(db, order, intent_id):
+            published.append(order)
+            await _log_stripe_event(
+                db,
+                tenant_id,
+                order,
+                action="stripe_authorized",
+                detail=(
+                    f"Stripe confirmed the authorisation for {order.order_number} "
+                    "on a queue re-check; the order is now visible to the shop."
+                ),
+                changes={"intent_id": intent_id, "source": "queue_reconcile"},
+            )
+
+    if not published:
+        return []
+
+    await db.commit()
+
+    # Re-fetch through the same eager-loaded getter the webhook uses. The query
+    # above loads columns only, and the customer's email template walks
+    # `order.items[*].modifiers` -- a lazy load there raises `MissingGreenlet`
+    # under async SQLAlchemy. `db.refresh()` would not fix it either: it
+    # restores column state, not the relationship loader options.
+    reloaded = []
+    for order in published:
+        full = await order_service.get_order(db, order.id, tenant_id)
+        if full is not None:
+            reloaded.append(full)
+    return reloaded
+
+
 # ---------------------------------------------------------------------------
 # The merchant queue -- what the shop's tablet polls
 # ---------------------------------------------------------------------------
@@ -1124,20 +1313,22 @@ async def list_merchant_orders(
 
     if state == "pending":
         conditions += [Order.accepted_at.is_(None), Order.rejected_at.is_(None)]
-        # Don't hand staff a card order to decide on before Stripe has
-        # actually confirmed the authorisation -- that decision (accept =
-        # take the food to the kitchen; is it paid or not?) is exactly what
-        # raced ahead of the money and caused a real double-charge. A cash
-        # order (no checkout session at all) is unaffected. A card order
-        # whose authorisation never lands -- an abandoned checkout -- still
-        # surfaces once `PENDING_QUEUE_PAYMENT_GRACE` has passed, so it is
-        # not silently lost; it just isn't offered as a decision while the
-        # money might still be seconds from confirming.
+        # A card order does not exist as far as the shop is concerned until
+        # Stripe confirms the money. No timeout, no grace window: if the
+        # customer takes two hours on the Checkout page, the order appears
+        # two hours later, and if they never pay it never appears at all.
+        # Accepting is the moment food is committed to, and that decision must
+        # never be offered against money that isn't confirmed. A cash order
+        # (no checkout session at all) is unaffected.
+        #
+        # This is a filter, not the guarantee. `accept_order` enforces the same
+        # rule server-side, because a filter only protects the one query it is
+        # written on -- which is precisely how OI-61's version was bypassed
+        # from the "All" tab.
         conditions += [
             or_(
                 Order.stripe_checkout_session_id.is_(None),
                 Order.payment_authorized_at.is_not(None),
-                Order.created_at < datetime.now(timezone.utc) - PENDING_QUEUE_PAYMENT_GRACE,
             )
         ]
     elif state == "active":

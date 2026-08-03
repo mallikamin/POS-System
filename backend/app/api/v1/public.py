@@ -169,13 +169,16 @@ async def create_public_order(
 
     # After the commit, never before: an email announcing an order that then
     # failed to commit cannot be recalled. Never raises.
-    await public_order_service.notify_customer(
-        db,
-        tenant_id,
-        order,
-        "received",
-        intends_card_payment=body.payment_method == "card",
-    )
+    #
+    # A card order gets NO email here (OI-65). Since a card order is invisible
+    # to the shop until Stripe confirms the money, sending "we've received your
+    # order" at this point -- before the customer has even reached the Checkout
+    # page -- would promise food for an order nobody can see, and would be flatly
+    # wrong for the customer who then abandons payment. The webhook sends it the
+    # moment the authorisation lands instead. Cash on delivery is unaffected:
+    # there is no payment to process, so the order is real immediately.
+    if body.payment_method != "card":
+        await public_order_service.notify_customer(db, tenant_id, order, "received")
 
     currency = await public_order_service.get_currency(db, tenant_id)
     return _to_public_response(order, currency)
@@ -321,18 +324,42 @@ async def stripe_webhook(
     # correcting now that the money has actually moved.
     late_capture = False
 
+    # Set when the `amount_capturable_updated` branch is the delivery that made
+    # this card order visible to the shop -- the point at which the customer is
+    # owed the "we've got your order" email that a cash order gets immediately.
+    newly_published = False
+
     # Idempotent by construction: every branch below is a no-op if the state is
     # already what the event describes, so a duplicate delivery changes nothing.
     if event_type == "payment_intent.amount_capturable_updated":
         # This event's own object IS the PaymentIntent -- the one reliable
-        # place besides Accept's own resolve step to learn its id. Guarded
-        # independently of `payment_authorized_at` below: a bug once tied
-        # this write to that same guard, and since `payment_authorized_at`
-        # could already be set from elsewhere, the id was never backfilled.
-        if event_intent_id and order.stripe_payment_intent_id is None:
-            order.stripe_payment_intent_id = event_intent_id
-        if order.payment_authorized_at is None:
-            order.payment_authorized_at = stripe_service.authorization_timestamp()
+        # place besides Accept's own resolve step to learn its id, so it is
+        # passed in and backfilled unconditionally by the helper rather than
+        # being tied to whether the authorisation flip won (a bug once tied
+        # those together, and the id was never backfilled as a result).
+        #
+        # This is also the moment the order becomes real to the shop (OI-65): a
+        # card order is invisible until Stripe confirms the money, with no
+        # timeout. `mark_card_order_authorized` claims that transition with a
+        # conditional UPDATE, so exactly one of {this webhook, the tablet's two
+        # polls} can win it and the "order received" email goes out exactly once
+        # -- it is deliberately NOT sent at order-placement time for a card
+        # order, because until this event lands there is no order the shop can
+        # see, and promising one would be a lie.
+        #
+        # The email is owed only to an order still awaiting a decision. One that
+        # has somehow already been answered gets its "accepted" email below
+        # instead, which says strictly more; "we've received your order" after
+        # the shop already accepted it just reads as a duplicate. (Since OI-65's
+        # Accept guard, accepted-before-authorised is unreachable for new
+        # orders; this only covers ones answered under the old behaviour.)
+        newly_published = (
+            await public_order_service.mark_card_order_authorized(
+                db, order, event_intent_id
+            )
+            and order.accepted_at is None
+            and order.rejected_at is None
+        )
 
         await public_order_service.log_stripe_webhook_event(
             db, order, event_type=event_type, event_id=stripe_service.field(event, "id"),
@@ -373,19 +400,26 @@ async def stripe_webhook(
 
     await db.commit()
 
-    if late_capture:
-        # The "accepted" email already sent said "Payable on..." because the
-        # capture hadn't happened yet at Accept time. Re-send it now that
-        # payment_status is genuinely `paid`, so the customer isn't left
-        # holding the wrong one -- and re-fetch with the same eager-loaded
-        # getter every other caller of notify_customer uses, since the bare
-        # `db.get(Order, ...)` above never loaded `items` and the email
-        # template needs them.
+    if newly_published or late_capture:
+        # Re-fetch with the same eager-loaded getter every other caller of
+        # notify_customer uses -- the bare `db.get(Order, ...)` above never
+        # loaded `items`, and the email template needs them.
         refreshed = await order_service.get_order(db, order.id, order.tenant_id)
         if refreshed is not None:
-            await public_order_service.notify_customer(
-                db, order.tenant_id, refreshed, "accepted"
-            )
+            if newly_published:
+                # The card order only just became real. This is its first and
+                # only "order received" email.
+                await public_order_service.notify_customer(
+                    db, order.tenant_id, refreshed, "received"
+                )
+            if late_capture:
+                # The "accepted" email already sent said "Payable on..." because
+                # the capture hadn't happened yet at Accept time. Re-send it now
+                # that payment_status is genuinely `paid`, so the customer isn't
+                # left holding the wrong one.
+                await public_order_service.notify_customer(
+                    db, order.tenant_id, refreshed, "accepted"
+                )
 
     return {"status": "ok"}
 
@@ -473,6 +507,22 @@ async def list_merchant_orders(
     nobody is logged in. That means a staff member cannot read another
     restaurant's orders by editing a path segment.
     """
+    # Before answering, re-derive any card authorisation we have not been told
+    # about yet (OI-65). A card order is invisible until Stripe confirms the
+    # money and has no timeout to release it, so publication must not hinge on a
+    # single webhook delivery ever arriving -- this poll is the backstop that
+    # makes that guarantee hold. Anything it publishes here is owed the same
+    # "order received" email the webhook would have sent, so it is sent below.
+    # The call never raises: a Stripe outage must not stop the shop seeing its
+    # cash orders, which have nothing to do with Stripe.
+    published = await public_order_service.publish_authorized_card_orders(
+        db, current_user.tenant_id
+    )
+    for order in published:
+        await public_order_service.notify_customer(
+            db, current_user.tenant_id, order, "received"
+        )
+
     orders, total_count = await public_order_service.list_merchant_orders(
         db,
         current_user.tenant_id,
@@ -727,6 +777,10 @@ def _to_merchant_summary(order: Order, currency: str) -> MerchantOrderSummary:
         status=order.status,
         payment_status=order.payment_status,
         is_card_order=order.stripe_checkout_session_id is not None,
+        awaiting_card_payment=(
+            order.stripe_checkout_session_id is not None
+            and order.payment_authorized_at is None
+        ),
         service_type=order.service_type or "collection",
         placed_at=order.created_at,
         customer_name=order.customer_name or "",

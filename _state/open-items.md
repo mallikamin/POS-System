@@ -1,5 +1,350 @@
 # Open items register
 
+**OI-65 🟠 BUILT + TESTED, NOT YET DEPLOYED — the OI-61 card-payment gate was bypassed in
+production within a day (Imran screenshot via Malik, 2026-08-03).** Order `260803-003` (Leanne
+Sharkey, £15.69, delivery/Garelochhead) showed "CARD — PAYMENT PROCESSING" while already accepted
+and offering "Out for delivery".
+
+**What the evidence actually showed** (production DB + audit trail + live Stripe API, all
+re-verified this session, not taken from prose):
+
+| Time (UTC 2026-08-03) | Event |
+|---|---|
+| 17:04:51.8 | order placed |
+| 17:04:52.1 | Stripe Checkout session created (`cs_live_b11N…`) |
+| **17:07:25.6** | **staff Accept** — 2m34s in, unauthorised, inside the 5-min grace |
+| 17:10:57 | customer finally submitted card details; Stripe created the PaymentIntent |
+| 17:11:01.5 | authorisation landed → `reconcile_late_authorization` fired |
+| 17:11:02.9 | late capture succeeded, £15.69 taken |
+
+**Money position: clean.** 16 card orders 02–03 Aug ↔ 16 live Stripe PaymentIntents, 1:1, every one
+`succeeded` with `amount_received == amount`. Zero uncaptured, zero dangling authorisations, zero
+orphan charges. No customer was double-charged. (Stripe cannot see the shop's own card terminal, so
+a manual in-shop re-charge would not appear — but the tablet showed the amber "CARD — PAYMENT
+PROCESSING" banner, not red "NOT PAID — COLLECT", so OI-61's *secondary* safety net did hold. That
+is why this surfaced as Imran asking a question rather than as a second double-charge.)
+
+**Two defects, not one:**
+1. **The gate was a query filter, not an invariant.** It applied only to
+   `list_merchant_orders(state="pending")`. `OnlineOrdersPage.tsx` renders Accept/Reject for *any*
+   order with no `accepted_at`/`rejected_at` on **every** tab, and the "All" tab is ungated — that is
+   the tab in Imran's screenshot. `accept_order` had no server-side guard at all; it explicitly
+   commented "fall through and accept it like any other unpaid order". Tablet-staleness is ruled out:
+   the session id was set 311ms after order creation and Accept came ~15 poll cycles later.
+2. **The 5-minute grace window would have failed anyway.** It would have released this order at
+   17:09:51 — still 70s before Stripe authorised. It had been calibrated on one day's sample (worst
+   gap 179s on 08-02) and was exceeded the next day (366s).
+
+**Why the tests didn't catch it:** all four OI-61 gate tests called `list_merchant_orders(state=
+"pending")`. Nothing tested that Accept itself refuses, and nothing tested `state="all"`. The suite
+exercised exactly the one path that was fixed. STATE.md's "the structural fix, so staff can no
+longer act on money that isn't confirmed yet" was overstated — corrected there.
+
+**⚠️ Note against OI-62.** OI-62 item 1 records Malik's original ask ("don't show a card order to
+staff at all until Stripe's checkout fully succeeds") and asserts "the 'don't show until confirmed'
+half is exactly what OI-61 already built". That was **not accurate** — OI-61 shipped it with a
+5-minute escape hatch and no server-side enforcement. OI-65 is what actually builds it. The
+retry/embedded-Elements half of OI-62 remains genuinely unbuilt and untouched.
+
+**Malik's rule, which OI-65 implements literally** (his words, 2026-08-03/04): *"our card orders
+should not land in POS if the payment has not been processed… even if the customer takes 2 hrs…
+order becomes visible after the payment is processed"*, and *"cash on delivery orders land as it is —
+there's no payment to process. card orders land after the payment has been approved by stripe."*
+Flow: customer places order → Stripe checkout → **approved by Stripe** → customer gets the "order
+received" email → order lands on the tablet → kitchen accepts → payment captured → ticket prints.
+
+**What was built:**
+- **Hard gate, no timeout.** `PENDING_QUEUE_PAYMENT_GRACE` deleted. A card order is published when
+  `payment_authorized_at` is set and never otherwise. An abandoned checkout is never surfaced — nobody
+  paid, so there is nothing to cook. Cash/COD has no checkout session and is completely unaffected.
+- **The invariant: a server-side guard in `accept_order`.** Refuses any card order whose money Stripe
+  has not confirmed, by any route — All tab, stale render, or direct API call. New
+  `CardPaymentNotConfirmed(PublicOrderError)` so the tablet can explain rather than show an error.
+  Also refuses when Stripe *cannot be reached*: unable-to-confirm is not confirmed. Refusing is
+  recoverable; cooking against an unverified payment is not.
+- **`stripe_service.authorization_for_session()`** — returns `(intent_id, is_authorized)` from one
+  expanded round trip, keyed on PaymentIntent **status** (`requires_capture`/`succeeded`), not on the
+  intent merely existing. An intent existing only proves the customer *started* paying (they may be
+  on the 3-D Secure step, or Stripe may be `processing`); gating on the id would reintroduce the same
+  failure one step later.
+- **`publish_authorized_card_orders()` — the piece that makes "no timeout" safe.** Removing the grace
+  made publication depend entirely on one webhook delivery; a dropped `amount_capturable_updated`
+  would mean a customer charged and an order the shop never sees, with no expiry to save it — worse
+  than the bug being fixed. So the queue re-derives authorisations straight from Stripe on every poll.
+  Bounded (8 orders, <24h old), concurrent, and every Stripe failure swallowed after logging: a Stripe
+  outage must never take down the queue the shop's **cash** orders also arrive through.
+- **Publication claim is an atomic conditional UPDATE** (`WHERE payment_authorized_at IS NULL`), not a
+  Python read-then-write. Three things can publish the same order within milliseconds — the webhook
+  and the tablet's two independent 10s polls (`refresh`, `checkForNewOrders`) — and a read-then-write
+  would let two of them both "win" and send the customer two "order received" emails.
+- **The "order received" email moved to the authorisation moment.** It used to fire inside
+  `POST /orders`, before the customer had even reached Stripe. With a hard gate that becomes a lie:
+  the shop never sees the order, so it promises food to exactly the customer who then abandons
+  payment. It now renders *"Card details taken. We only charge you once the shop accepts your
+  order."* Cash on delivery still emails immediately, unchanged. An order already answered gets its
+  "accepted" email instead of a duplicate "received".
+- **Tablet:** new `awaiting_card_payment` flag on the queue payload; the Accept/Reject block is
+  replaced by "Waiting for the customer's card payment — it will appear in Pending by itself once
+  Stripe confirms. Nothing to do, and nothing to collect." on every tab, closing the All-tab path in
+  the UI as well as on the server.
+
+**Verification done:** backend **496 passed** (baseline 485 + 11 new), failure list **byte-identical**
+to clean-HEAD `1f55cf1` via a throwaway `git worktree` — 21 pre-existing failures + 2 errors, zero
+regressions (the two date-filter failures in `test_public_tenant_routing.py` reproduce at clean HEAD;
+they are the known OI-59/OI-63 SQLite `func.cast` family). `ruff` clean on all touched files (the
+repo-wide count rises 85→93 only because of untracked `app/scripts/seed_demo_kitchen.py`, which does
+not exist at HEAD and is not this session's work). `tsc --noEmit -p tsconfig.app.json` + `vite build`
+clean; new copy and `awaiting_card_payment` both confirmed present in the built bundle.
+**`authorization_for_session` verified against the real live Stripe API**, not just mocks — the exact
+`field()` subscript path (the accessor whose own docstring warns that `StripeObject` has no `.get()`)
+returns a real `PaymentIntent` with working `id`/`status`, and missing keys degrade to `None`.
+
+**Residual, stated honestly:** the *negative* case (an unpaid session returning not-authorised) is
+covered by unit tests and is safe by construction — the gate keys off PaymentIntent status, and
+`requires_capture`/`succeeded` *are* Stripe's statement that money is held — but it was not exercised
+against a real unpaid live session, because all 17 live sessions are `complete`/`paid` and
+manufacturing one means creating a session on the client's live Stripe account. Offered to Malik as
+an explicit option rather than done unilaterally.
+
+**NOT YET DEPLOYED — awaiting Malik's go-ahead on timing.** 8 files:
+`backend/app/{api/v1/public.py,schemas/public_order.py,services/public_order_service.py,services/stripe_service.py}`,
+`backend/tests/{test_stripe_payments.py,test_public_tenant_routing.py}`,
+`frontend/src/{pages/online-orders/OnlineOrdersPage.tsx,services/onlineOrdersApi.ts}`.
+Backend-only + tablet — **no `storefront/` changes, so `git push` alone ships it**; no Cloudflare
+deploy needed this time. ⚠️ Commit by explicit filename: the tree also carries unrelated uncommitted
+work (`QUICKBOOKS_PLAYBOOK.md`, `StaffManagementPage.tsx`, untracked `seed_demo_kitchen.py`, and the
+~119-file doc reorg) that must NOT be swept in.
+
+---
+
+**OI-64 🔵 NEW, NOT BUILT — Imran feedback, 2026-08-03 (text via Malik, same day as OI-61/62/63,
+while the OI-61 stress-test plan is being run separately).** Two asks:
+1. **Show delivery last-order cut-off times on the website itself.** Right now `SHOP.deliveryCloseTime`
+   (21:30) and `DeliveryArea.closeTime` (Garelochhead 21:45, `storefront/src/data/menu.ts`) only
+   surface *reactively* — the pre-order banner (`Checkout.tsx`/`OrderConfirmation.tsx`) only mentions
+   a cut-off once a customer is already past it. There is no static "last orders for delivery: X"
+   copy anywhere a browsing customer would see it upfront. The only existing hours string at all is
+   `Checkout.tsx:458`, "Open daily {openTime}–{closeTime}." — general shop hours, not delivery-specific,
+   and only shown at checkout, not the homepage. Small, well-scoped frontend-only display change once
+   picked up — no backend/DB involved, values already exist in config.
+2. **Delivery gets its own earliest window: 16:30. Collection stays at 16:00.** Resolved by Malik
+   asking Imran directly (WhatsApp, 2026-08-03 14:12–14:13): "pre-orders delivery starts from 16:30 -
+   what about collection orders? do they start from 16:00 or 16:30" → Imran: **"Collections 16:00"**.
+   Confirms this is NOT the `// INFERRED — confirm` `SHOP.openTime` value moving — `openTime` (16:00)
+   stays correct for collection. This is a genuinely new, delivery-specific early-side concept that
+   doesn't exist in the code yet: `delivery.ts`'s `orderTiming()` already has a delivery-specific LATE
+   cutoff (`deliveryCloseTimeFor`/`SHOP.deliveryCloseTime`) but no EARLY one — right now collection and
+   delivery share one single `from` threshold (`orderFromTime`/`openTime`). Needs a new
+   `SHOP.deliveryOpenTime = "16:30"` plus a new `closedReason` (e.g. `"delivery_not_open_yet"`) so a
+   delivery order placed between 14:00–16:30 is correctly labelled a pre-order with "delivery opens at
+   16:30" messaging, while an identical collection order in that same window still reads as immediate,
+   unchanged. **Building now** — parallel stress-test session wrapped up, storefront files are clear.
+
+---
+
+**OI-62 🔵 NOT BUILT, needs discussion (session S, 2026-08-03).** Two ideas raised while fixing OI-61,
+deliberately not built tonight — see git history / this conversation for full reasoning:
+1. **Malik's suggestion:** don't show a card order to staff at all until Stripe's checkout fully
+   succeeds, with 3-4 retry attempts then a cash-on-delivery fallback. The "don't show until
+   confirmed" half is exactly what OI-61 already built (the pending-queue gate). The retry/fallback
+   half needs replacing Stripe's hosted Checkout redirect with embedded Stripe Elements for enough
+   control over the retry UX — a real, multi-day integration change, not safe to rush on a live
+   payments system under the same night's time pressure. Worth scoping properly later if wanted.
+2. **Imran's suggestion (voice note 2026-08-03):** a manual on/off toggle so staff can temporarily
+   stop taking online orders (too busy, closed unexpectedly). He explicitly asked for advice rather
+   than directing a build. Straightforward if wanted: an `accepting_orders` bool on
+   `restaurant_configs`, checked by the storefront's ordering-eligibility check alongside the
+   existing hours logic, with a button on `OnlineOrdersPage`.
+
+**OI-63 🔵 FOUND, NOT FIXED — pre-existing, unrelated to OI-61 (session S, 2026-08-03).** 13 backend
+test failures exist independent of anything built tonight (confirmed via a clean git-stash
+comparison before touching any code): `test_online_reports.py` (9 — prepaid-vs-COD, rejected-orders,
+Stripe-reconciliation all return empty/zero for orders that should match a "today" date-range query,
+in `online_report_service.py`), `test_public_tenant_routing.py` (2 — same shape, a 3-days-ago order
+not found by an explicit `date`/`date_from`/`date_to` query), plus the 2 already-documented
+session-O failures (`test_p1a_features`, `test_pay_first`). The first 11 look like the same root
+cause (a date-boundary/timezone issue distinct from the already-known `func.cast(..., Date)` SQLite
+bug, OI-59) but were not investigated further — out of scope for an urgent live-payments fix. Backend
+suite: 476 passed / 13 failed with all of OI-61 built, same 13 with none of it — zero new regressions.
+
+---
+
+**OI-61 ✅ BUILT, TESTED, DEPLOYED AND VERIFIED LIVE (session S, 2026-08-03), commit `f06979f`.**
+Structural fix (card orders now hidden from the pending decision queue until Stripe authorises, or a
+5-minute grace window passes) + defense-in-depth (ticket poll-diff invalidation, 3-state card/cash
+badge on the tablet, "accepted" email re-sent on late capture, `_payment_status_text` keyed off
+`stripe_checkout_session_id` not `stripe_payment_intent_id`). Also shipped in the same commit: 70p
+service fee (all orders, separate line, Chick Shack only), dip-tub modifiers consolidated into one
+section before the cook list, ZReportPage currency-on-direct-landing fix.
+476 passing, 18 new tests, 13 pre-existing failures confirmed unrelated (clean-HEAD comparison
+before touching anything). `pg_dump` backup taken first (`pre_oi61_20260803_045556.dump`).
+**Verified beyond the green Action**: backend commit hash matches on the server, migration applied
+(`orders.service_fee`/`restaurant_configs.service_fee` exist, Chick Shack backfilled to 70), new code
+grepped directly out of the running container (`PENDING_QUEUE_PAYMENT_GRACE`, `DIP_TUB_SUFFIX`,
+`CARD PROCESSING`, `is_card_order`), tablet frontend bundle byte-identical to the local build, and the
+storefront bundle (Cloudflare, separate pipeline) also byte-identical and containing the new "Service
+Fee" checkout line. **Original incident, for reference:** Imran reported (voice notes, 2026-08-02/03)
+that a card-paid customer's ticket and confirmation email both said NOT PAID/collect cash because
+they were built from the payment state at Accept time; staff took payment again on the shop's own
+card machine and Imran had to refund it. Checked against production before fixing: 6 of 11 card
+orders that day (55%) hit the same race between Accept and Stripe's authorisation landing.
+
+<details><summary>Original diagnosis, kept for reference</summary>
+
+Imran reported
+(voice note, 2026-08-02 21:51): kitchen ticket prints "not paid" after Accept on card orders, and the
+customer's own email says "collect cash on delivery" despite paying by card at checkout. Confirmed
+with photo evidence (order `260802-004`, Allan Scott, £34.95) cross-checked against Stripe's dashboard
+(payment Succeeded, same PaymentIntent id in the metadata) and the production DB directly.
+
+- **Root cause, confirmed against real data, not guessed.** `260802-004`: `created_at` 16:25:56,
+  `accepted_at` 16:26:09 (staff accepted in 13s), `payment_authorized_at` 16:26:21 (card 3DS/bank
+  round-trip landed 12s *after* Accept), `payment_captured_at` 16:26:24. Audit log confirms:
+  `stripe_captured — "Captured 3495 for 260802-004 via a late-arriving authorisation (order was
+  already accepted)"` — this is `reconcile_late_authorization()` (built session Q, `dfc88e9`,
+  2026-08-02), the exact race-window mechanism designed for this. **The money side works correctly —
+  `payment_status` does end up `paid`, capture is real, nothing lost.** But two customer/staff-facing
+  artifacts are generated using the payment state *at Accept time* (still unpaid, because the card
+  hadn't finished authorising yet) and **nothing re-corrects them once the late capture lands a few
+  seconds later**:
+  1. **Kitchen ticket** — `OnlineOrdersPage.tsx`'s `invalidateTicket(order.id)` is called from exactly
+     three places: `onAccept`, and cash/mark-paid handover (`runLifecycle`). All three are
+     client-initiated actions. There is **no call anywhere** tied to a server-side/webhook-driven
+     payment change, so a ticket invalidated right after Accept (correctly "NOT PAID" at that instant)
+     is never invalidated again when `reconcile_late_authorization` captures the payment 5-180s later.
+     Print sends the stale cached URL.
+  2. **"Accepted" customer email** — `accept_online_order` (`public.py`) calls
+     `notify_customer(..., "accepted")` synchronously right after `accept_order()` returns. In the race
+     case `accept_order()` never captured (intent didn't exist yet), so `_payment_status_text()`
+     (`email_service.py:138`) falls to `"Payable on {collection/delivery}."`. `reconcile_late_authorization`
+     never re-sends or corrects this email once payment_status flips to `paid`.
+- **Scope, not a rare edge case: 6 of 11 card orders today (55%) raced** (`payment_authorized_at >
+  accepted_at`) — `260802-002` (+89s), `-003` (+179s), `-004` (+12s), `-008` (+5.5s), `-009` (+16s),
+  `-012` (+29s). Staff tap Accept fast; Stripe's own authorisation (3DS/bank confirmation) routinely
+  takes longer than that. This will keep happening on close to half of all live card orders until
+  fixed, not just occasionally. `260802-011` checked separately and is **not** an instance of this —
+  Stripe checkout was opened but abandoned, correctly settled as cash-on-handover via `mark_order_paid`.
+- **Fix (two parts, same root cause — reconcile updates the DB but never re-fires the two downstream
+  side effects that a normal on-time capture gets for free):**
+  1. Ticket: have the tablet's poll loop diff each order's `payment_status`/`payment_captured_at`
+     against what it last saw, and call `invalidateTicket(order.id)` on any change — not just on the
+     three user-initiated actions. Reuses the existing polling architecture (`OnlineOrdersPage.tsx` has
+     no WebSocket for this page, pure poll), no new server event needed.
+  2. Email: `reconcile_late_authorization`'s "already accepted, capture now" branch should call
+     `notify_customer(db, tenant_id, order, "accepted")` again once the late capture succeeds, so the
+     customer gets a corrected email ("Paid by card") instead of the stale one. Needs checking where the
+     webhook handler that calls `reconcile_late_authorization` has a `db`/`notify_customer` path
+     available (`public.py` webhook route).
+  3. **Prevention, general rule for this codebase going forward:** any function that changes
+     `payment_status` outside a direct staff tap (i.e. any future webhook-driven reconciliation) must
+     re-fire the same "payment changed" side effects a normal synchronous change gets — ticket
+     invalidation + customer notification — not just persist to the DB and audit log. Right now that
+     wiring exists only for the 3 client-initiated call sites; the async path was missed when it was
+     built, and the audit-trail work from session Q didn't close this gap since it wasn't in scope then.
+All of the above is now built and deployed — see the summary at the top of this entry.
+
+**Separate ask, same voice notes:** Imran wants a 70p "platform service fee" added to every order
+(his own wording: "add it on as platform service fee... that way we can charge the 70 pence") — this
+roughly matches Stripe's own processing fee shown on the `260802-004` payment (£0.72). Malik's
+decision (2026-08-03): applies to **all orders**, card and cash alike, shown as its own line — now
+built and deployed.
+
+</details>
+
+---
+
+**OI-60 🟡 IN PROGRESS (session Q, 2026-08-02) · Production logs vanish on every deploy — fix
+backend now, nginx is separate/deferred.** Malik asked to check why yesterday's order-email activity
+couldn't be verified, and traced it to this: `backend`, `frontend`, `nginx` are all `read_only: true`
+with only `tmpfs` (memory-backed) writable paths, so there is currently **zero persistent place for
+logs to live.** `docker logs` reads Docker's own `json-file` log, which is stored per-container-
+INSTANCE on the host — when a container is recreated (which `backend` and `nginx` both are, on
+**every** `git push origin main` per `docs/DEPLOYMENT_PLAYBOOK.md`), the old instance's log file is
+gone with it. This repo deploys multiple times a day, so log retention today is really "since the
+last deploy" — sometimes a couple of hours. Confirmed live 2026-08-02: `pos-system-backend-1`,
+recreated that afternoon, had exactly 121 log lines total; everything from the day before (including
+the email activity Malik asked about) was already gone. Disk is not the constraint — 38GB free/22%
+used on the droplet at the time this was checked; memory is the box's usual tight constraint but
+file-based logging costs negligible RAM.
+
+**Design (applies to both halves, OI-60a built this way, OI-60b should match unless nginx's specific
+mount/user situation forces a difference — re-check, don't assume):**
+- **Bind-mount a real host directory**, not a named Docker volume — inspectable directly
+  (`tail -f`/`grep`) without going through `docker exec`, matching how this repo already bind-mounts
+  nginx config from the host rather than baking it into the image.
+- **Plain append-mode `FileHandler`, not a rotating one, inside the app.** `backend` runs
+  `--workers 4` (`Dockerfile` CMD) — four separate OS processes. Python's in-process rotating
+  handlers (`TimedRotatingFileHandler`/`RotatingFileHandler`) are not safe when multiple *processes*
+  share one file: the rotation step itself (rename/reopen) races across processes. Plain append-mode
+  writes to one shared file ARE safe across processes on Linux (`O_APPEND` writes are serialized by
+  the kernel for ordinary log-line sizes) — so the app only ever appends, and rotation is delegated
+  to **host-level `logrotate` with `copytruncate`**, which truncates the file in place rather than
+  renaming it, so it needs no cooperation from the four running processes.
+- **`posapp`'s container UID pinned to `1000`** in the Dockerfile (previously whatever `useradd -r`
+  auto-assigned, non-deterministic) so the host directory's ownership can be set to a known value
+  instead of `chmod 777`-ing something the app writes into.
+- uvicorn's `--log-config` points at a JSON dictConfig that is **purely additive** to uvicorn's own
+  real default config (confirmed by importing `uvicorn.config.LOGGING_CONFIG` from the actual
+  installed `uvicorn==0.34.0`, not assumed from memory) — existing console (`docker logs`) output is
+  unchanged, a new `file` handler is added to the root logger and to `uvicorn`/`uvicorn.error`/
+  `uvicorn.access`. Also fixes a separate, smaller pre-existing gap found while designing this: the
+  app has never called `logging.basicConfig()` anywhere, so the root logger had **no handler at
+  all** — every `logger.info(...)` call across the codebase (`stripe_service.py`,
+  `public_order_service.py`, `email_service.py`, etc. — exactly the kind of line that would have
+  answered Malik's email question directly) was going nowhere, silently. Only `WARNING`+ was ever
+  visible, via Python's stderr "handler of last resort". The new root-logger config sets `level:
+  INFO` with both a console and a file handler, so these were previously invisible even live, not
+  just non-persistent.
+- Retention: daily rotation, 30 kept, gzip compressed — trivial size at this app's actual volume
+  (low tens of MB/month at worst, against 38GB free).
+
+- 🟡 **OI-60a — backend, session Q, PAUSED mid-build 2026-08-02 — all 6 files WRITTEN, NOTHING
+  committed/pushed/deployed. Working tree has the uncommitted edits below; resume by reviewing them,
+  not by redoing them.**
+  - [x] `backend/Dockerfile` — pinned `posapp` UID/GID to 1000 (uncommitted)
+  - [x] `backend/logging_config.json` — new file, written (uncommitted, untracked)
+  - [x] `backend/scripts/start.sh` — added `--log-config logging_config.json` to the uvicorn invocation (uncommitted)
+  - [x] `docker-compose.demo.yml` — bind-mounted `/root/pos-system/logs/backend:/app/logs` into `backend` (uncommitted)
+  - [x] `docker/logrotate/pos-backend.conf` — new file, written (uncommitted, untracked)
+  - [x] `scripts/deploy-remote.sh` — added idempotent `mkdir -p`/`chown`/logrotate-install step, mirroring
+        the existing `voice.conf` pattern (self-healing, not a hard refuse) (uncommitted)
+  - [x] **Config correctness spot-checked**, not full-stack tested: loaded `logging_config.json` for
+        real via `logging.config.dictConfig()` (not just eyeballed) and fired one log line through each
+        of `app.*`, `uvicorn`, `uvicorn.error`, `uvicorn.access` — confirmed exactly one line per call in
+        the file output (the `uvicorn.error` duplicate-write bug an earlier draft of this config had —
+        handlers on both itself AND its parent `uvicorn` — was caught and fixed here, before it ever
+        reached a container). One cosmetic artifact in that same test run: manually firing a bare
+        `logger.info()` at `uvicorn.access` (not going through uvicorn's real request-logging code)
+        crashed ONLY the console `AccessFormatter` because the hand-built record lacked the 5-tuple args
+        uvicorn's own access-log call always supplies — the file handler still wrote its line correctly.
+        Believed to be a test-harness artifact, not a real config bug, **but not yet proven** against a
+        real request through a real running server.
+  - [ ] **NOT done — pick up here:** build the actual `backend/Dockerfile` locally and run it against a
+        real Postgres+Redis (`docker-compose.yml`'s local dev stack uses `Dockerfile.dev`, a DIFFERENT
+        file — it will NOT exercise these changes; a throwaway `docker run` against real Postgres/Redis
+        containers, or a temporary edit to point dev compose at the prod Dockerfile, is needed instead).
+        Confirm: image builds clean with the UID pin, `/app/logs/backend.log` actually populates when a
+        host directory is mounted, a REAL request through the app produces one correctly-formatted
+        `uvicorn.access` file line (resolves the open cosmetic question above), and — most importantly —
+        console output (`docker logs`) is unchanged from before this change (regression check).
+  - [ ] Not committed, not pushed, not deployed. Do this only after the local test above passes AND
+        Malik has separately confirmed commit/push/deploy, same pattern as the Stripe fix this session.
+  - [ ] Post-deploy: verify the log file survives a SECOND `backend` recreation, not just that it
+        exists once after the first deploy — that's the actual point of this whole exercise.
+- [ ] **OI-60b — nginx, deferred, NOT started.** Same shape of problem (nginx is also `read_only:
+      true`, also recreated on every deploy, its default image symlinks access/error logs to
+      stdout/stderr so it has the identical loss-on-recreation issue) but deliberately **not**
+      bundled with OI-60a. nginx is shared with Orbit CRM (`voice.conf` mounted in) and this box has
+      **two prior nginx-recreation outages** on record (`memory/server-deployment-rules.md`) — treat
+      as an isolated change, own verification pass (`docker inspect pos-system-nginx-1` mounts first,
+      then confirm BOTH `eats.sitaratech.info`/`pos-demo.duckdns.org`/`chickshackg84.com` **and**
+      `orbit-voice.duckdns.org` after any nginx recreation, per that memory file's mandatory rule).
+      Do not assume OI-60a's exact design (UID pin, FileHandler specifics) transfers 1:1 — nginx's
+      alpine image's log-writing user/mechanism is different from `posapp` and hasn't been checked
+      yet. Re-derive at the start of whichever session picks this up.
+
+---
+
 **Last updated:** 2026-08-01 (session P) — **OI-57 and OI-58 both BUILT, curl-verified against real
 local dev Postgres data, committed, pushed and DEPLOYED to production** (commit `55ac6de`, Malik
 explicitly said "commit and push" first). Deploy independently verified live — not just a green

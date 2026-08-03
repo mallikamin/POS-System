@@ -1083,6 +1083,22 @@ export default function OnlineOrdersPage() {
                       Cancel
                     </button>
                   </div>
+                ) : order.awaiting_card_payment ? (
+                  // Stripe has not confirmed this customer's money yet, so
+                  // there is nothing to decide on and no Accept button to tap.
+                  // The pending queue never shows this order at all -- but the
+                  // "All" tab is a log of everything, and it rendering a live
+                  // Accept button is exactly how OI-61's pending-only filter
+                  // was bypassed on 2026-08-03 (order 260803-003). The server
+                  // refuses it too; this is so staff see the reason rather than
+                  // an error. It appears by itself the moment Stripe confirms.
+                  <p className="mt-3 rounded-lg border-2 border-dashed border-amber-400 bg-amber-50 px-3 py-3 text-center text-sm font-semibold text-amber-900">
+                    Waiting for the customer&rsquo;s card payment
+                    <span className="mt-1 block text-xs font-normal">
+                      It will appear in Pending by itself once Stripe confirms.
+                      Nothing to do — and nothing to collect.
+                    </span>
+                  </p>
                 ) : (
                   <div className="mt-3 grid grid-cols-3 gap-2">
                     <button

@@ -28,6 +28,11 @@ export interface OnlineOrder {
    * unpaid, collect cash", which `payment_status` alone cannot (both read
    * "unpaid" until the money lands). See OI-61. */
   is_card_order: boolean;
+  /** A card order Stripe has not confirmed the money for yet. It is kept out of
+   * the pending queue entirely (OI-65), but still appears in the "All" log --
+   * where it must never offer Accept. The server refuses it regardless; this
+   * exists so the tablet can explain instead of throwing an error at staff. */
+  awaiting_card_payment: boolean;
   service_type: "collection" | "delivery";
   placed_at: string;
 
