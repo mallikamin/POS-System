@@ -83,10 +83,22 @@ received" email → order lands on the tablet → kitchen accepts → payment ca
   payment. It now renders *"Card details taken. We only charge you once the shop accepts your
   order."* Cash on delivery still emails immediately, unchanged. An order already answered gets its
   "accepted" email instead of a duplicate "received".
-- **Tablet:** new `awaiting_card_payment` flag on the queue payload; the Accept/Reject block is
-  replaced by "Waiting for the customer's card payment — it will appear in Pending by itself once
-  Stripe confirms. Nothing to do, and nothing to collect." on every tab, closing the All-tab path in
-  the UI as well as on the server.
+- **The gate applies to EVERY queue state — pending, active and all.** ⚠️ This session's first
+  attempt (`a7da2fb`) scoped it to `pending` only, inheriting OI-61's exact scoping mistake, and then
+  papered over the resulting hole by replacing the tablet's Accept/Reject buttons with a "Waiting for
+  the customer's card payment" panel on the All tab. **Malik rejected that, correctly**: he never
+  asked for the Accept button to change, and a "waiting for card payment" row in the POS is precisely
+  what the rule exists to prevent. Corrected in `d3d1e7d`. **The generalisable lesson: when a rule is
+  bypassed through an ungated view, close the view — do not dress the hole up in the UI.**
+- **Tablet: NO CHANGE AT ALL.** `OnlineOrdersPage.tsx` and `onlineOrdersApi.ts` are byte-identical to
+  `1f55cf1` (proven by Vite content hash — the live chunk is `OnlineOrdersPage-bINTpwNa.js`, the same
+  one that was live before this session). No new tablet state, no new copy, nothing for staff to
+  learn. The `awaiting_card_payment` field existed only to drive that panel and was removed rather
+  than left as dead API surface.
+- **One deliberate exception to the gate:** an order that has already been *answered* stays visible,
+  because hiding an order the kitchen is already cooking would be worse than showing it and the log
+  must stay legible. Only reachable for rows answered before this shipped — `accept_order` now
+  refuses unconfirmed card orders. Verified **zero such rows** in production.
 
 **Verification done:** backend **496 passed** (baseline 485 + 11 new), failure list **byte-identical**
 to clean-HEAD `1f55cf1` via a throwaway `git worktree` — 21 pre-existing failures + 2 errors, zero
@@ -94,7 +106,9 @@ regressions (the two date-filter failures in `test_public_tenant_routing.py` rep
 they are the known OI-59/OI-63 SQLite `func.cast` family). `ruff` clean on all touched files (the
 repo-wide count rises 85→93 only because of untracked `app/scripts/seed_demo_kitchen.py`, which does
 not exist at HEAD and is not this session's work). `tsc --noEmit -p tsconfig.app.json` + `vite build`
-clean; new copy and `awaiting_card_payment` both confirmed present in the built bundle.
+clean. **Proven end-to-end against the live database with a temporary probe order** (then deleted and
+confirmed gone): an unpaid card order was invisible in **all three** states, and became visible in
+pending and all the instant `payment_authorized_at` was set — behavioural proof, not a code reading.
 **`authorization_for_session` verified against the real live Stripe API**, not just mocks — the exact
 `field()` subscript path (the accessor whose own docstring warns that `StripeObject` has no `.get()`)
 returns a real `PaymentIntent` with working `id`/`status`, and missing keys degrade to `None`.

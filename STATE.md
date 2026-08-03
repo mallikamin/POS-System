@@ -1,6 +1,18 @@
 # STATE — Restaurant POS System
 
-**Last refreshed:** 2026-08-04 — session T. **Branch:** `main`, HEAD `93876b1`.
+**Last refreshed:** 2026-08-04 — session T. **Branch:** `main`, HEAD `d3d1e7d`.
+
+**⚠️ Read this before anything else about OI-65.** The session's FIRST attempt (`a7da2fb`) was a
+workaround and Malik rejected it, correctly. It gated only `state="pending"` — inheriting OI-61's
+original scoping mistake — and then papered over the resulting hole by replacing the tablet's
+Accept/Reject buttons with a "Waiting for the customer's card payment" panel on the "All" tab. Two
+things wrong with that: he never asked for the Accept button to change, and **a "waiting for card
+payment" row in the POS is exactly what the rule exists to prevent** — an unpaid card order should
+not be there to be labelled in the first place. Corrected in `d3d1e7d`: **the gate applies to every
+queue state**, the two frontend files are reverted byte-identical to `1f55cf1`, the Accept button is
+untouched, and the `awaiting_card_payment` field (which existed only to drive that panel) is gone.
+**The lesson, worth keeping: when a rule is bypassed through an ungated view, close the view — do
+not dress the hole up in the UI.**
 **✅ OI-65 is BUILT, TESTED, DEPLOYED and INDEPENDENTLY VERIFIED LIVE** (commits `a7da2fb` +
 `93876b1`, 2026-08-03 ~23:15 UK / 2026-08-04 ~03:15 PK, after the shop's 22:00 close so no order was
 in flight). Full detail in `_state/open-items.md` **OI-65**.
@@ -47,18 +59,25 @@ no timeout of any kind.**
   `git worktree`, zero regressions. `ruff`/`tsc`/`vite build` clean. `authorization_for_session`
   verified against the **real live Stripe API**, not only mocks.
 - **Deployed and independently verified live, beyond the green Action** (this project's own "verify
-  the effect, never the exit code" rule): server `git log` matches `93876b1`; backend/frontend/nginx
-  containers freshly recreated and healthy; the new symbols were read back **out of the running
-  application object**, not the file on disk (`awaiting_card_payment` present in the live
-  `MerchantOrderSummary` schema, `publish_authorized_card_orders` and `CardPaymentNotConfirmed`
-  present, `PENDING_QUEUE_PAYMENT_GRACE` genuinely **gone — 0 references in both
-  `public_order_service.py` and `print_service.py`**, `mark_card_order_authorized` correctly async);
-  the deployed pending-queue SQL was printed from the running file and is the two-condition gate with
-  no time-based escape; the live tablet chunk `OnlineOrdersPage-Csek76O1.js` contains both
-  `awaiting_card_payment` and the new "Waiting for the customer's card payment" copy; and the new code
-  paths were **smoke-tested against real production data** (`publish_authorized_card_orders` ran clean
-  and correctly published nothing, since all 17 live card orders are already authorised; pending and
-  all queues both returned correctly, with every recent card order reading `awaiting = False`).
+  the effect, never the exit code" rule), final commit `d3d1e7d`: server `git log` matches;
+  backend/frontend/nginx containers freshly recreated and healthy; symbols read back **out of the
+  running application object**, not the file on disk (`publish_authorized_card_orders` and
+  `CardPaymentNotConfirmed` present, `awaiting_card_payment` confirmed **absent** from the live
+  `MerchantOrderSummary` schema, `PENDING_QUEUE_PAYMENT_GRACE` genuinely **gone — 0 references in
+  both `public_order_service.py` and `print_service.py`**, `mark_card_order_authorized` correctly
+  async).
+- **The tablet is back to its original bundle, proven by content hash.** The live `index.html` loads
+  `OnlineOrdersPage-bINTpwNa.js` — the exact chunk that was live *before* this session. Vite's
+  content hashing means an identical hash is proof the source reverted byte-for-byte. Confirmed in
+  that chunk: `"Accept"` and `"Reject"` present, "Waiting for the customer" **0**,
+  `awaiting_card_payment` **0**. ⚠️ Note for future verification: `/usr/share/nginx/html/assets/`
+  **accumulates every historical chunk** (uploads never `--delete`), so grepping the assets directory
+  proves nothing — resolve `index.html` → `index-*.js` → the chunk it actually imports.
+- **Proven end-to-end against the live database with a real probe order**, then cleaned up: an unpaid
+  card order (`stripe_checkout_session_id` set, `payment_authorized_at` NULL) was **invisible in all
+  three states — pending, active AND all**; the instant `payment_authorized_at` was set it became
+  visible in pending and all. Probe deleted and confirmed gone. This is the actual behavioural proof,
+  not a code reading.
 - ⚠️ **One residual, stated rather than glossed:** the *negative* case (an unpaid Stripe session
   returning not-authorised) is unit-tested and safe by construction — the gate keys off PaymentIntent
   **status**, and `requires_capture`/`succeeded` *are* Stripe's own statement that money is held — but
