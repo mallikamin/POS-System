@@ -777,10 +777,6 @@ def _to_merchant_summary(order: Order, currency: str) -> MerchantOrderSummary:
         status=order.status,
         payment_status=order.payment_status,
         is_card_order=order.stripe_checkout_session_id is not None,
-        awaiting_card_payment=(
-            order.stripe_checkout_session_id is not None
-            and order.payment_authorized_at is None
-        ),
         service_type=order.service_type or "collection",
         placed_at=order.created_at,
         customer_name=order.customer_name or "",

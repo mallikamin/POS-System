@@ -455,7 +455,7 @@ async def test_an_unpaid_card_order_never_surfaces_however_old_it_gets(
     assert [o["order_number"] for o in resp.json()["orders"]] == []
 
 
-async def test_an_unpaid_card_order_is_visible_in_the_all_log_but_flagged(
+async def test_an_unpaid_card_order_is_in_no_view_of_the_pos_at_all(
     client: AsyncClient,
     db: AsyncSession,
     tenant: Tenant,
@@ -463,10 +463,14 @@ async def test_an_unpaid_card_order_is_visible_in_the_all_log_but_flagged(
     admin_token: str,
     uk_menu: MenuItem,
 ):
-    """The "All" tab is a log of everything, so it still shows the order --
-    but it must carry the flag that stops the tablet offering Accept. That tab
-    rendering a live Accept button is exactly how OI-61's pending-only filter
-    was bypassed on 2026-08-03."""
+    """It is not in the POS. Not Pending, not Active, not All -- nowhere.
+
+    OI-61 scoped this condition to `pending` only, so the "All" tab still
+    listed unpaid card orders and still drew live Accept buttons on them. That
+    is the route staff actually took on 2026-08-03 (order 260803-003). Gating
+    one view and leaving another open is not a rule, so the gate now applies to
+    every state and this test checks all three.
+    """
     await _online_order(
         db,
         tenant.id,
@@ -475,13 +479,41 @@ async def test_an_unpaid_card_order_is_visible_in_the_all_log_but_flagged(
         stripe_checkout_session_id="cs_test_all",
         payment_authorized_at=None,
     )
-    resp = await client.get(f"{QUEUE_URL}?state=all", headers=_auth(admin_token))
-    rows = {o["order_number"]: o for o in resp.json()["orders"]}
-    assert rows["260803-unpaid-card"]["awaiting_card_payment"] is True
-    assert rows["260803-unpaid-card"]["is_card_order"] is True
+    for state in ("pending", "active", "all"):
+        resp = await client.get(f"{QUEUE_URL}?state={state}", headers=_auth(admin_token))
+        numbers = [o["order_number"] for o in resp.json()["orders"]]
+        assert "260803-unpaid-card" not in numbers, f"leaked into state={state}"
 
 
-async def test_a_cash_order_is_never_flagged_as_awaiting_card_payment(
+async def test_an_already_answered_order_stays_visible_even_if_unauthorised(
+    client: AsyncClient,
+    db: AsyncSession,
+    tenant: Tenant,
+    admin_user: User,
+    admin_token: str,
+    uk_menu: MenuItem,
+):
+    """The one deliberate exception to the gate.
+
+    Hiding an order the kitchen is already cooking would be worse than showing
+    it, and the log has to stay legible. Only reachable for rows answered
+    before OI-65 shipped -- `accept_order` now refuses unconfirmed card orders.
+    """
+    await _online_order(
+        db,
+        tenant.id,
+        admin_user.id,
+        "260803-legacy-accepted",
+        accepted=True,
+        stripe_checkout_session_id="cs_test_legacy",
+        payment_authorized_at=None,
+    )
+    resp = await client.get(f"{QUEUE_URL}?state=active", headers=_auth(admin_token))
+    numbers = [o["order_number"] for o in resp.json()["orders"]]
+    assert numbers == ["260803-legacy-accepted"]
+
+
+async def test_a_cash_order_is_never_gated_in_any_view(
     client: AsyncClient,
     db: AsyncSession,
     tenant: Tenant,
@@ -491,11 +523,11 @@ async def test_a_cash_order_is_never_flagged_as_awaiting_card_payment(
 ):
     """Cash on delivery has no payment to process, so it lands as-is."""
     await _online_order(db, tenant.id, admin_user.id, "260803-cash-flag")
-    resp = await client.get(QUEUE_URL, headers=_auth(admin_token))
-    row = resp.json()["orders"][0]
-    assert row["order_number"] == "260803-cash-flag"
-    assert row["awaiting_card_payment"] is False
-    assert row["is_card_order"] is False
+    for state in ("pending", "all"):
+        resp = await client.get(f"{QUEUE_URL}?state={state}", headers=_auth(admin_token))
+        rows = {o["order_number"]: o for o in resp.json()["orders"]}
+        assert "260803-cash-flag" in rows, f"cash order missing from state={state}"
+        assert rows["260803-cash-flag"]["is_card_order"] is False
 
 
 async def test_active_is_accepted_and_still_working(

@@ -1314,26 +1314,35 @@ async def list_merchant_orders(
     """
     conditions = [Order.tenant_id == tenant_id, Order.order_type == "online"]
 
+    # ⚠️ A card order whose money Stripe has not confirmed is NOT IN THE POS.
+    # Not in Pending, not in Active, not in All -- nowhere, in any view, until
+    # the payment is approved. No timeout and no grace window: if the customer
+    # takes two hours on the Checkout page the order appears two hours later,
+    # and if they never pay it never appears at all. A cash order has no
+    # checkout session and is never gated by this.
+    #
+    # Applied to EVERY state on purpose. OI-61 scoped the identical condition
+    # to `pending` only, which left the "All" tab showing unpaid card orders
+    # with live Accept buttons -- and that is the route staff actually took on
+    # 2026-08-03 (order 260803-003). Gating one view and leaving another open
+    # is not a rule, it is a suggestion.
+    #
+    # The single exception is an order that has already been ANSWERED. Hiding
+    # an order the kitchen is already cooking would be worse than showing it,
+    # and history has to stay legible in the log. Since `accept_order` now
+    # refuses unconfirmed card orders outright, a row can only be in that state
+    # if it was answered before this change shipped.
+    conditions += [
+        or_(
+            Order.stripe_checkout_session_id.is_(None),
+            Order.payment_authorized_at.is_not(None),
+            Order.accepted_at.is_not(None),
+            Order.rejected_at.is_not(None),
+        )
+    ]
+
     if state == "pending":
         conditions += [Order.accepted_at.is_(None), Order.rejected_at.is_(None)]
-        # A card order does not exist as far as the shop is concerned until
-        # Stripe confirms the money. No timeout, no grace window: if the
-        # customer takes two hours on the Checkout page, the order appears
-        # two hours later, and if they never pay it never appears at all.
-        # Accepting is the moment food is committed to, and that decision must
-        # never be offered against money that isn't confirmed. A cash order
-        # (no checkout session at all) is unaffected.
-        #
-        # This is a filter, not the guarantee. `accept_order` enforces the same
-        # rule server-side, because a filter only protects the one query it is
-        # written on -- which is precisely how OI-61's version was bypassed
-        # from the "All" tab.
-        conditions += [
-            or_(
-                Order.stripe_checkout_session_id.is_(None),
-                Order.payment_authorized_at.is_not(None),
-            )
-        ]
     elif state == "active":
         conditions += [
             Order.accepted_at.is_not(None),
