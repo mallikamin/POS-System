@@ -106,7 +106,15 @@ against a real unpaid live session, because all 17 live sessions are `complete`/
 manufacturing one means creating a session on the client's live Stripe account. Offered to Malik as
 an explicit option rather than done unilaterally.
 
-**NOT YET DEPLOYED — awaiting Malik's go-ahead on timing.** 8 files:
+**✅ DEPLOYED AND VERIFIED LIVE**, commits `a7da2fb` (fix) + `93876b1` (removed two stale comment
+references to the now-deleted grace constant — caught only because the post-deploy container grep
+returned 1 instead of 0, which is exactly why that check exists). Deployed 2026-08-03 ~23:15 UK,
+after the 22:00 close, so no live order was in flight. Verified beyond the green Action by reading
+the new symbols **out of the running application object** and by smoke-testing
+`publish_authorized_card_orders` / both queue states against **real production data** — see STATE.md
+for the full evidence list. **Next: Imran/Malik's UAT on tomorrow's real card orders.**
+
+Original file list (8 code files; STATE.md and this file went in the same commit):
 `backend/app/{api/v1/public.py,schemas/public_order.py,services/public_order_service.py,services/stripe_service.py}`,
 `backend/tests/{test_stripe_payments.py,test_public_tenant_routing.py}`,
 `frontend/src/{pages/online-orders/OnlineOrdersPage.tsx,services/onlineOrdersApi.ts}`.

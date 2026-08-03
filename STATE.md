@@ -1,8 +1,12 @@
 # STATE — Restaurant POS System
 
-**Last refreshed:** 2026-08-04 — session T. **Branch:** `main`, HEAD `1f55cf1`.
-**🔴 Resume here: OI-65 is BUILT, TESTED and UNCOMMITTED, awaiting Malik's go-ahead to deploy.**
-Full detail in `_state/open-items.md` **OI-65**. `git push` alone ships it (no `storefront/` changes).
+**Last refreshed:** 2026-08-04 — session T. **Branch:** `main`, HEAD `93876b1`.
+**✅ OI-65 is BUILT, TESTED, DEPLOYED and INDEPENDENTLY VERIFIED LIVE** (commits `a7da2fb` +
+`93876b1`, 2026-08-03 ~23:15 UK / 2026-08-04 ~03:15 PK, after the shop's 22:00 close so no order was
+in flight). Full detail in `_state/open-items.md` **OI-65**.
+**🔴 Next action: Imran/Malik's live UAT on tomorrow's real card orders** — specifically that a card
+order now appears on the tablet only *after* Stripe approves, and that the customer's "order
+received" email arrives at that moment rather than at checkout. Nothing else outstanding.
 
 **Session T in one line (2026-08-04): Imran's screenshot showed order `260803-003` reading "CARD —
 PAYMENT PROCESSING" while already accepted — i.e. OI-61's card-payment gate was bypassed in
@@ -42,8 +46,26 @@ no timeout of any kind.**
 - **496 passed** (baseline 485 + 11 new), failure list byte-identical to clean HEAD via a throwaway
   `git worktree`, zero regressions. `ruff`/`tsc`/`vite build` clean. `authorization_for_session`
   verified against the **real live Stripe API**, not only mocks.
-- **Not deployed.** 8 files, backend + tablet only. Commit by explicit filename — the tree carries
-  unrelated uncommitted work that must not be swept in.
+- **Deployed and independently verified live, beyond the green Action** (this project's own "verify
+  the effect, never the exit code" rule): server `git log` matches `93876b1`; backend/frontend/nginx
+  containers freshly recreated and healthy; the new symbols were read back **out of the running
+  application object**, not the file on disk (`awaiting_card_payment` present in the live
+  `MerchantOrderSummary` schema, `publish_authorized_card_orders` and `CardPaymentNotConfirmed`
+  present, `PENDING_QUEUE_PAYMENT_GRACE` genuinely **gone — 0 references in both
+  `public_order_service.py` and `print_service.py`**, `mark_card_order_authorized` correctly async);
+  the deployed pending-queue SQL was printed from the running file and is the two-condition gate with
+  no time-based escape; the live tablet chunk `OnlineOrdersPage-Csek76O1.js` contains both
+  `awaiting_card_payment` and the new "Waiting for the customer's card payment" copy; and the new code
+  paths were **smoke-tested against real production data** (`publish_authorized_card_orders` ran clean
+  and correctly published nothing, since all 17 live card orders are already authorised; pending and
+  all queues both returned correctly, with every recent card order reading `awaiting = False`).
+- ⚠️ **One residual, stated rather than glossed:** the *negative* case (an unpaid Stripe session
+  returning not-authorised) is unit-tested and safe by construction — the gate keys off PaymentIntent
+  **status**, and `requires_capture`/`succeeded` *are* Stripe's own statement that money is held — but
+  it was never exercised against a real unpaid live session, because all 17 live sessions are
+  `complete`/`paid` and manufacturing one means creating a session on Imran's live Stripe account.
+  Offered to Malik as an explicit option; he chose to deploy without it. **Tomorrow's first real card
+  order is therefore the true end-to-end proof of the negative path.**
 
 ---
 
