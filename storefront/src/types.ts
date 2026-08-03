@@ -235,6 +235,13 @@ export interface ShopConfig {
    */
   deliveryCloseTime: string;
   /**
+   * Earliest time an online DELIVERY order is taken, 24h "HH:MM" —
+   * deliberately later than `openTime`/`orderFromTime`. Confirmed directly by
+   * Imran (WhatsApp, 2026-08-03): collection starts at `openTime` (16:00) as
+   * before, delivery starts later at 16:30. Collection is unaffected.
+   */
+  deliveryOpenTime: string;
+  /**
    * Master switch for taking orders online.
    *
    * FALSE until the public order endpoint and Stripe webhook are live. While

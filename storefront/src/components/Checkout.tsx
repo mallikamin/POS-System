@@ -401,7 +401,16 @@ export default function Checkout({ onBack, onPlaced }: Props) {
               was. */}
           {preOrder && (
             <p className="card p-3 text-sm text-ember border-ember/40">
-              {timing.closedReason === "delivery_cutoff" ? (
+              {timing.closedReason === "delivery_not_open_yet" ? (
+                <>
+                  Online delivery starts at{" "}
+                  <strong className="text-cream">{timing.opensAt}</strong>{" "}
+                  today, so this will be a{" "}
+                  <strong className="text-cream">pre-order</strong>. We'll take
+                  it now and it'll be accepted then — you'll get a
+                  confirmation email too.
+                </>
+              ) : timing.closedReason === "delivery_cutoff" ? (
                 <>
                   Online delivery has finished for tonight, so this will be a{" "}
                   <strong className="text-cream">pre-order</strong>. We'll take
@@ -459,6 +468,27 @@ export default function Checkout({ onBack, onPlaced }: Props) {
           </p>
         </div>
       )}
+
+      <div className="card p-3 text-xs text-cream/70">
+        <p className="font-bold uppercase tracking-wide text-cream/90">
+          Hours
+        </p>
+        <p className="mt-1 leading-relaxed">
+          Collection {SHOP.openTime}–{SHOP.closeTime} · Delivery{" "}
+          {SHOP.deliveryOpenTime}–{SHOP.deliveryCloseTime}
+          {SHOP.deliveryAreas.some((a) => a.closeTime) && (
+            <>
+              {" "}
+              (
+              {SHOP.deliveryAreas
+                .filter((a) => a.closeTime)
+                .map((a) => `${a.name} until ${a.closeTime}`)
+                .join(", ")}
+              )
+            </>
+          )}
+        </p>
+      </div>
 
       <div className="card p-3 border-ember/40 bg-ember/10">
         <p className="text-xs font-bold uppercase tracking-wide text-ember">

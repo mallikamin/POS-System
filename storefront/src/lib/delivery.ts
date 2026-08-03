@@ -115,7 +115,7 @@ export type OrderTiming = {
   /** When the shop will next be answering, "HH:MM". */
   opensAt: string;
   /** Why `immediate` is false. Absent when `immediate` is true. */
-  closedReason?: "shop_closed" | "delivery_cutoff";
+  closedReason?: "shop_closed" | "delivery_cutoff" | "delivery_not_open_yet";
 };
 
 /** This area's own last-delivery-order time, or the shop-wide default. */
@@ -125,12 +125,14 @@ function deliveryCloseTimeFor(areaId: string | undefined): string {
 
 /**
  * Same "never refuse, just say when we'll get to it" model as `isOpenNow`,
- * but delivery gets its own, earlier cut-off (Imran, voice note 2026-08-02):
- * the shop stays open for collection until `closeTime`, but online delivery
- * needs to stop sooner so there is runway before the kitchen actually shuts.
+ * but delivery gets its own, narrower window (Imran, voice note 2026-08-02 +
+ * WhatsApp 2026-08-03): the shop stays open for collection from `openTime` to
+ * `closeTime`, but online delivery starts later (`deliveryOpenTime`, 16:30 vs
+ * collection's 16:00) and stops sooner (`deliveryCloseTime`) so there is
+ * runway on both ends before the kitchen actually opens/shuts.
  * `service`/`areaId` are optional so existing shop-wide-only callers keep
  * working — omit them and this behaves exactly as it did before delivery had
- * its own cut-off.
+ * its own window.
  */
 export function orderTiming(
   now: Date = new Date(),
@@ -145,8 +147,21 @@ export function orderTiming(
     return { immediate: false, opensAt: SHOP.openTime, closedReason: "shop_closed" };
   }
 
-  if (service === "delivery" && minutes >= toMinutes(deliveryCloseTimeFor(areaId))) {
-    return { immediate: false, opensAt: SHOP.openTime, closedReason: "delivery_cutoff" };
+  if (service === "delivery") {
+    if (minutes < toMinutes(SHOP.deliveryOpenTime)) {
+      return {
+        immediate: false,
+        opensAt: SHOP.deliveryOpenTime,
+        closedReason: "delivery_not_open_yet",
+      };
+    }
+    if (minutes >= toMinutes(deliveryCloseTimeFor(areaId))) {
+      return {
+        immediate: false,
+        opensAt: SHOP.deliveryOpenTime,
+        closedReason: "delivery_cutoff",
+      };
+    }
   }
 
   return { immediate: true, opensAt: SHOP.openTime };

@@ -551,11 +551,17 @@ export const SHOP: ShopConfig = {
   // Pre-orders open two hours before service, matching Imran's own worked
   // example (placed 14:00, accepted 15:30, opens 16:00). INFERRED — confirm.
   orderFromTime: "14:00",
-  // Imran, voice note 2026-08-02: last online DELIVERY orders at 21:30 for
-  // every area except Garelochhead (21:45, see its DeliveryArea.closeTime
-  // override below) -- there needs to be runway before the shop shuts at
-  // 22:00. Collection is unaffected, stays open to closeTime as normal.
+  // Imran, voice note 2026-08-02, re-confirmed by text 2026-08-03: last online
+  // DELIVERY orders at 21:30 for every area except Garelochhead (21:45, see
+  // its DeliveryArea.closeTime override below) -- there needs to be runway
+  // before the shop shuts at 22:00. Collection is unaffected, stays open to
+  // closeTime as normal ("You can collect till 22:00").
   deliveryCloseTime: "21:30",
+  // Imran, WhatsApp 2026-08-03: delivery's own earliest window is 16:30, not
+  // the shop's general 16:00 opening -- confirmed distinct from collection
+  // ("Collections 16:00") after being asked directly. Collection is
+  // unaffected and still uses openTime/orderFromTime as before.
+  deliveryOpenTime: "16:30",
   // Orders are placed against POST /public/{tenant}/orders and appear on the
   // shop's tablet for accept/reject. Ordering additionally requires the menu to
   // have loaded from the API — see `canOrder` in store/menu.ts — so this flag

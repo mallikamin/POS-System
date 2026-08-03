@@ -132,6 +132,30 @@ export default function App() {
                 when we open.
               </p>
             )}
+            {/* Imran asked (2026-08-03) for last-order/delivery-window times
+                to be visible on the site itself, not just shown reactively
+                once a customer is already past a cut-off. Always shown, same
+                card treatment as the Allergen Notice below. */}
+            <div className="mt-4 card p-3 text-xs text-cream/70">
+              <p className="font-bold uppercase tracking-wide text-cream/90">
+                Hours
+              </p>
+              <p className="mt-1 leading-relaxed">
+                Collection {SHOP.openTime}–{SHOP.closeTime} · Delivery{" "}
+                {SHOP.deliveryOpenTime}–{SHOP.deliveryCloseTime}
+                {SHOP.deliveryAreas.some((a) => a.closeTime) && (
+                  <>
+                    {" "}
+                    (
+                    {SHOP.deliveryAreas
+                      .filter((a) => a.closeTime)
+                      .map((a) => `${a.name} until ${a.closeTime}`)
+                      .join(", ")}
+                    )
+                  </>
+                )}
+              </p>
+            </div>
             {/* Same notice and styling as the one on Checkout — shown here too
                 so it's visible before a customer starts choosing items, not
                 only once they reach the end of ordering. */}

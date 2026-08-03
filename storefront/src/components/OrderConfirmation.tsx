@@ -222,9 +222,11 @@ export default function OrderConfirmation({
             {preOrder ? (
               <>
                 We've got it.{" "}
-                {timing.closedReason === "delivery_cutoff"
-                  ? "Online delivery has finished for tonight, so it"
-                  : "The shop is closed at the moment, so it"}{" "}
+                {timing.closedReason === "delivery_not_open_yet"
+                  ? "Online delivery hasn't started yet today, so it"
+                  : timing.closedReason === "delivery_cutoff"
+                    ? "Online delivery has finished for tonight, so it"
+                    : "The shop is closed at the moment, so it"}{" "}
                 will be accepted when we open at{" "}
                 <strong className="text-cream">{timing.opensAt}</strong> —
                 you'll get a confirmation email then too. Nothing more for
