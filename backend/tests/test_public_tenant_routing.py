@@ -317,9 +317,58 @@ async def test_online_order_numbers_carry_the_collection_delivery_letter(
     assert resp.status_code == 201, resp.text
     first = resp.json()["order_number"]
     assert "-C" in first, first
-
-    # The counter keeps going; only the letter changes with the service type.
     assert first.split("-C")[1] == "001"
+
+
+async def test_the_counter_is_shared_across_collection_and_delivery(
+    db: AsyncSession, tenant: Tenant, admin_user: User, uk_menu: MenuItem
+):
+    """ONE counter, not one per letter.
+
+    The number is allocated from the highest already issued today with the
+    letter stripped, so a delivery order following a collection order gets the
+    NEXT number, never a second `001`.
+
+    Deriving it from `count(*)` instead was the bug Malik caught: `-C006` and
+    `-D006` are different strings, so even the unique constraint on
+    order_number could not catch the collision, and the shared counter forked.
+    """
+    from app.services.order_service import generate_order_number
+
+    today = datetime.now(timezone.utc).strftime("%y%m%d")
+
+    assert await generate_order_number(db, tenant.id, "collection") == f"{today}-C001"
+
+    await _online_order(db, tenant.id, admin_user.id, f"{today}-C001")
+    assert await generate_order_number(db, tenant.id, "delivery") == f"{today}-D002"
+
+    await _online_order(db, tenant.id, admin_user.id, f"{today}-D002")
+    assert await generate_order_number(db, tenant.id, "collection") == f"{today}-C003"
+
+    # A number is never re-issued after a row is removed -- it may already be
+    # printed on a receipt. `count(*)` would have rewound to 002 here.
+    await _online_order(db, tenant.id, admin_user.id, f"{today}-C003")
+    order = (
+        await db.execute(
+            select(Order).where(Order.order_number == f"{today}-D002")
+        )
+    ).scalar_one()
+    await db.delete(order)
+    await db.commit()
+    assert await generate_order_number(db, tenant.id, "delivery") == f"{today}-D004"
+
+
+async def test_till_orders_keep_the_plain_number_and_share_the_same_counter(
+    db: AsyncSession, tenant: Tenant, admin_user: User, uk_menu: MenuItem
+):
+    """Dine-in/takeaway/call-centre pass no service_type and stay `YYMMDD-NNN`,
+    but draw from the same daily sequence as the online ones."""
+    from app.services.order_service import generate_order_number
+
+    today = datetime.now(timezone.utc).strftime("%y%m%d")
+    await _online_order(db, tenant.id, admin_user.id, f"{today}-C001")
+
+    assert await generate_order_number(db, tenant.id) == f"{today}-002"
 
 
 async def test_service_fee_is_snapshotted_onto_the_order_from_tenant_config(

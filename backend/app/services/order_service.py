@@ -8,7 +8,7 @@ import logging
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Date, func, select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -70,16 +70,50 @@ async def generate_order_number(
     """
     now = datetime.now(timezone.utc)
     date_prefix = now.strftime("%y%m%d")
+    marker = SERVICE_TYPE_MARKERS.get((service_type or "").lower(), "")
 
+    # Serialise allocation on the tenant's own config row. Reading the highest
+    # issued number and then inserting is a read-modify-write, so without this
+    # two customers checking out in the same instant both read the same value
+    # and both take it. The lock is held only until the caller commits, which
+    # for an order is milliseconds, and it is per-tenant so one restaurant's
+    # traffic cannot block another's.
+    #
+    # SQLite (tests) does not support FOR UPDATE and SQLAlchemy omits it there;
+    # the tests are single-threaded, so nothing is lost.
+    await db.execute(
+        select(RestaurantConfig.id)
+        .where(RestaurantConfig.tenant_id == tenant_id)
+        .with_for_update()
+    )
+
+    # ⚠️ Allocated from the highest number ALREADY ISSUED today, not from
+    # `count(*)`, and the letter is stripped before comparing.
+    #
+    # `count(*) + 1` was wrong in two ways. It collides whenever two customers
+    # check out in the same instant -- both count N and both take N+1 -- and
+    # while the `uq_order_tenant_number` constraint used to reject the loser,
+    # the C/D marker broke even that accidental safety net: a collection and a
+    # delivery order colliding produce `-C006` and `-D006`, which are different
+    # strings, so both save and the shared counter silently forks.
+    #
+    # Reading the max issued value keeps one sequence across both letters, and
+    # is also self-healing: a deleted or voided row no longer rewinds the
+    # counter onto a number that has already been printed on a receipt.
     result = await db.execute(
-        select(func.count(Order.id)).where(
+        select(Order.order_number).where(
             Order.tenant_id == tenant_id,
-            func.cast(Order.created_at, Date) == now.date(),
+            Order.order_number.like(f"{date_prefix}-%"),
         )
     )
-    count = result.scalar_one()
-    marker = SERVICE_TYPE_MARKERS.get((service_type or "").lower(), "")
-    return f"{date_prefix}-{marker}{count + 1:03d}"
+    highest = 0
+    for issued in result.scalars():
+        tail = issued.split("-", 1)[1] if "-" in issued else ""
+        digits = tail.lstrip("".join(SERVICE_TYPE_MARKERS.values()))
+        if digits.isdigit():
+            highest = max(highest, int(digits))
+
+    return f"{date_prefix}-{marker}{highest + 1:03d}"
 
 
 # ---------------------------------------------------------------------------
