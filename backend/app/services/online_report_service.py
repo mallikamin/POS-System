@@ -25,6 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.order import Order
 from app.services import stripe_service
+from app.services.order_visibility import is_real_order, money_actually_taken
 
 
 def _range_bounds(date_from: date, date_to: date) -> tuple[datetime, datetime]:
@@ -37,15 +38,22 @@ def _range_bounds(date_from: date, date_to: date) -> tuple[datetime, datetime]:
 async def get_prepaid_vs_cod(
     db: AsyncSession, tenant_id: uuid.UUID, date_from: date, date_to: date
 ) -> dict:
-    """Online orders bucketed by whether a Stripe Checkout Session ever existed.
+    """Online orders bucketed by whether the money was actually taken up front.
 
-    `stripe_checkout_session_id IS NOT NULL` means the customer went through
-    card checkout (prepaid); `NULL` means cash / pay-on-delivery. Voided
-    orders are excluded -- matching the existing void-report convention of
-    not counting money that was never actually collected.
+    Prepaid = `payment_captured_at IS NOT NULL`, i.e. the shop has the money.
+    Everything else real is cash on delivery. Voided orders are excluded, and
+    so is any card order Stripe never approved -- it is not an order at all
+    (see `is_real_order`), so it must not appear in revenue any more than it
+    appears on the tablet.
     """
     start, end = _range_bounds(date_from, date_to)
-    is_prepaid = Order.stripe_checkout_session_id.is_not(None)
+    # Prepaid means the money is IN, not that the customer opened a card page.
+    # The old definition (`stripe_checkout_session_id IS NOT NULL`) counted a
+    # session created the instant the customer was sent to Stripe -- so an
+    # abandoned checkout was reported as prepaid revenue. That is exactly what
+    # overstated the client's own reports screen on 2026-08-04 (order
+    # 260804-002, £62.92 never taken, shown as prepaid).
+    is_prepaid = money_actually_taken()
 
     stmt = select(
         func.coalesce(func.sum(case((is_prepaid, Order.total), else_=0)), 0).label(
@@ -60,6 +68,7 @@ async def get_prepaid_vs_cod(
         Order.tenant_id == tenant_id,
         Order.order_type == "online",
         Order.status != "voided",
+        is_real_order(),
         Order.created_at >= start,
         Order.created_at < end,
     )

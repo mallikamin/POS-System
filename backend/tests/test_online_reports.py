@@ -35,10 +35,21 @@ async def _make_order(
     stripe_checkout_session_id: str | None = None,
     stripe_payment_intent_id: str | None = None,
     payment_captured_at: datetime | None = None,
+    payment_authorized_at: datetime | None = None,
     payment_status: str = "unpaid",
     rejected_at: datetime | None = None,
     rejection_reason: str | None = None,
 ) -> Order:
+    # A card order is only real once Stripe approved it, and only "prepaid"
+    # once the money was actually captured (OI-65 / the 2026-08-04 report
+    # overstatement). Callers that hand us a checkout session without saying
+    # otherwise mean a genuinely paid card order, so fill both in -- an order
+    # with a session and neither timestamp is an abandoned checkout, which is
+    # deliberately counted as nothing at all.
+    if stripe_checkout_session_id is not None and payment_authorized_at is None:
+        payment_authorized_at = datetime.now(timezone.utc)
+    if stripe_checkout_session_id is not None and payment_captured_at is None:
+        payment_captured_at = datetime.now(timezone.utc)
     o = Order(
         tenant_id=tenant_id,
         order_number=number,
@@ -53,6 +64,7 @@ async def _make_order(
         stripe_checkout_session_id=stripe_checkout_session_id,
         stripe_payment_intent_id=stripe_payment_intent_id,
         payment_captured_at=payment_captured_at,
+        payment_authorized_at=payment_authorized_at,
         rejected_at=rejected_at,
         rejection_reason=rejection_reason,
     )

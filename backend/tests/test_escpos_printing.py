@@ -309,12 +309,15 @@ def test_item_modifiers_and_notes_are_printed():
 # ---------------------------------------------------------------------------
 
 
-def test_card_checkout_started_but_not_captured_is_not_shouted_as_unpaid():
-    """A checkout session exists but nothing has captured yet -- the exact
-    state a ticket can print in when Accept lands before Stripe's
-    authorisation does. Confirmed as the direct cause of a real double-charge
-    2026-08-02: staff read "NOT PAID" and took payment again in person while
-    Stripe was still capturing the original online payment."""
+def test_card_checkout_started_but_not_captured_says_approved_not_unpaid():
+    """Stripe is holding the money; only the capture is outstanding.
+
+    Printing "NOT PAID" here caused a real double-charge on 2026-08-02 (OI-61):
+    staff read it and took payment again in person. Printing "CARD PROCESSING"
+    then caused a live scare on 2026-08-04 -- it reads as "we don't know yet"
+    about money that is actually secured. Since OI-65 an unapproved card order
+    cannot reach the kitchen at all, so this state always means APPROVED.
+    """
     out = _preview(
         _order(
             payment_status="unpaid",
@@ -322,7 +325,8 @@ def test_card_checkout_started_but_not_captured_is_not_shouted_as_unpaid():
             total=3200,
         )
     )
-    assert "CARD PROCESSING" in out
+    assert "CARD APPROVED" in out
+    assert "PROCESSING" not in out
     assert "NOT PAID" not in out
     assert "COLLECT £32.00" not in out
     assert "DO NOT COLLECT CASH" in out
@@ -335,7 +339,7 @@ def test_genuinely_cash_order_still_shouts_not_paid():
     )
     assert "NOT PAID" in out
     assert "COLLECT £32.00" in out
-    assert "CARD PROCESSING" not in out
+    assert "CARD APPROVED" not in out
 
 
 def test_captured_card_order_still_says_paid_online():
@@ -344,7 +348,7 @@ def test_captured_card_order_still_says_paid_online():
         _order(payment_status="paid", stripe_checkout_session_id="cs_test_123")
     )
     assert "PAID ONLINE" in out
-    assert "CARD PROCESSING" not in out
+    assert "CARD APPROVED" not in out
     assert "NOT PAID" not in out
 
 

@@ -90,12 +90,15 @@ function isPaid(order: OnlineOrder): boolean {
 }
 
 /**
- * A card checkout was started and Stripe has not captured it yet -- money is
- * very likely on its way (typically within seconds), NOT the same thing as
- * genuinely unpaid. Conflating the two into one "unpaid" banner is what
- * caused a real double-charge, 2026-08-02 (OI-61): staff read "NOT PAID" and
- * took payment again in person while Stripe was in the middle of capturing
- * the original online payment.
+ * Stripe has APPROVED this card and is holding the money; only the capture is
+ * outstanding, and that happens on Accept.
+ *
+ * Since OI-65 an unapproved card order cannot reach this tablet at all -- the
+ * server excludes it from every queue state -- so a card order on screen that
+ * is not yet `paid` is always an approved authorisation, never an unknown.
+ * Treating it as "unpaid" is what caused a real double-charge on 2026-08-02
+ * (OI-61); calling it "processing" caused a live scare on 2026-08-04. It is
+ * approved money and must be stated as such.
  */
 function isCardProcessing(order: OnlineOrder): boolean {
   return order.is_card_order && !isPaid(order);
@@ -874,11 +877,22 @@ export default function OnlineOrdersPage() {
                     NOT PAID — COLLECT {formatMoney(order.total, order.currency)}
                   </p>
                 ) : cardProcessing ? (
-                  // NOT the same as unpaid -- Stripe is very likely still
-                  // authorising/capturing (typically seconds). Staff must
-                  // not collect cash or re-charge a card here. See OI-61.
-                  <p className="mt-3 rounded-lg bg-amber-500 px-3 py-2 text-center text-base font-bold text-white">
-                    CARD — PAYMENT PROCESSING
+                  // Stripe has ALREADY APPROVED this card and is holding the
+                  // money -- since OI-65 an unapproved card order cannot reach
+                  // this tablet at all, in any tab. The only thing outstanding
+                  // is the capture, which happens the moment staff tap Accept.
+                  //
+                  // The old wording here said "PAYMENT PROCESSING", which read
+                  // as "we don't know yet" and caused a live scare on
+                  // 2026-08-04: two orders that were fully approved (and then
+                  // captured) looked unresolved on the shop floor. Approved
+                  // money must be stated as approved.
+                  <p className="mt-3 rounded-lg bg-green-600 px-3 py-2 text-center text-base font-bold text-white">
+                    CARD APPROVED — DO NOT COLLECT
+                    <span className="block text-xs font-normal">
+                      Stripe is holding {formatMoney(order.total, order.currency)}. It is
+                      charged automatically when you accept.
+                    </span>
                   </p>
                 ) : (
                   <p className="mt-3 rounded-lg bg-green-100 px-3 py-1.5 text-center text-sm font-semibold text-green-800">

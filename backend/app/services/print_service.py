@@ -257,7 +257,10 @@ def _render_copy(
     elif card_processing:
         # Short enough to survive double-size centering without wrapping --
         # see "*** PAID ONLINE ***"/"*** NOT PAID ***" above, same constraint.
-        t.center("*** CARD PROCESSING ***", bold=True, big=True)
+        # Says APPROVED, not "processing": since OI-65 an unapproved card order
+        # cannot reach the kitchen at all, so this state always means Stripe is
+        # holding the money and the capture lands on Accept.
+        t.center("*** CARD APPROVED ***", bold=True, big=True)
         t.center("DO NOT COLLECT CASH OR RE-CHARGE", bold=True)
     else:
         # Loud on purpose. A driver who assumes an order is prepaid does not

@@ -23,7 +23,7 @@ from datetime import datetime, time, timedelta, timezone
 from typing import Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from sqlalchemy import func, or_, select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -36,6 +36,7 @@ from app.models.user import Role, User
 from app.models.tenant import Tenant
 from app.schemas.public_order import PublicOrderCreate
 from app.services import audit_service, email_service, order_service, stripe_service
+from app.services.order_visibility import is_real_order
 from app.utils.security import hash_password
 
 logger = logging.getLogger(__name__)
@@ -1316,30 +1317,10 @@ async def list_merchant_orders(
 
     # ⚠️ A card order whose money Stripe has not confirmed is NOT IN THE POS.
     # Not in Pending, not in Active, not in All -- nowhere, in any view, until
-    # the payment is approved. No timeout and no grace window: if the customer
-    # takes two hours on the Checkout page the order appears two hours later,
-    # and if they never pay it never appears at all. A cash order has no
-    # checkout session and is never gated by this.
-    #
-    # Applied to EVERY state on purpose. OI-61 scoped the identical condition
-    # to `pending` only, which left the "All" tab showing unpaid card orders
-    # with live Accept buttons -- and that is the route staff actually took on
-    # 2026-08-03 (order 260803-003). Gating one view and leaving another open
-    # is not a rule, it is a suggestion.
-    #
-    # The single exception is an order that has already been ANSWERED. Hiding
-    # an order the kitchen is already cooking would be worse than showing it,
-    # and history has to stay legible in the log. Since `accept_order` now
-    # refuses unconfirmed card orders outright, a row can only be in that state
-    # if it was answered before this change shipped.
-    conditions += [
-        or_(
-            Order.stripe_checkout_session_id.is_(None),
-            Order.payment_authorized_at.is_not(None),
-            Order.accepted_at.is_not(None),
-            Order.rejected_at.is_not(None),
-        )
-    ]
+    # the payment is approved. Applied to EVERY state on purpose, and defined
+    # once in `order_visibility` so reports and the tablet can never disagree
+    # about what counts as a real order (they did, on 2026-08-04).
+    conditions += [is_real_order()]
 
     if state == "pending":
         conditions += [Order.accepted_at.is_(None), Order.rejected_at.is_(None)]

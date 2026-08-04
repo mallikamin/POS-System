@@ -10,6 +10,7 @@ from app.models.discount import OrderDiscount
 from app.models.order import Order, OrderItem, OrderStatusLog
 from app.models.payment import Payment, PaymentMethod
 from app.models.user import User
+from app.services.order_visibility import is_real_order
 
 
 async def get_sales_summary(
@@ -29,6 +30,10 @@ async def get_sales_summary(
         func.cast(Order.created_at, Date) >= date_from,
         func.cast(Order.created_at, Date) <= date_to,
         Order.status != "voided",
+        # A card order Stripe never approved is not revenue -- no money exists.
+        # Counting it overstated the client's own reports screen on 2026-08-04
+        # (£98.96 shown, £36.04 actually taken). Same rule the tablet uses.
+        is_real_order(),
     )
 
     total_row = (await db.execute(base)).one()
@@ -45,6 +50,7 @@ async def get_sales_summary(
             func.cast(Order.created_at, Date) >= date_from,
             func.cast(Order.created_at, Date) <= date_to,
             Order.status != "voided",
+            is_real_order(),
         )
         .group_by(Order.order_type)
     )
