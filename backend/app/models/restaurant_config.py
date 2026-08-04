@@ -69,6 +69,15 @@ class RestaurantConfig(BaseMixin, Base):
         "order regardless of payment method. 0 = disabled.",
     )
 
+    online_ordering_paused: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+        comment="When true the storefront stops taking online orders "
+        "(collection and delivery both) and tells customers to phone the shop. "
+        "Enforced server-side in create_public_order, not just in the UI.",
+    )
+
     online_ordering_only: Mapped[bool] = mapped_column(
         Boolean,
         default=False,

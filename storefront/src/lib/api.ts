@@ -74,6 +74,9 @@ export interface ApiCategory {
 export interface ApiMenuResponse {
   currency: string;
   categories: ApiCategory[];
+  /** The shop has paused online ordering during a rush (Imran, 2026-08-04). */
+  ordering_paused?: boolean;
+  ordering_paused_message?: string | null;
 }
 
 export interface ApiOrderLineRequest {

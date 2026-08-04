@@ -10,7 +10,7 @@ import {
 } from "../lib/delivery";
 import type { OrderTiming } from "../lib/delivery";
 import { orderLinesOf, subtotalOf, useCart } from "../store/cart";
-import { canOrder, useMenu } from "../store/menu";
+import { DEFAULT_PAUSED_MESSAGE, canOrder, useMenu } from "../store/menu";
 import { ApiError, createCheckoutSession, placeOrder } from "../lib/api";
 import type { ApiOrderResponse } from "../lib/api";
 import { savePendingOrder } from "../lib/pendingOrder";
@@ -40,7 +40,13 @@ export default function Checkout({ onBack, onPlaced }: Props) {
   // Ordering is gated ONLY on the feature being on and the menu genuinely
   // having come from the API. The clock never refuses an order — it only
   // decides whether this is for now or a pre-order for the next service.
-  const orderingLive = canOrder(menuSource);
+  // ...and on the shop not having pressed its own "we're slammed" button
+  // (Imran, 2026-08-04). That one is temporary and deliberate, so it gets its
+  // own message telling the customer to phone rather than the generic
+  // ordering-unavailable copy.
+  const orderingPaused = useMenu((s) => s.orderingPaused);
+  const pausedMessage = useMenu((s) => s.pausedMessage);
+  const orderingLive = canOrder(menuSource, orderingPaused);
 
   const [service, setService] = useState<ServiceType>(
     collectionOffered() ? "collection" : "delivery",
@@ -440,17 +446,31 @@ export default function Checkout({ onBack, onPlaced }: Props) {
           </button>
         </div>
       ) : (
-        /* Either ordering is not switched on yet, or the shop is shut for the
-           night. Never imply an order was placed — send them to the phone with
-           their basket total in hand. */
+        /* Either the shop has paused ordering during a rush, ordering is not
+           switched on yet, or the menu never loaded. Never imply an order was
+           placed — send them to the phone with their basket total in hand. */
         <div className="card p-4 space-y-3 border-ember/40">
           <p className="font-semibold text-ember">
-            Online ordering is coming very soon
+            {orderingPaused
+              ? "We're not taking online orders right now"
+              : "Online ordering is coming very soon"}
           </p>
           <p className="text-sm text-cream/70">
-            We're not taking online payments just yet. Give us a ring and we'll
-            get this order started — your total is{" "}
-            <strong className="text-cream">{formatGBP(total)}</strong>.
+            {orderingPaused ? (
+              /* Imran's own wording, server-supplied so it can be changed
+                 without a storefront deploy. The basket total is still shown —
+                 the customer is about to read it out over the phone. */
+              <>
+                {pausedMessage ?? DEFAULT_PAUSED_MESSAGE} Your total is{" "}
+                <strong className="text-cream">{formatGBP(total)}</strong>.
+              </>
+            ) : (
+              <>
+                We're not taking online payments just yet. Give us a ring and
+                we'll get this order started — your total is{" "}
+                <strong className="text-cream">{formatGBP(total)}</strong>.
+              </>
+            )}
           </p>
           <div className="grid gap-2">
             {SHOP.phones.map((p) => (

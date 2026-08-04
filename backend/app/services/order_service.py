@@ -43,8 +43,31 @@ VALID_TRANSITIONS: dict[str, list[str]] = {
 # ---------------------------------------------------------------------------
 
 
-async def generate_order_number(db: AsyncSession, tenant_id: uuid.UUID) -> str:
-    """Generate a daily sequential order number: YYMMDD-NNN."""
+#: Letter stamped into an online order's number so the fulfilment type is
+#: readable at a glance on the printed receipt (Imran, 2026-08-04):
+#: `260804-C001` collection, `260804-D002` delivery.
+SERVICE_TYPE_MARKERS = {"collection": "C", "delivery": "D"}
+
+
+async def generate_order_number(
+    db: AsyncSession, tenant_id: uuid.UUID, service_type: str | None = None
+) -> str:
+    """Generate a daily sequential order number: `YYMMDD-NNN`, or `YYMMDD-XNNN`.
+
+    **One shared counter per tenant per day**, deliberately -- the letter marks
+    which category an order belongs to, it does not start a separate sequence.
+    So a collection order followed by a delivery order reads `260804-C001` then
+    `260804-D002`, and the plain sequence stays the single source of "how many
+    orders today", which is what makes them easy to track and impossible to
+    confuse with each other.
+
+    The count is a row count, not a parse of previous numbers, so introducing
+    the letter cannot disturb the sequence -- old and new formats coexist
+    safely and no existing order number is ever rewritten.
+
+    `service_type` is only set on online orders. Every other channel (dine-in,
+    takeaway, call centre) passes `None` and keeps the original `YYMMDD-NNN`.
+    """
     now = datetime.now(timezone.utc)
     date_prefix = now.strftime("%y%m%d")
 
@@ -55,7 +78,8 @@ async def generate_order_number(db: AsyncSession, tenant_id: uuid.UUID) -> str:
         )
     )
     count = result.scalar_one()
-    return f"{date_prefix}-{count + 1:03d}"
+    marker = SERVICE_TYPE_MARKERS.get((service_type or "").lower(), "")
+    return f"{date_prefix}-{marker}{count + 1:03d}"
 
 
 # ---------------------------------------------------------------------------

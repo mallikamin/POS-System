@@ -4,7 +4,7 @@ import { formatGBP } from "./lib/money";
 import { isOpenNow } from "./lib/delivery";
 import type { OrderTiming } from "./lib/delivery";
 import { itemCountOf, subtotalOf, useCart } from "./store/cart";
-import { useMenu } from "./store/menu";
+import { DEFAULT_PAUSED_MESSAGE, useMenu } from "./store/menu";
 import type { ApiOrderResponse } from "./lib/api";
 import MenuBrowser from "./components/MenuBrowser";
 import CartPanel from "./components/CartPanel";
@@ -39,6 +39,8 @@ export default function App() {
   const loadMenu = useMenu((s) => s.load);
   const menuItems = useMenu((s) => s.items);
   const menuSource = useMenu((s) => s.source);
+  const orderingPaused = useMenu((s) => s.orderingPaused);
+  const pausedMessage = useMenu((s) => s.pausedMessage);
 
   // Coming back from Stripe.
   //
@@ -125,12 +127,23 @@ export default function App() {
             <p className="text-cream/60 mt-2">
               {SHOP.addressLines.join(", ")} · {SHOP.postcode}
             </p>
-            {!open && (
-              <p className="mt-4 card p-3 text-sm text-ember">
-                We're closed right now — but you can still order. Open daily{" "}
-                {SHOP.openTime}–{SHOP.closeTime}; we'll confirm your pre-order
-                when we open.
+            {/* The shop has paused ordering during a rush (Imran, 2026-08-04).
+                Said here, at the top of the menu, rather than only at checkout
+                — a customer who builds a whole basket before being told to
+                phone has been wasted, and this outranks the closed/pre-order
+                notice below because it is the reason they cannot order at all. */}
+            {orderingPaused ? (
+              <p className="mt-4 card p-3 text-sm text-ember border-ember/40">
+                {pausedMessage ?? DEFAULT_PAUSED_MESSAGE}
               </p>
+            ) : (
+              !open && (
+                <p className="mt-4 card p-3 text-sm text-ember">
+                  We're closed right now — but you can still order. Open daily{" "}
+                  {SHOP.openTime}–{SHOP.closeTime}; we'll confirm your pre-order
+                  when we open.
+                </p>
+              )
             )}
             {/* Imran asked (2026-08-03) for last-order/delivery-window times
                 to be visible on the site itself, not just shown reactively

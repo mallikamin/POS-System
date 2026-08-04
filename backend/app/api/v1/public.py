@@ -60,13 +60,14 @@ from app.schemas.public_order import (
     PublicOrderStatusResponse,
 )
 from app.services import (
+    audit_service,
     escpos,
     order_service,
     print_service,
     public_order_service,
     stripe_service,
 )
-from app.services.public_order_service import PublicOrderError
+from app.services.public_order_service import OnlineOrderingPaused, PublicOrderError
 
 logger = logging.getLogger(__name__)
 
@@ -131,8 +132,17 @@ async def get_public_menu(
     """The live menu, filtered to what can actually be ordered right now."""
     tenant_id = await _resolve_tenant_id(db, tenant_slug)
     currency, categories = await public_order_service.get_public_menu(db, tenant_id)
+    paused = await public_order_service.is_online_ordering_paused(db, tenant_id)
     return PublicMenuResponse.model_validate(
-        {"currency": currency, "categories": categories}, from_attributes=True
+        {
+            "currency": currency,
+            "categories": categories,
+            "ordering_paused": paused,
+            "ordering_paused_message": (
+                public_order_service.ONLINE_ORDERING_PAUSED_MESSAGE if paused else None
+            ),
+        },
+        from_attributes=True,
     )
 
 
@@ -160,6 +170,13 @@ async def create_public_order(
     tenant_id = await _resolve_tenant_id(db, tenant_slug)
     try:
         order = await public_order_service.create_public_order(db, tenant_id, body)
+    except OnlineOrderingPaused as exc:
+        # 503, not 409: nothing is wrong with the basket. The shop has closed
+        # the channel for a while, and this is a distinct, retryable condition
+        # the storefront renders as Imran's "please phone us" message.
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
+        ) from exc
     except PublicOrderError as exc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail=str(exc)
@@ -471,6 +488,59 @@ async def get_public_order_status(
 # These sit here because they are part of the online-ordering flow, but they
 # are staff actions and are guarded accordingly. They are mounted under
 # /public/manage rather than /public so the distinction is visible in the URL.
+
+
+@router.get("/manage/ordering-paused")
+async def get_ordering_paused(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Is online ordering currently paused for this shop?"""
+    paused = await public_order_service.is_online_ordering_paused(
+        db, current_user.tenant_id
+    )
+    return {"paused": paused}
+
+
+@router.post("/manage/ordering-paused")
+async def set_ordering_paused(
+    paused: bool = Body(..., embed=True),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Stop or resume online ordering -- collection and delivery together.
+
+    Imran's rush button (2026-08-04). While paused the storefront tells the
+    customer to phone the shop, and `create_public_order` refuses outright, so
+    orders attempted during the pause are lost by design rather than queued:
+    the whole point is to move people to the phone, and a backlog arriving the
+    instant the shop resumes would defeat it.
+    """
+    try:
+        now_paused = await public_order_service.set_online_ordering_paused(
+            db, current_user.tenant_id, paused
+        )
+    except PublicOrderError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=str(exc)
+        ) from exc
+
+    await audit_service.log_action(
+        db,
+        tenant_id=current_user.tenant_id,
+        user_id=current_user.id,
+        entity_type="restaurant_config",
+        entity_id=None,
+        action="online_ordering_paused" if now_paused else "online_ordering_resumed",
+        detail=(
+            "Online ordering paused during a rush."
+            if now_paused
+            else "Online ordering resumed."
+        ),
+        changes={"paused": now_paused},
+    )
+    await db.commit()
+    return {"paused": now_paused}
 
 
 @router.get("/manage/orders", response_model=MerchantQueueResponse)

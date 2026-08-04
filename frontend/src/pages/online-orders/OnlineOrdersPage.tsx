@@ -1,16 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { Bell, BellOff, BarChart3 } from "lucide-react";
+import { Bell, BellOff, BarChart3, Pause, Play } from "lucide-react";
 import {
   acceptOnlineOrder,
   completeOnlineOrder,
   fetchTicketUrl,
+  getOrderingPaused,
   listOnlineOrders,
   markOnlineOrderPaid,
   markOnlineOrderReady,
   printTicket,
   rejectOnlineOrder,
   sendToPrinter,
+  saveOrderingPaused,
   type OnlineOrder,
   type OnlineOrderSort,
   type OnlineOrderState,
@@ -336,6 +338,15 @@ export default function OnlineOrdersPage() {
   // keeps it usable for every later chime fired from a poll.
   const audioCtxRef = useRef<AudioContext | null>(null);
   const [audioReady, setAudioReady] = useState(false);
+  // Imran's rush button. `orderingPaused` mirrors the server and is re-read on
+  // every poll, never assumed from the last tap -- two tablets share one shop,
+  // so a pause made on one must show on the other.
+  const [orderingPaused, setOrderingPaused] = useState(false);
+  const [pausingOrders, setPausingOrders] = useState(false);
+  // Turning ordering OFF is confirmed first; turning it back ON is not.
+  // The dangerous direction is the one that silently turns paying customers
+  // away, and it is the one nobody notices they left on.
+  const [confirmPause, setConfirmPause] = useState(false);
 
   const enableSound = useCallback(() => {
     try {
@@ -502,6 +513,16 @@ export default function OnlineOrdersPage() {
       } catch {
         // Same as the main poll: a dropped request on shop wifi is normal.
       }
+
+      // Re-read the pause state from the server rather than trusting the last
+      // tap on THIS tablet -- the shop may have a second one, and a stale
+      // "Pause orders" button would be worse than none at all.
+      try {
+        const paused = await getOrderingPaused();
+        if (!cancelled) setOrderingPaused(paused);
+      } catch {
+        // Leave the last known value; a dropped poll must not flip the button.
+      }
     }
 
     void checkForNewOrders();
@@ -561,6 +582,46 @@ export default function OnlineOrdersPage() {
       await refreshCurrent();
     } finally {
       setBusyId(null);
+    }
+  }
+
+  /**
+   * Stop or resume online ordering (Imran, 2026-08-04).
+   *
+   * The server is the authority: this sets state from what the API returns,
+   * never from what was requested, so a failed call cannot leave the button
+   * claiming the shop is closed when it is still taking orders.
+   */
+  async function toggleOrdering() {
+    // Pausing turns real, paying customers away, so it is confirmed first.
+    // Resuming is the safe direction and stays one tap -- a shop that has
+    // caught up should never have to argue with a dialog to reopen.
+    if (!orderingPaused) {
+      setConfirmPause(true);
+      return;
+    }
+    await applyOrderingPaused(false);
+  }
+
+  async function applyOrderingPaused(next: boolean) {
+    setConfirmPause(false);
+    setPausingOrders(true);
+    try {
+      const now = await saveOrderingPaused(next);
+      setOrderingPaused(now);
+      toast({
+        title: now ? "Online ordering PAUSED" : "Online ordering resumed",
+        description: now
+          ? "Customers are now told to phone the shop. Orders placed while paused are not saved."
+          : "The website is taking collection and delivery orders again.",
+      });
+    } catch (err) {
+      const detail =
+        (err as { response?: { data?: { detail?: string } } })?.response?.data
+          ?.detail ?? "Could not change online ordering.";
+      toast({ title: "Not changed", description: detail, variant: "destructive" });
+    } finally {
+      setPausingOrders(false);
     }
   }
 
@@ -666,6 +727,44 @@ export default function OnlineOrdersPage() {
 
   return (
     <div className="min-h-screen bg-secondary-100 p-4">
+      {/* Confirm before turning ordering OFF. Deliberately a blocking overlay
+          rather than a toast-and-undo: by the time an "undo" is noticed the
+          website has already been turning customers away. Uses the page's own
+          inline-confirm pattern (see the ETA and reject panels) rather than
+          window.confirm, which Chrome on this tablet renders inconsistently. */}
+      {confirmPause && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+            <h2 className="text-xl font-bold text-secondary-900">
+              Turn off online ordering?
+            </h2>
+            <p className="mt-3 text-base text-secondary-700">
+              This will <strong>disable live orders</strong>. Customers will not
+              be able to place or pay for an order on the website — they will be
+              told to phone the shop instead.
+            </p>
+            <p className="mt-2 text-sm font-semibold text-red-700">
+              Proceed with caution. Orders attempted while it is off are not
+              saved.
+            </p>
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              <button
+                onClick={() => setConfirmPause(false)}
+                className="h-14 rounded-xl border-2 border-secondary-300 text-base font-bold text-secondary-700"
+              >
+                Keep taking orders
+              </button>
+              <button
+                disabled={pausingOrders}
+                onClick={() => void applyOrderingPaused(true)}
+                className="h-14 rounded-xl bg-red-600 text-base font-bold text-white disabled:opacity-50"
+              >
+                Yes, turn off
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <header className="mb-4 flex items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-secondary-900">Online orders</h1>
@@ -686,6 +785,31 @@ export default function OnlineOrdersPage() {
             <BarChart3 className="h-5 w-5" />
             Reports
           </Link>
+          {/* Imran's rush button (2026-08-04). Deliberately styled as the loud
+              exception rather than another neutral tab: while it is on, the
+              shop is turning real customers away, and nobody should be able to
+              leave it on by accident after the rush passes. */}
+          <button
+            onClick={() => void toggleOrdering()}
+            disabled={pausingOrders}
+            title={
+              orderingPaused
+                ? "Online ordering is OFF. Customers are being told to phone the shop."
+                : "Stop taking online orders (collection and delivery) during a rush"
+            }
+            className={`flex h-14 items-center gap-2 rounded-xl px-4 text-base font-bold disabled:opacity-50 ${
+              orderingPaused
+                ? "animate-pulse bg-red-600 text-white"
+                : "bg-secondary-100 text-secondary-800"
+            }`}
+          >
+            {orderingPaused ? (
+              <Play className="h-5 w-5" />
+            ) : (
+              <Pause className="h-5 w-5" />
+            )}
+            {orderingPaused ? "Orders OFF — tap to resume" : "Pause orders"}
+          </button>
           <button
             onClick={enableSound}
             title={

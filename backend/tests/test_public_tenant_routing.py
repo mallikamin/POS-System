@@ -25,6 +25,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.menu import Category, MenuItem
@@ -188,6 +189,137 @@ async def test_order_is_written_to_the_tenant_named_in_the_path(
     order = await db.get(Order, uuid.UUID(resp.json()["id"]))
     assert order is not None
     assert order.tenant_id == tenant.id
+
+
+async def _set_paused(db: AsyncSession, tenant_id, paused: bool) -> None:
+    await db.execute(
+        RestaurantConfig.__table__.update()
+        .where(RestaurantConfig.tenant_id == tenant_id)
+        .values(online_ordering_paused=paused)
+    )
+    await db.commit()
+
+
+async def test_a_paused_shop_refuses_the_order_and_writes_nothing(
+    client: AsyncClient,
+    db: AsyncSession,
+    tenant: Tenant,
+    uk_menu: MenuItem,
+):
+    """Imran's rush button (2026-08-04). THE guarantee: while it is on, a
+    customer cannot place an order -- and no half-order is left behind for the
+    shop to trip over.
+
+    Enforced on the endpoint, not merely hidden in the storefront: a stale
+    browser tab, a bookmarked checkout or a direct POST must all be refused.
+    That is the lesson from OI-61/OI-65 -- a client-side check is a suggestion.
+    """
+    before = (await db.execute(select(func.count(Order.id)))).scalar_one()
+    await _set_paused(db, tenant.id, True)
+
+    resp = await client.post(
+        "/api/v1/public/test-restaurant/orders",
+        json={
+            "service_type": "collection",
+            "customer_name": "Imran R",
+            "customer_phone": "07909313456",
+            "items": [{"menu_item_id": str(uk_menu.id), "quantity": 1}],
+        },
+    )
+
+    assert resp.status_code == 503, resp.text
+    assert "07719 566 889" in resp.json()["detail"]
+    after = (await db.execute(select(func.count(Order.id)))).scalar_one()
+    assert after == before, "a paused shop must not create an order row at all"
+
+
+async def test_resuming_lets_orders_through_again(
+    client: AsyncClient,
+    db: AsyncSession,
+    tenant: Tenant,
+    uk_menu: MenuItem,
+):
+    """The resume half has to work as cleanly as the pause half."""
+    await _set_paused(db, tenant.id, True)
+    await _set_paused(db, tenant.id, False)
+
+    resp = await client.post(
+        "/api/v1/public/test-restaurant/orders",
+        json={
+            "service_type": "collection",
+            "customer_name": "Imran R",
+            "customer_phone": "07909313456",
+            "items": [{"menu_item_id": str(uk_menu.id), "quantity": 1}],
+        },
+    )
+    assert resp.status_code == 201, resp.text
+
+
+async def test_the_menu_tells_the_storefront_it_is_paused(
+    client: AsyncClient, db: AsyncSession, tenant: Tenant, uk_menu: MenuItem
+):
+    """So the customer sees Imran's wording instead of a dead button."""
+    live = await client.get("/api/v1/public/test-restaurant/menu")
+    assert live.json()["ordering_paused"] is False
+    assert live.json()["ordering_paused_message"] is None
+
+    await _set_paused(db, tenant.id, True)
+    paused = await client.get("/api/v1/public/test-restaurant/menu")
+    assert paused.json()["ordering_paused"] is True
+    assert "07719 566 889" in paused.json()["ordering_paused_message"]
+
+
+async def test_pausing_is_per_tenant_and_cannot_close_another_shop(
+    client: AsyncClient,
+    db: AsyncSession,
+    tenant: Tenant,
+    uk_menu: MenuItem,
+    pk_menu: MenuItem,
+):
+    """One tenant's rush must never close another tenant's storefront.
+
+    Asserted on the menu flag rather than by placing an order, because the
+    `pk_menu` fixture deliberately has no role for its tenant (see `uk_menu`'s
+    docstring) and so cannot place orders for unrelated reasons -- an order
+    assertion here would pass whether or not pausing were tenant-scoped.
+    """
+    await _set_paused(db, tenant.id, True)
+
+    other = await client.get("/api/v1/public/other-restaurant/menu")
+    assert other.json()["ordering_paused"] is False
+    assert other.json()["ordering_paused_message"] is None
+
+    # ...and the paused one really is paused, so this is a genuine comparison.
+    mine = await client.get("/api/v1/public/test-restaurant/menu")
+    assert mine.json()["ordering_paused"] is True
+
+
+async def test_online_order_numbers_carry_the_collection_delivery_letter(
+    client: AsyncClient,
+    db: AsyncSession,
+    tenant: Tenant,
+    uk_menu: MenuItem,
+):
+    """Imran, 2026-08-04: `260804-C001` collection, `260804-D002` delivery.
+
+    ONE shared counter -- the letter marks the category, it does not start a
+    separate sequence -- so the numbers stay easy to track in order.
+    """
+    resp = await client.post(
+        "/api/v1/public/test-restaurant/orders",
+        json={
+            "service_type": "collection",
+            "customer_name": "Imran R",
+            "customer_phone": "07909313456",
+            "items": [{"menu_item_id": str(uk_menu.id), "quantity": 1}],
+        },
+    )
+    assert resp.status_code == 201, resp.text
+    first = resp.json()["order_number"]
+    assert "-C" in first, first
+
+    # The counter keeps going; only the letter changes with the service type.
+    assert first.split("-C")[1] == "001"
 
 
 async def test_service_fee_is_snapshotted_onto_the_order_from_tenant_config(

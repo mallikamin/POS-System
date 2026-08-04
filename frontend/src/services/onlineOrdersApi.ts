@@ -95,6 +95,34 @@ export async function listOnlineOrders(
   return data;
 }
 
+/**
+ * Is online ordering currently paused? (Imran's rush button, 2026-08-04.)
+ *
+ * Polled alongside the queue so a pause made on one tablet shows up on any
+ * other, and so the button can never claim a state the server disagrees with.
+ */
+export async function getOrderingPaused(): Promise<boolean> {
+  const { data } = await api.get<{ paused: boolean }>(
+    "/public/manage/ordering-paused",
+  );
+  return data.paused;
+}
+
+/**
+ * Stop or resume online ordering — collection and delivery together.
+ *
+ * Orders attempted while paused are refused outright by the server, not
+ * queued: the point is to divert customers to the phone, so a backlog landing
+ * the instant the shop resumes would defeat it.
+ */
+export async function saveOrderingPaused(paused: boolean): Promise<boolean> {
+  const { data } = await api.post<{ paused: boolean }>(
+    "/public/manage/ordering-paused",
+    { paused },
+  );
+  return data.paused;
+}
+
 export async function acceptOnlineOrder(
   orderId: string,
   etaMinutes: number,

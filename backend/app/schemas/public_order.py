@@ -75,6 +75,12 @@ class PublicMenuResponse(BaseModel):
 
     currency: str
     categories: list[PublicCategory] = []
+    # The shop has pressed "stop taking orders" during a rush. The storefront
+    # shows `ordering_paused_message` and blocks checkout; the server refuses
+    # the order anyway (see `create_public_order`), so this is for explaining,
+    # never for enforcing.
+    ordering_paused: bool = False
+    ordering_paused_message: str | None = None
 
 
 # ---------------------------------------------------------------------------

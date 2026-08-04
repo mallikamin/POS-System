@@ -74,6 +74,25 @@ class PublicOrderError(Exception):
     """Rejected for a reason the customer should see. Maps to HTTP 409."""
 
 
+#: Shown to the customer when the shop has paused online ordering. Imran's own
+#: wording (via Malik, 2026-08-04) -- kept verbatim, including the phone number,
+#: because the whole purpose of the pause is to move the customer to the phone.
+ONLINE_ORDERING_PAUSED_MESSAGE = (
+    "We are facing high demand at the moment, please directly call the "
+    "restaurant 07719 566 889 to place your order. We appreciate your "
+    "patience in this regard."
+)
+
+
+class OnlineOrderingPaused(PublicOrderError):
+    """The shop has stopped taking online orders during a rush.
+
+    Its own type so the storefront can render the "please phone us" message
+    rather than a generic basket error -- this is not a fault, it is the shop
+    deliberately closing the channel for a while.
+    """
+
+
 class CardPaymentNotConfirmed(PublicOrderError):
     """Accept was attempted on a card order whose money Stripe has not confirmed.
 
@@ -118,6 +137,36 @@ async def get_public_menu(db: AsyncSession, tenant_id: uuid.UUID) -> tuple[str, 
 
     currency = await get_currency(db, tenant_id)
     return currency, categories
+
+
+async def is_online_ordering_paused(db: AsyncSession, tenant_id: uuid.UUID) -> bool:
+    """Has the shop pressed the "we're slammed, stop taking orders" button?
+
+    Read by the menu endpoint so the storefront can explain itself, and by
+    `create_public_order` so it is actually enforced. Both, deliberately: a
+    check that only exists in the browser is a suggestion.
+    """
+    result = await db.execute(
+        select(RestaurantConfig.online_ordering_paused).where(
+            RestaurantConfig.tenant_id == tenant_id
+        )
+    )
+    return bool(result.scalar_one_or_none())
+
+
+async def set_online_ordering_paused(
+    db: AsyncSession, tenant_id: uuid.UUID, paused: bool
+) -> bool:
+    """Flip the switch. Returns the value now in force."""
+    result = await db.execute(
+        select(RestaurantConfig).where(RestaurantConfig.tenant_id == tenant_id)
+    )
+    config = result.scalar_one_or_none()
+    if config is None:
+        raise PublicOrderError("This shop has no configuration record.")
+    config.online_ordering_paused = paused
+    await db.commit()
+    return paused
 
 
 async def get_currency(db: AsyncSession, tenant_id: uuid.UUID) -> str:
@@ -449,6 +498,12 @@ async def create_public_order(
     `accept_order` / `reject_order`. This is the merchant accept/reject gate the
     client asked for, and it is also why no kitchen ticket is created here.
     """
+    # Checked here, not only in the storefront. The shop presses this button
+    # when the kitchen is drowning; a stale browser tab must not be able to
+    # push one more order through, and a client-side check is a suggestion.
+    if await is_online_ordering_paused(db, tenant_id):
+        raise OnlineOrderingPaused(ONLINE_ORDERING_PAUSED_MESSAGE)
+
     lines, subtotal = await _price_basket(db, tenant_id, data)
     delivery_fee, area_name = await _resolve_delivery(db, tenant_id, data, subtotal)
     service_fee = await get_service_fee(db, tenant_id)
@@ -489,7 +544,11 @@ async def create_public_order(
 
     order = Order(
         tenant_id=tenant_id,
-        order_number=await order_service.generate_order_number(db, tenant_id),
+        # Carries the C/D marker for collection vs delivery, so the printed
+        # receipt says which it is in the number itself (Imran, 2026-08-04).
+        order_number=await order_service.generate_order_number(
+            db, tenant_id, service_type=data.service_type
+        ),
         order_type="online",
         status="confirmed",
         payment_status="unpaid",

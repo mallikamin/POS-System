@@ -26,6 +26,16 @@ interface MenuState {
   categories: Category[];
   items: MenuItem[];
   currency: string;
+  /**
+   * The shop has pressed its own "we're slammed" button (Imran, 2026-08-04).
+   *
+   * Distinct from every other reason ordering can be off: this one is
+   * temporary, deliberate, and comes with a specific instruction to phone the
+   * shop. It is re-read on every menu load, and the server refuses orders
+   * while it is set regardless of what this copy of the app believes.
+   */
+  orderingPaused: boolean;
+  pausedMessage: string | null;
   load: () => Promise<void>;
 }
 
@@ -37,6 +47,8 @@ export const useMenu = create<MenuState>()((set) => ({
   categories: CATEGORIES,
   items: MENU_ITEMS,
   currency: SHOP.currency,
+  orderingPaused: false,
+  pausedMessage: null,
 
   load: async () => {
     try {
@@ -55,6 +67,8 @@ export const useMenu = create<MenuState>()((set) => ({
         categories,
         items,
         currency: response.currency,
+        orderingPaused: response.ordering_paused ?? false,
+        pausedMessage: response.ordering_paused_message ?? null,
       });
     } catch {
       // `api.ts` has already turned this into something loggable. Here the only
@@ -67,11 +81,21 @@ export const useMenu = create<MenuState>()((set) => ({
 /**
  * Whether a real order can be placed right now.
  *
- * Two independent gates, and both must hold:
+ * Three independent gates, and all must hold:
  *   1. `SHOP.orderingEnabled` — the deliberate master switch.
  *   2. The menu came from the API — otherwise the basket holds slug ids that
  *      the order endpoint will reject.
+ *   3. The shop has not paused ordering during a rush (Imran, 2026-08-04).
+ *
+ * `paused` is passed in rather than read from the store here so this stays a
+ * pure function, like it already was for `source`.
  */
-export function canOrder(source: MenuSource): boolean {
-  return SHOP.orderingEnabled && source === "api";
+export function canOrder(source: MenuSource, paused = false): boolean {
+  return SHOP.orderingEnabled && source === "api" && !paused;
 }
+
+/** The message to show when the shop has paused ordering, with a safe default. */
+export const DEFAULT_PAUSED_MESSAGE =
+  "We are facing high demand at the moment, please directly call the " +
+  "restaurant 07719 566 889 to place your order. We appreciate your " +
+  "patience in this regard.";
