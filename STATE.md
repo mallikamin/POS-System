@@ -1,8 +1,97 @@
 # STATE — Restaurant POS System
 
-**Last refreshed:** 2026-08-04 — session T. **Branch:** `main`, HEAD `d3d1e7d`.
+**Last refreshed:** 2026-08-05 (02:20 UK) — session T. **Branch:** `main`, HEAD `99b6757`.
+**Nothing is in flight. All work below is deployed, verified live, and committed.**
 
-**⚠️ Read this before anything else about OI-65.** The session's FIRST attempt (`a7da2fb`) was a
+## 🟢 Where things stand at the end of 2026-08-04
+
+**The shop's first full day on the fixed card flow: 11 online orders, all 11 paid, £349.72, zero
+unpaid, zero rejected.** Verified against the production DB, not assumed. Every order was card, every
+one captured. Malik's own read of the evening: *"rest of the day went smooth."*
+
+| Order | Placed (UK) | Type | Total | Paid |
+|---|---|---|---|---|
+| `260804-001` … `-004` | 15:26–16:24 | mixed | £36.04 / £62.92 / £70.32 / £12.69 | ✅ |
+| `260804-D005` … `-C011` | 16:46–19:56 | mixed | £15.67 … £20.86 | ✅ |
+
+The switch from `260804-004` to `260804-D005` mid-service is the C/D numbering going live. **No
+existing order number was rewritten** — by design.
+
+**🔴 Resume here — nothing is broken; these are the open threads:**
+1. **Imran/Malik UAT the pause button on the real tablet.** It is live but has never been pressed in
+   anger. It needs a page refresh on the tablet to appear (new JS bundle, old one cached) — Malik hit
+   exactly this and thought it was missing.
+2. **OI-60 (backend log persistence) is still paused and uncommitted**, untouched since session Q.
+   6 files written, not build-tested. See `_state/open-items.md` OI-60.
+3. **OI-63 test flakiness is now understood but unfixed** — see the note at the bottom of this block.
+
+### What happened on 2026-08-04 (sessions T, in order)
+
+**1. OI-65 — the card gate, rebuilt as an actual rule.** Imran's screenshot showed order `260803-003`
+reading "CARD — PAYMENT PROCESSING" while already accepted. Root cause: OI-61's gate was a `WHERE`
+clause on the `pending` query only, and the tablet's ungated **All** tab still drew live Accept
+buttons. `accept_order` had no server-side check at all. Money was never at risk — 16 card orders
+across 02–03 Aug reconciled 1:1 against 16 live Stripe PaymentIntents, all `succeeded`.
+- ⚠️ **My first attempt was rejected, correctly.** It gated only `pending` (repeating the same
+  mistake) and papered over the hole with a "Waiting for the customer's card payment" panel on the
+  All tab. Malik: *"'waiting for customer's card payment' is exactly what we dont want to show in
+  POS… why are u putting in temporary hacks?"* **Lesson kept: when a rule is bypassed through an
+  ungated view, close the view — never dress the hole up in the UI.**
+- Final shape (`d3d1e7d`): gate on **every** queue state; hard server-side guard in `accept_order`
+  (`CardPaymentNotConfirmed`); no grace window at all; poll-time Stripe re-check so publication never
+  depends on one webhook; atomic conditional `UPDATE` for the publication claim; "order received"
+  email moved to the moment Stripe approves. Tablet files reverted byte-identical to `1f55cf1`.
+
+**2. The £98.96 report scare — the real money-display bug.** The reports screen showed £98.96 online
+and "prepaid" revenue when only £36.04 had been taken. Two causes: both report queries summed
+`Order.total` for every non-voided order, and "prepaid" meant `stripe_checkout_session_id IS NOT
+NULL` — a session created the instant the customer reaches Stripe, paid or not.
+- Fixed in `4e2fe5c`: prepaid now means `payment_captured_at IS NOT NULL`, and reports exclude card
+  orders Stripe never approved, exactly as the tablet does.
+- **Root cause of all three incidents in three days was the same**: the "is this order real" rule
+  written in one place and not the others. It now lives once, in
+  **`backend/app/services/order_visibility.py`** (`is_real_order()` / `money_actually_taken()`), and
+  the queue, the reports and the prepaid split all import it. **Do not re-express it inline.**
+- Same commit fixed the wording that caused the scare: an order on the tablet is now *always*
+  Stripe-approved, so "CARD — PAYMENT PROCESSING" was false. Reads **`CARD APPROVED — DO NOT
+  COLLECT`** with the held amount; ticket prints `*** CARD APPROVED ***`.
+
+**3. Imran's two new features (`6378b67`).**
+- **Pause online ordering** — one tablet button, stops collection and delivery together. Enforced
+  server-side in `create_public_order` (HTTP 503, `OnlineOrderingPaused`), **not just hidden in the
+  storefront**. While off the customer's whole checkout form — name, phone, address and the Pay
+  button — is not rendered; they get Imran's exact wording with the phone number, on the homepage and
+  at checkout. Orders attempted while paused are **lost by design** (Malik's explicit call).
+  Default is ON. Turning OFF asks for confirmation; resuming is one tap.
+- **C/D in online order numbers** — `260804-C001` / `260804-D002`, **one shared counter**.
+
+**4. The counter race Malik caught (`99b6757`).** He spotted that a probe printed `-C006` and `-D006`
+together and asked how two orders could share a number. The probe output was misleading (three calls,
+nothing saved between them) — but he had found a real hole I introduced: with the C/D letter,
+`count(*) + 1` could hand `C006` and `D006` to two simultaneous orders, and those are *different
+strings*, so `uq_order_tenant_number` could not catch it either.
+- Fixed: allocate from the **highest number already issued today** with the letter stripped (one
+  sequence across both letters, and no rewind onto a number already printed when a row is voided),
+  under a per-tenant `FOR UPDATE` lock so a read-modify-write cannot double-issue.
+- Checked production first: **zero duplicate order numbers have ever existed.** Closed before it bit.
+  The closest real case was `C010`/`C011`, 22 seconds apart — well outside the window.
+
+### Verification standard actually met (not just claimed)
+515 tests passing, failure list compared against a clean-HEAD `git worktree` — **zero regressions**.
+`ruff` clean on touched files, `tsc`/`vite build` clean for tablet and storefront. Deploy verified by
+reading symbols **out of the running application object**, resolving `index.html` → entry → chunk for
+the frontends, and proving the queue gate end-to-end with a probe order that was rolled back.
+
+### ⚠️ Two traps that cost time today — read before verifying anything
+- **`/usr/share/nginx/html/assets/` accumulates every historical chunk** (uploads never `--delete`).
+  Grepping the assets directory proves nothing. Resolve `index.html` → `index-*.js` → the chunk it
+  actually imports.
+- **~10 test failures are time-of-day dependent, not real** — the OI-63 UTC-vs-Europe/London boundary
+  bug. They fail late at night and pass in the afternoon. **A baseline captured at 23:00 is not
+  comparable to a run at 16:30.** Re-baseline at the same clock, in a worktree, before claiming
+  regressions. Still unfixed; this is the honest explanation for the count moving 21 → 13 → 10.
+
+**⚠️ Superseded — kept only for the lesson.** The session's FIRST attempt (`a7da2fb`) was a
 workaround and Malik rejected it, correctly. It gated only `state="pending"` — inheriting OI-61's
 original scoping mistake — and then papered over the resulting hole by replacing the tablet's
 Accept/Reject buttons with a "Waiting for the customer's card payment" panel on the "All" tab. Two

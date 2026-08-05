@@ -1,6 +1,95 @@
 # Open items register
 
-**OI-65 🟠 BUILT + TESTED, NOT YET DEPLOYED — the OI-61 card-payment gate was bypassed in
+**OI-68 🟢 SHIPPED + VERIFIED LIVE (`99b6757`, 2026-08-05) — order-number allocation race.**
+Malik caught this from a probe that printed `260804-C006` and `260804-D006` together. The probe
+output was misleading (three generator calls, nothing saved between them, so all three correctly
+reported "next is 006") — but he had found a real hole introduced by OI-67's C/D marker:
+`generate_order_number` derived the number from `count(*) + 1`, so two customers checking out in the
+same instant both took the same sequence, and because `-C006` and `-D006` are *different strings*
+the `uq_order_tenant_number` unique index could not catch the collision either. Before the letter
+existed, that index was an accidental safety net; the letter removed it.
+- **Fixed two ways, both needed.** (a) Allocate from the **highest number already issued today**,
+  letter stripped — one sequence across both letters, and no rewinding onto a number already printed
+  on a receipt when a row is voided or deleted (which `count(*)` did). (b) A per-tenant `FOR UPDATE`
+  lock on the config row, because read-max-then-insert is still a read-modify-write. SQLite omits
+  `FOR UPDATE` and the tests are single-threaded, so nothing is lost there.
+- **Checked production before changing anything: zero duplicate order numbers have ever existed.**
+  Closed before it bit. Closest real case: `260804-C010` / `-C011`, **22 seconds** apart.
+- 3 new tests: shared counter across C/D, no re-issue after a deletion, till orders keep
+  `YYMMDD-NNN` while drawing from the same sequence.
+
+---
+
+**OI-67 🟢 SHIPPED + VERIFIED LIVE (`6378b67`, 2026-08-04) — Imran's two feature asks.**
+
+**(a) Pause online ordering.** One button on the tablet that stops collection AND delivery together
+during a rush, and resumes as cleanly.
+- **Enforced server-side** in `create_public_order` — HTTP 503 with its own `OnlineOrderingPaused`
+  type — **not merely hidden in the storefront**. A stale tab, a bookmarked checkout or a direct POST
+  are all refused and **no order row is written**. This is the OI-61/OI-65 lesson applied up front
+  rather than after an incident.
+- **No submission is possible on the website while off** (Malik was explicit): the entire checkout
+  form — name, phone, address and the Pay button — is not rendered. Replaced by Imran's exact
+  wording, *"We are facing high demand at the moment, please directly call the restaurant
+  07719 566 889 to place your order. We appreciate your patience in this regard."* Shown at the top
+  of the menu too, so nobody builds a basket first.
+- **Orders attempted while paused are lost by design** — Malik's explicit instruction. The point is
+  to move customers to the phone; a backlog landing the instant the shop resumes would defeat it.
+- **Default is ON** (`server_default=false`), so no tenant's behaviour changed on deploy. Turning
+  ordering **off** asks for confirmation first (*"this will disable live orders, proceed with
+  caution"*); resuming is one tap — the dangerous direction is the one that turns paying customers
+  away and the one nobody notices they left on. The tablet re-reads the state from the server on
+  every poll, so a second tablet cannot show a stale button.
+- Migration `s5t6u7v8w9x0_pause_online_ordering.py` (`restaurant_configs.online_ordering_paused`).
+  Confirmed applied on production, default `false`.
+- ⚠️ **Not yet UAT'd by Imran on the real tablet.** It needs a page refresh to appear — new JS
+  bundle, old one cached. Malik hit exactly this and thought the button was missing.
+
+**(b) C/D in online order numbers.** `260804-C001` collection, `260804-D002` delivery — **one shared
+counter**, per Malik: the letter marks the category, it does not start a separate sequence. Other
+channels (dine-in, takeaway, call centre) pass no `service_type` and keep `YYMMDD-NNN`. **No existing
+order number was rewritten** — visible live as `260804-004` → `260804-D005` mid-service.
+(See OI-68 for the allocation race this exposed.)
+
+---
+
+**OI-66 🟢 SHIPPED + VERIFIED LIVE (`4e2fe5c`, 2026-08-04) — reports counted unpaid card orders as
+revenue; the tablet called approved money "processing".** Both surfaced live, in front of the client.
+- **The money display.** The reports screen showed **£98.96** online and "prepaid" revenue when only
+  **£36.04** had actually been taken. Two causes: both report queries summed `Order.total` for every
+  non-voided order, and `is_prepaid` was defined as `stripe_checkout_session_id IS NOT NULL` — a
+  session created the instant the customer is sent to Stripe, whether or not they ever pay. Order
+  `260804-002` (£62.92, unapproved at the time) was counted as prepaid revenue.
+  **Prepaid now means `payment_captured_at IS NOT NULL`**, and reports exclude card orders Stripe
+  never approved, exactly as the tablet does.
+- **The wording.** The tablet and kitchen ticket said "CARD — PAYMENT PROCESSING" for an order Stripe
+  had already approved and was holding the money for. Since OI-65 an unapproved card order cannot
+  reach the tablet at all, so that state *always* means approved — "processing" read as "we don't
+  know yet" about secured money and caused a live scare. Now **`CARD APPROVED — DO NOT COLLECT`**
+  naming the held amount, and `*** CARD APPROVED ***` on the ticket.
+- **⚠️ THE STRUCTURAL FIX, and the most important line in this entry.** All three incidents in three
+  days had the same root cause: the "is this order real" rule written in one place and not the
+  others. It now lives **once**, in **`backend/app/services/order_visibility.py`**
+  (`is_real_order()` / `money_actually_taken()`), imported by the queue, the reports and the prepaid
+  split. **Do not re-express it inline** — that is exactly what this module is named after.
+- Verified after deploy: reports £98.96 = payments table £98.96 (revenue derived from orders now
+  reconciles against money actually recorded), both kitchen tickets `*** PAID ONLINE ***`, live
+  tablet chunk carries `CARD APPROVED` with **zero** occurrences of `PAYMENT PROCESSING`.
+
+---
+
+**OI-65 🟢 SHIPPED + VERIFIED LIVE (`a7da2fb` → `d3d1e7d`, 2026-08-04).** Detail below kept in full.
+⚠️ **The first attempt (`a7da2fb`) was a workaround Malik rejected** — it gated only
+`state="pending"` and papered over the still-open "All" tab with a "Waiting for the customer's card
+payment" panel. His words: *"'waiting for customer's card payment' is exactly what we dont want to
+show in POS?? why are u putting in temporary hacks? i need this fixed clinically."* Corrected in
+`d3d1e7d`: the gate applies to **every** queue state, the tablet files were reverted byte-identical
+to `1f55cf1`, and `awaiting_card_payment` was removed. **Lesson: when a rule is bypassed through an
+ungated view, close the view — never dress the hole up in the UI.**
+
+<details><summary>Original OI-65 writeup (accurate, kept for the incident record)</summary>
+
+**OI-65 — the OI-61 card-payment gate was bypassed in production within a day — the OI-61 card-payment gate was bypassed in
 production within a day (Imran screenshot via Malik, 2026-08-03).** Order `260803-003` (Leanne
 Sharkey, £15.69, delivery/Garelochhead) showed "CARD — PAYMENT PROCESSING" while already accepted
 and offering "Out for delivery".
@@ -136,6 +225,14 @@ Backend-only + tablet — **no `storefront/` changes, so `git push` alone ships 
 deploy needed this time. ⚠️ Commit by explicit filename: the tree also carries unrelated uncommitted
 work (`QUICKBOOKS_PLAYBOOK.md`, `StaffManagementPage.tsx`, untracked `seed_demo_kitchen.py`, and the
 ~119-file doc reorg) that must NOT be swept in.
+
+</details>
+
+**⚠️ Standing note for the whole OI-61 → OI-65 → OI-66 → OI-68 chain.** Four incidents, three days,
+one root cause each time: a rule expressed in one place and not the others (the pending query but not
+All; the queue but not the reports; the counter but not the letter). Before adding any rule about
+what counts as a real/valid/payable order, check whether
+`backend/app/services/order_visibility.py` should own it.
 
 ---
 
