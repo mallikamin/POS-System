@@ -23,7 +23,6 @@ import { useConfigStore } from "@/stores/configStore";
 import {
   dipTubLabel,
   dipTubTotals,
-  isDipTub,
   placedAt,
   shopTime,
 } from "@/lib/orderDisplay";
@@ -1080,44 +1079,47 @@ export default function OnlineOrdersPage() {
                   ) : null}
                 </div>
 
-                {/* OI-71: dip tubs first and counted, exactly as the printed
-                    ticket does it. Whoever is packing may be reading the paper
-                    or this screen, and the two must not disagree. */}
-                {dips.length > 0 ? (
-                  <div className="mt-3 rounded-lg border border-secondary-300 bg-secondary-50 px-3 py-2 text-sm">
-                    <p className="font-bold uppercase tracking-wide text-secondary-900">
-                      Dip tubs
-                    </p>
-                    {dips.map(([name, qty]) => (
-                      <p key={name} className="text-secondary-700">
-                        {qty} × {dipTubLabel(name)}
-                      </p>
-                    ))}
-                  </div>
-                ) : null}
-
                 <ul className="mt-3 space-y-1 border-t border-secondary-200 pt-3 text-sm">
-                  {order.lines.map((line, i) => {
-                    // Counted above; repeating them here is the buried
-                    // sub-line the roll-up exists to replace.
-                    const rest = line.modifiers.filter((m) => !isDipTub(m));
-                    return (
-                      <li key={i}>
-                        <div className="flex justify-between gap-2">
-                          <span className="font-medium">
-                            {line.quantity} × {line.name}
-                          </span>
-                          <span>{formatMoney(line.total, order.currency)}</span>
-                        </div>
-                        {rest.length > 0 ? (
-                          <p className="pl-4 text-secondary-500">
-                            {rest.join(", ")}
-                          </p>
-                        ) : null}
-                      </li>
-                    );
-                  })}
+                  {order.lines.map((line, i) => (
+                    <li key={i}>
+                      <div className="flex justify-between gap-2">
+                        <span className="font-medium">
+                          {line.quantity} × {line.name}
+                        </span>
+                        <span>{formatMoney(line.total, order.currency)}</span>
+                      </div>
+                      {/* Dips stay WITH their item. A dip tub is a priced
+                          modifier -- its 99p is already inside this line's
+                          total -- so lifting it out into a block of its own
+                          left a row that looked like a purchase with no
+                          price beside it, next to items it had nothing to do
+                          with. Malik caught exactly that on 260804-002, where
+                          the Garlic Mayo belongs to the Peri Peri Wrap Meal
+                          further down the card. The money must stay legible. */}
+                      {line.modifiers.length > 0 ? (
+                        <p className="pl-4 text-secondary-500">
+                          {line.modifiers.join(", ")}
+                        </p>
+                      ) : null}
+                    </li>
+                  ))}
                 </ul>
+
+                {/* OI-71: the packing reminder the printed ticket has carried
+                    since OI-64 -- a dip buried in a sub-line is easy for a busy
+                    packer to miss, and the counts are what you actually pick.
+                    Styled as an instruction and grouped with the kitchen note,
+                    NOT as a line item: on paper a DIP TUBS heading reads as a
+                    picking list, but on a card where every row carries a price
+                    the same block reads as a charge that lost its money. */}
+                {dips.length > 0 ? (
+                  <p className="mt-2 rounded-lg bg-amber-100 p-2 text-sm text-amber-900">
+                    <span className="font-bold">Dips to pack: </span>
+                    {dips
+                      .map(([name, qty]) => `${qty} × ${dipTubLabel(name)}`)
+                      .join(", ")}
+                  </p>
+                ) : null}
 
                 {order.notes ? (
                   <p className="mt-2 rounded-lg bg-amber-100 p-2 text-sm text-amber-900">
