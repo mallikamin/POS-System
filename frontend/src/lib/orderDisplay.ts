@@ -8,9 +8,6 @@
  * real cases; a helper buried in a page component cannot.
  */
 
-/** Modifier-name suffix that marks a dip tub. Mirrors `print_service.py`. */
-export const DIP_TUB_SUFFIX = " (Dip Tub)";
-
 /**
  * Every clock time on the queue is the SHOP's local time, never the viewer's.
  *
@@ -58,46 +55,4 @@ export function placedAt(iso: string, tz?: string): string {
       month: "short",
     });
   }
-}
-
-export function isDipTub(modifier: string): boolean {
-  return modifier.endsWith(DIP_TUB_SUFFIX);
-}
-
-/** The tub name without its suffix — the block's own heading already says it. */
-export function dipTubLabel(modifier: string): string {
-  return modifier.endsWith(DIP_TUB_SUFFIX)
-    ? modifier.slice(0, -DIP_TUB_SUFFIX.length)
-    : modifier;
-}
-
-/** The shape `dipTubTotals` needs — deliberately narrower than `OnlineOrder`. */
-export interface DipTubSource {
-  lines: { quantity: number; modifiers: string[] }[];
-}
-
-/**
- * Dip tubs rolled up across the whole order — the screen saying what the paper
- * says (OI-71).
- *
- * The printed ticket has grouped these into one DIP TUBS block since OI-64
- * (`print_service.py`, same suffix rule) because a tub buried as a sub-line
- * under whichever item it was attached to is easy for a busy packer to miss.
- * The tablet card kept printing them inline, so screen and paper disagreed —
- * and either one may be what the person packing is looking at.
- *
- * Counts by line QUANTITY, not by occurrence, exactly as the ticket does:
- * 3 × a meal carrying one dip is three tubs to count out, not one. Standalone
- * Dips-category items sold on their own carry no suffix and are deliberately
- * untouched, again matching the ticket.
- */
-export function dipTubTotals(order: DipTubSource): [string, number][] {
-  const counts = new Map<string, number>();
-  for (const line of order.lines) {
-    for (const modifier of line.modifiers) {
-      if (!isDipTub(modifier)) continue;
-      counts.set(modifier, (counts.get(modifier) ?? 0) + line.quantity);
-    }
-  }
-  return [...counts.entries()].sort(([a], [b]) => a.localeCompare(b));
 }

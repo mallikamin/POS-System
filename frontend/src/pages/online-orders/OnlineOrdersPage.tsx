@@ -20,12 +20,7 @@ import {
 import { formatMoney } from "@/utils/currency";
 import { useToast } from "@/hooks/use-toast";
 import { useConfigStore } from "@/stores/configStore";
-import {
-  dipTubLabel,
-  dipTubTotals,
-  placedAt,
-  shopTime,
-} from "@/lib/orderDisplay";
+import { placedAt, shopTime } from "@/lib/orderDisplay";
 
 /**
  * The order-queue tablet — the screen the client believes he is buying.
@@ -85,10 +80,17 @@ function minutesSince(iso: string): number {
 const PRE_ORDER_AFTER_MINUTES = 3 * 60;
 
 /*
- * Clock times (OI-70) and the dip-tub roll-up (OI-71) live in `lib/
- * orderDisplay` rather than here, so they can be bundled and run for real —
- * this project has no frontend test runner, and a helper buried in a page
- * component with React and store imports cannot be exercised standalone.
+ * Clock times (OI-70) live in `lib/orderDisplay` rather than here, so they can
+ * be bundled and run for real — this project has no frontend test runner, and
+ * a helper buried in a page component with React and store imports cannot be
+ * exercised standalone.
+ *
+ * ⚠️ Dip tubs are rendered inline, as an ordinary modifier, and that is
+ * deliberate. OI-71 twice tried to give them special treatment on this card
+ * and both attempts were rejected on sight: a separate block orphaned a
+ * PRICED modifier from the item whose total contains it, and a summary strip
+ * printed the same dip twice under two different names. The printed ticket
+ * groups them and that is right for paper. **This screen leaves them alone.**
  */
 
 function isPaid(order: OnlineOrder): boolean {
@@ -981,7 +983,6 @@ export default function OnlineOrdersPage() {
             const closed = CLOSED.includes(order.status);
             const made = MADE.includes(order.status);
             const isPreOrder = isPending && waited >= PRE_ORDER_AFTER_MINUTES;
-            const dips = dipTubTotals(order);
 
             return (
               <article
@@ -1088,14 +1089,6 @@ export default function OnlineOrdersPage() {
                         </span>
                         <span>{formatMoney(line.total, order.currency)}</span>
                       </div>
-                      {/* Dips stay WITH their item. A dip tub is a priced
-                          modifier -- its 99p is already inside this line's
-                          total -- so lifting it out into a block of its own
-                          left a row that looked like a purchase with no
-                          price beside it, next to items it had nothing to do
-                          with. Malik caught exactly that on 260804-002, where
-                          the Garlic Mayo belongs to the Peri Peri Wrap Meal
-                          further down the card. The money must stay legible. */}
                       {line.modifiers.length > 0 ? (
                         <p className="pl-4 text-secondary-500">
                           {line.modifiers.join(", ")}
@@ -1104,22 +1097,6 @@ export default function OnlineOrdersPage() {
                     </li>
                   ))}
                 </ul>
-
-                {/* OI-71: the packing reminder the printed ticket has carried
-                    since OI-64 -- a dip buried in a sub-line is easy for a busy
-                    packer to miss, and the counts are what you actually pick.
-                    Styled as an instruction and grouped with the kitchen note,
-                    NOT as a line item: on paper a DIP TUBS heading reads as a
-                    picking list, but on a card where every row carries a price
-                    the same block reads as a charge that lost its money. */}
-                {dips.length > 0 ? (
-                  <p className="mt-2 rounded-lg bg-amber-100 p-2 text-sm text-amber-900">
-                    <span className="font-bold">Dips to pack: </span>
-                    {dips
-                      .map(([name, qty]) => `${qty} × ${dipTubLabel(name)}`)
-                      .join(", ")}
-                  </p>
-                ) : null}
 
                 {order.notes ? (
                   <p className="mt-2 rounded-lg bg-amber-100 p-2 text-sm text-amber-900">
