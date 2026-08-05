@@ -5,10 +5,43 @@
 known pre-existing one, not new work).
 **Nothing is in flight. All shipped work below is deployed, verified live, and committed.**
 
-## 🟡 Raised by Malik 2026-08-05 — three observations. BUILT + TESTED LOCALLY, **NOT DEPLOYED**
+## 🟢 Raised by Malik 2026-08-05 — three observations, all SHIPPED + VERIFIED LIVE (`1043686`)
 
-Registered as **OI-69 / OI-70 / OI-71** in `_state/open-items.md`. Malik picked the approach for
-each before any code was written. **Committed? No. Pushed? No. Live? No.** Awaiting his go-ahead.
+Registered as **OI-69 / OI-70 / OI-71** in `_state/open-items.md`. Malik picked the approach for each
+before any code was written, then said *"please do clinical deployment of these changes, no scope
+drift."* Deployed **2026-08-05 ~05:10 UK / ~09:10 PK — shop shut, ~11h before the 16:00 open**, so
+no order was in flight and no customer or staff member saw a mid-service change.
+
+**Verified live beyond the green Action** (this project's "verify the effect, never the exit code"):
+- Server `git log` = `1043686`. All 5 POS containers freshly recreated and healthy. **Orbit CRM on
+  the same box untouched** — `orbit_api` 7 weeks, `orbit_db` 2 months, `orbit_web` 3 months uptime.
+- **Chunks resolved `index.html` → `index-_onDuR4-.js` → the chunks it actually imports**, never
+  grepped from the assets directory (which accumulates every historical build). Live
+  `OnlineOrdersPage-4zMLxHwu.js`: `Dip tubs` 1, `accepted ` 1, `timeZone` 2, `min ago` 1. Live
+  `SwitchPage-DVOOtS-L.js`: `Sign out and switch` 1, `Currently signed in` 1.
+- Public HTTPS with a browser UA: `/switch` 200, `/online-orders` 200, both chunks 200,
+  `/api/v1/health` 200, and **`chickshackg84.com` 200** (untouched — no storefront diff, so the
+  Cloudflare pipeline was correctly *not* run).
+- **The load-bearing assumption was checked, not assumed**: live `restaurant_configs.timezone` for
+  `chick-shack` really is **`Europe/London`** (GBP, `online_ordering_only=t`). Without that the
+  timezone fix would silently fall back to the viewer's zone. `cosa-nostra` and `demo-restaurant`
+  are `Asia/Karachi` and now render in *their* own local time too — a free correctness gain.
+  ⚠️ Worth knowing: **there are 3 active tenants**, so the server's "only active tenant" login
+  fallback no longer applies — a login genuinely needs a slug. That makes OI-69's Restaurant field
+  necessary rather than theoretical.
+- **OI-60's untested backend work did NOT ride along** — explicitly checked after the container was
+  recreated: `--log-config` count in the running `start.sh` is **0**, and the server tree has no
+  modified `backend/`, `scripts/`, `docker/` or `docker-compose.demo.yml` files. `DIP TUBS` still
+  present in the running `print_service.py`, so yesterday's receipt fix is intact.
+- **Zero backend errors and zero nginx 5xx** in the 12 minutes after deploy.
+- Staged by **explicit filename** — 8 files. The ~119-file doc reorg, OI-60's 6 files,
+  `StaffManagementPage.tsx` and `INFRASTRUCTURE_CREDENTIALS_REFERENCE.md` all remain uncommitted,
+  exactly as before. Staged diff scanned for secret-shaped strings: **0**.
+
+⚠️ **Not verified, and it cannot be from here: a real browser click-through.** The Chrome extension
+has failed to connect every session this week, and the page is behind a login whose credentials the
+assistant must not handle. The chain above (real function tests → live chunk contents → live config
+value) is the strongest available proof short of Malik opening the page. **His UAT is the last step.**
 
 | # | What he saw | Verdict | Built |
 |---|---|---|---|

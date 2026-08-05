@@ -1,6 +1,6 @@
 # Open items register
 
-**OI-71 🟡 BUILT + TESTED, NOT DEPLOYED (raised by Malik 2026-08-05) — the tablet UI did not roll
+**OI-71 🟢 SHIPPED + VERIFIED LIVE (`1043686`, 2026-08-05) — the tablet UI did not roll
 dip tubs up; the printed ticket already did. UI-only, receipts were always fine.**
 - **Built:** the card now renders a `DIP TUBS` block with per-name counts above the item list and
   filters dips out of the item sub-lines — same `" (Dip Tub)"` suffix rule, same name sort, same
@@ -25,7 +25,7 @@ Malik saw dip tubs still rendered as a grey sub-line under the parent item on
 
 ---
 
-**OI-70 🟡 BUILT + TESTED, NOT DEPLOYED (raised by Malik 2026-08-05) — order times were
+**OI-70 🟢 SHIPPED + VERIFIED LIVE (`1043686`, 2026-08-05) — order times were
 relative-only, and the one absolute time rendered in the *viewer's* timezone, not Scotland's.**
 - **Built:** the card's time line now reads `12 min ago · placed 19:56` while an order is unanswered
   and `Placed 19:56 · accepted 19:59` once it is (or `· rejected HH:MM`). Every clock time is
@@ -59,7 +59,7 @@ The card shows `468 min ago` and nothing else. Two separate defects behind that:
 
 ---
 
-**OI-69 🟡 BUILT + TESTED, NOT DEPLOYED (raised by Malik 2026-08-05) — `/online-orders` was a dead
+**OI-69 🟢 SHIPPED + VERIFIED LIVE (`1043686`, 2026-08-05) — `/online-orders` was a dead
 end for an admin: no logout, no user switch, no restaurant switch.**
 - **Built: a new `/switch` route** (`frontend/src/pages/auth/SwitchPage.tsx`). Shows who is signed in
   and at which shop, then one button signs out **and** clears the remembered tenant slug, landing on
