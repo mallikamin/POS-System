@@ -1,6 +1,30 @@
 # Open items register
 
-**OI-71 🟢 SHIPPED + VERIFIED LIVE (`1043686`, 2026-08-05) — the tablet UI did not roll
+**OI-71 🟢 SHIPPED + VERIFIED LIVE (`1043686` → corrected by `1e6bff3`, 2026-08-05) — the tablet UI
+did not roll**
+- ⚠️ **Malik's UAT rejected the first shape, correctly.** *"why are dip tubs showing so differently
+  — its just the regular item. what abt its price, why isnt it reflecting? i hope we are not
+  screwing up with the total order value."*
+- **The money was never wrong** — checked against production, not reasoned about. `260804-002`'s
+  Peri Peri Wrap Meal has `unit_price` **1198 = 999 base + 99 Garlic Mayo**, `line_total =
+  unit_price × quantity`; the rule holds on every row (`499+200=699`, `999+50=1049`,
+  `1099+99=1198`). Malik confirmed independently from a cart: £11.49 + 99p = £12.48. The commit only
+  filtered modifier *names*; no total was ever referenced. **Dips cost 99p (79p Ketchup/Mayo).**
+- **The display was wrong.** Lifting a *priced modifier* out of the item whose price contains it left
+  `1 × Garlic Mayo` with no price, sitting above two meals it had nothing to do with (its real parent
+  was further down the card). On a card where every row carries a price, that reads as a lost charge.
+- **Lesson, and it generalises: a treatment that is right on the printed ticket is not automatically
+  right on screen.** On monochrome thermal paper a `DIP TUBS` heading reads as a picking list because
+  nothing around it has a price. On the tablet card everything does. Check the medium before porting
+  a layout across. See also [[filter-is-not-an-invariant]] for the sibling lesson about porting a
+  rule rather than a layout.
+- **Fixed in `1e6bff3`:** dips inline under their own item; the roll-up kept as an *instruction*
+  beside the kitchen note (`Dips to pack: 1 × Garlic Mayo`). **Printed ticket untouched** — grouping
+  is still right for paper.
+
+<details><summary>Original OI-71 writeup (the receipt verification in it is still accurate)</summary>
+
+**The tablet UI did not roll
 dip tubs up; the printed ticket already did. UI-only, receipts were always fine.**
 - **Built:** the card now renders a `DIP TUBS` block with per-name counts above the item list and
   filters dips out of the item sub-lines — same `" (Dip Tub)"` suffix rule, same name sort, same
@@ -20,8 +44,11 @@ Malik saw dip tubs still rendered as a grey sub-line under the parent item on
   confirmed by grep: `DIP_TUB_SUFFIX` / `"Dip Tub"` appears in `print_service.py` **and no other
   service**. The customer's email lists them inline too, which is arguably correct there (the
   customer ordered a sauce with an item, they did not order a tub) — flagged, not assumed wrong.
-- **Open question for Malik:** mirror the ticket on the tablet card (a `DIP TUBS` roll-up block), or
-  leave the screen inline and let paper be the packing document?
+- **Open question at the time:** mirror the ticket on the tablet card, or leave the screen inline?
+  Malik chose "mirror the ticket" — and his own UAT then showed why that was the wrong call on this
+  medium. Superseded by `1e6bff3` above.
+
+</details>
 
 ---
 

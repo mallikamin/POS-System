@@ -43,6 +43,45 @@ has failed to connect every session this week, and the page is behind a login wh
 assistant must not handle. The chain above (real function tests → live chunk contents → live config
 value) is the strongest available proof short of Malik opening the page. **His UAT is the last step.**
 
+### ⚠️ Malik's UAT found a real display defect in OI-71 — fixed and redeployed (`1e6bff3`)
+
+**His words:** *"why are dip tubs showing so differently — its just the regular item. what abt its
+price, why isnt it reflecting? i hope we are not screwing up with the total order value etc."*
+
+**The money was never wrong, and this was checked against production rather than reasoned about.**
+On `260804-002` the Peri Peri Wrap Meal carries `unit_price` **1198 = 999 base + 99 Garlic Mayo**,
+and `line_total = unit_price × quantity`. The rule holds on every row of those orders (Fried Chicken
+`499+200=699`, Half Chicken `999+50=1049`, Fillet Tower `1099+99=1198`). Malik independently
+confirmed it from a sample cart: 2 Boneless Breast £11.49 + 99p dip = **£12.48**. The OI-71 commit
+only ever filtered which modifier *names* render as text — `line.total`, `subtotal` and `total` were
+never referenced. **Dip tubs are priced: 99p, or 79p for Ketchup and Mayo.**
+
+**The display was wrong, and his reaction was the correct one.** Lifting dips into their own block
+tore a priced modifier away from the item whose price contains it. On `260804-002` the Garlic Mayo
+belongs to the Peri Peri Wrap Meal *further down the card*, so the block sat above two unrelated
+meals reading `1 × Garlic Mayo` with no price — on a card where every other row carries a price,
+that reads as a charge that lost its money.
+
+**The mistake, worth keeping:** *a treatment that is right on the printed ticket is not automatically
+right on screen.* On monochrome thermal paper a `DIP TUBS` heading reads as a picking list because
+nothing around it has a price. On the tablet card everything does. **Same information, different
+medium, different reading — check the medium before porting a layout across.**
+
+**Fix (`1e6bff3`, deployed ~06:05 UK, still ~10h before the 16:00 open):** dips go back inline under
+their own item where the 99p is self-evident; the roll-up survives as what it was always for — a
+packing reminder — now styled and placed as an instruction beside the kitchen note (`Dips to pack:
+1 × Garlic Mayo`), which cannot be misread as a purchase. **The printed ticket is untouched and
+still groups them, which is right for paper.** Verified live: server `git log` = `1e6bff3`, chunk
+resolved `index.html` → `index-DUhDUjWM.js` → `OnlineOrdersPage-BRANqxjG.js` containing
+`Dips to pack` ×1 and `Dip tubs` ×**0**; `/online-orders`, `/switch`, `/api/v1/health` and
+`chickshackg84.com` all 200; Orbit CRM untouched; **0 backend exceptions, 0 nginx 5xx**.
+
+📌 **Correction to the timestamps above:** the first deploy is logged as "~05:10 UK" — the shell used
+to read it lacked BST tzdata, so it was really **~06:10 BST**. An hour out, no consequence (both were
+~10–11h before open). The app itself is unaffected: it formats via `Intl` in the browser, and the
+BST case is explicitly covered by the helper tests (`19:56Z → 20:56` in summer, `19:56Z → 19:56` in
+winter).
+
 | # | What he saw | Verdict | Built |
 |---|---|---|---|
 | **OI-69** | No way to log out of `/online-orders` — "stuck in this window" | **Real, and a closed loop.** `/online-orders` sits outside both layouts, which own the only logout buttons; `/login` bounces an authenticated user to `/`, and `/` redirects back to `/online-orders` for this tenant. Only escape was typing `/admin`. | New bookmarked **`/switch`** route: sign out + clear the remembered shop + land on a login form with an optional Restaurant field. **Deliberately unlinked from the queue** so the shop's unattended tablet can never hit it mid-service. |
