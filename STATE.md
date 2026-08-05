@@ -1,7 +1,40 @@
 # STATE — Restaurant POS System
 
-**Last refreshed:** 2026-08-05 (02:20 UK) — session T. **Branch:** `main`, HEAD `99b6757`.
-**Nothing is in flight. All work below is deployed, verified live, and committed.**
+**Last refreshed:** 2026-08-05 (03:55 UK) — session U. **Branch:** `main`, HEAD `d9f57e7`
+(`99b6757` + the docs close-out commit; the ~124-file uncommitted doc reorg in the tree is the
+known pre-existing one, not new work).
+**Nothing is in flight. All shipped work below is deployed, verified live, and committed.**
+
+## 🟡 Raised by Malik 2026-08-05 — three observations. BUILT + TESTED LOCALLY, **NOT DEPLOYED**
+
+Registered as **OI-69 / OI-70 / OI-71** in `_state/open-items.md`. Malik picked the approach for
+each before any code was written. **Committed? No. Pushed? No. Live? No.** Awaiting his go-ahead.
+
+| # | What he saw | Verdict | Built |
+|---|---|---|---|
+| **OI-69** | No way to log out of `/online-orders` — "stuck in this window" | **Real, and a closed loop.** `/online-orders` sits outside both layouts, which own the only logout buttons; `/login` bounces an authenticated user to `/`, and `/` redirects back to `/online-orders` for this tenant. Only escape was typing `/admin`. | New bookmarked **`/switch`** route: sign out + clear the remembered shop + land on a login form with an optional Restaurant field. **Deliberately unlinked from the queue** so the shop's unattended tablet can never hit it mid-service. |
+| **OI-70** | Wants Garelochhead local time, placed vs accepted | **Real, two defects.** No absolute time and no accepted time on the card at all; and `placedAt()` had no `timeZone`, so it rendered in the *viewer's* zone — right on the shop tablet by accident, silently +4/5h wrong on Malik's screen in Pakistan. | Card now reads `12 min ago · placed 19:56 · accepted 19:59`, every clock time from `config.timezone` (`Europe/London`). Pending keeps the relative age because it is what justifies the red/amber border. |
+| **OI-71** | Dip tubs still under the parent item — "are receipts working?" | **Receipts were already fine — verified inside the running container, not assumed.** `DIP TUBS` roll-up live in `print_service.py` (server at `d9f57e7`, `grep -c` → 1). One-line gap in the tablet UI only. | Card now shows a `DIP TUBS` block with per-name counts and drops dips from the item sub-lines — same grouping and same `" (Dip Tub)"` suffix rule as the ticket. |
+
+**Scope: tablet frontend only. Zero backend diff, zero storefront diff** — no payment, order-number,
+email, ticket or reporting path is touched, so yesterday's clean day cannot be regressed by this.
+
+**Verification actually run** (not claimed): `tsc --noEmit -p tsconfig.app.json` clean · `vite build`
+clean · eslint **0 issues in every touched file** (the repo's 22 pre-existing problems are unchanged
+and all in files not touched here) · the pure display helpers extracted to `frontend/src/lib/
+orderDisplay.ts` and **bundled with esbuild and run for real** — 29/29 against real 2026-08-04 orders
+(`C010`, `C011`, and Malik's 3× Fillet Tower screenshot), including GMT/BST, midnight rollover and a
+bad-timezone fallback. **The runner's own process timezone was `Asia/Karachi`** — i.e. the bug's
+actual conditions — and it still produced UK times. Both fixes **mutation-checked**: removing the
+`timeZone` option fails 12 tests, counting dip occurrences instead of quantity fails 2.
+
+> ⚠️ **Do not `git add -A` here.** The tree still carries OI-60's paused, **never build-tested**
+> backend work (`backend/Dockerfile`, `backend/scripts/start.sh`, `backend/logging_config.json`) —
+> `start.sh` gained `--log-config logging_config.json`, which would go to production untested and
+> can break backend startup. Also uncommitted and unrelated: `StaffManagementPage.tsx` (+41),
+> `QUICKBOOKS_PLAYBOOK.md`, `seed_demo_kitchen.py`, and the ~119-file doc reorg. **Stage by explicit
+> filename**, exactly as session S did.
+
 
 ## 🟢 Where things stand at the end of 2026-08-04
 

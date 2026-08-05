@@ -5,6 +5,7 @@ import { useAuthStore } from "@/stores/authStore";
 import { NumberPad } from "@/components/pos/NumberPad";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { getTenantSlug, setTenantSlug } from "@/lib/tenant";
 
 /** Extract a human-readable message from an API error response. */
 function getErrorMessage(err: unknown, fallback: string): string {
@@ -26,13 +27,36 @@ function LoginPage() {
     useAuthStore();
   const navigate = useNavigate();
 
+  /*
+   * Which restaurant (OI-69). One backend serves several, and a PIN is only
+   * unique inside one of them, so the login routes have to be told.
+   *
+   * Collapsed by default and prefilled with whatever this device already
+   * remembers: shop staff signing back in on their own tablet should never
+   * have to think about it, and it is normally already correct. It is here for
+   * the person arriving from `/switch`, who has just cleared the slug
+   * precisely because they want a different shop.
+   */
+  const [shop, setShop] = useState(getTenantSlug() ?? "");
+  const [showShop, setShowShop] = useState(!getTenantSlug());
+
   // If the user is already authenticated, redirect straight to the dashboard
   if (isAuthenticated) {
     return <Navigate to="/" replace />;
   }
 
+  /*
+   * Persist before authenticating, never after: `authStore` reads the slug
+   * through `getTenantSlug()` at call time, so a slug that is only saved on
+   * success would be missing from the very request that needs it.
+   */
+  const rememberShop = () => {
+    if (showShop) setTenantSlug(shop);
+  };
+
   const handlePinSubmit = async (pin: string) => {
     setError(null);
+    rememberShop();
     try {
       await loginWithPin(pin);
       navigate("/");
@@ -44,6 +68,7 @@ function LoginPage() {
   const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    rememberShop();
     try {
       await loginWithPassword(email, password);
       navigate("/");
@@ -53,6 +78,42 @@ function LoginPage() {
       );
     }
   };
+
+  const shopField = showShop ? (
+    <div className="mt-4">
+      <label
+        htmlFor="shop"
+        className="mb-1 block text-pos-sm font-medium text-secondary-300"
+      >
+        Restaurant
+      </label>
+      <input
+        id="shop"
+        type="text"
+        value={shop}
+        onChange={(e) => setShop(e.target.value)}
+        className="w-full rounded-lg border border-secondary-600 bg-secondary-700 px-4 py-3 text-pos-base text-white placeholder-secondary-500 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+        placeholder="e.g. chick-shack"
+        autoCapitalize="none"
+        autoCorrect="off"
+        spellCheck={false}
+      />
+      <p className="mt-1 text-pos-xs text-secondary-500">
+        Leave blank if this server only hosts one restaurant.
+      </p>
+    </div>
+  ) : (
+    <div className="mt-4 text-center">
+      <button
+        type="button"
+        onClick={() => setShowShop(true)}
+        className="text-pos-xs text-secondary-400 underline-offset-4 hover:text-secondary-300 hover:underline"
+      >
+        Signing in to <span className="font-semibold">{shop}</span> — change
+        restaurant
+      </button>
+    </div>
+  );
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-secondary-900 p-4">
@@ -172,6 +233,12 @@ function LoginPage() {
                 </div>
               </>
             )}
+
+            {/* Shared by both modes — a PIN needs it more than a password
+                does, since four digits can collide across restaurants. */}
+            <div className="mt-4 border-t border-secondary-700 pt-4">
+              {shopField}
+            </div>
           </CardContent>
         </Card>
       </div>

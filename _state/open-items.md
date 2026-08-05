@@ -1,5 +1,106 @@
 # Open items register
 
+**OI-71 🟡 BUILT + TESTED, NOT DEPLOYED (raised by Malik 2026-08-05) — the tablet UI did not roll
+dip tubs up; the printed ticket already did. UI-only, receipts were always fine.**
+- **Built:** the card now renders a `DIP TUBS` block with per-name counts above the item list and
+  filters dips out of the item sub-lines — same `" (Dip Tub)"` suffix rule, same name sort, same
+  count-by-line-quantity as `print_service.py`. Logic lives in `frontend/src/lib/orderDisplay.ts`
+  (`dipTubTotals`), extracted so it can be bundled and run for real; verified against `260804-C010`,
+  `260804-C011` and Malik's 3× Fillet Tower screenshot (3 meals × 1 dip = **3** tubs, not 1).
+  Mutation-checked: counting occurrences instead of quantity fails 2 tests.
+Malik saw dip tubs still rendered as a grey sub-line under the parent item on
+`eats.sitaratech.info/online-orders` and asked whether the receipt change ever shipped.
+- **It shipped and it is live, verified — not assumed.** `DIP TUBS` is present in
+  `print_service.py` **inside the running production container** (`docker exec pos-system-backend-1
+  grep -c 'DIP TUBS'` → `1`, server `git log` at `d9f57e7`). Every `… (Dip Tub)` modifier is rolled
+  up by name into a bold `DIP TUBS` block above the cook list and suppressed from the item's own
+  sub-lines (`print_service.py:166-193`, shipped `f06979f`, session S / OI-64).
+- **The gap is one place only: `OnlineOrdersPage.tsx:1060-1064`**, which prints
+  `line.modifiers.join(", ")` verbatim, dips included. Nothing else in the codebase consolidates —
+  confirmed by grep: `DIP_TUB_SUFFIX` / `"Dip Tub"` appears in `print_service.py` **and no other
+  service**. The customer's email lists them inline too, which is arguably correct there (the
+  customer ordered a sauce with an item, they did not order a tub) — flagged, not assumed wrong.
+- **Open question for Malik:** mirror the ticket on the tablet card (a `DIP TUBS` roll-up block), or
+  leave the screen inline and let paper be the packing document?
+
+---
+
+**OI-70 🟡 BUILT + TESTED, NOT DEPLOYED (raised by Malik 2026-08-05) — order times were
+relative-only, and the one absolute time rendered in the *viewer's* timezone, not Scotland's.**
+- **Built:** the card's time line now reads `12 min ago · placed 19:56` while an order is unanswered
+  and `Placed 19:56 · accepted 19:59` once it is (or `· rejected HH:MM`). Every clock time is
+  formatted with `timeZone: config.timezone`, so the tablet in Garelochhead and a screen in Pakistan
+  show the identical figure. The relative age is kept on pending orders **on purpose** — it is what
+  justifies the red/amber border, and dropping it would leave the colour unexplained.
+- `shopTime`/`placedAt` moved to `frontend/src/lib/orderDisplay.ts` and verified for real (bundled
+  with esbuild, run in a process whose own timezone was `Asia/Karachi`): BST and GMT, midnight
+  rollover both ways, and an invalid config value falling back instead of throwing — `Intl` throws
+  on an unknown zone and a bad config row must not blank the whole queue. Mutation-checked: removing
+  the `timeZone` option fails 12 tests.
+- `OnlineOrdersPage` now fetches config itself when it is missing, same reason and same pattern as
+  `OnlineReportsPage` — a hard refresh straight onto this route (which is how the tablet opens)
+  never runs `POSLayout`'s `fetchConfig()`.
+The card shows `468 min ago` and nothing else. Two separate defects behind that:
+- **(a) No absolute time, and no accepted time at all.** `accepted_at` is fetched and present in
+  `MerchantOrderSummary` but used only as a boolean (`OnlineOrdersPage.tsx:1095`) — the actual
+  clock time an order was answered is never shown, so response time cannot be read off the screen.
+- **(b) The absolute time that *does* exist is timezone-naive.** `placedAt()`
+  (`OnlineOrdersPage.tsx:81-88`) calls `toLocaleString("en-GB", …)` with **no `timeZone` option**, so
+  it renders in the browser's zone. On the shop tablet in Garelochhead that is correct by accident;
+  on Malik's machine in Pakistan every timestamp is silently **+4h/+5h wrong**. It is only reachable
+  today on pre-orders (>3h old), which is why it has not bitten yet.
+- **The fix has no backend work.** `RestaurantConfig.timezone` is already `Europe/London` for this
+  tenant (`seed_chick_shack.py:128`), already returned by `GET /config/restaurant`, already typed on
+  the frontend (`types/index.ts:50`) and already in `useConfigStore`. Pass it as `timeZone` and
+  format both stamps from it.
+- **Open question for Malik:** keep `468 min ago` alongside the clock times or replace it? The
+  relative age is what drives the red/amber urgency colour on a pending card, so it earns its place
+  there; on an *answered* order it is noise.
+
+---
+
+**OI-69 🟡 BUILT + TESTED, NOT DEPLOYED (raised by Malik 2026-08-05) — `/online-orders` was a dead
+end for an admin: no logout, no user switch, no restaurant switch.**
+- **Built: a new `/switch` route** (`frontend/src/pages/auth/SwitchPage.tsx`). Shows who is signed in
+  and at which shop, then one button signs out **and** clears the remembered tenant slug, landing on
+  the login form. `LoginPage` gained an optional **Restaurant** field, collapsed by default and
+  prefilled from the remembered slug, persisted via a new `setTenantSlug()` before the login call
+  (the auth store reads the slug at call time, so saving it on success would be too late).
+- **`/switch` is deliberately not linked from the order queue.** That tablet is unattended in a live
+  shop; a Sign-out in its header is one mis-tap from locking the counter out mid-rush, and getting
+  back in needs a PIN whoever is on shift may not have. Malik reaches it by bookmark.
+- **`logout()` itself was left alone on purpose** — it still keeps the tenant slug, so a staff member
+  signing out on the tablet returns to the same shop. Clearing the slug belongs only to the
+  deliberate "switch restaurant" action.
+- **Verified the shop's own login path is behaviourally unchanged**: with a remembered slug the
+  field stays collapsed and `rememberShop()` no-ops, so `loginWithPin` sees the identical slug it
+  saw before. Devices with no slug (single-tenant deployments) still fall through to the server's
+  own single-active-tenant rule.
+Malik's words: *"once im logged in chick shack, theres no way for me to logout — im stuck in this
+window."* Confirmed structurally, this is real and it is a trap, not just a missing button:
+- `/online-orders` is mounted **outside** `POSLayout`/`AdminLayout` (`App.tsx:86`), deliberately, so
+  it is fullscreen on the shop tablet. Both layouts own the only logout controls in the app
+  (`POSLayout.tsx:50`, `AdminLayout.tsx:79`) — so the queue page has none.
+- **`/login` does not rescue you.** `LoginPage` redirects to `/` when already authenticated
+  (`LoginPage.tsx:30`), and `/` redirects to `/online-orders` for a tenant with
+  `online_ordering_only` (`DashboardPage.tsx:73`). The loop closes.
+- **Only escape today: type `/admin` by hand** (works — Malik is `admin`, and `AdminLayout` has a
+  Logout). Undiscoverable, and not something to hand a client.
+- **Restaurant switching is half-built.** The backend already accepts `tenant_slug` on both login
+  routes and refuses to guess when >1 tenant is active (`auth.py:56-92`) — that part is done.
+  `getTenantSlug()` prefers `?shop=` over the remembered slug, so `/login?shop=<other>` would work.
+  But **`clearTenantSlug()` is exported and never called anywhere** (grep: `lib/tenant.ts:53`, zero
+  call sites), so `logout()` leaves the previous shop's slug in `localStorage` — and there is no UI
+  to pick a shop.
+- **⚠️ Real risk to weigh before building, not a reason not to:** this tablet sits unattended in a
+  live shop. A plain "Sign out" in the header is one mis-tap away from locking the counter out
+  mid-service, and getting back in needs a PIN nobody on shift may have. Whatever ships should be
+  hard to hit by accident.
+- **Open question for Malik:** discreet control on the tablet itself, or a separate bookmarked
+  `/switch` route (logout + clear slug + shop picker) that never appears on the shop's screen?
+
+---
+
 **OI-68 🟢 SHIPPED + VERIFIED LIVE (`99b6757`, 2026-08-05) — order-number allocation race.**
 Malik caught this from a probe that printed `260804-C006` and `260804-D006` together. The probe
 output was misleading (three generator calls, nothing saved between them, so all three correctly

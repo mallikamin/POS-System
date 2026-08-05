@@ -19,6 +19,14 @@ import {
 } from "@/services/onlineOrdersApi";
 import { formatMoney } from "@/utils/currency";
 import { useToast } from "@/hooks/use-toast";
+import { useConfigStore } from "@/stores/configStore";
+import {
+  dipTubLabel,
+  dipTubTotals,
+  isDipTub,
+  placedAt,
+  shopTime,
+} from "@/lib/orderDisplay";
 
 /**
  * The order-queue tablet — the screen the client believes he is buying.
@@ -77,15 +85,12 @@ function minutesSince(iso: string): number {
  */
 const PRE_ORDER_AFTER_MINUTES = 3 * 60;
 
-/** "23:14, 28 Jul" — an absolute time is more use than "660 min ago". */
-function placedAt(iso: string): string {
-  return new Date(iso).toLocaleString("en-GB", {
-    hour: "2-digit",
-    minute: "2-digit",
-    day: "2-digit",
-    month: "short",
-  });
-}
+/*
+ * Clock times (OI-70) and the dip-tub roll-up (OI-71) live in `lib/
+ * orderDisplay` rather than here, so they can be bundled and run for real —
+ * this project has no frontend test runner, and a helper buried in a page
+ * component with React and store imports cannot be exercised standalone.
+ */
 
 function isPaid(order: OnlineOrder): boolean {
   return ["paid", "refunded"].includes((order.payment_status || "").toLowerCase());
@@ -228,6 +233,15 @@ function urgency(minutes: number): string {
 
 export default function OnlineOrdersPage() {
   const { toast } = useToast();
+
+  // OI-70: the shop's own timezone drives every clock time on this page. Same
+  // reason OnlineReportsPage fetches config here — this route is mounted
+  // outside POSLayout, so a hard refresh straight onto it (bookmarked, which
+  // is exactly how the tablet opens) never runs POSLayout's fetchConfig().
+  const config = useConfigStore((s) => s.config);
+  const fetchConfig = useConfigStore((s) => s.fetchConfig);
+  const shopTz = config?.timezone;
+
   const [state, setState] = useState<OnlineOrderState>("pending");
   const [orders, setOrders] = useState<OnlineOrder[]>([]);
   const [totalCount, setTotalCount] = useState(0);
@@ -469,6 +483,10 @@ export default function OnlineOrdersPage() {
       dateTo,
     });
   }
+
+  useEffect(() => {
+    if (!config) void fetchConfig();
+  }, [config, fetchConfig]);
 
   useEffect(() => {
     setLoading(true);
@@ -964,6 +982,7 @@ export default function OnlineOrdersPage() {
             const closed = CLOSED.includes(order.status);
             const made = MADE.includes(order.status);
             const isPreOrder = isPending && waited >= PRE_ORDER_AFTER_MINUTES;
+            const dips = dipTubTotals(order);
 
             return (
               <article
@@ -977,12 +996,25 @@ export default function OnlineOrdersPage() {
                     <p className="text-xl font-bold text-secondary-900">
                       {order.order_number}
                     </p>
+                    {/* OI-70. Two facts, and they answer different questions.
+                        The relative age is what justifies the red/amber border
+                        on an order nobody has answered yet, so it leads while
+                        the order is still waiting. The clock times are what you
+                        reconcile against later — a phone call, an email, a
+                        Stripe row — so they are always present and always in
+                        the SHOP's timezone, identical on the tablet in
+                        Garelochhead and on a screen in Pakistan. */}
                     <p className="text-sm text-secondary-500">
                       {isPreOrder
-                        ? `Pre-order · placed ${placedAt(order.placed_at)}`
-                        : waited === 0
-                          ? "just now"
-                          : `${waited} min ago`}
+                        ? `Pre-order · placed ${placedAt(order.placed_at, shopTz)}`
+                        : isPending
+                          ? `${waited === 0 ? "just now" : `${waited} min ago`} · placed ${shopTime(order.placed_at, shopTz)}`
+                          : `Placed ${shopTime(order.placed_at, shopTz)}`}
+                      {order.accepted_at
+                        ? ` · accepted ${shopTime(order.accepted_at, shopTz)}`
+                        : order.rejected_at
+                          ? ` · rejected ${shopTime(order.rejected_at, shopTz)}`
+                          : ""}
                     </p>
                   </div>
                   <span
@@ -1048,22 +1080,43 @@ export default function OnlineOrdersPage() {
                   ) : null}
                 </div>
 
+                {/* OI-71: dip tubs first and counted, exactly as the printed
+                    ticket does it. Whoever is packing may be reading the paper
+                    or this screen, and the two must not disagree. */}
+                {dips.length > 0 ? (
+                  <div className="mt-3 rounded-lg border border-secondary-300 bg-secondary-50 px-3 py-2 text-sm">
+                    <p className="font-bold uppercase tracking-wide text-secondary-900">
+                      Dip tubs
+                    </p>
+                    {dips.map(([name, qty]) => (
+                      <p key={name} className="text-secondary-700">
+                        {qty} × {dipTubLabel(name)}
+                      </p>
+                    ))}
+                  </div>
+                ) : null}
+
                 <ul className="mt-3 space-y-1 border-t border-secondary-200 pt-3 text-sm">
-                  {order.lines.map((line, i) => (
-                    <li key={i}>
-                      <div className="flex justify-between gap-2">
-                        <span className="font-medium">
-                          {line.quantity} × {line.name}
-                        </span>
-                        <span>{formatMoney(line.total, order.currency)}</span>
-                      </div>
-                      {line.modifiers.length > 0 ? (
-                        <p className="pl-4 text-secondary-500">
-                          {line.modifiers.join(", ")}
-                        </p>
-                      ) : null}
-                    </li>
-                  ))}
+                  {order.lines.map((line, i) => {
+                    // Counted above; repeating them here is the buried
+                    // sub-line the roll-up exists to replace.
+                    const rest = line.modifiers.filter((m) => !isDipTub(m));
+                    return (
+                      <li key={i}>
+                        <div className="flex justify-between gap-2">
+                          <span className="font-medium">
+                            {line.quantity} × {line.name}
+                          </span>
+                          <span>{formatMoney(line.total, order.currency)}</span>
+                        </div>
+                        {rest.length > 0 ? (
+                          <p className="pl-4 text-secondary-500">
+                            {rest.join(", ")}
+                          </p>
+                        ) : null}
+                      </li>
+                    );
+                  })}
                 </ul>
 
                 {order.notes ? (

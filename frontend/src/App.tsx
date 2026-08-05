@@ -9,6 +9,7 @@ const AdminLayout = lazy(() => import("@/components/layout/AdminLayout"));
 
 /* ---------- Auth ---------- */
 const LoginPage = lazy(() => import("@/pages/auth/LoginPage"));
+const SwitchPage = lazy(() => import("@/pages/auth/SwitchPage"));
 
 /* ---------- POS Pages ---------- */
 const DashboardPage = lazy(() => import("@/pages/dashboard/DashboardPage"));
@@ -64,6 +65,10 @@ export function App() {
         <Routes>
           {/* Auth */}
           <Route path="/login" element={<LoginPage />} />
+          {/* OI-69: the way out of a fullscreen, layout-less tenant queue.
+              Deliberately unlinked from anywhere — bookmarked, never tapped
+              by accident on a shop's unattended tablet mid-service. */}
+          <Route path="/switch" element={<SwitchPage />} />
 
           {/* POS Routes (protected) */}
           <Route path="/" element={<POSLayout />}>

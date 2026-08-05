@@ -50,6 +50,18 @@ export function getTenantSlug(): string | undefined {
   return baked && baked.trim() ? baked.trim() : undefined;
 }
 
+/** Remember a slug typed by a human, rather than one arriving via `?shop=`. */
+export function setTenantSlug(slug: string): void {
+  try {
+    const clean = slug.trim();
+    if (clean) window.localStorage.setItem(STORAGE_KEY, clean);
+    else window.localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // Private browsing can refuse localStorage. The slug still reaches this
+    // login attempt through the form itself; only the memory of it is lost.
+  }
+}
+
 export function clearTenantSlug(): void {
   try {
     window.localStorage.removeItem(STORAGE_KEY);
