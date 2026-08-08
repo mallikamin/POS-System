@@ -1,6 +1,141 @@
 # Open items register
 
-**OI-71 🟢 SHIPPED + VERIFIED LIVE (`1043686` → corrected by `1e6bff3`, 2026-08-05) — the tablet UI
+**OI-73 🟡 FIXED LOCALLY, TESTED, NOT YET DEPLOYED. The sales-summary CSV labelled Chick Shack's
+money in PKR (raised 2026-08-08 by Malik).**
+
+**What he saw:** from `https://eats.sitaratech.info/online-orders/reports`, the Daily Sales CSV
+download (`sales_2026-08-07_2026-08-08.csv`) read `Total Revenue (PKR),371.07`. Pounds taken in
+Garelochhead, labelled rupees. The Prepaid vs COD CSV from the *same page and the same date range*
+read `Prepaid Revenue (GBP)` and was correct. His instruction: **"all reports should be tied to the
+tenant currency."**
+
+**Root cause, and it is the standing lesson again.** `backend/app/api/v1/reports.py`
+`export_sales_csv` hardcoded the literal string `"(PKR)"` on all 13 money rows. The online reports
+(`online_reports.py`, OI-58) do it correctly via `public_order_service.get_currency(db, tenant_id)`,
+which is exactly why one CSV was right and its neighbour was wrong. **A second, inline expression
+of a rule that already had one home.** Same shape as OI-61/65/66/68 and the OI-72 note above.
+
+- **The money itself was never wrong.** `371.07` is the correct GBP major-unit figure; both
+  currencies in `CURRENCIES` have `minorExponent: 2`, so the exporter's `/100` is right for either.
+  **Label-only defect.** Cross-checks: the prepaid CSV shows the same `371.07` under a GBP label,
+  and 371.07/11 = 33.73 matches the exported Avg Order Value.
+- **Nothing else was affected.** The on-screen tiles on that page were already correct:
+  `OnlineReportsPage.tsx` passes `config.currency` into `formatMoney`. `frontend/src/utils/currency.ts`
+  is currency-aware and `configStore` calls `setActiveCurrency` on fetch, so ReportsPage,
+  AdminDashboard and ZReportPage were fine. There are **only two CSV exporters in the whole
+  backend** (`reports.py`, `online_reports.py`); the other was already correct.
+
+**Fix:** `reports.py` now resolves the tenant currency through the same `get_currency` helper and
+f-strings every money label. Order *counts* deliberately keep no currency suffix.
+
+**Verification actually run (2026-08-08, local dev container):**
+- New `backend/tests/test_report_currency.py`, 4 tests: GBP tenant gets GBP on all 12 money rows and
+  **no `PKR` anywhere in the file**; PKR tenant still gets PKR and no `GBP`; no-config tenant falls
+  back to PKR rather than emitting an empty `()`; count rows carry no currency suffix.
+- **Mutation-checked.** Reverting one row to the hardcoded `"Card Revenue (PKR)"` fails the GBP
+  test. The test can fail, so its passing means something.
+- Full suite **519 passed**, `ruff` clean on both touched files. The 10 failures + 2 errors are
+  pre-existing: 10 are the parked QB-Desktop suite, and the two that are not
+  (`test_p1a_features::test_void_with_reason_succeeds`,
+  `test_pay_first::test_transition_blocked_without_payment`) were **confirmed failing identically on
+  a clean-HEAD `git worktree` at `5b3dc00`**, run back-to-back in the same container. Zero regressions.
+
+**🔴 NOT DEPLOYED. Awaiting Malik's go-ahead.** Backend-only, so it ships by `git push origin main`
+alone; the storefront pipeline is not involved. Touches no money, order-number, email, ticket or
+queue path.
+
+---
+
+**OI-74 🔵 NOTED, NOT FIXED, NOT ASKED FOR. Two more hardcoded-PKR surfaces found while fixing OI-73.**
+
+Deliberately left alone rather than swept in. The OI-71 lesson is that changing a live screen
+nobody complained about is how you create work. Recorded so the next GBP tenant does not rediscover
+them:
+1. **`frontend/src/pages/admin/qb/SyncTab.tsx:137`** defines its *own local* `formatPKR` that
+   hardcodes `Rs.` and `en-PK`, shadowing the currency-aware util. A GBP tenant's QuickBooks sync log
+   would render `Rs.371.07`. Invisible to Chick Shack today (Imran refused QuickBooks), so it is
+   latent, not live. One-line fix: import `formatMoney` from `@/utils/currency`.
+2. **Input-form labels**, not reports: `Price (PKR)` / `Amount (PKR)` / `Cost per Unit (PKR)` /
+   `Fixed Threshold (PKR)` in `MenuManagementPage`, `IngredientManagementPage`, `DiscountTypesPage`
+   and `SettingsPage`. A Chick Shack admin editing a menu item is told to type rupees.
+3. ⚠️ **A real limit worth knowing before a third currency arrives:** both CSV exporters divide by a
+   literal `100`. That is correct for PKR and GBP (both 2 minor digits) and wrong for a 3-digit
+   currency (KWD) or a 0-digit one (JPY). Not a bug today, but a trap if a Gulf tenant ever lands.
+   The exponent already lives in `currency.ts`; the backend has no equivalent.
+   (Note: the petrol pump is a **Pakistan** business, PKR, so it is not a case for this.)
+
+---
+
+**OI-72 🔵 NEW, NOT STARTED. Meta ads experiment for online ordering (raised 2026-08-07, Imran via
+Malik). Blocked before it begins, and the measurement layer does not exist.**
+
+**The ask:** Imran proposed running Meta ads to push online ordering. Malik: *"we'll need to first
+connect his fb/ig - get admin access."*
+
+**Blocker 1: Imran cannot act in Meta at all.** His words: *"My meta ads account is restricted and
+will not allow me to post ads."* Linking the Instagram and Facebook Page returns **"Your account is
+restricted. You're temporarily restricted from taking this action to protect your profile. Please
+try again later."**
+- ⚠️ **That is the profile-level action block, not the ad-account disabled notice.** Different
+  systems, different remedies. **This has not been verified from inside his account by anyone.**
+  Checks to run, with Imran screen-sharing or on a call. Do not guess from the one screenshot:
+  1. `facebook.com/accountquality`: does it name a restricted **ad account**, a restricted **Page**,
+     or a restricted **personal profile**? Each has its own appeal form.
+  2. Accounts Center: is the IG account a **professional/business** account, and is it already
+     linked to some *other* Page? A pre-existing link is a common cause of the linking step failing.
+  3. Business Suite: does a **business portfolio** exist at all, and who owns the Page asset?
+  4. Is there an unpaid ad-account balance or a failed payment method? That alone blocks publishing.
+- ⚠️ **Do not create a second profile to route around this.** Meta associates accounts by device,
+  payment method and IP; an evasion attempt puts the **Page** at risk, and the Page is the shop's
+  real asset. Legitimate route only: appeal the restriction, and in parallel put the Page into a
+  business portfolio where a *different, clean* admin (Malik) holds a separately-funded ad account.
+  Ads run from an ad account inside a portfolio. They do not have to run from Imran's profile.
+- **Access we actually need from Imran, in Meta's own terms** (ask for exactly this, not "admin"):
+  Page **Full control** task set; Instagram linked in the same portfolio; then a **new ad account
+  with its own payment method**. Domain `chickshackg84.com` must also be **verified** in the
+  portfolio before any conversion optimisation works.
+
+**Blocker 2, verified, and the bigger one: the storefront has no measurement of any kind.** Grepped
+`storefront/` for `fbq`, `pixel`, `gtag`, `dataLayer`, `google-analytics`: **zero hits** (the only
+matches are base64 strings in `package-lock.json`). **An ad can be run today; an order cannot be
+attributed to it.** Spending before this exists buys an unreadable result.
+- **The Purchase event must fire on Stripe authorisation, not at checkout start.** Counting a
+  created checkout session as a conversion is exactly the defect behind the **£98.96 vs £36.04**
+  scare (OI-66). **`backend/app/services/order_visibility.py` already owns "is this order real"
+  (`is_real_order()` / `money_actually_taken()`). Import it; do not re-express it.** This is the
+  fifth time that standing note applies (OI-61, 65, 66, 68, and now here).
+- **Prefer the server-side Conversions API over a browser pixel.** The Stripe hosted-checkout round
+  trip is a full page reload (nothing survives it but what `lib/pendingOrder.ts` stashes), so a
+  confirmation-page pixel will systematically under-report. The natural hook is the same
+  authorisation moment that already sends the "order received" email (`publish_authorized_card_orders`
+  or the webhook path), which is server-side and already exactly-once by atomic conditional UPDATE.
+- ⚠️ A pixel on the storefront is a **Cloudflare deploy** (`cd storefront && npm run deploy`), not a
+  `git push`. See [[chick-shack-two-deploy-pipelines]].
+- ⚠️ **UK/EU: this is personal data.** A pixel or CAPI send needs a consent mechanism and a privacy
+  notice on the site; neither exists today. Not a blocker to investigate, but it is a blocker to
+  ship, and it should be Imran's informed decision, not a silent addition to his site.
+
+**Next action: read-only look at Imran's Meta setup to establish what is actually restricted.**
+No build, no ad spend, no storefront change until that is known.
+
+---
+
+**OI-71 🔴 REVERTED IN FULL (`1043686`, then `1e6bff3`, then **`5b3dc00`**, 2026-08-05). The tablet
+card is back to `d9f57e7` and dips render inline as an ordinary priced modifier, deliberately.**
+The two entries below are kept as the incident record. **Neither shipped shape survives.** Malik
+rejected the second one on sight (*"ur making it look like a freakin duplicate? dips vs dips tub?"*)
+because the same dip appeared twice on one card: `Algerian Sauce (Dip Tub)` under its item, and
+again as `Dips to pack: 1 × Algerian Sauce`. `5b3dc00` deleted every dip helper from
+`lib/orderDisplay.ts` (OI-70's timezone work untouched, 16/16 passing) and left a standing note at
+the top of the page so nobody re-derives it. **The printed ticket groups dip tubs and was correct
+and untouched throughout.**
+**The lesson that generalises is not "check the medium".** It is that the true answer to Imran's
+question was *"receipts are already fine, this screen needs no change"*, and stopping there was the
+whole job. A live screen was changed with no defect behind it, then patched twice.
+
+<details><summary>Superseded OI-71 record (both shipped shapes, kept for the incident trail)</summary>
+
+**OI-71 (superseded) — the tablet UI
 did not roll**
 - ⚠️ **Malik's UAT rejected the first shape, correctly.** *"why are dip tubs showing so differently
   — its just the regular item. what abt its price, why isnt it reflecting? i hope we are not
@@ -47,6 +182,8 @@ Malik saw dip tubs still rendered as a grey sub-line under the parent item on
 - **Open question at the time:** mirror the ticket on the tablet card, or leave the screen inline?
   Malik chose "mirror the ticket" — and his own UAT then showed why that was the wrong call on this
   medium. Superseded by `1e6bff3` above.
+
+</details>
 
 </details>
 

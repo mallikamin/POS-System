@@ -20,6 +20,7 @@ from app.schemas.report import (
     WaiterPerformanceReport,
 )
 from app.schemas.zreport import ZReport
+from app.services import public_order_service
 from app.services import report_service
 from app.services import zreport_service
 
@@ -80,30 +81,38 @@ async def export_sales_csv(
     data = await report_service.get_sales_summary(
         db, current_user.tenant_id, date_from, date_to
     )
+    # The label must follow the tenant, not the country the POS was written in.
+    # Same helper the online reports (OI-58) already use: one source of truth
+    # for "what currency is this tenant in", never re-expressed inline.
+    currency = await public_order_service.get_currency(db, current_user.tenant_id)
 
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow(["Metric", "Value"])
-    writer.writerow(["Total Revenue (PKR)", data["total_revenue"] / 100])
-    writer.writerow(["Total Discount (PKR)", data["total_discount"] / 100])
-    writer.writerow(["Net Revenue (PKR)", data["net_revenue"] / 100])
+    writer.writerow([f"Total Revenue ({currency})", data["total_revenue"] / 100])
+    writer.writerow([f"Total Discount ({currency})", data["total_discount"] / 100])
+    writer.writerow([f"Net Revenue ({currency})", data["net_revenue"] / 100])
     writer.writerow(["Total Orders", data["total_orders"]])
-    writer.writerow(["Avg Order Value (PKR)", data["avg_order_value"] / 100])
-    writer.writerow(["Total Tax (PKR)", data["total_tax"] / 100])
-    writer.writerow(["Cash Revenue (PKR)", data["cash_revenue"] / 100])
-    writer.writerow(["Card Revenue (PKR)", data["card_revenue"] / 100])
-    writer.writerow(["Other Revenue (PKR)", data["other_revenue"] / 100])
-    writer.writerow(["Dine-In Revenue (PKR)", data["dine_in_revenue"] / 100])
+    writer.writerow([f"Avg Order Value ({currency})", data["avg_order_value"] / 100])
+    writer.writerow([f"Total Tax ({currency})", data["total_tax"] / 100])
+    writer.writerow([f"Cash Revenue ({currency})", data["cash_revenue"] / 100])
+    writer.writerow([f"Card Revenue ({currency})", data["card_revenue"] / 100])
+    writer.writerow([f"Other Revenue ({currency})", data["other_revenue"] / 100])
+    writer.writerow([f"Dine-In Revenue ({currency})", data["dine_in_revenue"] / 100])
     writer.writerow(["Dine-In Orders", data["dine_in_orders"]])
-    writer.writerow(["Takeaway Revenue (PKR)", data["takeaway_revenue"] / 100])
+    writer.writerow([f"Takeaway Revenue ({currency})", data["takeaway_revenue"] / 100])
     writer.writerow(["Takeaway Orders", data["takeaway_orders"]])
-    writer.writerow(["Call Center Revenue (PKR)", data["call_center_revenue"] / 100])
+    writer.writerow(
+        [f"Call Center Revenue ({currency})", data["call_center_revenue"] / 100]
+    )
     writer.writerow(["Call Center Orders", data["call_center_orders"]])
-    writer.writerow(["Online Revenue (PKR)", data["online_revenue"] / 100])
+    writer.writerow([f"Online Revenue ({currency})", data["online_revenue"] / 100])
     writer.writerow(["Online Orders", data["online_orders"]])
     # Discount breakdown
     for entry in data.get("discount_breakdown", []):
-        writer.writerow([f"Discount: {entry['label']} (PKR)", entry["total"] / 100])
+        writer.writerow(
+            [f"Discount: {entry['label']} ({currency})", entry["total"] / 100]
+        )
 
     output.seek(0)
     filename = f"sales_summary_{date_from}_{date_to}.csv"

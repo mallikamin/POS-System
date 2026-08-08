@@ -1,9 +1,134 @@
 # STATE — Restaurant POS System
 
-**Last refreshed:** 2026-08-05 (03:55 UK) — session U. **Branch:** `main`, HEAD `d9f57e7`
-(`99b6757` + the docs close-out commit; the ~124-file uncommitted doc reorg in the tree is the
-known pre-existing one, not new work).
-**Nothing is in flight. All shipped work below is deployed, verified live, and committed.**
+**Last refreshed:** 2026-08-08. Chick Shack refresh: no drift found in the 08-07 entries below, they
+stand as written. One new defect raised and fixed (OI-73, currency labels on the sales CSV).
+**Branch:** `main`, HEAD `5b3dc00`, nothing unpushed.
+**⚠️ One piece of work IS in flight and is NOT deployed: OI-73, see the block directly below.**
+Everything dated 08-07 and earlier is deployed, verified live, and committed.
+
+## 🟡 2026-08-08. OI-73: the sales CSV called Chick Shack's pounds rupees. Fixed, tested, NOT deployed.
+
+Malik, from `https://eats.sitaratech.info/online-orders/reports`: the Daily Sales download read
+`Total Revenue (PKR),371.07`, while the Prepaid vs COD download **from the same page and the same
+date range** read `Prepaid Revenue (GBP)` and was correct. His instruction: **"all reports should be
+tied to the tenant currency."**
+
+- **Cause: the same standing mistake, a fifth time.** `backend/app/api/v1/reports.py`
+  `export_sales_csv` hardcoded the literal `"(PKR)"` on all 13 money rows. `online_reports.py`
+  (OI-58) resolves it properly through `public_order_service.get_currency`, which is precisely why
+  one CSV was right and the one beside it was wrong. **A rule that already had one home, re-expressed
+  inline somewhere else.** Same shape as OI-61/65/66/68.
+- **The money was never wrong. Label-only.** `371.07` is the correct GBP figure; PKR and GBP both
+  have 2 minor digits so the exporter's `/100` was right either way. Cross-checked: the prepaid CSV
+  reports the same `371.07`, and 371.07/11 = the exported 33.73 avg order value.
+- **The blast radius is small and was measured, not assumed.** The whole backend has **only two CSV
+  exporters** and the other was already correct. The page's on-screen tiles were already correct too
+  (`OnlineReportsPage.tsx` passes `config.currency` into `formatMoney`); `utils/currency.ts` is
+  currency-aware and `configStore` sets it on fetch, so ReportsPage/AdminDashboard/ZReportPage never
+  had this bug.
+- **Verified (local dev container, 2026-08-08):** new `backend/tests/test_report_currency.py`, 4
+  tests, both directions. A GBP tenant gets GBP on every money row and **no `PKR` in the file at
+  all**; a PKR tenant still gets PKR and no `GBP`; a tenant with no config falls back to PKR rather
+  than an empty `()`; order *counts* keep no currency suffix. **Mutation-checked**: putting one row
+  back to hardcoded PKR fails the GBP test. Full suite **519 passed**, `ruff` clean on both touched
+  files; the 10 failures + 2 errors are the parked QB-Desktop suite plus two others
+  (`test_p1a_features::test_void_with_reason_succeeds`, `test_pay_first::test_transition_blocked_
+  without_payment`) **confirmed failing identically on a clean-HEAD `git worktree` at `5b3dc00`**,
+  run back-to-back in the same container. Zero regressions.
+- 🔴 **NOT DEPLOYED, waiting on Malik.** Backend-only, so `git push origin main` alone ships it; the
+  Cloudflare storefront pipeline is correctly not involved. Raised 07:30 UK with the shop shut and
+  ~8.5h to the 16:00 open, i.e. the same safe window every prior deploy used.
+- **Stage by explicit filename** (the ~125-file dirty tree and OI-60's untested backend work are
+  still there): `backend/app/api/v1/reports.py`, `backend/tests/test_report_currency.py`,
+  plus `STATE.md` and `_state/open-items.md`.
+- **Found but deliberately NOT fixed, logged as OI-74**, because changing screens nobody complained
+  about is the OI-71 mistake: `qb/SyncTab.tsx` has its own local `formatPKR` hardcoding `Rs.`
+  (latent, since Chick Shack has no QuickBooks), several admin *input* forms are labelled `(PKR)`, and
+  both CSV exporters divide by a literal `100` which would be wrong for a 3-digit currency (KWD) or
+  a 0-digit one (JPY) if a Gulf tenant ever lands.
+
+## 🟢 2026-08-07. OI-65's last untested residual finally fired in production, and it behaved.
+
+Malik asked why `260807-D005` was missing from the tablet (the queue jumped D004 to D006). **Answer:
+it is an abandoned card checkout, and the gate hid it on purpose.** Read-only production query, no
+change made:
+- `260807-D005`, Derek Slee, delivery, £17.19, created **17:07:42 UTC**. A live Stripe session exists
+  (`cs_live_…`) but **no PaymentIntent was ever created**, `payment_authorized_at` is NULL, and
+  `updated_at` is 0.26s after `created_at`, so nothing has touched the row since. The customer
+  reached Stripe and never entered card details. **No money was taken and there was nothing to cook.**
+- **The publication path is provably alive in the same window**, so this is the gate working and not
+  the gate stuck: D006, D007, D008, C009, C010, D011 and D012 all authorised and published either
+  side of it.
+- ⚠️ **This is the exact residual OI-65 flagged as never exercised** ("the negative case ... was never
+  exercised against a real unpaid live session, because all 17 live sessions are complete/paid").
+  It has now happened for real, on a live session, and the order correctly never reached the tablet.
+  **Consider that residual closed by production.**
+- **Abandonment rate, last 7 days: 1 of 45 card baskets** (0 on every prior day). Checkout is not
+  where this business leaks customers, which is worth remembering during the OI-72 ads conversation.
+- **Expect the numbering gaps to recur and to keep generating this question.** Order numbers are
+  allocated when the basket is submitted, before payment, and OI-68 deliberately never re-issues a
+  number. Every abandoned checkout therefore burns one permanently. Nothing on the tablet or the
+  reports explains a gap today. Small idea, not built and not asked for: surface an abandoned count
+  on the reports page so a gap has a visible reason.
+
+## 🔵 2026-08-07. NEW, NOT STARTED: Imran wants a Meta ads experiment. Blocked at step zero.
+
+Malik's framing: *"imran is proposing meta ads experiment to boost online ordering. we'll need to
+first connect his fb/ig - get admin access."* Registered as **OI-72**.
+
+**The blocker, in Imran's own words (WhatsApp, screenshot):** *"My meta ads account is restricted and
+will not allow me to post ads"*, and when he tries to link the Instagram and Facebook page he gets
+**"Your account is restricted. You're temporarily restricted from taking this action to protect
+your profile. Please try again later."** Malik: *"ok lets brainstorm a way around then."*
+
+⚠️ **Unverified, and it matters which it is:** that wording is Meta's *profile-level* action block,
+not the "your ad account has been disabled" ads-manager notice. They are different systems with
+different remedies. **Nobody has looked inside his Business Suite or Accounts Center yet.** Do that
+before proposing any fix. See OI-72 for the exact checks.
+
+⚠️ **Do not build a second profile to route around it.** Meta links accounts by device, payment
+method and IP; an evasion attempt risks the Page itself, which is the shop's actual asset. The
+legitimate route is an appeal plus a properly-permissioned business portfolio.
+
+**Verified technical gap, and it is the real work here: there is no measurement on the storefront at
+all.** Grepped `storefront/` for `fbq`, pixel, `gtag`, `dataLayer` and analytics: **zero hits, the
+only matches are base64 noise in `package-lock.json`.** So today a Meta ad can be run but **no order
+can be attributed to it**. Before spending money:
+- A Purchase event must fire **when Stripe authorises**, not at checkout start. Firing at checkout
+  start is precisely the mistake that produced the **£98.96 vs £36.04** report scare (OI-66). The
+  "is this order real" rule already lives once, in `backend/app/services/order_visibility.py`.
+  **Ad reporting must import that rule, not re-express it** (the OI-61/65/66/68 standing note).
+- The Stripe round trip is a **full page reload**; nothing survives it except what `lib/pendingOrder.ts`
+  explicitly stashes. A browser-only pixel on the confirmation page will therefore under-report.
+  Server-side **Conversions API**, fired from the same place that already sends the "order received"
+  email on authorisation, is the shape that matches this codebase.
+- Any storefront change ships via **`cd storefront && npm run deploy`** (Cloudflare), NOT `git push`.
+  See [[chick-shack-two-deploy-pipelines]].
+
+**Next action: get read access to Imran's Meta setup and establish what is actually restricted (the
+personal profile, the Page, or an ad account) before designing anything.** No build, no spend.
+
+## 🟢 2026-08-06 — Stripe "webhook delivery issues [test mode]" email, closed, no code touched
+
+Stripe emailed that `https://eats.sitaratech.info/api/v1/public/stripe/webhook` had failed 9
+times since 2026-08-03, **in test mode**. Diagnosed from the repo, not the dashboard, then
+confirmed by Malik directly in Stripe:
+- A **sandbox-mode** webhook destination for this same URL was a leftover from dev (registered
+  sandbox-first per OI-20/H-6, 2026-07-29). Once the server was switched to a live
+  `STRIPE_SECRET_KEY` (2026-08-01), `stripe_service.verify_webhook`'s H-2 guard
+  (`docs/STRIPE_HARDENING_CHECKLIST.md`) correctly rejects any event that doesn't match the
+  key's live/test mode — so the orphaned sandbox destination could only ever fail from that
+  point on. **By design, not a defect.**
+- The **live** webhook destination (`live-wh`) is separate, was already proven working with a
+  real captured payment on 2026-08-02, and Malik screenshotted it live-mode: **Active**, 4
+  events subscribed, 3% error rate (background noise, not this incident).
+- Zero impact on real orders at any point — Chick Shack doesn't use subscriptions or
+  `checkout.session.completed` fulfillment (the two cases Stripe's email flags), and
+  `publish_authorized_card_orders` polls Stripe directly so publication never depended on the
+  webhook anyway (OI-65).
+- **Fix: Malik deleted the sandbox destination in the Stripe dashboard.** Confirmed via
+  screenshot — sandbox Webhooks tab now empty, live `live-wh` untouched. No server config, no
+  deploy, no code change.
 
 ## 🟢 Raised by Malik 2026-08-05 — three observations, all SHIPPED + VERIFIED LIVE (`1043686`)
 
@@ -42,6 +167,21 @@ no order was in flight and no customer or staff member saw a mid-service change.
 has failed to connect every session this week, and the page is behind a login whose credentials the
 assistant must not handle. The chain above (real function tests → live chunk contents → live config
 value) is the strongest available proof short of Malik opening the page. **His UAT is the last step.**
+
+### ⚠️ OI-71 ENDED IN A FULL REVERT (`5b3dc00`). Read this before the block below.
+
+**Corrected 2026-08-07.** The block below describes `1e6bff3` as the fix. It was not the end of it.
+Malik rejected that too, on sight: *"ur making it look like a freakin duplicate? dips vs dips tub?
+what the hell confusion are u creating?"* The same dip rendered twice on one card, once as
+`Algerian Sauce (Dip Tub)` under its item and again as `Dips to pack: 1 × Algerian Sauce`.
+**`5b3dc00` reverts the tablet card to byte-identical with `d9f57e7`** (diffed against that revision,
+not eyeballed); every dip helper is gone from `lib/orderDisplay.ts`, leaving only the OI-70 timezone
+work, 16/16 passing. **The printed ticket still groups dip tubs and was never touched.**
+
+**The lesson is not the one written below.** It is not "check the medium". It is that **the honest
+answer to his original question was "receipts are already fine, this screen needs no change", and
+the right move was to stop there.** A live screen was changed for no defect, the correction was
+rejected, and the correction's correction made it worse. OI-69 and OI-70 were real bugs and stand.
 
 ### ⚠️ Malik's UAT found a real display defect in OI-71 — fixed and redeployed (`1e6bff3`)
 
