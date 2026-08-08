@@ -1,7 +1,7 @@
 # Open items register
 
-**OI-73 🟡 FIXED LOCALLY, TESTED, NOT YET DEPLOYED. The sales-summary CSV labelled Chick Shack's
-money in PKR (raised 2026-08-08 by Malik).**
+**OI-73 ✅ CLOSED. SHIPPED AND VERIFIED LIVE 2026-08-08 (`5134430`). The sales-summary CSV labelled
+Chick Shack's money in PKR (raised 2026-08-08 by Malik).**
 
 **What he saw:** from `https://eats.sitaratech.info/online-orders/reports`, the Daily Sales CSV
 download (`sales_2026-08-07_2026-08-08.csv`) read `Total Revenue (PKR),371.07`. Pounds taken in
@@ -40,9 +40,22 @@ f-strings every money label. Order *counts* deliberately keep no currency suffix
   `test_pay_first::test_transition_blocked_without_payment`) were **confirmed failing identically on
   a clean-HEAD `git worktree` at `5b3dc00`**, run back-to-back in the same container. Zero regressions.
 
-**🔴 NOT DEPLOYED. Awaiting Malik's go-ahead.** Backend-only, so it ships by `git push origin main`
-alone; the storefront pipeline is not involved. Touches no money, order-number, email, ticket or
-queue path.
+**✅ DEPLOYED ~07:40 UK on Malik's "commit push deploy", commit `5134430`.** Backend-only, shipped by
+`git push origin main`; the Cloudflare storefront pipeline correctly not run. Touched no money,
+order-number, email, ticket or queue path.
+
+**Live verification, stronger than a grep:** `export_sales_csv` was **called in-process inside the
+running production container against the live database**, for all 3 active tenants, over the exact
+07-08 Aug range Malik used. `chick-shack` returns `Total Revenue (GBP),371.07` with **PKR count 0**;
+`cosa-nostra` and `demo-restaurant` still return `(PKR)` with **GBP count 0**. The value is unchanged
+from the broken export, which is the proof the defect was label-only. Server `git log` = `5134430`,
+containers healthy, **Orbit CRM untouched**, all four public URLs 200 with a browser UA, 0 backend
+exceptions and 0 nginx 5xx.
+
+⚠️ **Verification trap, logged because it nearly became a false alarm:** a first 5xx count returned
+"4" purely because the grep pattern ` 5[0-9][0-9] ` matched nginx's **response size** `537` rather
+than the status code. Every one of those lines was `200 537`. Anchor on the status field
+(`" 5[0-9][0-9] `), or tally with `grep -oE '" [0-9]{3} '`.
 
 ---
 

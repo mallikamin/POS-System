@@ -1,12 +1,11 @@
 # STATE — Restaurant POS System
 
 **Last refreshed:** 2026-08-08. Chick Shack refresh: no drift found in the 08-07 entries below, they
-stand as written. One new defect raised and fixed (OI-73, currency labels on the sales CSV).
-**Branch:** `main`, HEAD `5b3dc00`, nothing unpushed.
-**⚠️ One piece of work IS in flight and is NOT deployed: OI-73, see the block directly below.**
-Everything dated 08-07 and earlier is deployed, verified live, and committed.
+stand as written. One new defect raised, fixed and shipped the same morning (OI-73, currency labels
+on the sales CSV). **Branch:** `main`, HEAD `5134430`, nothing unpushed.
+**No code work is in flight. All shipped work below is deployed, verified live, and committed.**
 
-## 🟡 2026-08-08. OI-73: the sales CSV called Chick Shack's pounds rupees. Fixed, tested, NOT deployed.
+## 🟢 2026-08-08. OI-73: the sales CSV called Chick Shack's pounds rupees. SHIPPED + VERIFIED LIVE (`5134430`)
 
 Malik, from `https://eats.sitaratech.info/online-orders/reports`: the Daily Sales download read
 `Total Revenue (PKR),371.07`, while the Prepaid vs COD download **from the same page and the same
@@ -35,12 +34,29 @@ tied to the tenant currency."**
   (`test_p1a_features::test_void_with_reason_succeeds`, `test_pay_first::test_transition_blocked_
   without_payment`) **confirmed failing identically on a clean-HEAD `git worktree` at `5b3dc00`**,
   run back-to-back in the same container. Zero regressions.
-- 🔴 **NOT DEPLOYED, waiting on Malik.** Backend-only, so `git push origin main` alone ships it; the
-  Cloudflare storefront pipeline is correctly not involved. Raised 07:30 UK with the shop shut and
-  ~8.5h to the 16:00 open, i.e. the same safe window every prior deploy used.
-- **Stage by explicit filename** (the ~125-file dirty tree and OI-60's untested backend work are
-  still there): `backend/app/api/v1/reports.py`, `backend/tests/test_report_currency.py`,
-  plus `STATE.md` and `_state/open-items.md`.
+- ✅ **DEPLOYED 2026-08-08 ~07:40 UK / ~11:40 PK, commit `5134430`**, on Malik's "commit push deploy".
+  Shop shut, ~8h before the 16:00 open, the same safe window every prior deploy used. Backend-only,
+  so `git push origin main` alone shipped it and the Cloudflare storefront pipeline was correctly
+  not run. Staged by explicit filename, 4 files; the ~125-file dirty tree and OI-60's untested
+  backend work were left exactly as they were. Staged diff scanned for secret-shaped strings: **0**.
+- **Verified live beyond the green Action, and this one got the strongest proof available.** Rather
+  than reading the file on disk, `export_sales_csv` itself was **called in-process inside the running
+  production container against the live database**, for all 3 active tenants, over Malik's exact
+  07-08 Aug range:
+  - `chick-shack` → `Total Revenue (GBP),371.07`. **PKR count 0, GBP count 12.** The precise row he
+    downloaded as PKR, now GBP, **with the value unchanged**, which is the proof it was label-only.
+  - `cosa-nostra` and `demo-restaurant` → still `(PKR)`, GBP count **0**. No collateral damage.
+  - Server `git log` = `5134430`; backend/nginx containers freshly recreated and healthy; **Orbit CRM
+    untouched** (`orbit_api` 8 weeks, `orbit_db` 2 months, `orbit_web` 3 months uptime).
+  - Running container greps: hardcoded `Revenue (PKR)` → **0**, currency-resolved labels → 13,
+    `get_currency` call present.
+  - Public HTTPS with a browser UA: `/api/v1/health`, `/online-orders`, `/online-orders/reports` and
+    `chickshackg84.com` all **200**. **0 backend exceptions, 0 nginx 5xx** since deploy.
+- ⚠️ **A verification trap worth keeping:** the first 5xx check reported "4" and was **my own grep's
+  fault, not an outage**. The pattern ` 5[0-9][0-9] ` matched the nginx **response size** `537`, not
+  the status code. All four lines were `200 537`. Anchor on the status field (`" 5[0-9][0-9] `) or
+  tally `grep -oE '" [0-9]{3} '`. The 3 remaining `400`s are empty request lines from the GitHub
+  runner IP during its own verify step, i.e. deploy tooling, not user traffic.
 - **Found but deliberately NOT fixed, logged as OI-74**, because changing screens nobody complained
   about is the OI-71 mistake: `qb/SyncTab.tsx` has its own local `formatPKR` hardcoding `Rs.`
   (latent, since Chick Shack has no QuickBooks), several admin *input* forms are labelled `(PKR)`, and
