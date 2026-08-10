@@ -627,3 +627,128 @@ Each entry follows:
   fixing properly at some point — every `func.cast(col, Date)` site in `report_service.py` and
   `dashboard_service.py` is silently unverifiable by this test suite today, which is a large blind
   spot, but it is out of scope for OI-57/OI-58 to fix wholesale.
+
+### 2026-08-03 (session S) — Bare `python` on PATH is 3.9; this repo's backend needs 3.10+
+- **Error**: `TypeError: unsupported operand type(s) for |: 'type' and 'NoneType'` when running
+  `alembic`/`pytest` with the system `python`.
+- **Context**: Running the backend test suite locally (outside Docker) to verify OI-61 before deploy.
+- **Root Cause**: The machine's PATH `python` resolves to 3.9; this codebase uses `str | None` union
+  syntax throughout (requires 3.10+), and its own test `.pyc` cache is compiled for 3.12.
+- **Fix**: Used `backend/.venv/Scripts/python.exe` — a pre-existing local venv already on Python 3.12
+  with every dependency installed — for all test/tooling commands instead.
+- **Rule**: Always invoke this backend's Python tooling via `backend/.venv/Scripts/python.exe`, never
+  bare `python`, when working outside Docker.
+
+### 2026-08-03 (session S) — `tsc --noEmit` at the frontend project root fails with TS6305/TS6310
+- **Error**: `error TS6310: Referenced project '...tsconfig.app.json' may not disable emit` and a wall
+  of `TS6305` "not been built from source" errors.
+- **Context**: Type-checking `frontend/` before deploying the OI-61 fix.
+- **Root Cause**: The root `tsconfig.json` is a TS project-references config; `tsc --noEmit` can't be
+  invoked against it directly the way it can against a leaf config.
+- **Fix**: Ran `tsc --noEmit -p tsconfig.app.json`, matching exactly what `package.json`'s own
+  `"build"` script does.
+- **Rule**: For this frontend, always typecheck via `npm run build` (or its exact `tsc -p
+  tsconfig.app.json` invocation) — never a bare `tsc --noEmit` at the repo root.
+
+### 2026-08-03 (session S) — A bold+big centered ticket line wraps onto 3 lines at 32 characters
+- **Error**: New print-ticket test failed: `"*** CARD PAYMENT PROCESSING ***"` rendered as `"*** CARD
+  \nPAYMENT\nPROCESSING ***"` instead of one line.
+- **Context**: Adding a third "card processing" payment state to the kitchen ticket footer (OI-61),
+  styled like the existing `"*** PAID ONLINE ***"`/`"*** NOT PAID ***"` lines.
+- **Root Cause**: `t.center(..., big=True)` double-sizes the text, which halves the effective line
+  width from 48 to 24 characters. The new 32-character phrase exceeded that and wrapped.
+- **Fix**: Shortened to `"*** CARD PROCESSING ***"` (23 characters), under the same budget the two
+  existing lines already respect.
+- **Rule**: Any new bold+big centered line on this ticket must fit in ~24 characters, not 48 — check
+  against the existing `PAID ONLINE`/`NOT PAID` line lengths before adding a new one.
+
+### 2026-08-03 (session S) — Backgrounded `npm run deploy` (storefront) produced 0 bytes of output
+- **Error**: A `cd storefront && npm run deploy` run in the background (Bash `run_in_background`)
+  completed (exit code 0, confirmed by its own task-notification) but its captured output file was
+  empty — no build log, no wrangler upload log, nothing.
+- **Context**: Deploying the storefront half of the OI-61 fix (Cloudflare Workers pipeline, separate
+  from the backend's `git push` pipeline).
+- **Root Cause**: Unclear — a harness output-buffering quirk for this specific backgrounded command,
+  not a real deploy failure. The process had already exited by the time the output file was checked.
+- **Fix**: Verified the deploy succeeded independently of the empty log: fetched the live storefront
+  bundle and confirmed it was byte-identical to the local `vite build` output and contained the new
+  "Service Fee" checkout-line string.
+- **Rule**: Don't treat an empty background-output file as a failure signal on its own for this
+  command — verify via the live bundle hash (or equivalent independent check) instead, same as any
+  other deploy this project's own "verify the effect, never the exit code" rule already demands.
+
+### 2026-08-03 (session T) — Local dev could never test Stripe at all, structurally, not just by convention
+- **Error**: `POST .../checkout-session` in local dev returned `503 "Card payment is not available
+  right now."` even after setting real Stripe TEST-mode keys in `.env`.
+- **Context**: Stress-testing the OI-61 card-payment-race fix in an isolated local sandbox, without
+  touching the live storefront's Stripe keys.
+- **Root Cause**: Two separate, compounding gaps. (1) `docker-compose.yml`'s `backend` service
+  declares an explicit `environment:` allowlist, and `STRIPE_SECRET_KEY`/`STRIPE_PUBLISHABLE_KEY`/
+  `STRIPE_WEBHOOK_SECRET`/`STRIPE_SUCCESS_URL`/`STRIPE_CANCEL_URL` were never on it — Compose does
+  NOT forward every `.env` variable into a container automatically, only what's explicitly listed,
+  so no value in `.env` could ever have reached the backend process. (2) Independently, the local
+  dev Docker image had never had the `stripe` Python package installed, even though it has been in
+  `requirements.txt` (`stripe==15.3.1`) since the feature was first built — the image was built once,
+  before that line existed, and nothing since has forced a rebuild (`docker compose up` reuses an
+  existing image; it does not diff `requirements.txt`).
+- **Fix**: Added the 5 Stripe vars to `docker-compose.yml`'s backend `environment:` list (each
+  `${VAR:-}`-style, matching the existing `QB_CLIENT_ID` pattern). Ran `docker compose build backend`
+  to install `stripe` for real, then `--force-recreate` to pick up both fixes.
+- **Rule**: A variable being correct in `.env` proves nothing about whether a Compose service
+  actually receives it — check the service's `environment:`/`env_file:` block first. Separately, an
+  addition to `requirements.txt` does not reach a already-built local image until that image is
+  rebuilt; `docker compose up -d` alone will happily keep running a stale image forever.
+
+### 2026-08-10 — A feature's two safety limits left a dead zone between them, and it failed silently
+- **Error**: The review-request email silently dropped every order accepted after ~19:00, which is
+  peak dinner. No error, no log, no complaint.
+- **Context**: Shipped in `5dda69f`. Found minutes later by dry-running the real query against
+  production at the moment the feature was switched on.
+- **Root Cause**: Two individually sensible constants, wrong in combination. A 12h staleness cutoff
+  plus a 09:00-22:00 send window: an order accepted at 19:30 fell due at 22:30, after the window
+  shut, waited for the 09:00 sweep, and by then was 13.5h old and past the cutoff.
+- **Fix**: `REVIEW_EMAIL_MAX_AGE` 12h -> 18h (`2795ca2`), which covers a whole service with margin.
+  New test pins acceptance at 19:30 and fails if the constant goes back.
+- **Rule**: **When two limits bound the same value from opposite ends, test the interaction, not
+  each limit.** The existing overnight test could not have caught this — its order sits 11h out,
+  inside even the broken cutoff. **The bug lived in the gap between two passing tests.** And a
+  second rule: anything that silently *declines* to act needs a positive test, because a missing
+  email is indistinguishable from a quiet evening.
+
+### 2026-08-10 — Adding a parameter broke 4 tests in an apparently unrelated file
+- **Error**: `TypeError: _capture() takes 4 positional arguments but 5 were given`, in
+  `test_order_lifecycle_and_email.py`.
+- **Context**: Added `bcc` to `_send_blocking` / `_send_via_brevo`.
+- **Root Cause**: An existing test stubs the transport with a hand-written function pinned to the
+  old signature. Changing the real signature broke the stub, in a file with no obvious connection
+  to the change.
+- **Fix**: Stub updated, and it now also asserts the bcc is empty so no ordinary order email can
+  quietly copy a third party.
+- **Rule**: Run the WHOLE suite after any signature change, never just the file you wrote. Hand-
+  written stubs are invisible coupling.
+
+### 2026-08-10 — faster-whisper CUDA failure is invisible to a try/except around the constructor
+- **Error**: `RuntimeError: Library cublas64_12.dll is not found or cannot be loaded`.
+- **Context**: Transcribing Imran's voice note with `WhisperModel("medium", device="cuda")`.
+- **Root Cause**: The constructor returns happily; the missing CUDA library only surfaces when the
+  first segment is ENCODED, i.e. while iterating the generator. A try/except around construction
+  catches nothing.
+- **Fix**: `device="cpu", compute_type="int8"`. A 2m34s note transcribes in about a minute.
+- **Rule**: For faster-whisper on this machine, use CPU. Guarding the constructor is not a fallback.
+
+### 2026-08-10 — `TZ=Europe/London date` reported GMT in August
+- **Error**: Host shell printed `04:59 GMT` when Britain was on BST.
+- **Context**: Checking whether the shop was open before deploying.
+- **Root Cause**: git-bash lacks BST tzdata, so it silently mislabels the zone. Same trap already
+  logged on 2026-08-05 for a deploy timestamp.
+- **Fix**: Read shop-local time from inside the backend container via `zoneinfo`.
+- **Rule**: Never read a shop-local time from the Windows host shell. Ask the container.
+
+### 2026-08-10 — A production probe "failed" and the failure was correct behaviour
+- **Error**: The review sweep claimed 0 orders against production despite a due order existing.
+- **Context**: First in-process verification of `send_due_review_emails` on the real database.
+- **Root Cause**: The probe picked `demo-restaurant`, whose timezone is `Asia/Karachi`, where the
+  time was 01:47 — correctly outside the 09:00-22:00 send window.
+- **Fix**: Re-ran with the tenant's zone borrowed as `Europe/London` (21:47, in window). Passed.
+- **Rule**: This feature cannot be probed at an arbitrary hour. Check the TENANT's local time first,
+  not the server's and not your own.
