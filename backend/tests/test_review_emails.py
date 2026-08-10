@@ -443,3 +443,57 @@ async def test_two_workers_racing_on_one_order_produce_exactly_one_winner(
         "a second worker also claimed an order that was already taken -- "
         "this is the four-emails-to-one-customer bug"
     )
+
+
+@pytest.mark.asyncio
+async def test_a_peak_dinner_order_survives_the_overnight_wait(
+    db: AsyncSession, tenant: Tenant, config: RestaurantConfig, admin_user: User
+) -> None:
+    """The dead zone between the send window and the staleness cutoff.
+
+    ⚠️ This is a real bug that shipped and was caught in production on
+    2026-08-10, by dry-running the query at the moment the feature was switched
+    on. With `REVIEW_EMAIL_MAX_AGE` at 12h:
+
+        accepted 19:30 -> due 22:30 -> window shut -> waits for 09:00
+                       -> by 09:00 it is 13.5h old -> silently dropped
+
+    Every order accepted between roughly 19:00 and 21:00, which is the busiest
+    part of the night, was binned without a trace. The failure was invisible
+    because a missing email looks exactly like a quiet evening.
+
+    `test_nothing_is_sent_in_the_middle_of_the_night` did NOT catch it: its
+    order is accepted at 21:30, only 11h before the morning sweep, so it fell
+    inside even the broken 12h cutoff. The bug lived in the gap between two
+    passing tests.
+    """
+    # Accepted 19:30 BST on the 10th (18:30 UTC), the middle of service.
+    accepted = datetime(2026, 8, 10, 18, 30, tzinfo=timezone.utc)
+    order = _order(
+        tenant,
+        admin_user,
+        timedelta(0),
+        order_number="260810-D009",
+        accepted_at=accepted,
+    )
+    db.add(order)
+    await db.flush()
+    await db.commit()
+
+    # 09:30 BST the next morning: 08:30 UTC, 14h after acceptance.
+    morning = datetime(2026, 8, 11, 8, 30, tzinfo=timezone.utc)
+
+    class _Morning(datetime):
+        @classmethod
+        def now(cls, tz=None):  # type: ignore[override]
+            return morning if tz else morning.replace(tzinfo=None)
+
+    with patch.object(public_order_service, "datetime", _Morning), patch(
+        "app.services.email_service.send_order_email", new_callable=AsyncMock
+    ):
+        claimed = await public_order_service.send_due_review_emails(db, tenant.id)
+        await _drain_emails()
+
+    assert [o.order_number for o in claimed] == ["260810-D009"], (
+        "a peak-dinner order aged out overnight and was never asked about"
+    )

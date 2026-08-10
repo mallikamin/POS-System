@@ -1463,12 +1463,29 @@ async def _get_pending_online_order(
 #: and the food only exists after acceptance.
 REVIEW_EMAIL_DELAY = timedelta(hours=3)
 
-#: Orders older than this are never asked about, however they got missed.
-#: This is what stops a burst of emails about stale orders the first time the
-#: feature is switched on, and what stops a long backend outage ending in a
-#: mailshot about food eaten days ago. ⚠️ Consequence worth knowing: turning
-#: the feature on mid-evening WILL email that evening's earlier customers.
-REVIEW_EMAIL_MAX_AGE = timedelta(hours=12)
+#: Orders older than this are never asked about, however they got missed. This
+#: is what stops a burst of emails about stale orders the first time the
+#: feature is switched on, and what stops a backend outage ending in a mailshot
+#: about food eaten days ago.
+#:
+#: ⚠️ **It must be wide enough to survive the overnight wait, or it silently
+#: eats the busiest part of the night.** This was 12h and that was wrong. Work
+#: it through with the shop's real hours (16:00-22:00):
+#:
+#:   accepted 16:00-19:00 -> due 19:00-22:00 -> inside the window, sent that
+#:                           evening.
+#:   accepted 19:00-22:00 -> due 22:00-01:00 -> window shut, deferred to 09:00,
+#:                           by which time the order is 11-14h old.
+#:
+#: At 12h everything accepted after ~19:00 aged out overnight and was dropped
+#: without a trace -- peak dinner, and the failure was invisible because no
+#: email is not an error. Caught on 2026-08-10 by dry-running the real query
+#: against production the moment the feature was switched on: 260809-D002,
+#: accepted 19:06, was due and would have been binned at 09:00.
+#:
+#: 18h covers acceptance back to 15:00 the previous day at the 09:00 sweep,
+#: i.e. the whole of the last service, with margin.
+REVIEW_EMAIL_MAX_AGE = timedelta(hours=18)
 
 #: Shop-local hours during which a review email may go out. An order accepted
 #: at 22:00 falls due at 01:00, and a restaurant emailing a customer at 1am
