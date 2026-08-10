@@ -369,8 +369,11 @@ def test_reply_to_falls_back_to_the_from_address() -> None:
 async def test_every_event_builds_and_sends(event: str) -> None:
     captured: dict[str, str] = {}
 
-    def _capture(to: str, subject: str, body: str, html: str) -> None:
-        captured.update(to=to, subject=subject, body=body, html=html)
+    # `bcc` was added to the transport signature on 2026-08-10, when Malik asked
+    # to be copied on the first two review emails. Accepted here and asserted
+    # empty below: an ordinary order email must never quietly copy anyone.
+    def _capture(to: str, subject: str, body: str, html: str, bcc: str = "") -> None:
+        captured.update(to=to, subject=subject, body=body, html=html, bcc=bcc)
 
     with patch.object(
         type(email_service.settings), "email_configured", property(lambda _: True)
@@ -384,6 +387,7 @@ async def test_every_event_builds_and_sends(event: str) -> None:
     assert "<!doctype html>" in captured["html"].lower()
     assert "L250101-009" in captured["html"]
     assert "CHICK" in captured["html"]
+    assert captured["bcc"] == "", "an ordinary order email must not bcc anyone"
 
 
 # ---------------------------------------------------------------------------

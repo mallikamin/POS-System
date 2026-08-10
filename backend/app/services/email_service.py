@@ -415,7 +415,7 @@ def _html_review(order: Order, shop: str, currency: str, review_url: str = "") -
     there, and Malik's call (2026-08-10) was to ship the item as text now
     rather than block this on a database backfill.
     """
-    name = html_escape(order.customer_name or "there")
+    name = html_escape(_first_name(order))
     items = "".join(
         f'<p style="margin:0 0 2px 0; font-size:15px; color:{_C_BODY_TEXT};">'
         f"{item.quantity} &times; {html_escape(item.name)}</p>"
@@ -558,7 +558,7 @@ def _body_review(
 ) -> tuple[str, str]:
     subject = f"{shop}: how did we do with order {order.order_number}?"
     items = "\n".join(f"  {item.quantity} x {item.name}" for item in order.items)
-    body = f"""Hi {order.customer_name or 'there'},
+    body = f"""Hi {_first_name(order)},
 
 Thanks for ordering from us. We hope it was good.
 
@@ -592,7 +592,29 @@ _BUILDERS = {
 # ---------------------------------------------------------------------------
 
 
-async def _send_via_brevo(to: str, subject: str, text: str, html: str) -> None:
+def _first_name(order: Order) -> str:
+    """"Hi Howard," not "Hi Howard Pearson,".
+
+    Checkout captures a full name because delivery needs one, but a thank-you
+    that greets somebody by their full name reads like a mail merge rather than
+    a person. Only the review email uses this -- the transactional emails are
+    about an order, not a conversation.
+
+    An all-lowercase token is capitalised, because people type their own name
+    in a hurry and "Hi howard," looks worse than the problem it solves. A token
+    that already carries a capital is left exactly as it is, so "McDonald" and
+    "O'Brien" survive rather than being flattened to "Mcdonald".
+    """
+    raw = (order.customer_name or "").strip()
+    if not raw:
+        return "there"
+    first = raw.split()[0]
+    return first.capitalize() if first.islower() else first
+
+
+async def _send_via_brevo(
+    to: str, subject: str, text: str, html: str, bcc: str = ""
+) -> None:
     """One transactional send through Brevo's HTTPS API.
 
     Raises on anything but the documented 201 so the caller's catch-all can
@@ -611,6 +633,8 @@ async def _send_via_brevo(to: str, subject: str, text: str, html: str) -> None:
     }
     if html:
         payload["htmlContent"] = html
+    if bcc:
+        payload["bcc"] = [{"email": bcc}]
     # Same reasoning as the SMTP path: the sending address is not a mailbox,
     # so replies must be pointed at one the shop actually reads.
     reply_to = settings.EMAIL_REPLY_TO or settings.EMAIL_FROM
@@ -630,7 +654,7 @@ async def _send_via_brevo(to: str, subject: str, text: str, html: str) -> None:
         )
 
 
-def _send_blocking(to: str, subject: str, text: str, html: str) -> None:
+def _send_blocking(to: str, subject: str, text: str, html: str, bcc: str = "") -> None:
     """Synchronous SMTP send. Runs in a worker thread, never on the loop."""
     message = EmailMessage()
     message["Subject"] = subject
@@ -638,6 +662,12 @@ def _send_blocking(to: str, subject: str, text: str, html: str) -> None:
         (settings.EMAIL_FROM_NAME or None, settings.EMAIL_FROM)  # type: ignore[arg-type]
     )
     message["To"] = to
+    if bcc:
+        # `send_message` reads this to build the envelope recipient list and
+        # then strips the header before transmitting, so the customer never
+        # learns anyone was copied. That is the whole point of Bcc, and it is
+        # why this must be a header rather than a second `To`.
+        message["Bcc"] = bcc
     # A sending domain is not a mailbox. We relay as orders@<shop> because that
     # is what a customer should see, but nothing guarantees that address
     # receives anything -- so point replies at one the shop actually reads.
@@ -679,6 +709,7 @@ async def send_order_email(
     currency: str = "GBP",
     intends_card_payment: bool = False,
     review_url: str = "",
+    bcc: str = "",
 ) -> bool:
     """Send one order email. Returns True only if it actually went out.
 
@@ -732,9 +763,9 @@ async def send_order_email(
 
     try:
         if settings.BREVO_API_KEY:
-            await _send_via_brevo(to, subject, text, html)
+            await _send_via_brevo(to, subject, text, html, bcc)
         else:
-            await asyncio.to_thread(_send_blocking, to, subject, text, html)
+            await asyncio.to_thread(_send_blocking, to, subject, text, html, bcc)
     except Exception:
         # Deliberately broad: smtplib raises a wide family, DNS/socket errors
         # surface as OSError, and httpx has its own tree. Nothing here is

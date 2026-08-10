@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime, timedelta, timezone
+from html import escape as html_escape
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
@@ -496,4 +497,159 @@ async def test_a_peak_dinner_order_survives_the_overnight_wait(
 
     assert [o.order_number for o in claimed] == ["260810-D009"], (
         "a peak-dinner order aged out overnight and was never asked about"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Greeting: first name only (Malik, 2026-08-10, reviewing the real rendered
+# emails: "Hi Howard Pearson," reads like a mail merge, not a person)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "stored,greeting",
+    [
+        ("Howard Pearson", "Howard"),
+        ("Gerardine Anduuru", "Gerardine"),
+        # People type their own name in a hurry.
+        ("howard pearson", "Howard"),
+        # A name that already carries capitals is left alone rather than
+        # flattened to "Mcdonald" / "O'brien".
+        ("McDonald Smith", "McDonald"),
+        ("O'Brien", "O'Brien"),
+        ("  Sarah   ", "Sarah"),
+        ("", "there"),
+        (None, "there"),
+    ],
+)
+def test_the_greeting_uses_the_first_name_only(stored, greeting) -> None:
+    order = SimpleNamespace(
+        order_number="260810-C012",
+        customer_name=stored,
+        total=2485,
+        items=[SimpleNamespace(quantity=1, name="Chips")],
+    )
+    _, body = email_service._body_review(
+        order, "Chick Shack", "GBP", review_url=REVIEW_URL
+    )
+    html = email_service._html_review(
+        order, "Chick Shack", "GBP", review_url=REVIEW_URL
+    )
+    assert body.startswith(f"Hi {greeting},")
+    # The HTML part escapes the name, so an apostrophe arrives as O&#x27;Brien.
+    # That is the escaping working, not a greeting bug.
+    assert f"Hi {html_escape(greeting)}," in html
+    if stored and " " in str(stored).strip():
+        assert str(stored).strip() not in body, "the full name leaked into the text part"
+
+
+# ---------------------------------------------------------------------------
+# Bcc
+# ---------------------------------------------------------------------------
+
+
+def test_bcc_reaches_the_brevo_payload() -> None:
+    """Production sends through Brevo, so this is the path that must carry it."""
+    captured: dict = {}
+
+    class _Resp:
+        status_code = 201
+        text = ""
+
+    class _Client:
+        def __init__(self, *a, **k):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return False
+
+        async def post(self, url, json=None, headers=None):
+            captured.update(json or {})
+            return _Resp()
+
+    with patch.object(email_service.httpx, "AsyncClient", _Client):
+        asyncio.run(
+            email_service._send_via_brevo(
+                "customer@example.com", "subj", "text", "<p>html</p>", "boss@example.com"
+            )
+        )
+
+    assert captured["to"] == [{"email": "customer@example.com"}]
+    assert captured["bcc"] == [{"email": "boss@example.com"}]
+
+
+def test_no_bcc_key_is_sent_when_there_is_no_bcc() -> None:
+    """The default must not put an empty bcc on every ordinary order email."""
+    captured: dict = {}
+
+    class _Resp:
+        status_code = 201
+        text = ""
+
+    class _Client:
+        def __init__(self, *a, **k):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return False
+
+        async def post(self, url, json=None, headers=None):
+            captured.update(json or {})
+            return _Resp()
+
+    with patch.object(email_service.httpx, "AsyncClient", _Client):
+        asyncio.run(
+            email_service._send_via_brevo(
+                "customer@example.com", "subj", "text", "<p>html</p>"
+            )
+        )
+
+    assert "bcc" not in captured
+
+
+def test_the_smtp_path_bccs_without_telling_the_customer() -> None:
+    """Bcc must be invisible to the recipient, which is the whole point of it.
+
+    `send_message` builds the envelope from the Bcc header and then strips it,
+    so the delivered message must not contain the address while the recipient
+    list must.
+    """
+    sent: dict = {}
+
+    class _SMTP:
+        def __init__(self, *a, **k):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def starttls(self, *a, **k):
+            pass
+
+        def login(self, *a, **k):
+            pass
+
+        def send_message(self, message):
+            sent["recipients"] = message.get_all("Bcc") or []
+            sent["to"] = message["To"]
+
+    with patch.object(email_service.smtplib, "SMTP", _SMTP), patch.object(
+        email_service.smtplib, "SMTP_SSL", _SMTP
+    ):
+        email_service._send_blocking(
+            "customer@example.com", "subj", "text", "<p>h</p>", "boss@example.com"
+        )
+
+    assert sent["to"] == "customer@example.com"
+    assert sent["recipients"] == ["boss@example.com"], (
+        "the Bcc header must be present for smtplib to build the envelope from"
     )
