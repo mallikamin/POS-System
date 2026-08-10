@@ -131,15 +131,61 @@ first to `scratchpad/predeploy_local.sql`, 451 KB):
   zone borrowed as `Europe/London` (21:47, in window) and it passed. **Worth remembering: this
   feature cannot be probed at an arbitrary hour without checking the tenant's local time first.**
 
-**🔴 STILL TO DO before this can ship:**
-1. **Decide how `google_review_url` gets set.** There is no admin UI for it. Today it is a
-   deliberate SQL `UPDATE` at go-live, which doubles as the switch-on moment. That is arguably
-   correct, but it is a manual step and must be written into the deploy notes.
-2. **Nothing is committed or pushed.** ⚠️ When it is, stage by **explicit filename**: the tree still
-   carries OI-60's paused, never-build-tested `backend/Dockerfile` and `backend/scripts/start.sh`,
-   which must not ride along.
-3. **The storefront confirmation-screen half was NOT built** — only the email. Malik demoted it
-   after establishing the page is closed long before the order completes.
+## ✅ SHIPPED, DEPLOYED AND SWITCHED ON, 2026-08-10 (`5dda69f` + `2795ca2`)
+
+Deployed ~05:30 BST, ~10h before the 16:00 open. Staged by explicit filename (10 files then 2);
+OI-60's untested `backend/Dockerfile` and `scripts/start.sh` correctly left behind. Secret scan over
+1,215 added lines: 0. `pg_dump` taken first (`~/backups/pre_review_email_20260810_053643.dump`).
+
+**Switched ON for `chick-shack` only.** `cosa-nostra` and `demo-restaurant` remain NULL, i.e. off.
+
+### 🔴 A real bug shipped in `5dda69f` and was caught minutes later. Read this one.
+
+**`REVIEW_EMAIL_MAX_AGE = 12h` and the 09:00-22:00 window left a dead zone that silently binned
+every peak-dinner order.** With the shop open 16:00-22:00:
+
+| Accepted | Due | What happened at 12h |
+|---|---|---|
+| 16:00-19:00 | 19:00-22:00 | in window, sent that evening ✅ |
+| **19:00-22:00** | 22:00-01:00 | window shut, waits for 09:00, by then 11-14h old → **dropped** |
+
+**Found by dry-running the real query against production at the moment of switch-on**, not by
+reading code and not by the green deploy. Both of 09 Aug's orders were already queued to be binned
+(`260809-D001` 15.1h, `260809-D002` 13.9h at send time). Raised to **18h**, which covers acceptance
+back to 15:00 the previous day at the 09:00 sweep.
+
+⚠️ **The lesson, and it is a new one for this repo:** *the bug lived in the gap between two passing
+tests.* `test_nothing_is_sent_in_the_middle_of_the_night` could not have caught it, because its
+order is accepted at 21:30, only 11h before the morning sweep, so it fell inside even the broken
+cutoff. Two constants were each individually sensible and wrong in combination. **When two limits
+bound the same value from opposite ends, test the interaction, not each limit.** New test pins
+acceptance at 19:30; reverting the constant to 12h fails it (mutation-checked).
+
+⚠️ Second lesson: **a missing email is invisible.** This failure mode produces no error, no log and
+no complaint. It looks exactly like a quiet evening. Anything that silently *declines* to act needs
+a positive test, because nothing else will ever tell you.
+
+### Live verification
+- Server `git log` = `2795ca2`; migration `t6u7v8w9x0y1` applied; both columns present.
+- `REVIEW_EMAIL_MAX_AGE` read back as `18:00:00` **from inside the running container**.
+- Sweep run in-process against production across all 3 tenants: clean, no errors.
+- Backend healthy, 0 exceptions. **Orbit CRM untouched** (8 weeks / 2 months / 3 months uptime).
+- `/api/v1/health`, `/online-orders`, `chickshackg84.com` all 200.
+- **Confirmed queued for the 09:00 BST sweep: 2 emails**, `260809-D001` (£42.20) and `260809-D002`
+  (£11.69). That is exactly 09 Aug's two online orders.
+
+⚠️ **Not yet observed: a real email actually arriving in a real inbox.** The first live send is the
+09:00 BST sweep. Until someone sees one, delivery through Brevo for this new event type is inferred
+from the three existing emails using the same transport, not proven.
+
+### Notes for later
+- **No admin UI for `google_review_url`.** Switching a tenant on is a SQL `UPDATE`. Fine for one
+  restaurant, worth a Settings field when there are more.
+- **The storefront confirmation-screen half was deliberately NOT built.** Malik established the page
+  polls at most 2h past acceptance and has no route back once closed, so almost no customer would
+  see it. Email only.
+- App-level `logger.info` **never reaches production logs** (0 app lines in the whole container log).
+  That is OI-60's gap, not this feature's, but it means this worker is unobservable from the logs.
 
 <details><summary>Earlier parking note, kept for the trail</summary>
 

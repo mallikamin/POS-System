@@ -5,7 +5,33 @@
 nothing unpushed, 126 files dirty (the long-standing doc reorg plus OI-60's paused backend work).
 **No code work is in flight. All shipped work below is deployed, verified live, and committed.**
 
-## 🟢 2026-08-09. Imran's QR code and a Google review link. DECODED AND VERIFIED WORKING. No change made yet.
+## 🟢 2026-08-10. Google review email. BUILT, DEPLOYED, SWITCHED ON (`5dda69f` + `2795ca2`)
+
+Every online customer now gets one email asking for a Google review, **3 hours after the kitchen
+accepts**, sent only between **09:00 and 22:00 shop-local** so nobody is emailed at 1am. Items
+listed as text, no photo (the POS has no food photography). Rejected orders and abandoned card
+checkouts never get one. **Live for `chick-shack` only**; the other two tenants are off because
+`google_review_url` is NULL, which is the feature's own switch.
+
+A background timer in the backend does the work, every 15 minutes, at most 25 emails a pass. No
+cron, no Tailscale, no dependency on the shop's tablet being awake. The claim is an atomic
+conditional UPDATE, so 4 uvicorn workers cannot double-email one customer.
+
+🔴 **A real bug shipped in `5dda69f` and was caught minutes later, at switch-on:** the 12h staleness
+cutoff and the 09:00 window left a dead zone that **silently binned every order accepted after
+~19:00**, i.e. peak dinner. Both of 09 Aug's orders were queued to be dropped. Fixed to 18h in
+`2795ca2`. **The bug lived in the gap between two passing tests** — see `_state/open-items.md`
+OI-75 for the full lesson, which generalises: when two limits bound the same value from opposite
+ends, test the interaction, not each limit.
+
+**Verified live:** server at `2795ca2`, migration applied, both columns present, `18:00:00` read
+back from inside the running container, sweep run in-process against production cleanly, 0 backend
+exceptions, Orbit CRM untouched, all public URLs 200. **2 emails confirmed queued for the 09:00 BST
+sweep** (`260809-D001` £42.20, `260809-D002` £11.69).
+
+⚠️ **Not yet observed: a real email landing in a real inbox.** First live send is 09:00 BST.
+
+## 🟢 2026-08-09. Imran's QR code and a Google review link. DECODED AND VERIFIED WORKING.
 
 Malik forwarded Imran's WhatsApp (23:09 to 23:19 PK): a red QR image, *"This qr code goes to menu /
 On website"*. Malik asked *"do u want me to publish this on the website menu?"* and Imran replied
