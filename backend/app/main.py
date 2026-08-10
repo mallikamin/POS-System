@@ -1,4 +1,5 @@
-from contextlib import asynccontextmanager
+import asyncio
+from contextlib import asynccontextmanager, suppress
 from collections.abc import AsyncGenerator
 
 from fastapi import FastAPI
@@ -7,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.database import engine
 from app.api.v1.router import api_v1_router
+from app.services import review_email_worker
 from app.websockets.routes import router as ws_router
 
 
@@ -14,13 +16,22 @@ from app.websockets.routes import router as ws_router
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan handler.
 
-    Startup: verify the database engine is reachable.
-    Shutdown: dispose of the connection pool cleanly.
+    Startup: verify the database engine is reachable, start background workers.
+    Shutdown: stop the workers, then dispose of the connection pool cleanly.
     """
     # Startup
-    yield
-    # Shutdown
-    await engine.dispose()
+    review_worker = asyncio.create_task(
+        review_email_worker.run_review_email_worker()
+    )
+    try:
+        yield
+    finally:
+        # Shutdown. Cancel and await, so the loop cannot still be holding a
+        # connection when the pool is disposed below.
+        review_worker.cancel()
+        with suppress(asyncio.CancelledError):
+            await review_worker
+        await engine.dispose()
 
 
 # Disable interactive docs in production

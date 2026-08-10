@@ -147,6 +147,15 @@ class Order(BaseMixin, Base):
         nullable=True,
         comment="Lead time promised to the customer on acceptance",
     )
+    review_email_sent_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="Set when the 'how did we do' review-request email is sent. "
+        "This is the CLAIM, not a log: the sweep takes an order by writing "
+        "this column with a conditional UPDATE guarded on it still being "
+        "NULL, so four uvicorn workers sweeping at once cannot email one "
+        "customer twice. Same pattern as payment_authorized_at.",
+    )
 
     # --- Stripe ------------------------------------------------------------
     # The shop charges on ACCEPTANCE, not on placement, so a card payment lives

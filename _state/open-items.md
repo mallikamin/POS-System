@@ -1,5 +1,198 @@
 # Open items register
 
+**OI-75 🔵 NEW, NOT BUILT. Imran's QR code and a Google review link (raised 2026-08-09 by Malik).
+The QR is verified working. The instruction attached to it is the part that needs resolving.**
+
+**What arrived:** a red QR image (twice, as a standalone JPEG and inside a WhatsApp screenshot) with
+Imran's *"This qr code goes to menu / On website"*. Malik asked *"do u want me to publish this on the
+website menu?"* and Imran replied *"Yes please"*. Malik separately pasted a **Leave a review** link.
+
+**Decoded, not guessed:** both images carry the identical payload **`https://www.chickshackg84.com/`**.
+OpenCV's `QRCodeDetector` failed on every variant (the image has no white quiet-zone border);
+`pyzbar` read it from the plain grayscale on the first try. Worth remembering for the next QR.
+
+**Verified working on the customer's actual path** (mobile UA throughout):
+
+| Check | Result |
+|---|---|
+| DNS `www.chickshackg84.com` | resolves, Cloudflare, same records as apex |
+| `GET /` | **200**, no redirect, real storefront `index-D9lZ_Z-R.js` |
+| `<title>` | `Chick Shack, Order Online \| Garelochhead` |
+| **CORS from `https://www.chickshackg84.com`** | `access-control-allow-origin` echoes it ✅ |
+| CORS from apex | echoes apex ✅ |
+| CORS from an unknown origin | **no ACAO header**, correctly restrictive ✅ |
+| Live menu payload | GBP, 8 categories, **87 items**, `ordering_paused: false` |
+
+**The CORS check is the one that mattered.** `www.` is a different origin from the apex, and the
+storefront calls `https://eats.sitaratech.info/api/v1` cross-origin, so a `www`-only allowlist gap
+would have produced a page that renders perfectly and cannot load a single menu item. It does not
+have that gap. A 200 on the HTML would not have proved this.
+
+**"Goes to menu" is accurate.** `storefront/src/App.tsx` has no router, just one `view` state
+initialised to `"menu"`. `/` *is* the menu, and there is no deeper URL to point a QR at.
+
+⚠️ **Do not build the instruction as literally stated.** Publishing a QR that points at the website
+**on** that website asks a customer already looking at the menu to scan a code to reach the menu.
+The QR earns its keep **off** site: shopfront, counter, flyers, delivery bags, Instagram bio.
+**Resolve with Imran first.** Two plausible readings: (a) he wants it printed and wants us to host
+the image file, or (b) the thing that actually belongs on the site or receipt is the **review** QR.
+
+**There are TWO QRs, and the second one is the review QR.** Imran sent a black QR at 23:27 PK.
+It decodes to **`https://g.page/r/Ccxrn-XKIKecEBI/review`**, one character different from the link
+Malik pasted (`...EAI`). **Same business, confirmed by decoding rather than by eye:** both short
+codes are protobuf carrying the identical **CID `11288027046835350476`**
+(placeid `ChIJm7hKDaSpiUgRzGuf5cogp5w`). The only difference is the trailing attribution byte,
+`0x1002` vs `0x1012`, which Google sets from where the link was copied:
+`laa=lu-desktop-review-solicitation` (desktop Business Profile) vs
+`laa=nmx-review-solicitation-promoted-recommendation-card` (mobile app card). Functionally
+identical for a customer. **It is Chick Shack's profile, confirmed by Malik.** Either link is safe
+to use; prefer one and use it everywhere so the stats stay in one place.
+
+**So the pair is: a menu QR and a review QR.** They belong in different places. The menu QR is an
+off-site acquisition tool (shopfront, counter, delivery bags, flyers, Instagram bio). The review QR
+is a post-purchase tool (printed receipt, the order confirmation screen, a table card).
+
+**Nothing to reuse:** grep of `storefront/src` for `g.page`, `writereview` and `review` returns
+**zero hits**. A review prompt on `OrderConfirmation.tsx` is new work, and it ships via
+**`cd storefront && npm run deploy`** (Cloudflare), **not** `git push`.
+See [[chick-shack-two-deploy-pipelines]].
+
+**Next action: one question to Imran.** Where is the menu QR physically going, and is the review
+link his (confirm by opening it)? No build until answered.
+
+### 🟡 UNPARKED and BUILT 2026-08-10. NOT COMMITTED, NOT DEPLOYED. Read this first.
+
+**Malik's final decisions (2026-08-10), all implemented:** item as **text, no photo** ("add the menu
+item just, instead of picture for now"); **send after every order**, no once-per-customer flag;
+**3 hours** after acceptance; timer-based, not a staff "Complete" tap.
+
+**On his overnight question** (*"last email would be sent around 1am UK time... or maybe send that
+first thing in morning"*): implemented as **a send window of 09:00 to 22:00 shop-local**. Anything
+falling due outside it stays unclaimed until the next morning's sweep. Consequence he should know:
+orders accepted after ~19:00 go out the next morning rather than the same night. Both bounds are
+module constants.
+
+**No Tailscale and no cron were needed.** The backend container runs 24/7 independently of the
+tablet, so the sweep is an in-process timer (`app/services/review_email_worker.py`, every 300s,
+started from `main.py`'s lifespan and cancelled on shutdown).
+
+**Files (8):**
+- `alembic/versions/t6u7v8w9x0y1_review_request_email.py` (new) — `orders.review_email_sent_at`,
+  `restaurant_configs.google_review_url`, plus a partial index for the sweep's query.
+- `app/models/order.py`, `app/models/restaurant_config.py` — the two columns.
+- `app/services/email_service.py` — `_body_review` + `_html_review`, registered in both builder
+  dicts; `send_order_email` gained `review_url` and **refuses the event when it is empty**.
+- `app/services/public_order_service.py` — `send_due_review_emails()` + the three constants;
+  `notify_customer` gained `review_url`.
+- `app/services/review_email_worker.py` (new) — the timer.
+- `app/main.py` — starts/stops the worker.
+- `backend/tests/test_review_emails.py` (new) — 13 tests.
+
+**Design decisions worth not re-deriving:**
+1. **`google_review_url` is per-tenant and is also the feature switch.** NULL everywhere on deploy,
+   so this ships **inert**. Hardcoding Chick Shack's link in the shared email service would be
+   OI-73's hardcoded `(PKR)` in a new costume, and would send Cosa Nostra's customers to a chicken
+   shop in Garelochhead.
+2. **The claim is a conditional UPDATE**, not a read-then-write. `--workers 4` means four sweeps on
+   the same timer. Same pattern as `mark_card_order_authorized` (OI-65).
+3. **Claim is committed BEFORE sending.** Dying between the two costs one review request. The other
+   order would re-send to everyone on the next sweep.
+4. **`REVIEW_EMAIL_MAX_AGE = 12h`** so switching the feature on cannot mailshot old customers.
+   ⚠️ Turning it on mid-evening WILL email that evening's earlier customers.
+5. Reuses `is_real_order()` rather than re-expressing "is this order real".
+
+**Verification actually run (2026-08-10, project `.venv`, Docker was down):**
+- **13 new tests pass.** Full suite **521 passed**; the 21 failures + 2 errors are **byte-identical
+  to a clean-HEAD `git worktree` at `ebe8d19`** run back-to-back (508 passed there, and 521-508 = 13
+  = exactly the new tests). **Zero regressions.**
+- **Mutation-checked, both directions.** Disabling the send window fails the 1am test; removing the
+  stale-age filter fails the stale test. Both restored and re-run green.
+- ⚠️ **One test was deliberately strengthened after it was found to be weak.** The sequential
+  double-sweep test is satisfied by the `SELECT` filter alone and never reaches the claim, which is
+  the "a query filter is not an invariant" trap (OI-61 → OI-65). A second test now drives the
+  conditional UPDATE twice directly and asserts rowcount 1 then 0.
+- `ruff` clean on all 8 files. `alembic heads` resolves to a single head, `t6u7v8w9x0y1`.
+
+**✅ Verified against real PostgreSQL too, not just the SQLite suite** (local dev, `pg_dump` taken
+first to `scratchpad/predeploy_local.sql`, 451 KB):
+- `alembic upgrade head` applied both pending revisions. Both columns exist with the right types,
+  and the partial index really is partial:
+  `CREATE INDEX ix_orders_review_email_due ON public.orders USING btree (tenant_id, accepted_at) WHERE (review_email_sent_at IS NULL)`.
+- **`downgrade -1` then `upgrade head` both succeed**, and the columns and index verifiably
+  disappear and come back. The migration is reversible on production, not just forward-only.
+- **The sweep itself was run in-process against PostgreSQL** with a real config row and a real
+  order, email transport mocked: sweep 1 claimed the probe order, **sweep 2 claimed nothing**,
+  `send_order_email` was awaited exactly once with `event="review"` and the right URL, and the claim
+  was written to the row. Probe order deleted and confirmed gone; the borrowed timezone and the
+  review URL were both restored (`0` probe rows, both tenants back to `google_review_url = NULL`).
+- ⚠️ **The probe's first run "failed", and the failure was correct behaviour.** It picked
+  `demo-restaurant` (`Asia/Karachi`), where 20:47 UTC is **01:47 local**, so the send window
+  refused. That is the overnight guard firing against the real database. Re-run with the tenant's
+  zone borrowed as `Europe/London` (21:47, in window) and it passed. **Worth remembering: this
+  feature cannot be probed at an arbitrary hour without checking the tenant's local time first.**
+
+**🔴 STILL TO DO before this can ship:**
+1. **Decide how `google_review_url` gets set.** There is no admin UI for it. Today it is a
+   deliberate SQL `UPDATE` at go-live, which doubles as the switch-on moment. That is arguably
+   correct, but it is a manual step and must be written into the deploy notes.
+2. **Nothing is committed or pushed.** ⚠️ When it is, stage by **explicit filename**: the tree still
+   carries OI-60's paused, never-build-tested `backend/Dockerfile` and `backend/scripts/start.sh`,
+   which must not ride along.
+3. **The storefront confirmation-screen half was NOT built** — only the email. Malik demoted it
+   after establishing the page is closed long before the order completes.
+
+<details><summary>Earlier parking note, kept for the trail</summary>
+
+### ⏸️ PARKED 2026-08-10 by Malik ("pause this task and park it for now"). Resume from here.
+
+Design was agreed and a copy mockup was published for his review
+(artifact `077c3104-d28b-4a41-969d-5bcfd52ad241`, source at
+`scratchpad/review-request-mockup.html`). **Nothing was built. No file in the repo was changed.**
+
+**Agreed so far:** review ask goes on the order confirmation screen (extending the existing
+`completed` block, which already reads *"We hope it was good. See you again soon."*) **and** in a
+new email. Rejected orders never get one. Use the `...EBI` link everywhere so Google's source stats
+stay in one bucket.
+
+**Malik's two changes, received just before the pause, NOT yet incorporated:**
+1. **Add the menu item and its picture to the email.**
+2. **Do not wait for a staff "Complete" tap. Send the email 2 to 3 hours after the kitchen
+   accepts the order.** (His reasoning: it does not depend on staff behaviour. Agreed in principle,
+   see the findings below for what it actually costs.)
+
+**Findings already established for (1), so they are not re-derived on resume:**
+- **The POS database has no food photography.** `image_url` is null on **all 87** live Chick Shack
+  items (checked against the live menu payload, not assumed).
+- **The photos exist, but only in the storefront**, 176 files under `storefront/public/img/`,
+  as `/img/thumb/<name>.webp` (240x180) and `/img/hero/<name>.webp` (720x480). The item to photo
+  mapping lives in `storefront/src/data/menu.ts` and is joined **by item name** in
+  `storefront/src/lib/menuAdapter.ts`. `types.ts` has the `imageThumb`/`imageHero` helpers.
+- **They are publicly reachable and therefore usable in an email** (verified live):
+  `https://www.chickshackg84.com/img/thumb/fried-chicken.webp` → **200, image/webp, 21 KB**;
+  the hero equivalent → 200, 111 KB. Use the **thumb**, not the hero, in email.
+- ⚠️ **The hard part is that the backend cannot see any of this.** Emails are built in
+  `backend/app/services/email_service.py`, which has no knowledge of the name to photo map. So this
+  needs a deliberate decision: duplicate the map server-side (a second home for a rule, which is the
+  exact mistake OI-61/65/66/68/73 keep punishing), or backfill `menu_items.image_url` in the DB so
+  there is **one** source of truth. **Backfilling the DB is the right answer** and it also fixes the
+  storefront's name-join fragility.
+- ⚠️ Many mail clients block remote images by default, so the email must read correctly with every
+  photo suppressed. Alt text and layout have to carry it alone.
+
+**Findings for (2), the 2 to 3 hour delay:**
+- **There is no scheduler, cron or task queue in this backend.** The existing pattern for deferred
+  work is to piggyback on the tablet's own poll: `publish_authorized_card_orders` runs on every
+  merchant-orders poll. A review-email sweep would work the same way, which is why the idea is
+  cheap. **Verify this claim on resume before relying on it.**
+- ⚠️ **Consequence to design around:** the sweep only runs while the tablet is polling. An order
+  accepted at 21:45 plus 3h lands at 00:45, when the tablet is off, so the email would not go until
+  the shop reopens (~16:00 next day). That is probably acceptable, but it must be **bounded** so a
+  stale order does not get a review request two days later.
+- Anchor on **accepted_at, not created_at**. A pre-order placed at 14:00 is not accepted until 16:00,
+  and the food arrives after acceptance.
+
+---
+
 **OI-73 ✅ CLOSED. SHIPPED AND VERIFIED LIVE 2026-08-08 (`5134430`). The sales-summary CSV labelled
 Chick Shack's money in PKR (raised 2026-08-08 by Malik).**
 
@@ -89,15 +282,43 @@ connect his fb/ig - get admin access."*
 will not allow me to post ads."* Linking the Instagram and Facebook Page returns **"Your account is
 restricted. You're temporarily restricted from taking this action to protect your profile. Please
 try again later."**
-- ⚠️ **That is the profile-level action block, not the ad-account disabled notice.** Different
-  systems, different remedies. **This has not been verified from inside his account by anyone.**
-  Checks to run, with Imran screen-sharing or on a call. Do not guess from the one screenshot:
-  1. `facebook.com/accountquality`: does it name a restricted **ad account**, a restricted **Page**,
-     or a restricted **personal profile**? Each has its own appeal form.
-  2. Accounts Center: is the IG account a **professional/business** account, and is it already
-     linked to some *other* Page? A pre-existing link is a common cause of the linking step failing.
-  3. Business Suite: does a **business portfolio** exist at all, and who owns the Page asset?
-  4. Is there an unpaid ad-account balance or a failed payment method? That alone blocks publishing.
+✅ **DIAGNOSED 2026-08-08.** Malik asked Imran for `facebook.com/accountquality`; Imran hit the
+"view this on a computer" redirect on mobile, then sent the desktop **Business Support Home** page
+(`/business-support-home/100004720803467`). It answers the question this entry was blocked on, and
+the earlier guess ("profile-level *temporary* action block") was **half right and far too
+optimistic**:
+
+| Field | What Meta actually shows |
+|---|---|
+| Scope | **Personal Facebook account**, `Imran Rasul`. Not the Page, and not only an ad account. |
+| Badge | 🔴 `Account restricted` |
+| Date | **"Restricted on 9 Oct"**, no year rendered. **Assume ~10 months old until confirmed.** |
+| Reason | *"You're not allowed to use Meta Products to advertise... didn't comply with one or more of our Advertising Standards affecting business assets, such as having too many ads rejected, attempting to circumvent our ad review process, participating in fraudulent behaviour or associating with untrustworthy accounts."* |
+| Restrictions | can't use or manage ad accounts · can't create or run ads · **can't manage advertising assets or people for businesses** |
+| Disabled assets | **Personal ad account**, **Audiences** |
+| Page | **not listed as disabled.** Appears clean on this page. |
+
+- **The IG-to-Page linking failure is the same restriction, not a second problem.** "Can't manage
+  advertising assets or people for businesses" blocks Business-tools actions, and Meta surfaces that
+  with its generic *"temporarily restricted... to protect your profile"* wording. One cause, two
+  symptoms. Do not chase them separately.
+- ⚠️ **This is Meta's severe advertising bucket and it is old.** Wording citing *circumvention* and
+  *fraudulent behaviour* is rarely reversed, and any standard appeal window is long past if the date
+  reads 2025. **Treat the appeal as a free lottery ticket, submitted once, and build the plan on the
+  assumption it fails.**
+- ⚠️ **"Associating with untrustworthy accounts" is a propagation clause, and the exposure is
+  Malik's.** A portfolio that takes on this Page can inherit scrutiny. **Use a dedicated throwaway
+  business portfolio for Chick Shack. Never the one running goldennummbers / postpaidplans.**
+- **Still unverified, and each one changes the next step:**
+  1. Does a `Request review` / `Disagree with decision` control still exist on the restriction
+     detail, or has the appeal already been spent? The `What you can do` panel offers only
+     `See accounts`, which is weak evidence the review route is already closed.
+  2. What does `See accounts` list, i.e. does a **business portfolio** already exist, and is it
+     restricted too? A `Finish onboarding` / daily-spend-limit card is visible, implying one exists.
+  3. **Page access roles**: is Imran the only admin with Full control? He must be able to add a
+     second admin or the clean-portfolio route dies too.
+  4. Is the Instagram account **professional**, and already linked to some other Page?
+  5. Is there an unpaid ad-account balance or failed payment method? That alone blocks publishing.
 - ⚠️ **Do not create a second profile to route around this.** Meta associates accounts by device,
   payment method and IP; an evasion attempt puts the **Page** at risk, and the Page is the shop's
   real asset. Legitimate route only: appeal the restriction, and in parallel put the Page into a

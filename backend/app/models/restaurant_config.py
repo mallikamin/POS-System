@@ -78,6 +78,16 @@ class RestaurantConfig(BaseMixin, Base):
         "Enforced server-side in create_public_order, not just in the UI.",
     )
 
+    google_review_url: Mapped[str | None] = mapped_column(
+        String(500),
+        nullable=True,
+        comment="This tenant's Google 'write a review' link. A review link "
+        "belongs to one restaurant's Business Profile, so it is per-tenant and "
+        "never hardcoded in the email service. NULL switches the "
+        "review-request email off for this tenant, which is how the feature "
+        "ships inert.",
+    )
+
     online_ordering_only: Mapped[bool] = mapped_column(
         Boolean,
         default=False,

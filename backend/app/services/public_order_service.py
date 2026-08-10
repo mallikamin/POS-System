@@ -240,6 +240,7 @@ async def notify_customer(
     event: str,
     *,
     intends_card_payment: bool = False,
+    review_url: str = "",
 ) -> None:
     """Schedule the customer's email without making anyone wait for it.
 
@@ -265,6 +266,7 @@ async def notify_customer(
             shop_name=shop_name,
             currency=currency,
             intends_card_payment=intends_card_payment,
+            review_url=review_url,
         )
     )
     _email_tasks.add(task)
@@ -1444,3 +1446,153 @@ async def _get_pending_online_order(
     if order.rejected_at is not None:
         raise PublicOrderError("Order has already been rejected.")
     return order
+
+
+# ---------------------------------------------------------------------------
+# Review-request emails
+# ---------------------------------------------------------------------------
+#
+# Malik, 2026-08-10: ask every online customer for a Google review a few hours
+# after their order. His own framing of why it is time-based rather than tied
+# to the shop tapping "Complete": *"instead of waiting on someone to tap
+# complete - lets just send email after 2-3 hours of order acceptance"*. Staff
+# behaviour is then irrelevant to whether the email goes.
+
+#: How long after the shop ACCEPTS before we ask. Acceptance, not placement:
+#: a pre-order placed at 14:00 is not accepted until the shop opens at 16:00,
+#: and the food only exists after acceptance.
+REVIEW_EMAIL_DELAY = timedelta(hours=3)
+
+#: Orders older than this are never asked about, however they got missed.
+#: This is what stops a burst of emails about stale orders the first time the
+#: feature is switched on, and what stops a long backend outage ending in a
+#: mailshot about food eaten days ago. ⚠️ Consequence worth knowing: turning
+#: the feature on mid-evening WILL email that evening's earlier customers.
+REVIEW_EMAIL_MAX_AGE = timedelta(hours=12)
+
+#: Shop-local hours during which a review email may go out. An order accepted
+#: at 22:00 falls due at 01:00, and a restaurant emailing a customer at 1am
+#: reads as spam and can buzz a phone in the night. Anything due outside this
+#: window simply stays unclaimed until the next morning's sweep.
+REVIEW_SEND_FROM = time(9, 0)
+REVIEW_SEND_UNTIL = time(22, 0)
+
+
+async def send_due_review_emails(
+    db: AsyncSession, tenant_id: uuid.UUID
+) -> list[Order]:
+    """Send the "how did we do" email for every order that has come due.
+
+    Returns the orders actually claimed by THIS call, which is what makes the
+    function testable: a second call must return an empty list.
+
+    Three guards, each earning its place:
+
+    * **The tenant's `google_review_url` is the feature switch.** It is NULL
+      everywhere on deploy, so this ships inert and turns on for exactly the
+      restaurant whose link is filled in. A review link belongs to one Google
+      Business Profile; hardcoding Chick Shack's would send Cosa Nostra's
+      customers to a chicken shop in Garelochhead (the OI-73 lesson).
+    * **The send window**, in the tenant's own timezone, not the server's.
+    * **The claim is a conditional UPDATE**, not a read-then-write. The backend
+      runs `--workers 4` and every worker sweeps on the same timer, so
+      `WHERE review_email_sent_at IS NULL` is what makes the database pick one
+      winner. Checking the field in Python would let all four believe they won
+      and send one customer four emails. Same reasoning as
+      `mark_card_order_authorized`.
+
+    Never raises. This runs on a background timer with no user waiting on it,
+    and a failure here must not be able to take down the loop.
+    """
+    config = (
+        await db.execute(
+            select(
+                RestaurantConfig.google_review_url,
+                RestaurantConfig.timezone,
+            ).where(RestaurantConfig.tenant_id == tenant_id)
+        )
+    ).first()
+
+    if config is None:
+        return []
+    review_url = (config.google_review_url or "").strip()
+    if not review_url:
+        return []
+
+    try:
+        shop_zone = ZoneInfo(config.timezone or "UTC")
+    except (ZoneInfoNotFoundError, ValueError):
+        # A bad timezone string must not silently move every customer's email
+        # to the wrong hour. Refuse the sweep and say so.
+        logger.warning(
+            "Tenant %s has an unusable timezone %r; skipping review emails",
+            tenant_id,
+            config.timezone,
+        )
+        return []
+
+    now = datetime.now(timezone.utc)
+    local_now = now.astimezone(shop_zone).time()
+    if not (REVIEW_SEND_FROM <= local_now < REVIEW_SEND_UNTIL):
+        return []
+
+    due_orders = (
+        (
+            await db.execute(
+                select(Order)
+                .where(
+                    Order.tenant_id == tenant_id,
+                    Order.order_type == "online",
+                    Order.review_email_sent_at.is_(None),
+                    Order.accepted_at.is_not(None),
+                    Order.accepted_at <= now - REVIEW_EMAIL_DELAY,
+                    Order.accepted_at >= now - REVIEW_EMAIL_MAX_AGE,
+                    Order.rejected_at.is_(None),
+                    Order.status != "voided",
+                    Order.customer_email.is_not(None),
+                    Order.customer_email != "",
+                    is_real_order(),
+                )
+                # The builders read `order.items` after the request's session is
+                # gone, so they must be loaded now, not lazily later.
+                .options(selectinload(Order.items))
+                .order_by(Order.accepted_at)
+                # Bounds the BURST, not the backlog. `notify_customer` fires
+                # each send as its own task, so this number is exactly how many
+                # emails can hit the provider's API at once -- and the 09:00
+                # sweep is the spike, because it carries everything that fell
+                # due overnight. Anything over the limit is not lost, it simply
+                # goes on the next sweep 15 minutes later. 25 is far above this
+                # shop's ~11 orders a day while still being a real ceiling.
+                .limit(25)
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+    claimed: list[Order] = []
+    for order in due_orders:
+        result = await db.execute(
+            update(Order)
+            .where(Order.id == order.id, Order.review_email_sent_at.is_(None))
+            .values(review_email_sent_at=now)
+            .execution_options(synchronize_session=False)
+        )
+        if result.rowcount:
+            order.review_email_sent_at = now
+            claimed.append(order)
+
+    if not claimed:
+        return []
+
+    # Commit the claim BEFORE sending. If the process dies between the two, the
+    # customer misses one review request -- which is nothing. Committing after
+    # sending would risk the opposite: mail out, claim lost, and everyone asked
+    # again on the next sweep.
+    await db.commit()
+
+    for order in claimed:
+        await notify_customer(db, tenant_id, order, "review", review_url=review_url)
+
+    return claimed

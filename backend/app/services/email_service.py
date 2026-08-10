@@ -400,11 +400,58 @@ def _html_on_the_way(order: Order, shop: str, currency: str) -> str:
     )
 
 
+def _html_review(order: Order, shop: str, currency: str, review_url: str = "") -> str:
+    """The "how did we do" email, sent 3 hours after the shop accepts.
+
+    `review_url` is passed in, never imported from settings and never a
+    literal: a Google review link belongs to one restaurant's Business
+    Profile, and a second tenant must not be able to inherit Chick Shack's.
+    `send_order_email` refuses the event outright when it is empty, so no
+    dead button can ship -- the same guard `_html_tracking_button` applies to
+    a tracking URL that does not exist yet.
+
+    Deliberately NO food photography. `menu_items.image_url` is null on every
+    live row, the photos exist only in the storefront and are matched by name
+    there, and Malik's call (2026-08-10) was to ship the item as text now
+    rather than block this on a database backfill.
+    """
+    name = html_escape(order.customer_name or "there")
+    items = "".join(
+        f'<p style="margin:0 0 2px 0; font-size:15px; color:{_C_BODY_TEXT};">'
+        f"{item.quantity} &times; {html_escape(item.name)}</p>"
+        for item in order.items
+    )
+    content = (
+        f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
+        f'style="border-collapse:collapse; background-color:{_C_CREAM}; border-radius:8px;">'
+        f'<tr><td style="padding:14px 16px;">'
+        + _html_order_label(order)
+        + items
+        + f'<p style="margin:6px 0 0 0; font-size:13px; color:{_C_MUTED};">'
+        f"{html_escape(_money(order.total, currency))}</p>"
+        "</td></tr></table>"
+        f'<p style="margin:22px 0; font-size:15px; line-height:1.6; color:{_C_BODY_TEXT};">'
+        "If you have a minute, a quick Google review would really help us. It tells us "
+        "what we should improve, and it helps other people find us.</p>"
+        + _html_button(review_url, "Leave a Google review")
+        + f'<p style="margin:20px 0 0 0; font-size:13px; line-height:1.5; color:{_C_MUTED};">'
+        "Thanks again. Your feedback genuinely helps a small shop.</p>"
+    )
+    return _html_shell(
+        badge_label="Thank you",
+        badge_color=_C_EMBER,
+        headline_html=f"Hi {name}, thanks for ordering from us. We hope it was good.",
+        content_html=content,
+        shop=shop,
+    )
+
+
 _HTML_BUILDERS = {
     "received": _html_received,
     "accepted": _html_accepted,
     "rejected": _html_rejected,
     "on_the_way": _html_on_the_way,
+    "review": _html_review,
 }
 
 
@@ -506,11 +553,37 @@ Order {order.order_number}
     return subject, body
 
 
+def _body_review(
+    order: Order, shop: str, currency: str, review_url: str = ""
+) -> tuple[str, str]:
+    subject = f"{shop}: how did we do with order {order.order_number}?"
+    items = "\n".join(f"  {item.quantity} x {item.name}" for item in order.items)
+    body = f"""Hi {order.customer_name or 'there'},
+
+Thanks for ordering from us. We hope it was good.
+
+Order {order.order_number}
+{items}
+{_money(order.total, currency)}
+
+If you have a minute, a quick Google review would really help us. It tells us
+what we should improve, and it helps other people find us.
+
+Leave a review: {review_url}
+
+Thanks again. Your feedback genuinely helps a small shop.
+
+{shop}
+"""
+    return subject, body
+
+
 _BUILDERS = {
     "received": _body_received,
     "accepted": _body_accepted,
     "rejected": _body_rejected,
     "on_the_way": _body_on_the_way,
+    "review": _body_review,
 }
 
 
@@ -605,6 +678,7 @@ async def send_order_email(
     shop_name: str = "Chick Shack",
     currency: str = "GBP",
     intends_card_payment: bool = False,
+    review_url: str = "",
 ) -> bool:
     """Send one order email. Returns True only if it actually went out.
 
@@ -633,11 +707,26 @@ async def send_order_email(
         )
         return False
 
+    # A review email with no link is a thank-you note with a dead button on it.
+    # Refuse rather than send something broken -- and because the URL is the
+    # feature's own switch, an unconfigured tenant lands here and is skipped.
+    if event == "review" and not (review_url or "").strip():
+        logger.info(
+            "No google_review_url for this tenant; skipping review email for order %s",
+            order.order_number,
+        )
+        return False
+
     # Only the "received" builders accept this kwarg -- it is the sole event
     # sent before any Stripe interaction has happened, see
-    # `_payment_status_text`. An empty dict for every other event keeps their
-    # signatures untouched.
-    extra = {"intends_card_payment": intends_card_payment} if event == "received" else {}
+    # `_payment_status_text`. Likewise `review_url` belongs to exactly one
+    # event. An empty dict for every other event keeps their signatures
+    # untouched.
+    extra: dict[str, object] = {}
+    if event == "received":
+        extra = {"intends_card_payment": intends_card_payment}
+    elif event == "review":
+        extra = {"review_url": review_url.strip()}
     subject, text = _BUILDERS[event](order, shop_name, currency, **extra)
     html = _HTML_BUILDERS[event](order, shop_name, currency, **extra)
 

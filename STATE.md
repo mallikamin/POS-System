@@ -1,9 +1,54 @@
 # STATE — Restaurant POS System
 
-**Last refreshed:** 2026-08-08. Chick Shack refresh: no drift found in the 08-07 entries below, they
-stand as written. One new defect raised, fixed and shipped the same morning (OI-73, currency labels
-on the sales CSV). **Branch:** `main`, HEAD `5134430`, nothing unpushed.
+**Last refreshed:** 2026-08-09. **One drift corrected:** the previous refresh recorded HEAD as
+`5134430`; the real HEAD is **`ebe8d19`** (the OI-73 docs commit that followed it). Branch `main`,
+nothing unpushed, 126 files dirty (the long-standing doc reorg plus OI-60's paused backend work).
 **No code work is in flight. All shipped work below is deployed, verified live, and committed.**
+
+## 🟢 2026-08-09. Imran's QR code and a Google review link. DECODED AND VERIFIED WORKING. No change made yet.
+
+Malik forwarded Imran's WhatsApp (23:09 to 23:19 PK): a red QR image, *"This qr code goes to menu /
+On website"*. Malik asked *"do u want me to publish this on the website menu?"* and Imran replied
+*"Yes please"*. Malik separately pasted a **Leave a review** link. Registered as **OI-75**. Nothing
+built, nothing deployed. This entry is the verification only.
+
+- **The QR decodes to `https://www.chickshackg84.com/`.** Decoded for real with `pyzbar`, after
+  OpenCV's detector failed on the missing quiet-zone border. Read from **both** images Malik sent
+  (the standalone JPEG and the QR inside the WhatsApp screenshot). Identical payload, so there is
+  only one QR.
+- **It works end to end, checked on the path a customer's phone actually walks:**
+  - `www.chickshackg84.com` resolves (Cloudflare, same A/AAAA records as the apex).
+  - `GET /` with a mobile UA returns **200**, no redirect, and it is the real storefront
+    (`<title>Chick Shack, Order Online | Garelochhead</title>`, entry `index-D9lZ_Z-R.js`).
+  - **CORS was the real risk and it passes.** `www.` is a *different origin* from the apex, and the
+    storefront calls `https://eats.sitaratech.info/api/v1` cross-origin. Asserted with a real
+    `Origin` header: `www.chickshackg84.com` gets
+    `access-control-allow-origin: https://www.chickshackg84.com`, the apex gets its own, and an
+    unknown origin gets **no ACAO header at all**, i.e. correctly restrictive.
+  - Live menu payload right now: **GBP, 8 categories, 87 items, `ordering_paused: false`.**
+- **"Goes to menu" is accurate.** The storefront has no router. `App.tsx` holds a single `view`
+  state initialised to `"menu"`, so `/` *is* the menu. There is no better URL to point at.
+- ⚠️ **The instruction as stated does not make sense, and it should not be built as literally asked.**
+  Publishing a QR that points at the website **on** that same website means a customer already
+  looking at the menu scans a code to reach the menu. The QR's value is **off** site: shopfront,
+  counter, flyers, leaflets, delivery bags, Instagram bio. **Ask Imran where it is really meant to go
+  before building anything.** The plausible readings are (a) he wants it printed and wants us to host
+  the image, or (b) the thing that actually belongs on the site or receipt is the **review** QR.
+- **There are TWO QRs. The second one, sent 23:27 PK, is the review QR.** It decodes to
+  **`https://g.page/r/Ccxrn-XKIKecEBI/review`**, one character off the link Malik pasted (`...EAI`).
+  **Same business**, proven by decoding both short codes: identical **CID `11288027046835350476`**
+  (placeid `ChIJm7hKDaSpiUgRzGuf5cogp5w`). Only the trailing attribution byte differs (`0x1002` vs
+  `0x1012`), which is just where Google was copied from, desktop profile vs mobile app card.
+  **It is Chick Shack's profile, confirmed by Malik.** Either link works; pick one and use it
+  everywhere so the review stats stay in one place.
+- **The pair splits cleanly by purpose.** Menu QR is off-site acquisition (shopfront, counter,
+  delivery bags, flyers, Instagram bio). Review QR is post-purchase (printed receipt, order
+  confirmation screen, table card). That is the answer to "publish it on the website menu": the
+  **review** QR is the one with a real home on the site.
+- **Nothing on the storefront references a review link today.** Grepped `storefront/src` for
+  `g.page`, `writereview` and `review`: zero hits. So a review prompt on `OrderConfirmation.tsx`
+  would be new work, and it ships via a **Cloudflare deploy** (`cd storefront && npm run deploy`),
+  not `git push`. See [[chick-shack-two-deploy-pipelines]].
 
 ## 🟢 2026-08-08. OI-73: the sales CSV called Chick Shack's pounds rupees. SHIPPED + VERIFIED LIVE (`5134430`)
 
@@ -97,10 +142,38 @@ will not allow me to post ads"*, and when he tries to link the Instagram and Fac
 **"Your account is restricted. You're temporarily restricted from taking this action to protect
 your profile. Please try again later."** Malik: *"ok lets brainstorm a way around then."*
 
-⚠️ **Unverified, and it matters which it is:** that wording is Meta's *profile-level* action block,
-not the "your ad account has been disabled" ads-manager notice. They are different systems with
-different remedies. **Nobody has looked inside his Business Suite or Accounts Center yet.** Do that
-before proposing any fix. See OI-72 for the exact checks.
+✅ **2026-08-08, NOW DIAGNOSED from Imran's own Business Support Home screenshot (laptop). The
+earlier "unverified, could be a temporary block" note is superseded.** It is **not** temporary and it
+is **not** an ad-account-only problem. Meta shows, on his personal Facebook account (`Imran Rasul`,
+`facebook.com/business-support-home/100004720803467`):
+- 🔴 **`Account restricted`, "Restricted on 9 Oct"** (year not shown on the page, so **at least 10
+  months old** if it reads 2025, which is the likely reading. Confirm before assuming an appeal
+  window is open).
+- Reason quoted verbatim: *"You're not allowed to use Meta Products to advertise. This is because you
+  didn't comply with one or more of our Advertising Standards affecting business assets, such as
+  having too many ads rejected, attempting to circumvent our ad review process, participating in
+  fraudulent behaviour or associating with untrustworthy accounts."*
+- Restrictions listed: **can't use or manage ad accounts · can't create or run ads · can't manage
+  advertising assets or people for businesses**.
+- Disabled assets: **Personal ad account**, **Audiences**.
+- **The Chick Shack Page is NOT listed as a disabled asset**, and no Page-level or IG-level
+  restriction appears. Unverified whether that holds on the assets tab, but on this page the Page
+  looks clean.
+
+**This also explains the "temporarily restricted" popup he saw when linking Instagram to the Page.**
+That is the third restriction ("can't manage advertising assets or people for businesses") firing on
+a Business-tools action, surfaced with Meta's generic profile wording. **One cause, two symptoms.**
+
+⚠️ **Consequence for the plan: appealing is a lottery ticket, not the plan.** A 10-month-old
+Advertising Standards restriction citing circumvention and untrustworthy association is Meta's
+severe bucket and is rarely reversed. **The route that does not depend on Meta's goodwill is to run
+ads from a clean ad account inside a separate business portfolio that Malik owns, with the Page
+assigned to it.** Imran's profile never needs to advertise.
+
+⚠️ **New risk this diagnosis creates, and it is Malik's exposure, not Imran's:** the notice cites
+*"associating with untrustworthy accounts"*. Meta does propagate. **Any portfolio that takes on this
+Page must be a throwaway dedicated to Chick Shack. Never the portfolio running goldennummbers /
+postpaidplans ads.**
 
 ⚠️ **Do not build a second profile to route around it.** Meta links accounts by device, payment
 method and IP; an evasion attempt risks the Page itself, which is the shop's actual asset. The
@@ -121,8 +194,11 @@ can be attributed to it**. Before spending money:
 - Any storefront change ships via **`cd storefront && npm run deploy`** (Cloudflare), NOT `git push`.
   See [[chick-shack-two-deploy-pipelines]].
 
-**Next action: get read access to Imran's Meta setup and establish what is actually restricted (the
-personal profile, the Page, or an ad account) before designing anything.** No build, no spend.
+**Next action (2026-08-08): three read-only screenshots from Imran on the laptop he is already on:
+(1) the "See accounts" list behind the *What you can do* panel, (2) whether a `Request review` /
+`Disagree with decision` button still exists on the restriction detail, and (3) Page access roles in
+Meta Business Suite.** Nothing else can be decided without (2), because it tells us whether the
+appeal has already been spent. **Still no build, no ad spend, no storefront change.**
 
 ## 🟢 2026-08-06 — Stripe "webhook delivery issues [test mode]" email, closed, no code touched
 
