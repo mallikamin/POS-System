@@ -29,7 +29,27 @@ back from inside the running container, sweep run in-process against production 
 exceptions, Orbit CRM untouched, all public URLs 200. **2 emails confirmed queued for the 09:00 BST
 sweep** (`260809-D001` £42.20, `260809-D002` £11.69).
 
-⚠️ **Not yet observed: a real email landing in a real inbox.** First live send is 09:00 BST.
+✅ **Confirmed working end to end, 2026-08-10 06:24 UTC.** Malik reviewed the two real rendered
+emails first (artifact `82863eb1`), asked for first-name greetings and a Bcc to himself, then:
+*"yes both emails fired accurately."* Both delivered to real customers, `260809-D001` and
+`260809-D002`, with him copied. Greeting shipped as `Hi Howard,` / `Hi Gerardine,` (`52b1d1f`).
+
+**The Bcc was for those two only and there is nothing to switch off.** `notify_customer` has **no
+`bcc` parameter at all** and the sweep's source never mentions it, so the automatic path
+structurally cannot copy anyone. Verified by reading the live signatures out of the running
+container, not by reading the diff.
+
+✅ **The background timer is proven to run on its own**, which nothing else could show (app-level
+logs never reach the container log, OI-60, and there is no `pg_stat_statements`). A probe order was
+armed on **demo-restaurant** (Asia/Karachi, so inside the send window while London was still
+pre-09:00) with a **whitespace email address** — it passes the sweep's `!= ''` filter so the order
+is claimed, but `send_order_email` strips it and returns before contacting the mail provider.
+**The worker claimed it unaided 24 seconds later, at 06:37:06**, and zero emails were attempted.
+Probe deleted, demo-restaurant's URL reset to NULL, no stray rows.
+
+**Final state: `chick-shack` ON, `cosa-nostra` and `demo-restaurant` OFF.** All 8 containers
+healthy, Orbit CRM untouched, 0 backend errors, 0 nginx 5xx, all five public URLs 200, and the
+storefront's CORS still returns its own origin.
 
 ## 🟢 2026-08-09. Imran's QR code and a Google review link. DECODED AND VERIFIED WORKING.
 
