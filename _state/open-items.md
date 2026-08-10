@@ -1,5 +1,32 @@
 # Open items register
 
+**OI-76 🔵 NEW, NOT STARTED, NOT RESEARCHED. Imran wants exact delivery locations, and proposes
+what3words (voice note, 2026-08-10 01:56 UK).**
+
+Full transcript and analysis:
+`_context/clients/chick-shack-uk/voice-notes/2026-08-10_imran_what3words.md`.
+
+**The problem is real and he gave a case from that same night.** Delivery radius is 20 to 25 miles
+around Garelochhead: named cottages instead of numbered houses, back roads, poor signal.
+*"Aston Cottage, Shore Road"* was not findable in Google Maps **nor in PostTag**, which they already
+use, and the driver had to ask the customer to walk out to the road.
+
+**He is asking for advice, not ordering a build** — twice in the note. Do not treat this as a spec.
+
+**Unresearched, and must not be answered from memory:**
+- what3words is commercial. Licensing and API pricing to be checked against their current published
+  terms.
+- **The free alternative he has not considered:** browser Geolocation at checkout, attaching a maps
+  link to the order. No third party, no app for the customer. Weak if they order away from the
+  delivery address.
+- what3words' catch in this exact case: the customer needs the app or the site to read their words.
+  His own *"how do we influence people to use this"* is the real obstacle, and it is behavioural.
+- Cheapest first move may be neither: a "how to find me" note saved on the customer record, so each
+  awkward address is solved once.
+
+⚠️ Any storefront change is a **Cloudflare deploy**, not `git push`.
+See [[chick-shack-two-deploy-pipelines]].
+
 **OI-75 🔵 NEW, NOT BUILT. Imran's QR code and a Google review link (raised 2026-08-09 by Malik).
 The QR is verified working. The instruction attached to it is the part that needs resolving.**
 

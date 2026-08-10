@@ -5,6 +5,24 @@
 nothing unpushed, 126 files dirty (the long-standing doc reorg plus OI-60's paused backend work).
 **No code work is in flight. All shipped work below is deployed, verified live, and committed.**
 
+## 🔵 2026-08-10. NEXT UP, NOT STARTED: Imran wants exact delivery locations (what3words)
+
+Voice note 01:56 UK, transcribed locally. **Registered as OI-76.** Full transcript at
+`_context/clients/chick-shack-uk/voice-notes/2026-08-10_imran_what3words.md`.
+
+Delivery radius is 20 to 25 miles of rural Argyll: named cottages, back roads, poor signal. That
+night *"Aston Cottage, Shore Road"* could not be found in Google Maps **or in PostTag**, which they
+already use, and the driver had to ask the customer to walk out to the road. He proposes
+**what3words**, which he uses in his security business, and **explicitly asks for advice rather than
+ordering a build** ("I don't know if you think this is a good idea").
+
+**Nothing researched yet, and nothing should be quoted from memory** — what3words is a commercial
+product and its licensing needs checking. The free option he has not considered is capturing the
+customer's device GPS at checkout and attaching a maps link to the order. The real obstacle is his
+own question, *"how do we influence people to use this"*, which is behavioural, not technical.
+
+**Next action: discuss the options with Malik, then reply to Imran.**
+
 ## 🟢 2026-08-10. Google review email. BUILT, DEPLOYED, SWITCHED ON (`5dda69f` + `2795ca2`)
 
 Every online customer now gets one email asking for a Google review, **3 hours after the kitchen
