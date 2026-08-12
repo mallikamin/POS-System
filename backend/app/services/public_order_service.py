@@ -129,7 +129,14 @@ async def get_public_menu(db: AsyncSession, tenant_id: uuid.UUID) -> tuple[str, 
             key=lambda i: (i.display_order, i.name),
         )
         for item in cat.items:
-            item.modifier_groups = [g for g in item.modifier_groups if g.is_active]
+            # Sorted, not just filtered. The association table returns groups in
+            # no particular order, so without this `display_order` is inert on
+            # the storefront and customers get whatever order the rows were
+            # inserted in. Same key as the item sort directly above.
+            item.modifier_groups = sorted(
+                (g for g in item.modifier_groups if g.is_active),
+                key=lambda g: (g.display_order, g.name),
+            )
             for group in item.modifier_groups:
                 group.modifiers = [m for m in group.modifiers if m.is_available]
 
