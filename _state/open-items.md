@@ -1,10 +1,150 @@
 # Open items register
 
-**OI-76 🔵 NEW, NOT STARTED, NOT RESEARCHED. Imran wants exact delivery locations, and proposes
-what3words (voice note, 2026-08-10 01:56 UK).**
+**OI-80 🔴 NEW 2026-08-13, NOT FIXED. CI and Deploy-to-Staging are red on every commit, so neither
+carries any signal.**
 
-Full transcript and analysis:
-`_context/clients/chick-shack-uk/voice-notes/2026-08-10_imran_what3words.md`.
+Found while shipping OI-79. `gh run list` shows **failure on all 8 most recent CI runs** and all 6
+Deploy-to-Staging runs, covering `429ce34`, `c03e612`, `abf6177`, `1033943`, `52b1d1f`, `a49fef9`,
+`2795ca2`, `5dda69f` — including commits that deployed cleanly and are running in production now.
+Only **Deploy to Production** is green, and that is the workflow that actually ships.
+
+**Why it matters, and it is the project's own standing lesson:** a suite nobody runs is decoration,
+and a pipeline that is *always* red is worse — it looks like coverage while catching nothing. A
+genuine break in `429ce34` would have produced exactly the same red as the eight before it. The local
+run is currently the only real signal (536 passed, and the 21 failures + 2 errors reproduce
+identically on a clean-HEAD worktree).
+
+**Likely cause, unconfirmed:** the ~21 known-failing tests — the parked QuickBooks-Desktop suite, the
+OI-63 UTC-vs-Europe/London time-of-day boundary failures, plus `test_p1a_features::
+test_void_with_reason_succeeds` and `test_pay_first::test_transition_blocked_without_payment`. Nobody
+has opened the CI log to check.
+
+**Open:** root cause unread; no decision on whether to fix the tests, quarantine them, or stop running
+the workflow.
+
+---
+
+**OI-79 ✅ CLOSED 2026-08-13. SHIPPED AND VERIFIED LIVE (`429ce34` + Cloudflare `f0d8764a`).** Chips
+are now a required choice on all 25 meals and the meal groups read Heat → Chips → Drink → Dip.
+Measured first: **23 of 112 meal lines since launch, 20.5%**, reached the kitchen with no chips
+choice. Backup verified restorable before the change; every UPDATE tenant-scoped with a blast-radius
+query confirming 0 other tenants touched. Full detail in STATE.md.
+
+⚠️ **The lesson worth keeping, and it nearly shipped wrong:** the reorder looked like a data-only
+change. It was not. `get_public_menu` **filtered** the modifier groups and never **sorted** them, so
+`display_order` was inert on the storefront — setting it in the admin would have changed nothing and
+been reported as done. Items in the same loop were already sorted, and the modifiers *inside* each
+group were ordered by the relationship. **Only the middle level was missed, and the surrounding code
+looked like proof it worked.** Verify the mechanism, not the neighbours.
+
+---
+
+**OI-78 ✅ CLOSED 2026-08-13. SHIPPED (Cloudflare `f0d8764a`).** A failed menu fetch no longer ends
+ordering for the session: four automatic retries with a widening gap, an `online`-event listener, a
+Retry button at checkout and a warning on the menu screen instead of an ambush at the checkout total.
+
+⚠️ **Malik caught the copy before it went out.** The draft said *"ordering is off right now"* —
+**false**, the shop was open; it is the customer's connection that failed. Shipped as *"Your internet
+connection has dropped"* / *"We're open and taking orders as normal."* **A status message must name
+whose fault it is; getting that backwards tells the customer the shop is shut.**
+
+---
+
+**OI-77 🟡 NEW 2026-08-12, DIAGNOSED, NOT AN OUTAGE, NOTHING BUILT. Imran reports "an issue on the
+website"; his handset cannot reach the API, and the storefront reports that as "coming very soon".**
+
+Imran's photo: a phone at checkout, basket **£23.18** (subtotal £22.48 + £0.70 service fee), showing
+**"Online ordering is coming very soon / We're not taking online payments just yet. Give us a ring…"**
+plus both Call buttons. He was in an **incognito** session. Malik placed a real order minutes later
+that worked (`260812-C001`, collection, **PAID CASH**, accepted 17:01) and reports the site working on
+his phone and laptop. 11 Aug ran clean to `260811-C013`, all card, all paid.
+
+**Single possible cause in the deployed bundle.** `Checkout.tsx:402` branches on
+`orderingLive = canOrder(menuSource, orderingPaused)`; `store/menu.ts:93` is
+`SHOP.orderingEnabled && source === "api" && !paused`. The copy shown is the **non-paused** branch, so
+`paused` was false, and `orderingEnabled` has been `true` since `90190a2` (2026-07-29). Therefore
+**`source !== "api"`**: the `GET /public/chick-shack/menu` fetch failed on that handset and
+`store/menu.ts:76` set `source: "fallback"`. The hardcoded menu rendered, ordering stayed off (correct:
+fallback ids are slugs the order endpoint 422s).
+
+**Our side verified healthy at the time of the report, not assumed:** menu API **200**, GBP, 8
+categories, 87 items, `ordering_paused: false`; **8 consecutive requests all 200 at 0.93–1.06s**, so no
+intermittent breach of the client's 12s `AbortController` cutoff (`lib/api.ts:196`); **CORS correct on
+both real origins** (apex and `www` each get their own ACAO, `pages.dev` and `null` correctly get
+none); deployed bundle resolved `index.html` → `/assets/index-D9lZ_Z-R.js` (200, 196,950 bytes, same
+hash as 08-09) calling `https://eats.sitaratech.info/api/v1`.
+
+**Not a stale cached bundle**, which was Malik's first theory, settled two ways: the handset rendered
+the **Service Fee** row, which only exists from `f06979f` (2026-08-03), and every bundle since 29 July
+has `orderingEnabled: true`; and incognito loads fresh regardless. ⚠️ A one-day window did exist
+(`c68e616` 07-28 → `90190a2` 07-29) where this screen showed unconditionally, but no bundle from that
+window can carry the service fee.
+
+📌 **Unverified observation:** the status bar in the photo looks like Arabic script (reads like
+**اتصالات / Etisalat**, a UAE carrier), which would mean the handset is not a UK device on a UK
+network. Confirm whose phone it is before assuming UK customers are affected.
+
+**The test that settles it, on his device, 10 seconds:** open
+`https://eats.sitaratech.info/api/v1/public/chick-shack/menu` in the same browser. **JSON = network
+fine, problem is browser-side** (content blocker, private-mode restriction, extension). **Spinner or
+error = his network or DNS cannot reach that host.**
+
+**Three real defects exposed, none of them the reported outage. Not authorised, do not build:**
+1. **The copy is wrong and damaging.** A shop live for two weeks tells customers "Online ordering is
+   coming very soon", i.e. "not launched yet". Should say we cannot reach our system, offer **Retry**,
+   keep the phone numbers.
+2. **No retry.** `App.tsx:77` fetches the menu **once on mount**. One blip and the customer browses,
+   builds a basket, and is only told at the **checkout total**. Only a manual reload recovers it.
+3. **Cross-origin dependency on an unrelated-looking domain.** Page is `chickshackg84.com`, API is
+   `eats.sitaratech.info`. Any tracker blocker, DNS filter or carrier filter drops it **silently** into
+   the copy above. Serving the API from `chickshackg84.com/api/*` via a Cloudflare route removes the
+   cross-origin call, the CORS surface and the blocker surface at once. **This is the structural fix.**
+
+**Any fix ships via `cd storefront && npm run deploy` (Cloudflare), NOT `git push`.**
+
+**Open:** Imran has not run the one-URL test; the handset's identity, carrier and country are
+unconfirmed; no fix authorised.
+
+---
+
+**OI-76 🔵 RESEARCHED 2026-08-10, RECOMMENDATION FORMED, NOTHING BUILT AND NOTHING SENT TO IMRAN.
+Imran wants exact delivery locations, and proposes what3words (voice note, 2026-08-10 01:56 UK).**
+
+Full transcript: `_context/clients/chick-shack-uk/voice-notes/2026-08-10_imran_what3words.md`.
+**Research, costs, licence findings, recommendation and the unsent draft reply:**
+`_context/clients/chick-shack-uk/delivery-location-research_2026-08-10.md`.
+
+**Verdict: do not buy the what3words API.** Read off their published pages on 2026-08-10:
+- The **Free plan cannot do the job** — AutoSuggest only, and AutoSuggest returns **no coordinates**.
+  Turning three words into a pin needs `convert-to-coordinates`, which is paid. Basic is **£7.99/mo**
+  for 1,000 conversions, ample for ~330 orders/month.
+- **The licence, not the price, is the blocker.** Clause **6.3(b)** forbids displaying a 3 Word Address
+  *alongside its corresponding coordinates*, and **6.3(e)(iii)** caps storage of the words-plus-
+  coordinates pair at **30 calendar days**. That rules out the obvious build (words printed next to a
+  tappable map link, kept on the order). Storing words **alone** is unlimited (6.3(e)(i)), so a plain
+  optional text field costs nothing and stays compliant.
+- **The conceptual point:** what3words solves a *speaking* problem, how a human transmits a location
+  by voice. On our website nobody speaks — the phone already knows where it is. In Imran's security
+  work both ends are trained staff with the app; a takeaway customer is a stranger who will not
+  install one.
+
+**Recommended instead, all free, in order:** (1) a driver-facing "how to find you" box, separate from
+the kitchen note; (2) a "share my current location" button; (3) save the pin and directions **against
+the customer record** so a hard address is solved once; (4) a map picker for the not-at-home case
+(Google Maps Dynamic Maps: 10,000 free calls/month, then $7/1,000, so free at ~3% of allowance).
+
+⚠️ **Checkout friction is the risk.** Abandonment is 1 basket in 45. Anything added must be optional,
+small, and never between the customer and the Pay button.
+
+**Verified in the repo:** `Checkout.tsx` collects address + postcode + a box labelled "Notes for the
+**kitchen**" and has **no driver-facing field at all**; **no customer detail persists between orders**
+(every field `useState("")`, only the basket is stored); but orders **do** link to a `Customer` row by
+phone via `_link_customer`, so item (3) has its join already.
+
+**Open:** Malik has not chosen what to send; no build authorised; a UK PAF address lookup (Ideal
+Postcodes / getAddress.io / Loqate) was never costed as a fifth option; nobody has measured how many
+delivery orders come from the delivery address, which is what decides whether item (4) is worth
+building.
 
 **The problem is real and he gave a case from that same night.** Delivery radius is 20 to 25 miles
 around Garelochhead: named cottages instead of numbered houses, back roads, poor signal.

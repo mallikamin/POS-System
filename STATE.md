@@ -1,14 +1,316 @@
 # STATE — Restaurant POS System
 
-**Last refreshed:** 2026-08-09. **One drift corrected:** the previous refresh recorded HEAD as
-`5134430`; the real HEAD is **`ebe8d19`** (the OI-73 docs commit that followed it). Branch `main`,
-nothing unpushed, 126 files dirty (the long-standing doc reorg plus OI-60's paused backend work).
-**No code work is in flight. All shipped work below is deployed, verified live, and committed.**
+**Last refreshed:** 2026-08-13 ~02:50 PK, after an unattended post-close deploy. HEAD is
+**`429ce34`**, branch `main`, **nothing unpushed**, server at the same commit. Storefront at
+Cloudflare version `f0d8764a`. The ~127-file dirty tree and OI-60's untested backend work are
+untouched and still uncommitted. **No code work is in flight. All shipped work below is deployed and
+verified live.**
 
-## 🔵 2026-08-10. NEXT UP, NOT STARTED: Imran wants exact delivery locations (what3words)
+**Open:** **OI-76** (what3words researched, verdict is do not buy, reply drafted and unsent),
+**OI-80** (CI and Deploy-to-Staging red on every recent commit, no signal), and **Malik's morning UAT
+of the chips flow** (the one thing that could not be verified from here).
 
-Voice note 01:56 UK, transcribed locally. **Registered as OI-76.** Full transcript at
-`_context/clients/chick-shack-uk/voice-notes/2026-08-10_imran_what3words.md`.
+**Closed today:** OI-77 (site served over plain HTTP, killing CORS), OI-78 (connection-failure copy
+and retry), OI-79 (chips not recorded on meals).
+
+## 🟢 2026-08-12. OI-77 ROOT-CAUSED AND FIXED IN 40 MINUTES. The site served over plain HTTP, which killed CORS, which silently killed ordering.
+
+**THE ANSWER, and it was not signal and not caching: `http://chickshackg84.com` served the full app
+over plain HTTP and never redirected.** The page origin was then `http://…`, the menu fetch to
+`https://eats.sitaratech.info` carried that origin, the API correctly refused it **no ACAO**, the
+browser blocked the response, `store/menu.ts:76` set `source: "fallback"`, and checkout printed
+*"Online ordering is coming very soon"*. **Deterministic, not intermittent: every visitor arriving
+over http was silently unable to order.**
+
+**The clue was in Imran's own screenshot and was nearly missed.** Malik spotted **"Not Secure"** in
+Safari's bottom address bar and told me to check it first. That was the whole case. **Lesson: the
+browser chrome in a screenshot is evidence, not decoration.** Two earlier hypotheses (stale bundle,
+bad rural signal) were both wrong and both plausible.
+
+**Why it looked device-specific and wasted an hour of guessing:** a browser that has ever visited the
+https site upgrades automatically forever after, so Malik's phone and laptop could never reproduce it.
+**Incognito has no history and no HSTS, so it lands on plain http.** That is the entire difference
+between the two devices, and it is why "works on mine" was not evidence of anything.
+
+**Fixed 2026-08-12 by Malik, Cloudflare → SSL/TLS → Edge Certificates → Always Use HTTPS = On.**
+Zero code, zero deploy, zone-level. **Verified after the change, not assumed:**
+- `http://chickshackg84.com/` and `http://www.chickshackg84.com/` → **301**, **single hop**, no
+  redirect loop (the dashboard warns about `ERR_TOO_MANY_REDIRECTS`; there is none).
+- Full customer path simulated: bare http domain → lands `https://chickshackg84.com` → menu fetch with
+  that origin returns **200 + `access-control-allow-origin: https://chickshackg84.com`** → 87 items,
+  GBP, `ordering_paused false` → **`canOrder` = True**. Ordering is live on the exact path that failed.
+- App still served on the final URL (`index-D9lZ_Z-R.js`, unchanged, no deploy was needed).
+
+⚠️ **Deliberately NOT fixed by allow-listing `http://` in CORS.** That would have made ordering work
+over an unencrypted connection, putting customer name, phone and address in clear text. Forcing HTTPS
+is the correct fix and the tempting one was the wrong one.
+
+**Unmeasured and worth knowing: how many orders this cost.** Anyone arriving from a typed bare domain,
+an old `http://` link or a directory listing hit this silently. The QR is https so scanners were fine.
+Cloudflare Analytics' http-vs-https split would size it. **Not checked yet.**
+
+**Still open from this incident: HSTS** (same Cloudflare page, belt and braces so a browser never tries
+http again). Left off deliberately for now because a long `max-age` is awkward to reverse; revisit once
+Always Use HTTPS has a few days on it.
+
+<details><summary>Original diagnosis before the "Not Secure" clue, kept for the trail</summary>
+
+## 🟡 2026-08-12. Imran: "there's an issue on the website." NOT AN OUTAGE. His device could not reach the API. Registered as OI-77.
+
+Imran sent a photo of a phone at checkout showing **"Online ordering is coming very soon / We're not
+taking online payments just yet. Give us a ring…"** with a **£23.18** basket (subtotal £22.48 +
+£0.70 service fee) and the two Call buttons. He says he was in an **incognito** session. Malik placed
+a real test order minutes later that worked: `260812-C001`, collection, **PAID CASH**, accepted 17:01.
+
+**That screen has exactly one cause in the currently deployed bundle, and it is not a shop setting.**
+`Checkout.tsx:402` branches on `orderingLive = canOrder(menuSource, orderingPaused)`, and
+`store/menu.ts:93` defines it as `SHOP.orderingEnabled && source === "api" && !paused`. The copy
+shown is the **non-paused** branch, so `orderingPaused` was false. `SHOP.orderingEnabled` is `true`
+and has been since `90190a2` (2026-07-29). **Therefore `source !== "api"`: the `GET
+/public/chick-shack/menu` call failed on that handset**, the hardcoded fallback menu in
+`data/menu.ts` rendered instead, and ordering was correctly switched off because fallback ids are
+slugs the order endpoint rejects with a 422.
+
+**Everything on our side was verified healthy at the time of the report, not assumed:**
+- Live API `GET /api/v1/public/chick-shack/menu`: **200, GBP, 8 categories, 87 items,
+  `ordering_paused: false`, `ordering_paused_message: null`.** Identical to the 08-09 reading.
+- **8 consecutive requests: 8× 200, 0.93s to 1.06s, TTFB ~0.70s, no variance.** So an intermittent
+  backend timeout past the client's 12s `AbortController` cutoff (`lib/api.ts:196`) is ruled out.
+- **CORS correct on both real origins**: `https://www.chickshackg84.com` and
+  `https://chickshackg84.com` each get their own `access-control-allow-origin`;
+  `chickshackg84.pages.dev` and `null` correctly get none.
+- **Deployed bundle resolved properly** (`index.html` → `/assets/index-D9lZ_Z-R.js`, 200, 196,950
+  bytes), same chunk hash as 08-09. It calls `https://eats.sitaratech.info/api/v1` and contains
+  `Service Fee` and the `coming very soon` string.
+- 11 Aug ran clean to `260811-C013`, all card, all paid.
+
+**Malik asked whether it was a stale cached bundle on their phone. No, and this is settled two ways.**
+The handset rendered the **Service Fee** row, which only exists from `f06979f` (2026-08-03), so the
+bundle is from 03 Aug or later, and in every bundle since 29 July `orderingEnabled` is `true`. And he
+was in **incognito**, which loads fresh anyway. ⚠️ There *was* a one-day window (`c68e616` 07-28 →
+`90190a2` 07-29) when `orderingEnabled` was `false` and this screen showed unconditionally, but no
+such bundle can also carry the service fee.
+
+**So the fault is between his handset and `eats.sitaratech.info`.** Unconfirmed and only he can
+settle it. 📌 **Incidental observation, treat as unverified:** the status bar in the photo appears to
+be Arabic script (reads like **اتصالات / Etisalat**, a UAE carrier), which would mean the handset is
+not a UK device on a UK network. Worth confirming whose phone it is before assuming UK customers are
+affected.
+
+**The 10-second test that settles it, on his device:** open
+`https://eats.sitaratech.info/api/v1/public/chick-shack/menu` directly in the same browser. **JSON
+means the network is fine and the problem is browser-side** (content blocker, private-mode
+restriction, extension). **A spinner or an error means his network or DNS cannot reach that host**,
+which is the whole answer.
+
+### ⚠️ Three real product defects this exposed, none of them the reported "outage". Do not build without Malik's say-so.
+1. **The message is wrong and actively damaging.** A shop that has been taking real orders for two
+   weeks tells a customer "Online ordering is coming very soon". That reads as "this place has not
+   launched yet", which is why Imran read it as the site being broken. It should say we cannot reach
+   our system right now, offer **Retry**, and keep the phone numbers.
+2. **One failed fetch kills the whole session.** `App.tsx:77` loads the menu **once on mount** with
+   **no retry**. After a single blip the customer browses a full menu, builds a basket, and is only
+   told at the **checkout total** that they cannot order. Nothing recovers it but a manual reload.
+3. **The storefront depends on a cross-origin call to an unrelated-looking domain.** The page is
+   `chickshackg84.com`; the API is `eats.sitaratech.info`. Any tracker blocker, DNS filter, carrier
+   filter or strict private-mode setting can drop that request, and it fails **silently** into the
+   copy above. Routing the API through the shop's own domain (a Cloudflare route at
+   `chickshackg84.com/api/*`) would remove the cross-origin call, the CORS surface and the blocker
+   surface in one move. **This is the structural fix; 1 and 2 are the cheap ones.**
+
+**Any fix here is a storefront change, so it ships via `cd storefront && npm run deploy` to
+Cloudflare, NOT `git push`.** See [[chick-shack-two-deploy-pipelines]].
+
+**Next action: Malik sends Imran the one-URL test above. Nothing is built and nothing is authorised.**
+
+*Superseded within the hour: the cause was the http origin, above. The reachability test was never
+needed. The three product defects listed in this block all still stand and are still unbuilt.*
+
+</details>
+
+## 🟢 2026-08-13 02:30 PK. OI-79 + OI-78 SHIPPED AND VERIFIED LIVE (`429ce34` + Cloudflare `f0d8764a`). Deployed unattended, after the 22:00 close, on Malik's instruction.
+
+**Measured the problem before fixing it. It was worth fixing: 23 of 112 meal lines since launch,
+20.5%, roughly one meal in five and about two a night, reached the kitchen with no chips choice at
+all.** Read-only count against production, using the *denormalised* names on `order_items` /
+`order_item_modifiers` so the 08-12 group rename cannot re-interpret history. Steady across the whole
+period, no trend: 4, 1, 3, 2, 0, 6, 1, 1, 2, 1, 2 per day from 02 to 12 Aug.
+
+**Shipped, in this order, all after the shop closed and with nothing in flight** (last real order
+~2h earlier; `260812-D005` showing `in_kitchen` is a stale status from 18:xx with six later orders
+all `completed`):
+1. **`pg_dump` first, and verified restorable rather than assumed** — 207K gzip, `gzip -t` OK,
+   completion marker present, **42 COPY blocks = 42 live tables**, **120 orders in the dump = 120
+   live**. `/root/backups/pos_system_20260812T210746Z_pre_OI79.sql.gz`.
+2. **Chips group → `required: true`, `min_selections: 1`**, and `display_order` Peri-Peri Heat `1`,
+   Chips `2`, both drink groups `3`, Add a dip `4`. Single transaction, **every statement scoped to
+   the chick-shack `tenant_id`** — `uq_modgroup_tenant_name` is (tenant, name), so an unscoped UPDATE
+   would have reordered Cosa Nostra's and demo-restaurant's menus too. Blast-radius query confirmed
+   **0 rows** touched on any other tenant. All 6 options and prices unchanged, Regular Chips still 0.
+3. **Backend `429ce34`** — the `display_order` sort, pushed with **2 files staged by explicit
+   filename**, 0 secret-shaped strings in the staged diff, the ~127-file dirty tree and OI-60's
+   untested work left exactly as they were.
+4. **Storefront OI-78** via `npm run deploy` to Cloudflare, version `f0d8764a`.
+
+**Verified live, by effect and not by exit code:**
+- Server `git log` = `429ce34`; backend/frontend/nginx recreated (~1 min); **Orbit CRM untouched**
+  (`orbit_api` 2 months, `orbit_db` / `orbit_web` 3 months uptime).
+- The sort read **out of the running container**: present at line 136, old unsorted line count **0**.
+- **The public menu now serves `1. Peri-Peri Heat  2. Chips  3. Adults Meal Deal Drink  4. Add a dip`**,
+  exactly what Imran asked for. **Chips `required=True, min=1` on all 25 meals**, and **0 meals** have
+  Chips ordered after the drink. Menu healthy: 87 items, 8 categories, GBP, not paused.
+- Live storefront chunk resolved `index.html` → `/assets/index-D5HykxJm.js`: new copy present,
+  `coming very soon` **0**, `not taking online payments just yet` **0**, `ordering is off right now` **0**.
+- **0 nginx 5xx, 0 backend exceptions.** The three 400s are the deploy runner's own empty request
+  lines, as on 08-08. All six public URLs 200, including `http://` → 301 → `https://`.
+
+⚠️ **Malik caught a real copy error before it shipped.** The first draft of the OI-78 warning read
+*"ordering is off right now"*. **Ordering was not off** — the shop was open and taking orders; it is
+the customer's connection that failed. Shipped wording is now *"Your internet connection has
+dropped"* / *"We're open and taking orders as normal. Your phone just can't reach us right now."*
+**A status message must name whose fault it is, and getting that backwards tells the customer the
+shop is shut.**
+
+⚠️ **CI and Deploy-to-Staging are RED and have been on every one of the last 8 commits**, including
+ones that shipped fine (`c03e612`, `abf6177`, `1033943`, `52b1d1f`, `a49fef9`, `2795ca2`, `5dda69f`).
+Only **Deploy to Production** is green and meaningful. **A pipeline that is always red carries no
+signal**, and it would not have caught a genuine break here. Logged as **OI-80**, not fixed.
+
+📌 **Not verified and it cannot be from here: a real browser click-through.** The Chrome extension has
+failed to connect all week. The chain above (running-container source → live chunk contents → live API
+payload) is the strongest proof short of a human opening the page. **Malik's UAT is the last step:**
+add any meal and confirm the Add button reads *Choose chips* until one is picked, in the order
+Heat → Chips → Drink → Dip.
+
+<details><summary>Original OI-79 diagnosis, kept for the trail</summary>
+
+## 🟡 2026-08-13. OI-79, DIAGNOSED FROM THE LIVE MENU DATA, NOT BUILT: meal tickets don't say which chips, because chips are an OPTIONAL group nobody has to pick.
+
+Imran, WhatsApp 00:03 with a photo of ticket `260812-D008` (`#D006`, delivery, £98.36): *"It doesn't
+say which chips on the meal here"*. The `Double Peri Peri Wrap Meal` line prints only `Hot Heat` and
+`Rubicon Passion Fruit`. Malik: *"whatever's missing, its missing on the website checkout flow too."*
+
+**Malik's own hypothesis was right and the live menu payload confirms it exactly.** All **25** meals
+take their chips from a single group, **`Meal Deal Upgrade`**, which is
+**`required=False, min_selections=0, max_selections=1`**:
+
+| Option | Delta |
+|---|---|
+| **Regular Chips** | **+£0.00** |
+| Upgrade to Large Fries | +£0.79 |
+| Upgrade to Peri Peri Fries | +£0.99 |
+| Upgrade to Large Peri Peri Fries | +£1.19 |
+| Upgrade to Wedges | +£1.39 |
+| Upgrade to Peri Peri Wedges | +£1.59 |
+
+**There is no chips group anywhere else in the menu, and chips are never implicit.** Searched all 87
+items: the only other chips modifiers are `with Chips` inside the four on-the-bone / boneless
+`-- Choice` groups, which are required and therefore always print. So for a meal, if the customer does
+not actively tick something in `Meal Deal Upgrade`, **no chips line exists on the order at all** and
+the ticket correctly has nothing to print.
+
+**Malik reproduced it himself without realising.** His basket screenshot shows
+`Fish Burger Meal → 7UP, Regular Chips` (he ticked it) directly above
+`Double Peri Peri Wrap Meal → Hot Heat, Rubicon Passion Fruit` (he did not). Same basket, same bug,
+two lines apart.
+
+⚠️ **The group's NAME is the trap, as much as the flag.** A customer reading *"Meal Deal **Upgrade**"*
+correctly concludes they do not want an upgrade and skips it, believing chips are included, which they
+are, since the meal price covers them. **The blank therefore always means "regular chips" in practice,
+because nobody buys a meal wanting zero chips.** The kitchen simply is not told.
+
+**Fix, data-only, no deploy, fixes the website and the POS simultaneously** because both read the same
+menu API. `PATCH /api/v1/menu/modifier-groups/{id}`; `ModifierGroupUpdate` accepts exactly the fields
+needed (`name`, `required`, `min_selections`), verified in `backend/app/schemas/menu.py:59`:
+- `required` → `true`, `min_selections` → `1` (max stays 1)
+- rename `Meal Deal Upgrade` → something that reads as a choice, e.g. **`Chips`**
+
+**Cost: one extra tap per meal.** The storefront already enforces `min` properly, so nothing needs
+building: `ItemModal.tsx:60` computes unmet groups, `:172` marks them `*`, `:271` disables Add and
+`:279` labels the button `Choose chips`. **No new field and no new screen**, which matters against the
+1-in-45 abandonment rate.
+
+⚠️ **The tempting alternative is the wrong one: do NOT make the printer assume "Regular Chips" when the
+group is empty.** That hardcodes a menu assumption into `print_service.py`, i.e. a rule re-expressed in
+a second place, the exact shape that produced OI-61 / 65 / 66 / 68 / 73. Fix the data, not the paper.
+
+**Not verified:** whether the admin Menu Management UI exposes `required` / `min_selections` (the API
+does); whether the POS tablet's own `ModifierModal` enforces `min` the same way the storefront does;
+and how many past orders carry a chips-less meal, which is a read-only production count nobody has run.
+
+**Next action: Malik's call on making the group required. Nothing built, nothing changed.**
+
+*Superseded 2026-08-13 02:30 PK: measured at 20.5%, approved, shipped and verified. See the block at
+the top.*
+
+</details>
+
+<details><summary>OI-78 as authorised, before it shipped</summary>
+
+## 🔵 2026-08-12. OI-78, AUTHORISED BY MALIK, BUILT BUT NOT YET DEPLOYED: the failure message lies to the customer.
+
+Malik, on seeing the cause: *"the offline/bad signals version should not show this message at all. it
+should clearly tell the customer that there is something wrong your internet connection. please
+refresh/go to better signals zone etc"*. **This is a real defect independent of OI-77** and would have
+made OI-77 self-diagnosing: had the screen said "we cannot reach our system", nobody would have spent
+an hour on stale bundles and rural signal.
+
+Three things wrong in the current storefront, all in the same failure path:
+1. **The copy.** A shop live for two weeks tells customers *"Online ordering is coming very soon"*,
+   which reads as "not launched yet". `Checkout.tsx:456`.
+2. **No retry, ever.** `App.tsx:77` fetches the menu **once on mount**. One blip and the customer
+   browses a full menu, builds a basket, and is only told at the **checkout total**. Only a manual
+   reload recovers it.
+3. **Discovery is too late.** Nothing on the menu screen warns them; the wall is the Pay button.
+
+**Ships via `cd storefront && npm run deploy` (Cloudflare), NOT `git push`.** See
+[[chick-shack-two-deploy-pipelines]]. **Deploy scheduled after the 22:00 close**, matching every prior
+storefront deploy; the shop was open when this was authorised.
+
+*Shipped 2026-08-13, Cloudflare version `f0d8764a`, with the copy corrected after Malik's catch. See
+the block at the top.*
+
+</details>
+
+## 🟢 2026-08-10, live. `260810-D001` is missing from the tablet: DECLINED CARD, NOT ABANDONED. Money is clean.
+
+Malik asked where today's order 0001 went. Answered from the production DB **and the live Stripe
+API**, read-only, nothing changed. **This is a different failure mode from 08-07's `260807-D005`, and
+the difference matters.**
+
+- `260810-D001`, **Andy Napier**, delivery to *Lothlorien, Shore Road, Rahane G84 0QW*, **£26.17**,
+  created **16:06:13 BST**. A live session exists and — unlike 08-07 — a **PaymentIntent does too**
+  (`pi_3U2unMFnGj7KcDjJ1OivNSB4`). He entered card details. **The card was declined:**
+  `payment_method_provider_decline` / **`insufficient_funds`**, paid via Link. PI sits at
+  `requires_payment_method`, **`amount_received` 0, `amount_capturable` 0**; session still `open`.
+  **No money was taken, nothing to refund, and correctly nothing reached the tablet.**
+- **He immediately re-ordered and paid.** `260810-D002`, same name, same phone, same house, **11m25s
+  later**, **£22.68**, authorised 16:18:02, captured 16:18:47, delivered. He **rebuilt a cheaper
+  basket** to fit: D001 was `Fried Chicken £4.99 + Combo Fried Chicken with 2 Wings Meal £15.98`;
+  D002 is `Fried Chicken £7.99 + Spicy Fried Wings £9.99` (*"Can you do mega spicy on the wings? Like
+  inferno spicy please"*). **The shop lost nothing — same customer, same evening, £22.68 taken.**
+- **Today in full: 5 orders, 4 paid, £88.51.** `D002` £22.68, `C003` £10.69, `C004` £30.67, `D005`
+  £24.47 — all captured, accepted and completed. `D001` is the only gap.
+- **All-time, every card basket that never authorised: exactly two.** `260807-D005` (abandoned before
+  entering a card) and `260810-D001` (entered a card, declined). **2 in ~11 days.** Checkout is still
+  not where this business leaks.
+- ⚠️ **The predicted question arrived, as predicted.** The 08-07 entry warned that number gaps would
+  keep generating it and that nothing on the tablet or the reports explains one. That is now twice in
+  four days, with **two different causes**, and the gate behaved correctly both times. The unbuilt
+  idea from 08-07 — surface an abandoned/declined count on the reports page — has a second data
+  point behind it now. **Still not built and still not asked for.**
+- 📌 **Incidental, and it corroborates OI-76:** D001/D002's address is a **named house with no number
+  on Shore Road** (*Lothlorien*), the same road as the *"Aston Cottage, Shore Road"* in Imran's voice
+  note. The named-cottage problem is recurring on one specific road, which strengthens the
+  recommendation to **save the pin and directions against the customer record** — Andy Napier is now
+  a repeat customer with a hard address, solved once, reused forever.
+
+## 🔵 2026-08-10. OI-76 RESEARCHED, RECOMMENDATION FORMED. NOTHING BUILT, NOTHING SENT TO IMRAN.
+
+Voice note 01:56 UK, transcribed locally. **Registered as OI-76.** Transcript at
+`_context/clients/chick-shack-uk/voice-notes/2026-08-10_imran_what3words.md`. **Full research, costs,
+licence findings, recommendation and the unsent draft reply:**
+`_context/clients/chick-shack-uk/delivery-location-research_2026-08-10.md`.
 
 Delivery radius is 20 to 25 miles of rural Argyll: named cottages, back roads, poor signal. That
 night *"Aston Cottage, Shore Road"* could not be found in Google Maps **or in PostTag**, which they
@@ -16,12 +318,40 @@ already use, and the driver had to ask the customer to walk out to the road. He 
 **what3words**, which he uses in his security business, and **explicitly asks for advice rather than
 ordering a build** ("I don't know if you think this is a good idea").
 
-**Nothing researched yet, and nothing should be quoted from memory** — what3words is a commercial
-product and its licensing needs checking. The free option he has not considered is capturing the
-customer's device GPS at checkout and attaching a maps link to the order. The real obstacle is his
-own question, *"how do we influence people to use this"*, which is behavioural, not technical.
+**Researched 2026-08-10 against their published pages, nothing quoted from memory. Verdict: do not
+buy the what3words API.**
+- The **Free plan cannot do it** — AutoSuggest only, and AutoSuggest returns **no coordinates**.
+  A pin needs `convert-to-coordinates`, which is paid. Basic **£7.99/mo** / 1,000 conversions would be
+  ample at ~330 orders/month, so **price was never the obstacle**.
+- **The licence is.** Clause **6.3(b)** forbids displaying a 3 Word Address *alongside its
+  corresponding coordinates*; **6.3(e)(iii)** caps storage of the pair at **30 calendar days**. That
+  rules out the obvious build. Storing the words **alone** is unlimited (6.3(e)(i)), so a plain
+  optional text field costs nothing and stays compliant.
+- **The conceptual point:** what3words solves a *speaking* problem, how one human transmits a location
+  by voice. On our website nobody speaks, because the customer's phone already knows where it is. In
+  Imran's security work both ends are trained staff with the app installed; a takeaway customer is a
+  stranger who will not install one. His own *"how do we influence people to use this"* is the whole
+  problem, and it is behavioural.
 
-**Next action: discuss the options with Malik, then reply to Imran.**
+**Recommended instead, all free, in order:** (1) a driver-facing "how to find you" box, separate from
+the kitchen note; (2) a "share my current location" button; (3) **save the pin and directions against
+the customer record** so a hard address is solved once, the biggest compounding win for a takeaway;
+(4) a map picker for the not-at-home case (Google Maps Dynamic Maps: **10,000 free calls/month**, then
+$7/1,000, so free at ~3% of allowance; OSM's own tiles were rejected, their policy warns commercial
+access "may be withdrawn at any point"). Malik confirmed the driver end is solved: orders reach the
+driver's phone by WhatsApp or a shareable link.
+
+⚠️ **Checkout friction is the real risk.** Abandonment is **1 basket in 45**. Anything added must be
+optional, small, and never between the customer and the Pay button.
+
+**Verified in the repo:** `Checkout.tsx` collects address + postcode + a box labelled "Notes for the
+**kitchen**", and has **no driver-facing field at all**; **no customer detail persists between
+orders** (every field `useState("")`; only the basket is stored); but orders **do** link to a
+`Customer` row by phone via `_link_customer`, so (3) has its join already. Any storefront change is a
+**Cloudflare deploy**, not `git push`.
+
+**Next action: Malik picks what goes back to Imran. The draft reply is written and unsent. No build is
+authorised.**
 
 ## 🟢 2026-08-10. Google review email. BUILT, DEPLOYED, SWITCHED ON (`5dda69f` + `2795ca2`)
 
