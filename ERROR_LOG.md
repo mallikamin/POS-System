@@ -832,3 +832,17 @@ Each entry follows:
   storefront/` and account for every dirty file — the deploy ships the tree, not the repo, so an
   unexplained dirty file either ships silently or reveals drift. Had the tree been "cleaned" with a
   checkout first, the deploy would have silently REGRESSED the live retry behaviour.
+
+### 2026-08-14 — pytest lastfailed cache disagreed with the run it claimed to describe
+- **Error**: `.pytest_cache/v/cache/lastfailed` held 33 entries after a full-suite run that
+  reported 21 failed + 2 errors.
+- **Context**: OI-81 regression check — needed the exact failed-test list to diff against a
+  clean-worktree baseline, but the run's output had been piped through `tail -5`, so the cache
+  looked like a shortcut to recover it.
+- **Root Cause**: the cache is cumulative across sessions in ways that don't match any single
+  run (stale entries from prior days' time-of-day failures survive), so it describes no
+  particular run.
+- **Fix**: re-ran the full suite capturing the complete `FAILED|ERROR` list, compared
+  line-for-line against a same-clock clean-HEAD worktree run. Identical both sides.
+- **Rule**: for a regression claim, diff two captured RUN OUTPUTS from the same clock, never the
+  pytest cache — and never pipe a run you'll need to audit through `tail`.
