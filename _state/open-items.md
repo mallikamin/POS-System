@@ -1,5 +1,27 @@
 # Open items register
 
+**OI-81 ✅ CLOSED 2026-08-14 (~00:40 PK). SHIPPED AND VERIFIED LIVE (`2366c99` + Cloudflare
+`c8d8a9b6`), deployed during service on Malik's explicit instruction. Residual: Malik's live UAT of
+a real tipped order. Full detail in STATE.md.**
+
+Requested by Imran via Malik, 2026-08-13. (1) **Rename**: "Service Fee" becomes "Platform Fee" on
+every customer/shop surface: storefront checkout + confirmation, Stripe line item, email, printed
+ticket, order tablet. Label-only; the `service_fee` column and field names stay. (2) **Tip at
+checkout**: presets £2 / £4 / £5 or custom (capped £20 server-side), optional, default none, shown on
+both delivery and collection (Malik's call, 2026-08-13). Card: tip rides as its own Stripe line item
+so order + tip charge as one payment (£25.75 + £3.50 → £29.25, Imran's example). Cash: tip is in the
+bill total and the rider/counter collects it. Requires `orders.tip` column + migration, `tip` on the
+public order request (validated 0 to 2000 pence), inclusion in `total`, and display on
+ticket/email/tablet. Tip excluded from tax and from the delivery minimum. Mockup: artifact
+`25779e7e-3e75-4292-8de6-b6642ff46a51`. ⚠️ Tips flow into `order.total`, so daily revenue in reports
+will include tips until a tip column is split out; flagged to Malik.
+
+**Open:** Malik's live UAT of a real tipped order (card: Stripe page shows the Tip line; ticket
+prints it; reports tiles move). ⚠️ Standing note: tips ride inside `order.total`, so Daily Sales
+revenue includes them; the Tips tiles on the reports page are where the split lives.
+
+---
+
 **OI-80 🔴 NEW 2026-08-13, NOT FIXED. CI and Deploy-to-Staging are red on every commit, so neither
 carries any signal.**
 

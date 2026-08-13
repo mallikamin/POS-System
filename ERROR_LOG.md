@@ -816,3 +816,19 @@ Each entry follows:
   `psql -f`. Also lets the query carry comments and `\echo` section headers.
 - **Rule**: Never inline non-trivial SQL through SSH. Same rule as heredoc Python on Windows - put it
   in a file.
+
+### 2026-08-14 — OI-78 storefront source was live on Cloudflare but never committed to git
+- **Error**: `git status` showed `storefront/src/App.tsx` and `storefront/src/store/menu.ts` dirty
+  with the OI-78 retry logic, which the 2026-08-13 pause checkpoint listed under "Files Modified
+  (committed)". `git log` proved storefront files were last committed at `6378b67`, well before OI-78.
+- **Context**: Preparing the OI-81 storefront deploy. `npm run deploy` ships the WORKING TREE, so
+  the check that caught this was auditing every dirty file in `storefront/` before deploying.
+- **Root Cause**: The OI-78 session deployed to Cloudflare (`f0d8764a`) and committed the backend +
+  docs, but the storefront staging list missed two of the four changed files. The checkpoint then
+  recorded the intention ("committed") rather than the verified result.
+- **Fix**: `2366c99` commits the OI-78 source alongside OI-81; git now matches production.
+- **Rule**: Two rules. (1) A "committed" claim in a checkpoint must come from `git log -- <path>`,
+  not from the staging command having been typed. (2) Before ANY storefront deploy, `git status --
+  storefront/` and account for every dirty file — the deploy ships the tree, not the repo, so an
+  unexplained dirty file either ships silently or reveals drift. Had the tree been "cleaned" with a
+  checkout first, the deploy would have silently REGRESSED the live retry behaviour.

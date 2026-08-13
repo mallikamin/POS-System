@@ -1,14 +1,57 @@
 # STATE — Restaurant POS System
 
-**Last refreshed:** 2026-08-13 ~02:50 PK, after an unattended post-close deploy. HEAD is
-**`429ce34`**, branch `main`, **nothing unpushed**, server at the same commit. Storefront at
-Cloudflare version `f0d8764a`. The ~127-file dirty tree and OI-60's untested backend work are
-untouched and still uncommitted. **No code work is in flight. All shipped work below is deployed and
-verified live.**
+**Last refreshed:** 2026-08-14 ~00:45 PK (13 Aug ~20:45 UK), immediately after the OI-81 deploy.
+HEAD is **`2366c99`**, branch `main`, pushed, **server at the same commit**, storefront at
+Cloudflare version **`c8d8a9b6`**. The ~105 remaining dirty files and OI-60's untested backend work
+are untouched and still uncommitted.
 
-**Open:** **OI-76** (what3words researched, verdict is do not buy, reply drafted and unsent),
-**OI-80** (CI and Deploy-to-Staging red on every recent commit, no signal), and **Malik's morning UAT
-of the chips flow** (the one thing that could not be verified from here).
+**Open:** **Malik's live UAT of the tip flow** (the one thing not verifiable from here), **OI-76**
+(what3words researched, verdict is do not buy, reply drafted and unsent), **OI-80** (CI and
+Deploy-to-Staging red on every recent commit, no signal), and the chips-flow UAT from 08-13 if it
+has not been done yet.
+
+## 🟢 2026-08-14 ~00:40 PK. OI-81 SHIPPED AND VERIFIED LIVE (`2366c99` + Cloudflare `c8d8a9b6`). Deployed DURING service on Malik's explicit instruction ("deploy because we can have a live runtime experience").
+
+**Imran's two checkout changes, requested 2026-08-13, live the same day:**
+1. **"Service Fee" is now "Platform Fee"** on every surface a customer or the shop sees: storefront
+   checkout + confirmation, the Stripe payment page line item, the order emails, the printed ticket,
+   the tablet queue. Label-only; the `service_fee` column and every field name stay.
+2. **Tip at checkout**: None / £2 / £4 / £5 / Other(custom), default none, both service types, no
+   explanatory copy (Malik cut the "goes to your rider" line as redundant). New `orders.tip` column
+   (migration `u7v8w9x0y1z2`), validated **0..£20 server-side** (fat-finger guard: a "350" for
+   "3.50" can never charge), snapshotted at creation, included in `total`, **never taxed, never
+   counted toward the delivery minimum**. Card: its own "Tip" line on Stripe, so £25.75 + £3.50
+   charges £29.25 in one payment (Imran's own example). Cash: prints as its own Tip line and rides
+   the `COLLECT` total for the rider.
+3. **Tips reporting** (Malik's addition): `prepaid-vs-cod` now returns `prepaid_tips` / `cod_tips`
+   under the **same money-actually-taken rule as revenue** (a tip can never sit in a bucket its
+   order's revenue is not in — the OI-61-family rule imported, not re-expressed), CSV rows, and a
+   Tips section (Total / Card / Cash) on `/online-orders/reports`.
+
+**Verified live, by effect:** server `git log` = `2366c99`; `orders.tip` column present, alembic at
+`u7v8w9x0y1z2 (head)`; "Platform Fee" read out of the running container in print/stripe/email
+services, zero stale "Service Fee" strings (the one grep hit is a comment); live menu API 200 GBP;
+live bundle `index-CviMWmK5.js` (hash identical to the locally-verified build): "Service Fee" **0**,
+"Add a tip" 1, "Maximum tip is" 1, OI-78 connection copy intact; **0 backend exceptions, 0 nginx
+5xx** since recreation; **Orbit CRM untouched** (2-3 months uptime).
+
+**Zero regressions, proven not claimed:** full suite **546 passed** vs **536** on a clean-HEAD
+`git worktree` run at the same clock, **identical 21 failures + 2 errors line-for-line either side**
+(parked QB-Desktop suite + the OI-63 time-of-day set, which always fails in the after-midnight-PK
+window this ran in). The +10 are the new tip/rename tests. Both frontends typecheck clean, ruff
+clean on all touched files.
+
+🔴 **Found and fixed a real drift: OI-78's storefront source was live on Cloudflare (`f0d8764a`)
+but never committed to git.** The 08-13 checkpoint's "Files Modified (committed)" claim was wrong —
+`App.tsx` retries, `menu.ts` loading state and the connection-failure copy existed only in the
+working tree. Deploying the storefront without them would have silently REGRESSED the live site
+back to no-retry behaviour. `2366c99` commits them; git now matches production. Logged in
+ERROR_LOG.md.
+
+📌 **Not verified and it cannot be from here: a real order with a real tip.** No test order was
+placed (live service, real Stripe, real tablet). **Malik's UAT is the last step:** add any item,
+pick a tip, check the total moves, pay by card, and confirm the Stripe page shows the Tip line and
+the ticket prints it. The reports tiles read zero until the first tipped order lands.
 
 **Closed today:** OI-77 (site served over plain HTTP, killing CORS), OI-78 (connection-failure copy
 and retry), OI-79 (chips not recorded on meals).
