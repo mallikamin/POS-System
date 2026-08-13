@@ -3,8 +3,9 @@
 ## Project
 - **Name**: Restaurant POS — Chick Shack UK online ordering channel
 - **Path**: `C:\Users\Malik\desktop\pos-project`
-- **Branch**: `main` · **HEAD** `fc1b03d` · ⚠️ **ONE UNPUSHED COMMIT** (see Critical Context)
-- **Server**: at `2366c99` (the feature commit; the unpushed one is docs-only)
+- **Branch**: `main` · **HEAD** `de10856` · **nothing unpushed** (docs commits pushed 22:05 UK
+  after close; deploy green, server verified at `de10856`, both sites 200, Orbit untouched)
+- **Server**: at `de10856`
 - **Storefront**: Cloudflare version `c8d8a9b6`
 
 ## Goal
@@ -53,11 +54,9 @@ built, tested, and deployed live the same day — during service, on Malik's exp
 - Nothing. No code is in flight.
 
 ## Pending
-- [ ] 🔴 **PUSH `fc1b03d` when the shop is shut** (docs-only: STATE.md, open-items, ERROR_LOG).
-      Held because ANY push to main triggers `deploy-production.yml` (no path filter), which
-      recreates backend + nginx = ~1 min mid-service API blip for a docs change. Shop hours
-      16:00–22:00 UK. `git push origin main`, then confirm the Action goes green and the sites
-      load. A monitor was armed for 22:02 UK but dies if this session ends first.
+- [x] ~~Push the held docs commits when the shop is shut~~ **DONE 22:05 UK, same session**: the
+      armed monitor fired at close, `fc1b03d` + `de10856` pushed, deploy green, server verified
+      at `de10856` by effect (containers healthy, 0 5xx, both sites 200, Orbit untouched).
 - [ ] **Malik's live UAT of the tip flow** — the one unverified step: place an order with a tip
       (card: Stripe page shows the Tip line; £25.75 + £3.50 must charge £29.25), confirm the
       ticket prints "Tip", the tablet card shows it, and the reports Tips tiles move off £0.00.
