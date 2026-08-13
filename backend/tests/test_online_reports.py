@@ -30,6 +30,7 @@ async def _make_order(
     *,
     number: str,
     total: int,
+    tip: int = 0,
     order_type: str = "online",
     status: str = "confirmed",
     stripe_checkout_session_id: str | None = None,
@@ -56,9 +57,10 @@ async def _make_order(
         order_type=order_type,
         status=status,
         payment_status=payment_status,
-        subtotal=total,
+        subtotal=total - tip,
         tax_amount=0,
         discount_amount=0,
+        tip=tip,
         total=total,
         created_by=user_id,
         stripe_checkout_session_id=stripe_checkout_session_id,
@@ -143,6 +145,99 @@ async def test_prepaid_vs_cod_csv_has_both_rows(
     assert "Prepaid Revenue" in resp.text
     assert "Cash on Delivery Revenue" in resp.text
     assert "20.0" in resp.text  # 2000 paisa/pence -> 20.0
+
+
+async def test_tips_split_by_the_same_prepaid_vs_cod_rule_as_revenue(
+    client: AsyncClient,
+    db: AsyncSession,
+    tenant: Tenant,
+    admin_user: User,
+    admin_token: str,
+):
+    """OI-81: card tips are tips on orders whose money was actually taken;
+    cash tips ride the bill. Same filters as revenue, so a voided order's tip
+    counts nowhere, and an abandoned card checkout's tip counts nowhere."""
+    await _make_order(
+        db,
+        tenant.id,
+        admin_user.id,
+        number="T-card",
+        total=2350,
+        tip=350,
+        stripe_checkout_session_id="cs_test_1",
+    )
+    await _make_order(
+        db, tenant.id, admin_user.id, number="T-cash", total=1700, tip=200
+    )
+    await _make_order(
+        db, tenant.id, admin_user.id, number="T-notip", total=1500
+    )
+    # A voided order's tip must not count either way.
+    await _make_order(
+        db,
+        tenant.id,
+        admin_user.id,
+        number="T-voided",
+        total=999,
+        tip=500,
+        status="voided",
+    )
+
+    # UTC "today", not `_today_range()`'s local one: the report's bounds are
+    # UTC and so is `created_at`, so the local date is wrong for a few hours
+    # around midnight in any timezone ahead of UTC -- which is exactly when
+    # this suite's other date-range tests are known to fail (OI-63 shape).
+    date_from = date_to = datetime.now(timezone.utc).date().isoformat()
+    resp = await client.get(
+        "/api/v1/reports/online/prepaid-vs-cod",
+        params={"date_from": date_from, "date_to": date_to},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["prepaid_tips"] == 350
+    assert data["cod_tips"] == 200
+    # The revenue buckets still carry the tip-inclusive totals, unchanged.
+    assert data["prepaid_revenue"] == 2350
+    assert data["cod_revenue"] == 1700 + 1500
+
+
+async def test_tips_rows_appear_in_the_csv(
+    client: AsyncClient,
+    db: AsyncSession,
+    tenant: Tenant,
+    admin_user: User,
+    admin_token: str,
+):
+    await _make_order(
+        db,
+        tenant.id,
+        admin_user.id,
+        number="T-card",
+        total=2350,
+        tip=350,
+        stripe_checkout_session_id="cs_test_1",
+    )
+    await _make_order(
+        db, tenant.id, admin_user.id, number="T-cash", total=1700, tip=200
+    )
+
+    # UTC "today" -- see test_tips_split_by_the_same_prepaid_vs_cod_rule.
+    date_from = date_to = datetime.now(timezone.utc).date().isoformat()
+    resp = await client.get(
+        "/api/v1/reports/online/prepaid-vs-cod/csv",
+        params={"date_from": date_from, "date_to": date_to},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert resp.status_code == 200
+    # Label + value, currency left to the tenant's own config (OI-73: the
+    # label's currency is resolved, never hardcoded -- so don't pin it here).
+    assert "Card Tips" in resp.text
+    assert ",3.5" in resp.text
+    assert "Cash Tips" in resp.text
+    assert ",2.0" in resp.text
+    assert "Total Tips" in resp.text
+    assert ",5.5" in resp.text
 
 
 # ---------------------------------------------------------------------------

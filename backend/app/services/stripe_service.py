@@ -177,7 +177,21 @@ def _line_items(order: Order, currency: str) -> list[dict[str, Any]]:
                 "price_data": {
                     "currency": currency.lower(),
                     "unit_amount": order.service_fee,
-                    "product_data": {"name": "Service Fee"},
+                    # "Platform Fee", not "Service Fee" -- Imran's rename,
+                    # 2026-08-13 (OI-81). Label only; the column keeps its name.
+                    "product_data": {"name": "Platform Fee"},
+                },
+            }
+        )
+
+    if order.tip:
+        lines.append(
+            {
+                "quantity": 1,
+                "price_data": {
+                    "currency": currency.lower(),
+                    "unit_amount": order.tip,
+                    "product_data": {"name": "Tip"},
                 },
             }
         )

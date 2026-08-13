@@ -41,6 +41,7 @@ export interface OnlineOrder {
   subtotal: number;
   tax_amount: number;
   service_fee: number;
+  tip: number;
   delivery_fee: number;
   total: number;
   currency: string;

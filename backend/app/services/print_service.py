@@ -229,7 +229,12 @@ def _render_copy(
     if order.tax_amount:
         t.columns("Tax", money(order.tax_amount, currency))
     if order.service_fee:
-        t.columns("Service Fee", money(order.service_fee, currency))
+        t.columns("Platform Fee", money(order.service_fee, currency))
+    if order.tip:
+        # Its own line, not folded into the total silently: on a cash order
+        # the rider collects the full TOTAL below, and this line is how the
+        # driver and the shop both see the tip was part of it (OI-81).
+        t.columns("Tip", money(order.tip, currency))
     if order.delivery_fee:
         t.columns("Delivery", money(order.delivery_fee, currency))
     t.columns("TOTAL", money(order.total, currency), bold=True)

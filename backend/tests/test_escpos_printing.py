@@ -234,15 +234,32 @@ def test_delivery_ticket_carries_the_address_and_area():
     assert "£15.00" in out  # the delivery fee line
 
 
-def test_service_fee_prints_as_its_own_line():
+def test_service_fee_prints_as_its_own_platform_fee_line():
+    # "Platform Fee", not "Service Fee" -- Imran's rename, 2026-08-13 (OI-81).
     out = _preview(_order(service_fee=70, total=1770))
-    assert "Service Fee" in out
+    assert "Platform Fee" in out
+    assert "Service Fee" not in out
     assert "£0.70" in out
 
 
 def test_zero_service_fee_prints_no_line():
     out = _preview(_order(service_fee=0))
-    assert "Service Fee" not in out
+    assert "Platform Fee" not in out
+
+
+def test_tip_prints_as_its_own_line_and_rides_the_collect_total():
+    """OI-81: on a cash order the rider collects the TOTAL, which includes the
+    tip -- the Tip line is how driver and shop both see why the total is
+    bigger than the food."""
+    out = _preview(_order(tip=350, total=2050))
+    assert "Tip" in out
+    assert "£3.50" in out
+    assert "COLLECT £20.50" in out  # unpaid ticket collects the tip too
+
+
+def test_zero_tip_prints_no_line():
+    out = _preview(_order(tip=0))
+    assert "Tip" not in out
 
 
 def test_ready_time_is_computed_not_left_as_minutes():

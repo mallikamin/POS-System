@@ -64,6 +64,16 @@ async def get_prepaid_vs_cod(
             "cod_revenue"
         ),
         func.count(case((~is_prepaid, Order.id))).label("cod_orders"),
+        # OI-81: tips split by the same prepaid/COD rule as revenue -- card
+        # tips are tips on orders whose money was actually taken, cash tips
+        # ride the bill and are collected in person. Same filters, so a tip
+        # can never appear in a bucket its order's revenue is not in.
+        func.coalesce(func.sum(case((is_prepaid, Order.tip), else_=0)), 0).label(
+            "prepaid_tips"
+        ),
+        func.coalesce(func.sum(case((~is_prepaid, Order.tip), else_=0)), 0).label(
+            "cod_tips"
+        ),
     ).where(
         Order.tenant_id == tenant_id,
         Order.order_type == "online",
@@ -81,6 +91,8 @@ async def get_prepaid_vs_cod(
         "prepaid_orders": row.prepaid_orders,
         "cod_revenue": row.cod_revenue,
         "cod_orders": row.cod_orders,
+        "prepaid_tips": row.prepaid_tips,
+        "cod_tips": row.cod_tips,
     }
 
 

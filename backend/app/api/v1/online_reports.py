@@ -62,6 +62,14 @@ async def export_prepaid_vs_cod_csv(
         [f"Cash on Delivery Revenue ({currency})", data["cod_revenue"] / 100]
     )
     writer.writerow(["Cash on Delivery Orders", data["cod_orders"]])
+    writer.writerow([f"Card Tips ({currency})", data["prepaid_tips"] / 100])
+    writer.writerow([f"Cash Tips ({currency})", data["cod_tips"] / 100])
+    writer.writerow(
+        [
+            f"Total Tips ({currency})",
+            (data["prepaid_tips"] + data["cod_tips"]) / 100,
+        ]
+    )
 
     output.seek(0)
     filename = f"prepaid_vs_cod_{date_from}_{date_to}.csv"

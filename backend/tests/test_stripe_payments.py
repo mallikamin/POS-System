@@ -644,6 +644,39 @@ def test_line_items_fall_back_to_one_line_when_the_breakdown_disagrees(
     assert charged == 9999
 
 
+def test_line_items_itemise_platform_fee_and_tip(
+    tenant: Tenant, admin_user: User
+) -> None:
+    """OI-81: the fee line says "Platform Fee" (Imran's rename) and the tip
+    rides as its own line, so £25.75 of order + £3.50 of tip charges £29.25
+    in one payment -- and the itemised sum still equals the order total, or
+    the one-line fallback would silently hide the breakdown."""
+    from app.models.order import OrderItem
+
+    order = _card_order(
+        tenant,
+        admin_user,
+        service_fee=70,
+        tip=350,
+        total=1000 + 300 + 70 + 350,
+    )
+    item = OrderItem(name="Peri Wrap", quantity=1, unit_price=1000, total=1000)
+    order.items = [item]
+
+    lines = stripe_service._line_items(order, "GBP")
+
+    names = [line["price_data"]["product_data"]["name"] for line in lines]
+    assert "Platform Fee" in names
+    assert "Tip" in names
+    assert "Service Fee" not in names
+
+    tip_line = lines[names.index("Tip")]
+    assert tip_line["price_data"]["unit_amount"] == 350
+
+    charged = sum(line["quantity"] * line["price_data"]["unit_amount"] for line in lines)
+    assert charged == order.total  # itemised, not the fallback single line
+
+
 def test_line_items_use_minor_units_with_no_float_arithmetic(
     tenant: Tenant, admin_user: User
 ) -> None:

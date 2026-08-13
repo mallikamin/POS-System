@@ -264,8 +264,16 @@ export default function OrderConfirmation({
         ))}
         {order.service_fee > 0 && (
           <div className="flex justify-between text-sm text-cream/70 pt-2 border-t border-ink-line">
-            <span>Service Fee</span>
+            <span>Platform Fee</span>
             <span>{formatGBP(order.service_fee)}</span>
+          </div>
+        )}
+        {/* `> 0` also guards a pending order stashed by an older bundle,
+            where `tip` is undefined after the Stripe round trip. */}
+        {order.tip > 0 && (
+          <div className="flex justify-between text-sm text-cream/70 pt-2 border-t border-ink-line">
+            <span>Tip</span>
+            <span>{formatGBP(order.tip)}</span>
           </div>
         )}
         {order.delivery_fee > 0 && (

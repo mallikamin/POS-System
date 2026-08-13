@@ -46,6 +46,9 @@ export default function Checkout({ onBack, onPlaced }: Props) {
   // ordering-unavailable copy.
   const orderingPaused = useMenu((s) => s.orderingPaused);
   const pausedMessage = useMenu((s) => s.pausedMessage);
+  // OI-78. Reached straight from the store rather than threaded down as a prop:
+  // App already owns the automatic retries, and this is the same `load`.
+  const reloadMenu = useMenu((s) => s.load);
   const orderingLive = canOrder(menuSource, orderingPaused);
 
   const [service, setService] = useState<ServiceType>(
@@ -73,6 +76,21 @@ export default function Checkout({ onBack, onPlaced }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // OI-81: optional tip, default none. Presets in pence, or a custom amount.
+  // The server re-validates (0..2000) and recomputes the total itself; this
+  // is the one amount the client sends, because only the customer knows it.
+  const [tipChoice, setTipChoice] = useState<number | "custom">(0);
+  const [customTip, setCustomTip] = useState("");
+  const customTipPounds = parseFloat(customTip);
+  const customTipOverCap =
+    tipChoice === "custom" && !isNaN(customTipPounds) && customTipPounds > 20;
+  const tip =
+    tipChoice === "custom"
+      ? !isNaN(customTipPounds) && customTipPounds > 0 && !customTipOverCap
+        ? Math.round(customTipPounds * 100)
+        : 0
+      : tipChoice;
+
   const delivery = useMemo(
     () => (service === "delivery" ? checkDelivery(areaId, subtotal) : null),
     [service, areaId, subtotal],
@@ -80,7 +98,7 @@ export default function Checkout({ onBack, onPlaced }: Props) {
 
   const deliveryFee = delivery?.ok ? delivery.fee : 0;
   const serviceFee = SHOP.serviceFee;
-  const total = subtotal + deliveryFee + serviceFee;
+  const total = subtotal + deliveryFee + serviceFee + tip;
 
   // Email is REQUIRED, not a nicety. It is the channel the shop uses to tell the
   // customer their order was accepted and how long it will be — and Imran's own
@@ -126,6 +144,7 @@ export default function Checkout({ onBack, onPlaced }: Props) {
         ...(email.trim() ? { customer_email: email.trim() } : {}),
         items: orderLinesOf(useCart.getState().lines),
         payment_method: payment,
+        ...(tip > 0 ? { tip } : {}),
         ...(notes.trim() ? { notes: notes.trim() } : {}),
         ...(service === "delivery"
           ? {
@@ -356,6 +375,51 @@ export default function Checkout({ onBack, onPlaced }: Props) {
         )}
       </section>
 
+      {/* OI-81: optional tip. Sits above the totals, never between the
+          customer and the Pay button — checkout friction is the real risk
+          here (abandonment is ~1 basket in 45). No explanatory copy by
+          design: Malik cut the "goes to your rider" line as redundant. */}
+      <section>
+        <h2 className="label">Add a tip</h2>
+        <div className="grid grid-cols-5 gap-2">
+          {([0, 200, 400, 500] as const).map((amount) => (
+            <button
+              key={amount}
+              onClick={() => setTipChoice(amount)}
+              className={`rounded-xl border py-3 font-semibold
+                ${tipChoice === amount ? "border-flame bg-flame/10" : "border-ink-line"}`}
+            >
+              {amount === 0 ? "None" : formatGBP(amount).replace(".00", "")}
+            </button>
+          ))}
+          <button
+            onClick={() => setTipChoice("custom")}
+            className={`rounded-xl border py-3 font-semibold
+              ${tipChoice === "custom" ? "border-flame bg-flame/10" : "border-ink-line"}`}
+          >
+            Other
+          </button>
+        </div>
+        {tipChoice === "custom" && (
+          <div className="mt-2">
+            <input
+              type="number"
+              inputMode="decimal"
+              min="0"
+              max="20"
+              step="0.50"
+              placeholder="Amount in £, e.g. 3.50"
+              className="field"
+              value={customTip}
+              onChange={(e) => setCustomTip(e.target.value)}
+            />
+            {customTipOverCap && (
+              <p className="text-sm text-ember mt-2">Maximum tip is £20.</p>
+            )}
+          </div>
+        )}
+      </section>
+
       <section>
         <h2 className="label">Notes for the kitchen</h2>
         <textarea
@@ -374,8 +438,14 @@ export default function Checkout({ onBack, onPlaced }: Props) {
         </div>
         {serviceFee > 0 && (
           <div className="flex justify-between text-cream/70">
-            <span>Service Fee</span>
+            <span>Platform Fee</span>
             <span>{formatGBP(serviceFee)}</span>
+          </div>
+        )}
+        {tip > 0 && (
+          <div className="flex justify-between text-cream/70">
+            <span>Tip</span>
+            <span>{formatGBP(tip)}</span>
           </div>
         )}
         {service === "delivery" && (
@@ -453,7 +523,7 @@ export default function Checkout({ onBack, onPlaced }: Props) {
           <p className="font-semibold text-ember">
             {orderingPaused
               ? "We're not taking online orders right now"
-              : "Online ordering is coming very soon"}
+              : "Your internet connection has dropped"}
           </p>
           <p className="text-sm text-cream/70">
             {orderingPaused ? (
@@ -465,13 +535,30 @@ export default function Checkout({ onBack, onPlaced }: Props) {
                 <strong className="text-cream">{formatGBP(total)}</strong>.
               </>
             ) : (
+              /* OI-78. This used to read "Online ordering is coming very soon",
+                 which for a shop that has been taking orders for weeks reads as
+                 "not launched yet" — Imran himself reported it as the site
+                 being broken. The real cause is almost always that this phone
+                 could not reach the API, so say that, and offer the two ways
+                 out: try again, or phone with the total in hand. */
               <>
-                We're not taking online payments just yet. Give us a ring and
-                we'll get this order started — your total is{" "}
+                We're open and taking orders as normal. Your phone just can't
+                reach us right now, so check your signal or switch to Wi-Fi and
+                tap Retry. If it keeps failing, give us a ring and we'll take
+                your order over the phone — your total is{" "}
                 <strong className="text-cream">{formatGBP(total)}</strong>.
               </>
             )}
           </p>
+          {!orderingPaused && (
+            <button
+              onClick={() => void reloadMenu()}
+              disabled={menuSource === "loading"}
+              className="btn-primary tap w-full h-12"
+            >
+              {menuSource === "loading" ? "Trying again…" : "Retry"}
+            </button>
+          )}
           <div className="grid gap-2">
             {SHOP.phones.map((p) => (
               <a

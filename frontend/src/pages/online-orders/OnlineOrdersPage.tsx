@@ -1108,8 +1108,14 @@ export default function OnlineOrdersPage() {
                 <div className="mt-3 border-t border-secondary-200 pt-2 text-sm">
                   {order.service_fee > 0 ? (
                     <div className="flex justify-between text-secondary-600">
-                      <span>Service Fee</span>
+                      <span>Platform Fee</span>
                       <span>{formatMoney(order.service_fee, order.currency)}</span>
+                    </div>
+                  ) : null}
+                  {order.tip > 0 ? (
+                    <div className="flex justify-between text-secondary-600">
+                      <span>Tip</span>
+                      <span>{formatMoney(order.tip, order.currency)}</span>
                     </div>
                   ) : null}
                   {order.delivery_fee > 0 ? (

@@ -14,6 +14,9 @@ export interface PrepaidVsCodReport {
   prepaid_orders: number;
   cod_revenue: number;
   cod_orders: number;
+  /** OI-81: tips, split by the same prepaid/COD rule as the revenue. */
+  prepaid_tips: number;
+  cod_tips: number;
 }
 
 export interface RejectedOrderEntry {

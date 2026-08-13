@@ -51,6 +51,10 @@ export const useMenu = create<MenuState>()((set) => ({
   pausedMessage: null,
 
   load: async () => {
+    // Mark the fetch in flight. On first mount this is already the state; on a
+    // retry it matters, because `canOrder` must be false while we are asking
+    // again rather than briefly claiming the last failure is still the truth.
+    set({ source: "loading" });
     try {
       const response = await fetchMenu();
       const { categories, items } = adaptMenu(response.categories);

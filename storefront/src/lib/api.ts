@@ -104,6 +104,12 @@ export interface ApiOrderRequest {
    * actually moves; that is Stripe's own state, checked separately.
    */
   payment_method?: "cash" | "card";
+  /**
+   * OI-81: the ONE amount this client is allowed to send, because a tip is
+   * the customer's own choice and the server cannot derive it. Minor units.
+   * The server re-validates (0..2000) and adds it to its own total.
+   */
+  tip?: Pence;
 }
 
 export interface ApiOrderLine {
@@ -125,6 +131,7 @@ export interface ApiOrderResponse {
   subtotal: Pence;
   tax_amount: Pence;
   service_fee: Pence;
+  tip: Pence;
   delivery_fee: Pence;
   total: Pence;
   currency: string;

@@ -518,9 +518,11 @@ async def create_public_order(
     service_fee = await get_service_fee(db, tenant_id)
 
     tax_rate_bps = await order_service._get_tax_rate(db, tenant_id)
-    # Tax is charged on goods, not on the delivery fee or the service fee.
+    # Tax is charged on goods, not on the delivery fee, the service fee or
+    # the tip. The tip is the one client-sent amount on the order (OI-81);
+    # the schema has already bounded it to 0..2000.
     tax_amount = round(subtotal * tax_rate_bps / 10_000)
-    total = subtotal + tax_amount + delivery_fee + service_fee
+    total = subtotal + tax_amount + delivery_fee + service_fee + data.tip
 
     system_user = await _get_or_create_online_user(db, tenant_id)
 
@@ -575,6 +577,7 @@ async def create_public_order(
         delivery_area=area_name,
         delivery_fee=delivery_fee,
         service_fee=service_fee,
+        tip=data.tip,
         created_by=system_user.id,
         items=order_items,
     )

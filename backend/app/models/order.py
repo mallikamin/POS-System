@@ -133,6 +133,14 @@ class Order(BaseMixin, Base):
         comment="Service fee in minor units, snapshotted from the tenant's "
         "config at order creation. Charged regardless of service type.",
     )
+    tip: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        nullable=False,
+        comment="Tip in minor units, chosen by the customer at checkout "
+        "(OI-81). Included in `total`; excluded from tax and the delivery "
+        "minimum. 0 = no tip.",
+    )
     accepted_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,

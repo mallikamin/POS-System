@@ -427,6 +427,83 @@ async def test_zero_service_fee_tenant_is_unaffected(
     assert body["total"] == body["subtotal"] + body["tax_amount"]
 
 
+# ---------------------------------------------------------------------------
+# OI-81: the tip -- the one client-sent amount on an order
+# ---------------------------------------------------------------------------
+
+
+async def test_tip_is_added_to_the_total_and_snapshotted(
+    client: AsyncClient,
+    db: AsyncSession,
+    uk_menu: MenuItem,
+):
+    """A £3.50 tip lands in the total (Imran's own worked example: £25.75 +
+    £3.50 charges £29.25) and is snapshotted onto the order like service_fee,
+    so nothing can rewrite it later. Tax is charged on goods only, never on
+    the tip."""
+    resp = await client.post(
+        "/api/v1/public/test-restaurant/orders",
+        json={
+            "service_type": "collection",
+            "customer_name": "Imran R",
+            "customer_phone": "07909313456",
+            "items": [{"menu_item_id": str(uk_menu.id), "quantity": 1}],
+            "tip": 350,
+        },
+    )
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+    assert body["tip"] == 350
+    assert body["total"] == body["subtotal"] + body["tax_amount"] + 350
+
+    order = await db.get(Order, uuid.UUID(body["id"]))
+    assert order.tip == 350
+    assert order.total == body["total"]
+
+
+async def test_no_tip_sent_means_zero_not_an_error(
+    client: AsyncClient,
+    uk_menu: MenuItem,
+):
+    """Every basket placed by the pre-tip storefront bundle sends no `tip`
+    key at all -- that must keep working unchanged forever."""
+    resp = await client.post(
+        "/api/v1/public/test-restaurant/orders",
+        json={
+            "service_type": "collection",
+            "customer_name": "Imran R",
+            "customer_phone": "07909313456",
+            "items": [{"menu_item_id": str(uk_menu.id), "quantity": 1}],
+        },
+    )
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+    assert body["tip"] == 0
+    assert body["total"] == body["subtotal"] + body["tax_amount"]
+
+
+@pytest.mark.parametrize("bad_tip", [-1, 2001, 100000])
+async def test_out_of_range_tip_is_rejected(
+    client: AsyncClient,
+    uk_menu: MenuItem,
+    bad_tip: int,
+):
+    """The £20 cap is the server's, not the browser's: a fat-fingered "350"
+    instead of "3.50" must never become a real card charge, whatever a
+    tampered client sends."""
+    resp = await client.post(
+        "/api/v1/public/test-restaurant/orders",
+        json={
+            "service_type": "collection",
+            "customer_name": "Imran R",
+            "customer_phone": "07909313456",
+            "items": [{"menu_item_id": str(uk_menu.id), "quantity": 1}],
+            "tip": bad_tip,
+        },
+    )
+    assert resp.status_code == 422
+
+
 async def test_cannot_order_another_tenants_item_through_your_slug(
     client: AsyncClient, uk_menu: MenuItem, pk_menu: MenuItem
 ):

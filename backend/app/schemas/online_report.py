@@ -12,6 +12,9 @@ class PrepaidVsCodReport(BaseModel):
     prepaid_orders: int
     cod_revenue: int  # cash / pay-on-delivery
     cod_orders: int
+    # OI-81: tips, split by the same prepaid/COD rule as the revenue above.
+    prepaid_tips: int = 0  # tips charged with the card payment
+    cod_tips: int = 0  # tips riding a cash bill, collected in person
 
 
 class RejectedOrderEntry(BaseModel):

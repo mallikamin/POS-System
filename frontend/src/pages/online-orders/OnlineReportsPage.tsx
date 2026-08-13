@@ -230,6 +230,31 @@ export default function OnlineReportsPage() {
             </div>
           </section>
 
+          {/* Tips (OI-81) -- same endpoint as Prepaid vs COD, so the split
+              follows the same money-actually-taken rule as revenue. */}
+          <section>
+            <h2 className="mb-2 text-lg font-semibold text-cream">Tips</h2>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <StatTile
+                label="Total Tips"
+                value={formatMoney(
+                  (prepaidVsCod?.prepaid_tips ?? 0) + (prepaidVsCod?.cod_tips ?? 0),
+                  currency,
+                )}
+              />
+              <StatTile
+                label="Card Tips"
+                value={formatMoney(prepaidVsCod?.prepaid_tips ?? 0, currency)}
+                sub="charged with the order"
+              />
+              <StatTile
+                label="Cash Tips"
+                value={formatMoney(prepaidVsCod?.cod_tips ?? 0, currency)}
+                sub="collected with the bill"
+              />
+            </div>
+          </section>
+
           {/* Rejected Orders */}
           <section>
             <div className="mb-2 flex items-center justify-between">

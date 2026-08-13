@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { SHOP } from "./data/menu";
 import { formatGBP } from "./lib/money";
 import { isOpenNow } from "./lib/delivery";
@@ -17,6 +17,18 @@ import {
 } from "./lib/pendingOrder";
 
 type View = "menu" | "checkout" | "done";
+
+/**
+ * Gaps between automatic menu retries, in milliseconds (OI-78).
+ *
+ * Widening rather than fixed, and deliberately short at the start: the common
+ * case is a signal blip of a second or two while the page is still loading, and
+ * recovering from that before the customer notices is the whole point. Four
+ * attempts then stop, so a genuinely offline phone is not left retrying for
+ * ever — the Retry button and the browser's own `online` event both take over
+ * from there.
+ */
+const MENU_RETRY_DELAYS = [2_000, 5_000, 12_000, 30_000] as const;
 
 export default function App() {
   const [view, setView] = useState<View>("menu");
@@ -78,6 +90,52 @@ export default function App() {
     void loadMenu();
   }, [loadMenu]);
 
+  // OI-78. One failed fetch used to end ordering for the entire session: the
+  // menu was asked for once, on mount, and nothing ever asked again. A customer
+  // whose signal dropped for a second browsed a full menu, built a basket, and
+  // was only told at the checkout total. Rural Argyll is exactly where that
+  // happens. Retry a few times with a widening gap, and immediately when the
+  // browser tells us the connection is back.
+  const retries = useRef(0);
+
+  useEffect(() => {
+    if (menuSource === "api") {
+      retries.current = 0;
+      return;
+    }
+    if (menuSource !== "fallback") return;
+    if (retries.current >= MENU_RETRY_DELAYS.length) return;
+
+    const delay = MENU_RETRY_DELAYS[retries.current]!;
+    retries.current += 1;
+    const timer = setTimeout(() => void loadMenu(), delay);
+    return () => clearTimeout(timer);
+  }, [menuSource, loadMenu]);
+
+  // Sticky across retries. `source` flips fallback → loading → fallback on every
+  // attempt, so keying the warning off `source` alone would blink it out of
+  // existence each time we try again and make the page look broken twice over.
+  const [menuFailed, setMenuFailed] = useState(false);
+  useEffect(() => {
+    if (menuSource === "fallback") setMenuFailed(true);
+    else if (menuSource === "api") setMenuFailed(false);
+  }, [menuSource]);
+
+  // A manual tap always gets a fresh set of automatic attempts behind it.
+  const retryMenu = useCallback(() => {
+    retries.current = 0;
+    void loadMenu();
+  }, [loadMenu]);
+
+  useEffect(() => {
+    const onOnline = () => {
+      retries.current = 0;
+      void loadMenu();
+    };
+    window.addEventListener("online", onOnline);
+    return () => window.removeEventListener("online", onOnline);
+  }, [loadMenu]);
+
   // `view` swaps the whole screen in place rather than navigating to a new
   // route, so the browser keeps whatever scroll position the menu list was
   // at. Someone who had scrolled deep into the menu before checking out would
@@ -136,6 +194,25 @@ export default function App() {
               <p className="mt-4 card p-3 text-sm text-ember border-ember/40">
                 {pausedMessage ?? DEFAULT_PAUSED_MESSAGE}
               </p>
+            ) : menuFailed ? (
+              /* OI-78. Say it here, not at the checkout total. The old
+                 behaviour let someone browse the whole menu and build a basket
+                 before discovering they could not order — and then told them
+                 "coming very soon", which reads as "this shop has not launched"
+                 rather than "your connection dropped". */
+              <div className="mt-4 card p-3 border-flame/40 flex items-center justify-between gap-3">
+                <p className="text-sm text-ember">
+                  Your internet connection has dropped, so we can't load the
+                  live menu. Check your signal, then tap Retry.
+                </p>
+                <button
+                  onClick={retryMenu}
+                  disabled={menuSource === "loading"}
+                  className="btn-ghost tap h-10 shrink-0 text-sm"
+                >
+                  {menuSource === "loading" ? "Trying…" : "Retry"}
+                </button>
+              </div>
             ) : (
               !open && (
                 <p className="mt-4 card p-3 text-sm text-ember">

@@ -132,6 +132,13 @@ class PublicOrderCreate(BaseModel):
     # is about to be sent to Stripe. See `email_service._payment_status_text`.
     payment_method: Literal["cash", "card"] = "cash"
 
+    # OI-81. The ONE amount the client is allowed to send, because a tip is
+    # the customer's own choice and cannot be derived server-side. Minor
+    # units. Capped at 2000 (£20) so a fat-fingered "350" instead of "3.50"
+    # cannot become a real card charge. Everything else about the order's
+    # money is still recomputed by the server.
+    tip: int = Field(0, ge=0, le=2000)
+
     # Delivery only. The AREA is sent, never the fee -- the server looks the fee
     # up. Chick Shack prices delivery by village (Garelochhead GBP 3, Arrochar
     # GBP 15) and most of those share one postcode prefix, so the area is the
@@ -179,6 +186,7 @@ class PublicOrderResponse(BaseModel):
     subtotal: int
     tax_amount: int
     service_fee: int
+    tip: int = 0
     delivery_fee: int
     total: int
     currency: str
@@ -244,6 +252,7 @@ class MerchantOrderSummary(BaseModel):
     subtotal: int
     tax_amount: int
     service_fee: int
+    tip: int = 0
     delivery_fee: int
     total: int
     currency: str
