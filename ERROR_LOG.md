@@ -752,3 +752,67 @@ Each entry follows:
 - **Fix**: Re-ran with the tenant's zone borrowed as `Europe/London` (21:47, in window). Passed.
 - **Rule**: This feature cannot be probed at an arbitrary hour. Check the TENANT's local time first,
   not the server's and not your own.
+
+### 2026-08-12 - The site served over plain HTTP, which killed CORS, which silently killed ordering
+- **Error**: Customer checkout showed "Online ordering is coming very soon" while the shop was live
+  and taking orders. Reported by Imran as "there's an issue on the website".
+- **Context**: Reproducible only in incognito; worked on every device that had visited the site before.
+- **Root Cause**: `http://chickshackg84.com` returned 200 and served the full app with **no redirect**
+  to HTTPS, and there was no HSTS header. The page origin was then `http://...`, so the menu fetch to
+  `https://eats.sitaratech.info` carried that origin, the API correctly returned **no**
+  `access-control-allow-origin`, the browser blocked the response, and `store/menu.ts` fell back to
+  the hardcoded menu with ordering off. A browser that has ever loaded the HTTPS site upgrades
+  automatically forever after, which is why "works on mine" was not evidence of anything.
+- **Fix**: Cloudflare, SSL/TLS, Edge Certificates, **Always Use HTTPS = On**. No code, no deploy.
+  Explicitly NOT fixed by allow-listing `http://` in CORS, which would have sent customer name, phone
+  and address unencrypted.
+- **Rule**: A storefront that calls an API on a different hostname must be forced onto HTTPS, or one
+  plain-HTTP visit silently disables the whole product. And **"Not Secure" in a screenshot's address
+  bar is evidence** - read the browser chrome, not just the page.
+
+### 2026-08-12 - A `display_order` column that nothing sorted by, next to code that did sort
+- **Error**: Setting `display_order` on modifier groups changed nothing a customer could see.
+- **Context**: Imran asked for meal options to read Heat, Chips, Drink, Dip. The obvious fix was to
+  set `display_order` in the admin, and it would have been reported as done.
+- **Root Cause**: `get_public_menu` **filtered** the groups (`[g for g in ... if g.is_active]`) but
+  never **sorted** them. The items in the same loop were already sorted by `(display_order, name)`,
+  and the modifiers *inside* each group were ordered by the relationship. Only the middle level was
+  missed, so the surrounding code read as proof that ordering worked.
+- **Fix**: `sorted(..., key=lambda g: (g.display_order, g.name))`, same key as the item sort above it.
+  Three tests, mutation-checked, with names chosen so insertion, alphabetical and `display_order`
+  orders all disagree - tidy names would have passed against the broken code.
+- **Rule**: Before setting a column, prove something reads it. Neighbouring code doing the right thing
+  is not evidence that this code does.
+
+### 2026-08-12 - Assigning a relationship collection after flush raises MissingGreenlet
+- **Error**: `sqlalchemy.exc.MissingGreenlet: greenlet_spawn has not been called` from
+  `item.modifier_groups = rows` in a new async test.
+- **Context**: Seeding a menu item with modifier groups.
+- **Root Cause**: On an **already-flushed (persistent)** object, assigning a collection makes
+  SQLAlchemy load the OLD collection first to compute change history. That read is sync IO inside an
+  async session. Distinct from the `expunge`/`expire` case already in CLAUDE.md - expunging did not
+  help.
+- **Fix**: Write the association rows directly. This also surfaced a second error,
+  `NOT NULL constraint failed: menu_item_modifier_groups.tenant_id` - the association is a real model
+  (`MenuItemModifierGroup`) with its own `tenant_id` that the plain relationship never populates.
+- **Rule**: In async tests, never assign a collection on a flushed object. Build the link rows
+  explicitly, and remember every table in this schema carries `tenant_id`, join tables included.
+
+### 2026-08-12 - A pre-push credential scan that could not block anything
+- **Error**: The scan printed `1` and `git commit && git push` ran anyway.
+- **Context**: Guarding a docs commit against leaked credentials.
+- **Root Cause**: Written as `(grep -c ... || echo 0) && git commit ...`. The `||` makes the whole
+  group succeed regardless of the count, so the `&&` never gates. The single match was prose in the
+  documentation, not a credential - verified after the fact, which is the wrong order.
+- **Fix**: None yet. The pattern is still wrong.
+- **Rule**: A guard must fail the pipeline. Test it by making it fire on purpose before trusting it -
+  the same mutation-check discipline applied to tests applies to safety checks.
+
+### 2026-08-12 - Quoted SQL mangled through the ssh, docker and psql layers
+- **Error**: `ERROR: syntax error at or near "Chips"` - string literals arrived unquoted.
+- **Context**: Running a read-only count against the production database over SSH.
+- **Root Cause**: Three levels of shell quoting between the local Bash tool and `psql -c`.
+- **Fix**: Write the SQL to a real `.sql` file, `scp` it, `docker cp` it into the container, run
+  `psql -f`. Also lets the query carry comments and `\echo` section headers.
+- **Rule**: Never inline non-trivial SQL through SSH. Same rule as heredoc Python on Windows - put it
+  in a file.
