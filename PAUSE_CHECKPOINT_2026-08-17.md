@@ -46,8 +46,13 @@ time.
 - [ ] **Judge the campaign Monday evening (18 Aug).** Tonight's zero is 1.5h of trading, not a result.
       Target: open rate and any second order from the 84.
 - [ ] **OI-85**: diagnose why the review email converts at zero. Nothing authorised.
-- [ ] **Tell Imran about `gmail.con` / `gmail.cim`** — two customers have never received any email
-      from the shop, including order confirmations.
+- [ ] **OI-86: catch mistyped email domains at checkout.** Malik corrected my framing here and he is
+      right: `gmail.con` / `gmail.cim` are not two customers for Imran to chase, they are an
+      input-validation hole that makes ~2% of customers permanently unreachable — no confirmation,
+      no review request, no campaign. **Not a stricter regex** (the existing code comment explains
+      why, and it is correct). A tap-to-accept *"did you mean gmail.com?"* on blur, never blocking,
+      matched against the 14 domains that cover 101 of our 103 customers. Heals the existing two by
+      itself if they order again. **Storefront-only → Cloudflare deploy, not `git push`.**
 - [ ] **One-click unsubscribe** (currently `mailto:` reply-with-STOP). Well under an hour.
 - [ ] **One-tap reorder deep link** — `cart.ts:reconcile()` already does the hard part.
 - [ ] Carried over, untouched: OI-82 (discount analysis, nothing sent to Imran), OI-80 (CI red, no

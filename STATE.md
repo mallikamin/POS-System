@@ -41,13 +41,24 @@ gzip integrity OK, completion marker present, at
 - 0 backend exceptions, 0 nginx 5xx, all public URLs 200, CORS correct on the real origin,
   **Orbit CRM untouched** (2-3 months uptime).
 
-⚠️ **There WAS a ~2 minute 502 window at 21:32 UTC, and it is worth understanding rather than
-forgetting.** The script's own URL check caught it: backend and frontend were recreated while nginx
-still held the old upstream IPs, exactly the documented trap. CI then recreated nginx (it went from
-"Up 3 days" to "Up 2 minutes") and the 502 cleared without intervention. **Shop was closed, zero
-customer impact.** But the lesson stands: the check ran too early, so a deploy verification that
-stops at the first URL check can report a false failure, and one that never checks at all can miss a
-real one.
+⚠️ **A ~2 minute 502 window follows every deploy, and it is the BACKEND STARTUP WINDOW, not the
+nginx stale-IP trap.** This was mis-attributed at first and then settled by evidence.
+
+On the OI-84 deploy the 502 appeared while nginx happened to be recreated too, so it looked like the
+documented "nginx caches upstream IPs" problem. **The docs deploy an hour later disproved that:
+nginx was NOT recreated (still "Up 56 minutes"), the 502 appeared anyway, and it cleared by itself
+the moment the backend went `health: starting` → `healthy`.** Confirmed directly: backend at
+`172.18.0.5`, and `wget` from inside the nginx container to `http://backend:8000/api/v1/health`
+returns healthy JSON.
+
+**So: do not recreate nginx after a deploy on the strength of a 502. Wait ~90s for the backend health
+check first.** The stale-IP trap is real but it is a different failure, and reaching for it here
+would be treating a symptom that resolves on its own.
+
+📌 **The verification lesson stands and is separate:** the script's URL check ran ~30s after the
+containers came up, i.e. too early, and reported a false failure. A deploy check that stops at the
+first URL probe can cry wolf; one that never probes at all misses a real outage. **It should poll
+until healthy or a timeout, not sample once.**
 
 📌 **What this does NOT prove.** No stored row is currently inside the 0.3s window, so production
 data cannot demonstrate the window is closed. **The tests are what prove that**, and they are

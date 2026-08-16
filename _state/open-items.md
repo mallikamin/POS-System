@@ -1,5 +1,44 @@
 # Open items register
 
+**OI-86 🔵 NEW 2026-08-17, NOT BUILT. Catch mistyped email domains AT CHECKOUT, so no future customer
+is silently unreachable. Malik's framing, and it corrects mine.**
+
+I filed the two dead addresses (`gmail.con`, `gmail.cim`) as something to tell Imran about two
+customers. **Wrong frame.** Malik: *"thats not for imran to fix - thats for us to normalize at every
+order so future customers get the confirmation and review emails - and promotion emails."* It is an
+input-validation hole, and at 2 of 103 addresses it will keep recurring at roughly **2% of
+customers, permanently unreachable, silently.** They get no order confirmation, no review request
+and no campaign.
+
+⚠️ **The fix is NOT a stricter regex, and the existing code already says why.**
+`storefront/src/components/Checkout.tsx:103-109` uses a shape check with a deliberate comment:
+*"anything stricter rejects real addresses, and the real proof is the mail arriving."* That
+reasoning stands. `gmail.con` is a perfectly well-formed address; it just does not exist. The
+backend validates nothing beyond `max_length=320`.
+
+**Proposed: a "did you mean?" suggestion, never a block.**
+- On blur, compare the typed domain against a known-good list; if it is edit-distance 1 (2 for
+  longer domains) from one but not an exact match, show an inline *"Did you mean
+  chris@gmail.com?"* that the customer taps to accept.
+- **Never auto-correct** (that would silently rewrite a valid address) and **never block** — someone
+  on a genuinely unusual domain just ignores it.
+- **The list comes from our own data, not a guess: 14 domains cover 101 of 103 customers** —
+  gmail.com 46, hotmail.com 13, hotmail.co.uk 7, icloud.com 7, btinternet.com 5, outlook.com 5,
+  live.co.uk 4, aol.com 3, yahoo.co.uk 3, googlemail.com 2, msn.com 2, yahoo.com 2, aol.co.uk 1,
+  sky.com 1. (`marvelous.com` and `spyco.co.uk` are real business domains, correctly not on it.)
+- ✅ **It heals the existing two by itself**: if either customer orders again, checkout prompts them.
+  We cannot fix their stored address without asking, and we should not guess it.
+- ⚠️ **Checkout friction is the standing risk here** (OI-76): abandonment is 1 basket in 45, so this
+  must be optional, small, and never between the customer and the Pay button.
+
+**Second, complementary layer, also unbuilt:** a mistyped *local* part (`chirs@gmail.com`) is
+undetectable at checkout. Brevo already hard-bounces and auto-suppresses those, so surfacing the
+bounce against the customer record would let the shop phone them instead. Prevention is the
+suggestion; this is the recovery.
+
+📌 **Storefront-only, so it ships via `cd storefront && npm run deploy` to Cloudflare, NOT
+`git push`.** See [[chick-shack-two-deploy-pipelines]].
+
 **OI-84 🟢 CLOSED 2026-08-16. Card orders were briefly indistinguishable from cash, and the money
 guard read the same wrong field. Fixed, deployed, verified live (`baa63f3`, alembic
 `v8w9x0y1z2a3`).**
