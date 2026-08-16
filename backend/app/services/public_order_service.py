@@ -36,7 +36,7 @@ from app.models.user import Role, User
 from app.models.tenant import Tenant
 from app.schemas.public_order import PublicOrderCreate
 from app.services import audit_service, email_service, order_service, stripe_service
-from app.services.order_visibility import is_real_order
+from app.services.order_visibility import is_card_order, is_real_order
 from app.utils.security import hash_password
 
 logger = logging.getLogger(__name__)
@@ -563,6 +563,11 @@ async def create_public_order(
         order_type="online",
         status="confirmed",
         payment_status="unpaid",
+        # Written in the same INSERT as the order itself, so the "card or cash?"
+        # question is answerable from the instant the row exists. The Stripe
+        # session id is set by a later request and must never be used for this
+        # (OI-84).
+        intends_card_payment=(data.payment_method == "card"),
         customer_name=data.customer_name,
         customer_phone=phone,
         customer_email=email,
@@ -803,7 +808,25 @@ async def accept_order(
     # order (260731-001, 2026-07-31) sail through Accept without ever being
     # captured: the field was still `None` and this whole block silently
     # never ran, with no error and nothing logged.
-    if order.stripe_checkout_session_id and order.payment_captured_at is None:
+    # ⚠️ Keyed on the customer's INTENT, not on the Stripe session id (OI-84).
+    # The session id is set by a second request ~0.3s after the order commits,
+    # and while it was null this entire block was skipped -- so a card order
+    # caught in that window could be accepted as though it were cash on
+    # delivery, committing the kitchen with no money held and no capture ever
+    # attempted. `intends_card_payment` is written in the order's own INSERT, so
+    # there is no window in which a card order looks like a cash one.
+    if is_card_order(order) and order.payment_captured_at is None:
+        # No session id yet means the customer never reached Stripe, so there is
+        # nothing to confirm and nothing to capture. Refuse for the same reason
+        # an unauthorised session is refused: no money is held.
+        if not order.stripe_checkout_session_id:
+            raise CardPaymentNotConfirmed(
+                "The customer's card payment has not gone through yet, so "
+                "this order has not been accepted. It will appear by itself "
+                "the moment Stripe confirms the payment -- and if the "
+                "customer never completes it, there is nothing to make."
+            )
+
         intent_id = order.stripe_payment_intent_id
 
         # ⚠️ THE INVARIANT (OI-65). An unconfirmed card order cannot be

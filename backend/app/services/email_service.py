@@ -45,6 +45,7 @@ import httpx
 
 from app.config import settings
 from app.models.order import Order
+from app.services.order_visibility import is_card_order
 
 logger = logging.getLogger(__name__)
 
@@ -135,16 +136,17 @@ def _payment_status_text(order: Order, *, intends_card_payment: bool = False) ->
     """
     if order.payment_status == "paid":
         return "Paid by card."
-    # `stripe_checkout_session_id`, not `stripe_payment_intent_id` -- the
-    # session is written the instant checkout starts, well before Stripe has
-    # necessarily created a PaymentIntent (see `accept_order`'s own comment on
-    # this exact distinction). Keying this off the intent id left a window,
-    # right after checkout started but before authorisation landed, where a
-    # card order fell through to the "Payable on..." branch below and told
-    # the customer to expect a cash collection despite having just paid --
-    # confirmed as the direct cause of a real double-charge, 2026-08-02
-    # (OI-61): staff read that as "unpaid" and took payment again in person.
-    if order.stripe_checkout_session_id and order.payment_captured_at is None:
+    # `order.intends_card_payment`, not any Stripe id. Keying this off the
+    # PaymentIntent left a window, right after checkout started but before
+    # authorisation landed, where a card order fell through to the "Payable
+    # on..." branch below and told the customer to expect a cash collection
+    # despite having just paid -- confirmed as the direct cause of a real
+    # double-charge, 2026-08-02 (OI-61): staff read that as "unpaid" and took
+    # payment again in person. Moving to the checkout session id closed most of
+    # it; the session id is itself written by a SECOND request ~0.3s after the
+    # order commits, which left the last sliver (OI-84). The intent flag is
+    # written in the order's own INSERT, so there is no window left to close.
+    if is_card_order(order) and order.payment_captured_at is None:
         return "Card details taken. We only charge you once the shop accepts your order."
     if intends_card_payment:
         return "Prepaid by card -- we only charge you once the shop accepts your order."

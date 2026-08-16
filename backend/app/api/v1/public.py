@@ -63,6 +63,7 @@ from app.services import (
     audit_service,
     escpos,
     order_service,
+    order_visibility,
     print_service,
     public_order_service,
     stripe_service,
@@ -846,7 +847,9 @@ def _to_merchant_summary(order: Order, currency: str) -> MerchantOrderSummary:
         order_number=order.order_number,
         status=order.status,
         payment_status=order.payment_status,
-        is_card_order=order.stripe_checkout_session_id is not None,
+        # The customer's intent, not the Stripe session id, which is set by a
+        # later request and briefly made a card order look like cash (OI-84).
+        is_card_order=order_visibility.is_card_order(order),
         service_type=order.service_type or "collection",
         placed_at=order.created_at,
         customer_name=order.customer_name or "",

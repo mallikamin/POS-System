@@ -34,6 +34,7 @@ from app.models.order import Order
 from app.models.restaurant_config import RestaurantConfig
 from app.models.tenant import Tenant
 from app.services import escpos, order_service
+from app.services.order_visibility import is_card_order
 from app.services.escpos import Ticket
 
 # Symbols for the currencies this product actually ships in. Anything else
@@ -254,7 +255,10 @@ def _render_copy(
     # because a ticket is a physical, un-recallable printout: if it ever does
     # print, it must say something unambiguous rather than silently falling
     # into "NOT PAID" and inviting the exact same double-charge again.
-    card_processing = not paid and order.stripe_checkout_session_id is not None
+    # Intent, not the Stripe session id: the session is set by a second
+    # request after the order commits, and a ticket printed in that gap
+    # would have said NOT PAID for a card order (OI-84).
+    card_processing = not paid and is_card_order(order)
     if paid:
         # Unpaid is shouted, not whispered -- paid shouts too, just a calmer
         # message. Same bold+big weight as the NOT PAID line below.

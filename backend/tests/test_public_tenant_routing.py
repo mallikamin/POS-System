@@ -1041,3 +1041,79 @@ async def test_pending_response_reports_its_default_sort(
 ):
     resp = await client.get(QUEUE_URL, headers=_auth(admin_token))
     assert resp.json()["sort"] == "asc"
+
+
+# ---------------------------------------------------------------------------
+# OI-84: the card intent must be written by the order's own INSERT
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_a_card_order_records_the_intent_at_creation_and_stays_hidden(
+    client: AsyncClient,
+    db: AsyncSession,
+    tenant: Tenant,
+    admin_token: str,
+    uk_menu: MenuItem,
+):
+    """The end-to-end shape of OI-84, through the real endpoint.
+
+    Placing a card order is ONE request; the Stripe session is set by a second
+    one afterwards. So at this exact moment `stripe_checkout_session_id` is
+    still NULL, and before OI-84 that made the order indistinguishable from
+    cash on delivery: it surfaced on the tablet and chimed, then vanished.
+
+    Asserted here rather than only on a hand-built row, because the flag is set
+    in `create_public_order` and nothing else would catch that line regressing.
+    """
+    resp = await client.post(
+        "/api/v1/public/test-restaurant/orders",
+        json={
+            "service_type": "collection",
+            "customer_name": "Card Customer",
+            "customer_phone": "07909313456",
+            "payment_method": "card",
+            "items": [{"menu_item_id": str(uk_menu.id), "quantity": 1}],
+        },
+    )
+    assert resp.status_code == 201, resp.text
+
+    order = await db.get(Order, uuid.UUID(resp.json()["id"]))
+    assert order is not None
+    assert order.intends_card_payment is True
+    assert order.stripe_checkout_session_id is None, (
+        "the session is created by a later request; this test is worthless if "
+        "that ever changes without the rest of OI-84 being revisited"
+    )
+
+    queue = await client.get(QUEUE_URL, headers=_auth(admin_token))
+    assert resp.json()["id"] not in [o["id"] for o in queue.json()["orders"]]
+
+
+@pytest.mark.asyncio
+async def test_a_cash_order_records_no_card_intent_and_is_visible(
+    client: AsyncClient,
+    db: AsyncSession,
+    tenant: Tenant,
+    admin_token: str,
+    uk_menu: MenuItem,
+):
+    """The other side of the same line, so a blanket `True` would fail."""
+    resp = await client.post(
+        "/api/v1/public/test-restaurant/orders",
+        json={
+            "service_type": "collection",
+            "customer_name": "Cash Customer",
+            "customer_phone": "07909313457",
+            "payment_method": "cash",
+            "items": [{"menu_item_id": str(uk_menu.id), "quantity": 1}],
+        },
+    )
+    assert resp.status_code == 201, resp.text
+
+    order = await db.get(Order, uuid.UUID(resp.json()["id"]))
+    assert order is not None
+    assert order.intends_card_payment is False
+
+    queue = await client.get(QUEUE_URL, headers=_auth(admin_token))
+    assert resp.json()["id"] in [o["id"] for o in queue.json()["orders"]]

@@ -7,6 +7,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import (
+    Boolean,
     DateTime,
     ForeignKey,
     Index,
@@ -15,6 +16,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     Uuid,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -172,6 +174,21 @@ class Order(BaseMixin, Base):
     # different questions -- the session is what the customer was sent to, the
     # payment intent is what actually holds the money and is the thing we
     # capture or cancel.
+    # ⚠️ The customer's INTENT, recorded at creation. Do not infer "is this a
+    # card order?" from `stripe_checkout_session_id` -- that field is set by a
+    # SECOND request a fraction of a second later, and in the gap between the
+    # two a card order is indistinguishable from cash on delivery. That gap is
+    # OI-84: the order surfaced on the tablet unpaid, and `accept_order`'s money
+    # guard (keyed on the session id) was skipped entirely for it.
+    #
+    # This is the field every "card or cash?" decision must read.
+    intends_card_payment: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        server_default=text("false"),
+        default=False,
+        comment="Customer chose to pay by card at checkout. Set at creation, before Stripe exists.",
+    )
     stripe_checkout_session_id: Mapped[str | None] = mapped_column(
         String(255),
         nullable=True,

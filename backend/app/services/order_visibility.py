@@ -16,7 +16,7 @@ orders imports it. Do not re-express it inline -- that is precisely the failure
 this module is named after.
 """
 
-from sqlalchemy import or_
+from sqlalchemy import and_, or_
 
 from app.models.order import Order
 
@@ -34,21 +34,63 @@ def is_real_order():
 
     The four arms, all deliberate:
 
-    * `stripe_checkout_session_id IS NULL` -- cash on delivery. There is no
-      payment to process, so it is real the moment it is placed.
+    * `intends_card_payment IS FALSE` -- cash on delivery or collection. There
+      is no payment to process, so it is real the moment it is placed.
     * `payment_authorized_at IS NOT NULL` -- Stripe confirmed the money.
     * `accepted_at IS NOT NULL` / `rejected_at IS NOT NULL` -- already answered
       by the shop. Hiding an order the kitchen is cooking would be worse than
       showing it, and history has to stay legible. Since `accept_order` refuses
       unconfirmed card orders, a row can only be in that state if it was
       answered before OI-65 shipped.
+
+    ⚠️ **The first arm used to read `stripe_checkout_session_id IS NULL`, and
+    that was OI-84.** The storefront places a card order in two requests: one
+    creates and commits the row, a second sets the session id ~0.3s later. In
+    that gap a card order matched the cash arm exactly, so it appeared on the
+    tablet and chimed, then vanished when the session id landed, then came back
+    when Stripe authorised ~30s later. Malik watched it happen on the live
+    screen, 2026-08-16.
+
+    **The rule had one home and the home was right. The field it read simply did
+    not exist yet.** A single definition is necessary and not sufficient: its
+    inputs must be populated before anything queries it. `intends_card_payment`
+    is written in the same INSERT as the rest of the order, so there is no
+    window at all.
+
+    **Belt and braces on the first arm.** It requires BOTH that the customer did
+    not choose card AND that no Stripe session exists. Either alone would do in
+    a clean world, but requiring both means the flag only ever *adds*
+    information: a row that predates the migration, or one written by some
+    future path that forgets the flag, still cannot be mistaken for cash while
+    it carries a Stripe session.
     """
     return or_(
-        Order.stripe_checkout_session_id.is_(None),
+        and_(
+            Order.intends_card_payment.is_(False),
+            Order.stripe_checkout_session_id.is_(None),
+        ),
         Order.payment_authorized_at.is_not(None),
         Order.accepted_at.is_not(None),
         Order.rejected_at.is_not(None),
     )
+
+
+def is_card_order(order) -> bool:
+    """"Is this a card order?" for a loaded ORM object, in one place.
+
+    The row-level twin of `is_real_order()`'s first arm, and it exists for the
+    same reason the module does: this question was being asked inline in four
+    separate files (the tablet's order card, the confirmation email's payment
+    line, the printed ticket, and `accept_order`'s money guard), all of them
+    reading `stripe_checkout_session_id`, all of them therefore wrong for the
+    ~0.3s before that field is set (OI-84).
+
+    Same belt and braces as the predicate: the intent flag is authoritative, and
+    a Stripe session still counts on its own so nothing written before the
+    migration -- or by a future path that forgets the flag -- can be mistaken
+    for cash.
+    """
+    return bool(order.intends_card_payment or order.stripe_checkout_session_id)
 
 
 def money_actually_taken():
