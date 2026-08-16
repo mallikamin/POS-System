@@ -1,14 +1,379 @@
 # STATE — Restaurant POS System
 
-**Last refreshed:** 2026-08-14 ~00:45 PK (13 Aug ~20:45 UK), immediately after the OI-81 deploy.
-HEAD is **`2366c99`**, branch `main`, pushed, **server at the same commit**, storefront at
-Cloudflare version **`c8d8a9b6`**. The ~105 remaining dirty files and OI-60's untested backend work
-are untouched and still uncommitted.
+**Last refreshed:** 2026-08-16 (refresh run for the win-back email question, OI-83). HEAD is still
+**`1bcdb7b`**, branch `main`, **0 unpushed commits**, no functional drift since 08-14. Server last
+verified at `de10856`; storefront at Cloudflare version **`c8d8a9b6`**.
 
-**Open:** **Malik's live UAT of the tip flow** (the one thing not verifiable from here), **OI-76**
-(what3words researched, verdict is do not buy, reply drafted and unsent), **OI-80** (CI and
-Deploy-to-Staging red on every recent commit, no signal), and the chips-flow UAT from 08-13 if it
-has not been done yet.
+⚠️ **Drift corrected on this refresh:** the header previously said "~105 dirty files". The tree now
+carries **132 dirty files**, because the OI-82 analysis docs written on 08-15
+(`discount-analysis_2026-08-14.md`, `discount-analysis_queries.sql`, this STATE block,
+`_state/open-items.md`, `PAUSE_CHECKPOINT_2026-08-15.md`) were deliberately held back from commit
+during trading hours and **are still uncommitted two days later.** Nothing is lost, but the "commit
+and push these docs when the shop is shut" item from 08-15 was never done.
+
+**Open:** **OI-83** (win-back / re-engagement emails to past online customers, discussion stage,
+nothing built, no unsubscribe rail exists yet), **OI-82** (Imran's 10%-over-£50 discount, analysed,
+recommendation is do not run it as proposed, nothing built, nothing sent to Imran), **Malik's live
+UAT of the tip flow**, **OI-76** (what3words researched, verdict is do not buy, reply drafted and
+unsent), **OI-80** (CI and Deploy-to-Staging red on every recent commit, no signal), the chips-flow
+UAT from 08-13, and the held docs commit above.
+
+## 🟢 2026-08-16 22:30 UK. OI-84 DEPLOYED AND VERIFIED LIVE (`baa63f3`, alembic `v8w9x0y1z2a3`). The scheduled unattended deploy ran exactly as written.
+
+**Ran at 21:30 UTC / 02:30 PK / 22:30 UK, thirty minutes after close, via `scripts/deploy_oi84.sh`.**
+Preconditions passed (HEAD `baa63f3`, branch main, server reachable, UK hour 22 so shop shut).
+**`pg_dump` taken and verified restorable BEFORE the migration**: 42 COPY blocks = 42 live tables,
+gzip integrity OK, completion marker present, at
+`/root/backups/pos_system_20260816T213005Z_pre_OI84.sql.gz`.
+
+**Verified by effect, in this order:**
+- Server `git log` = **`baa63f3`**; alembic **`v8w9x0y1z2a3 (head)`**.
+- **Backfill exactly as designed: 45 rows `false`/no-session, 114 rows `true`/session, and ZERO
+  contradictory rows across ALL tenants** (no row is card-intent-false while holding a session).
+- **The predicate read out of the RUNNING container**, compiled to SQL:
+  `intends_card_payment IS false AND stripe_checkout_session_id IS NULL OR payment_authorized_at IS
+  NOT NULL OR accepted_at IS NOT NULL OR rejected_at IS NOT NULL`. The new first arm is live.
+- **138 chick-shack orders, 133 real, 5 hidden — and all 5 are the right ones**: `260816-D004`
+  (tonight's abandoned), `260814-D002`, `260810-D006`, `260810-D001` (the declined card),
+  `260807-D005` (the abandoned checkout). Every one `intends_card=True, session=yes,
+  authorised=NO`. **No previously-visible order changed state**, which is what the backfill existed
+  to guarantee.
+- 0 backend exceptions, 0 nginx 5xx, all public URLs 200, CORS correct on the real origin,
+  **Orbit CRM untouched** (2-3 months uptime).
+
+⚠️ **There WAS a ~2 minute 502 window at 21:32 UTC, and it is worth understanding rather than
+forgetting.** The script's own URL check caught it: backend and frontend were recreated while nginx
+still held the old upstream IPs, exactly the documented trap. CI then recreated nginx (it went from
+"Up 3 days" to "Up 2 minutes") and the 502 cleared without intervention. **Shop was closed, zero
+customer impact.** But the lesson stands: the check ran too early, so a deploy verification that
+stops at the first URL check can report a false failure, and one that never checks at all can miss a
+real one.
+
+📌 **What this does NOT prove.** No stored row is currently inside the 0.3s window, so production
+data cannot demonstrate the window is closed. **The tests are what prove that**, and they are
+mutation-checked. The live check proves the predicate shipped, the backfill is correct and nothing
+regressed.
+
+<details><summary>Build detail, before deploy</summary>
+
+## 🟡 2026-08-16. OI-84 BUILT, TESTED, MUTATION-CHECKED. NOT YET DEPLOYED, waiting for the 22:00 UK close. Malik: "for prepaid orders, we show in POS only after stripe has authorized. any abandoned carts, refused payments dont show. cash on delivery/collection gets shown as it is."
+
+**The fix, in five parts:**
+1. **New column `orders.intends_card_payment`**, written in the order's own INSERT
+   (`public_order_service.py`, from `data.payment_method == "card"`). Migration
+   `v8w9x0y1z2a3`, backfilled `= (stripe_checkout_session_id IS NOT NULL)` so **no historical order
+   changes meaning**.
+2. **`is_real_order()`'s cash arm** now requires **both** no card intent **and** no Stripe session.
+   Belt and braces on purpose: the flag only ever *adds* information, so a pre-migration row or a
+   future path that forgets the flag still cannot be mistaken for cash while it carries a session.
+3. **New `order_visibility.is_card_order(order)`**, the row-level twin, because the same question
+   was being asked inline in **four** files (tablet order card, confirmation email payment line,
+   printed ticket, `accept_order`'s money guard) — all four reading the session id, all four wrong
+   during the window. **That is this module's own lesson applied to itself.**
+4. **`accept_order` keys on the intent**, and refuses outright when a card order has no session
+   (the customer never reached Stripe, so there is nothing to confirm and nothing to capture).
+5. Email, printed ticket and the tablet's `is_card_order` flag all routed through the helper.
+
+**Verified, not assumed:**
+- **New file `tests/test_card_intent_window.py`, 6 tests**, plus **2 end-to-end tests** through the
+  real endpoint in `test_public_tenant_routing.py`. Both sides asserted (card *and* cash), and the
+  untouched arms too, because a test that only exercises the line you edited proves nothing.
+- **Mutation-checked twice.** Reverting the predicate to `stripe_checkout_session_id IS NULL` fails
+  `test_a_card_order_without_a_stripe_session_is_not_real`; setting `intends_card_payment=False` in
+  the service fails `test_a_card_order_records_the_intent_at_creation_and_stays_hidden`. **Neither
+  test can pass against the bug.**
+- **Full suite 565 passed, 10 failed, 2 errors — identical failures to before the change** (8 parked
+  QB-Desktop, plus `test_void_with_reason_succeeds` (401, auth) and
+  `test_transition_blocked_without_payment` (stale assertion on reworded copy); both inspected, both
+  unrelated). **+9 tests, zero new failures.**
+- Migration applied locally: backfill gives `f/f 29` and `t/t 2`, **no row in a contradictory state**.
+- `ruff` clean on all 9 touched files.
+
+✅ **COMMITTED as `baa63f3`, NOT pushed.** Ten files staged by explicit filename; the ~132-file dirty
+tree and OI-60's untested work left exactly as they were. Staged diff scanned for secret-shaped
+strings: **0**.
+
+🕐 **DEPLOY SCHEDULED for 21:30 UTC = 02:30 PK = 22:30 UK**, thirty minutes after close, on Malik's
+instruction (2026-08-16). Runs unattended via `scripts/deploy_oi84.sh`, which refuses rather than
+guesses:
+- aborts unless HEAD is still `baa63f3` and the branch is `main`;
+- **aborts if the UK hour is 15-21**, i.e. if the shop is open;
+- **`pg_dump` FIRST and verified restorable before the migration runs** (gzip integrity, completion
+  marker, and a COPY-block count floor), because this deploy carries an `ALTER TABLE` plus a
+  backfill `UPDATE`;
+- polls the server until it reports `baa63f3` rather than trusting the push;
+- verifies by effect: alembic version, the column and its backfill counts, the fix greppedout of the
+  **running container**, `docker ps` with Orbit CRM's uptime, public URLs, CORS on the real origin,
+  and backend exceptions since deploy.
+
+⚠️ **Two real traps found while building that script, both worth keeping.**
+1. The first draft hardcoded `TARGET_EPOCH=1755379800`, which is **2025**, not 2026. It would have
+   made the "wait until 22:30" branch fall straight through and deploy immediately, mid-service.
+   The target is now derived from a date string. **Never hand-compute an epoch.**
+2. **`TZ=Europe/London date` silently returns local time on Git Bash for Windows**, with no error.
+   The shop-open guard was written that way and was reading the wrong clock while looking correct.
+   It now reads the UK hour **off the droplet**, which has real tzdata and handles BST.
+
+**The guard was tested live, not assumed:** running `--now` at 20:30 UK aborted with *"it is 20:xx UK
+and the shop is open"*, exit 1, before any dump or push.
+
+**Fallback if the scheduled run dies with the session:** `bash scripts/deploy_oi84.sh --now` after
+close does the same thing immediately, with the same refusals.
+
+</details>
+
+<details><summary>The diagnosis, before it was built</summary>
+
+## 🔴 2026-08-16. OI-84 NEW, DIAGNOSED NOT BUILT. Malik saw an order chime, appear, vanish for ~30s, then come back. He was right, and the window it exposes can accept an unpaid card order as if it were cash.
+
+**His hypothesis, verbatim: "that order still populates briefly in POS as it is placed, but then the
+payment guardrail comes into play." Confirmed, with one correction: the guardrail is not late, its
+INPUT is.**
+
+**The mechanism, every step read out of the code:**
+1. The storefront places a card order in **two API calls**: `POST /{slug}/orders` creates and
+   **commits** the row (`public.py:154`), then `POST /{slug}/orders/{id}/checkout-session`
+   (`public.py:209`) sets `stripe_checkout_session_id`.
+2. Between those two calls the row has **no session id**, and `is_real_order()`'s first arm is
+   `stripe_checkout_session_id IS NULL` — the cash-on-delivery arm. **So a card order is
+   indistinguishable from a cash order for that instant** and the tablet correctly shows it.
+3. The tablet polls every **10s** (`OnlineOrdersPage.tsx:50`) and chimes on newly-seen orders, so a
+   poll landing inside the window produces exactly what Malik saw: sound, order, then it disappears.
+4. It stays hidden until Stripe authorises, **measured today at 26s (D003), 32s (D001), 39s (D005)**.
+   Malik's "10-20 seconds" was the right order of magnitude, eyeballed.
+
+**Window size, measured from two abandoned orders whose rows were never touched again: 0.32s
+(`260816-D004`) and 0.26s (`260807-D005`).** Against a 10s poll that is roughly a **3% chance per
+card order**, i.e. a handful of times across the shop's 126 orders. Matches "a couple of times"
+exactly. **Not measured: how often it has actually fired.**
+
+🔴 **The part that is worse than a cosmetic flicker.** `accept_order` guards the money with
+`if order.stripe_checkout_session_id and order.payment_captured_at is None:`
+(`public_order_service.py:806`). **During the window that id is NULL, so the entire card
+verification block is skipped** and the order is accepted as though it were cash on delivery.
+`accepted_at` is then set, which is its own arm of `is_real_order()`, so it stays visible **forever**
+and never gets captured. Staff have up to 10s to tap Accept.
+**Low probability, real consequence: food cooked, no money held, and a card customer who was never
+charged.** Nobody has reported this happening; it is a path, not an incident.
+
+⚠️ **Same family as OI-61/65/66/68/73, with a twist worth keeping.** The rule has one home and that
+home is correct. What is wrong is that **the predicate reads a field that does not exist yet**.
+A single definition is necessary and not sufficient: its inputs have to be populated before anything
+queries it.
+
+**The fix, not built and not authorised.** `payment_method` **is not a column on `orders`** (checked:
+`column "payment_method" does not exist`); the intent lives only in the request body, which is why
+`create_public_order` can correctly skip the confirmation email for card orders while the predicate
+cannot see the same fact. So: persist the intent at creation, add one arm to `is_real_order()`, and
+backfill existing rows as `intends_card = (stripe_checkout_session_id IS NOT NULL)` so history is
+unchanged. Also fix the `accept_order` guard to key on the intent rather than the session id.
+Migration plus predicate plus tests; a deploy, backend only.
+
+</details>
+
+## 🟢 2026-08-16. `260816-D004` was skipped for the third time in ten days, and the gate was right again. Abandoned card checkout, customer immediately re-ordered.
+
+`260816-D004`, **Damien Callaghan**, delivery, **£30.97**, created **18:31:54 UK**, `unpaid`, no
+`payment_authorized_at`, and `updated_at` is **0.32s** after `created_at`, so nothing has touched the
+row since the checkout session was made. He reached Stripe and never completed it.
+
+**He re-ordered seven minutes later and paid.** `260816-D005`, same name, same phone,
+**£46.94** (a *bigger* basket, not a cheaper one), authorised 18:39:39, accepted 18:40:16, in the
+kitchen. **The shop lost nothing.**
+
+⚠️ **Third occurrence in ten days** (`260807-D005` abandoned, `260810-D001` declined, now this),
+each with a different cause and the gate correct every time. **The unbuilt idea from 08-07 now has
+three data points: surface an abandoned/declined count on the reports page so a number gap has a
+visible reason.** Still not built and still not asked for.
+
+## 🔴 2026-08-16. THE REVIEW EMAIL HAS PRODUCED ZERO REVIEWS IN SIX DAYS. Settled by the review dates, not inferred.
+
+**Profile: 16 reviews, 5.0 average, every one five stars. The newest is ~3 weeks old (~26 July).**
+The review email went live **10 Aug**. **Every one of the 16 predates it**, clustered around the
+shop's opening. So roughly **240 sends have produced 0 reviews**, and none of the usual excuses
+apply: the button works (verified tonight, opens the correct Chick Shack profile with the star form
+ready), the email lands in **Primary** not Promotions, and the open rate is ~55%.
+
+⚠️ **I was wrong here and Malik was right.** He said "0 reviews"; I pushed back citing the 16 total
+and called it an attribution gap. The dates killed that. **A total is not a rate.** Check when,
+not just how many, before contradicting him.
+
+📌 **Baseline now recorded so this is measurable from here: 16 reviews / 5.0 on 2026-08-16.** The
+review email shipped 10 Aug to move this number and nobody wrote the number down that day. A feature
+shipped to move a metric needs the metric recorded on the day it ships.
+
+⚠️ **Clicks understate and should not be the metric** (Google links often open in the Maps app
+without registering a click) but at 0 reviews that no longer rescues anything. **Count reviews.**
+
+**Not diagnosed and not built:** why it converts at zero. Candidates are the 3-hour delay landing
+after people have moved on, the ask being work rather than a tap, and the email arriving from
+`orders@` rather than a person. Nothing here is authorised.
+
+**Verified tonight, so these are not the open questions:** the review email's button works, opens the
+correct Chick Shack profile (Main Street, Garelochhead G84 0AN) with the star form ready to post; the
+email lands in **Primary**, not Promotions; open rate is ~55%.
+
+⚠️ **Clicks are not the metric and will understate.** Google review links frequently open in the Maps
+app without ever registering a click, which is consistent with 0-2 recorded clicks a day against a
+profile that has 16 reviews. **Count reviews, not clicks.**
+
+**Lesson, generalises beyond this feature:** a feature shipped to move a metric needs that metric
+recorded on the day it ships. See [[dont-over-verify-what-malik-knows]] for the opposite failure; this
+is the under-measurement one.
+
+## 🟢 2026-08-16 ~18:35-18:46 UK. OI-83 FIRED AND VERIFIED. 84 win-back emails sent to every customer who had ordered exactly once. Subject: "Fancy the same again, {first_name}?"
+
+**Verified by effect, not by exit code.** Script reported 84 submitted, 0 failures. Brevo's own
+daily report for 16 Aug then read **102 requests, 101 delivered, 0 hard bounces, 0 soft bounces,
+0 spam reports, 0 unsubscribes, 1 blocked**.
+
+⚠️ **"Sent" in the script means the Brevo API accepted the call, not that it was delivered.** The
+one block proves the distinction matters. Judge a campaign by the provider's delivered count, not
+by the sender's loop counter.
+
+**The single block was pre-existing and not caused by this send:** `dave_cameron@hotmail.com`,
+`contactFlaggedAsSpam`, blocked **2026-08-04**, twelve days ago. That customer marked a Chick Shack
+email as spam back on 4 Aug, which predates the review email entirely, so it was an order
+confirmation. Brevo auto-suppressed them and correctly refused this one. **So 83 of 84 landed.**
+
+✅ **The bad-domain guard paid off, measurably.** Zero hard bounces. Had `gmail.con` and `gmail.cim`
+not been excluded, the run would have posted 2 hard bounces against a domain whose record was
+previously spotless.
+
+**Cohort moved between staging and firing: 83 at the dry run, 84 at send** (another first-time
+customer landed in the gap). The script recomputes at run time, which is why that was harmless.
+
+📌 **Still true and still worth fixing before the next campaign:** unsubscribe is a `mailto:`
+"reply with STOP", not a one-click route. Nothing in the codebase yet.
+
+**Built as a script, not a feature**, so nothing is deployed and the droplet is never recreated
+during service: `backend/app/scripts/winback_email.py`, piped into the running backend container at
+`/tmp/` and run with `docker exec`. Three modes, only one of which mails customers: `--dry-run`,
+`--test EMAIL [--sample ORDER_NUMBER]`, `--send`.
+
+✅ **Test sent and verified delivered, 2026-08-16.** Rendered order `260802-011` (2 items with
+modifiers, £22.17, close to the £24.91 AOV) and sent it to Malik. Brevo confirms **12 requests, 12
+delivered, 0 bounces, 0 blocked** for the day. **No customer has been emailed.**
+
+**The list, measured not estimated** (same `is_real_order()` predicate as OI-82, so it reconciles):
+- **103 people on the list**, all 126 real orders carry an email, none missing.
+- **85 ordered exactly once**, 16 twice, 3 three or more. The list grew 94 → 103 → 85-one-timers in
+  two days; it moves, so re-run the dry run before firing.
+- **83 will actually be mailed.** Send takes ~10.4 min at one every 7.5s (8/min).
+
+🔴 **Two addresses are undeliverable and it is not just a campaign problem.** `gmail.con` and
+`gmail.cim`, both one-character typos of gmail.com typed at checkout. They pass an RFC-shaped regex,
+which is why the hygiene query reported **zero** malformed. **Those two customers never received
+their order confirmations either, and never will.** Excluded via `BAD_DOMAINS` rather than mailed
+into a hard bounce; the domain's record is currently spotless (0 hard, 0 soft, 0 spam, 0 blocks over
+7 days) and worth keeping that way. Worth telling Imran, separately from this campaign.
+⚠️ One of the two is **Imran's own £2.78 test order** from 01 Aug (a Pepsi and a chilli sauce), which
+would otherwise have been recipient #1.
+
+⚠️ **Correction to my own earlier advice, recorded so it does not get repeated:** I proposed a
+credit floor to stop the campaign exhausting the daily send limit. Malik pushed back and he was
+right. Peak transactional day is **50**, campaign is **83**, cap is **300**. It cannot bind. The
+guard was over-engineering for a volume this business is nowhere near.
+
+**Verified limits, from the live account and Brevo's docs, not memory:** Free plan, **300/day**,
+resets daily, no rollover. API limit 1,000 req/sec, i.e. irrelevant here. Last 7 days of real sends:
+26, 47, 42, 47, 36, 50, and 12 today. The 7.5s pace is for **receiving-side reputation**, not the
+API: a domain that has only ever sent one-to-one transactional mail suddenly emitting 83
+near-identical messages in ten seconds is what Gmail scores as a new bulk sender.
+
+📌 **Unsubscribe is a `mailto:` "reply with STOP", not a one-click link, and that is deliberate for
+send #1.** There is still no unsubscribe column, token or route in the codebase. The footer link is
+honest and works today, replies land at `orders@chickshackg84.com`, and the script honours a
+`/tmp/winback_optout.txt` list. A real one-click route should exist before the list is much bigger.
+⚠️ I earlier estimated that build at "about a day"; Malik called it out and he was right, it is well
+under an hour. Do not pad estimates.
+
+📌 **`/tmp` in the backend container is a 64M tmpfs and the rootfs is read-only** (`docker cp` is
+refused outright, pipe via `docker exec -i sh -c 'cat > …'` instead). The sent-log therefore does not
+survive a container restart, so **do not deploy during the ~10 minute send**. The per-recipient
+progress is also printed to stdout and captured host-side, which is the real record.
+
+<details><summary>Original OI-83 framing, before the build</summary>
+
+## 🔵 2026-08-16. OI-83 NEW, DISCUSSION ONLY. Malik wants visually engaging "we miss you" emails to past website customers. No discounts, no coupon codes. Nothing built, nothing authorised.
+
+**The data already says this is the right target.** OI-82 measured it two days earlier: **81 of 94
+unique customers (86%) ordered exactly once**, a two-time customer is worth **£42.41** lifetime
+against **£27.06** for a one-timer, and converting 20 of the 81 is worth roughly **£500**, about
+twelve times what the proposed discount would have given away. Repeat rate, not basket size, is
+where this business leaks.
+
+**Three facts that constrain the design, all verified in the repo on this refresh:**
+1. **We do have the addresses.** Email is a hard requirement at checkout
+   (`storefront/src/components/Checkout.tsx:103-111`, `emailOk` gates the submit button), so every
+   real online order carries one.
+2. 🔴 **There is no unsubscribe mechanism anywhere in the codebase.** `grep -rn -i
+   "unsubscribe|marketing_consent|opt.out|opt_in" backend/app` returns **one hit and it is the
+   WebSocket room manager.** Order emails are transactional and never needed one. A win-back email
+   is direct marketing under UK PECR and legally needs an opt-out in **every** message plus a
+   suppression list that is actually honoured. **This is the build, not the artwork.**
+   Compounding it: the checkout collects the address under a purely transactional promise ("We'll
+   email you when the shop confirms your order"), and offers no opt-out at the point of collection,
+   which is one of the soft opt-in conditions.
+3. **There is no food photography and there never has been.** Recorded in
+   `email_service.py:61-64` ("No logo/mascot asset exists, checked 2026-07-30"). Every template
+   therefore has to earn "visually engaging" from typography, colour and layout, and the highest
+   value thing to ask Imran for is **8 to 10 phone photos of the real food**.
+
+**What exists and can be reused:** Brevo API send rail (`_send_via_brevo`), the branded 600px
+`_html_shell` with the Chick Shack wordmark and badge, item/total tables, escaping of all
+customer-controlled strings, and the **proven background worker pattern** from the Google review
+email (15-minute timer, atomic conditional UPDATE claim so 4 workers cannot double-send, shop-local
+send window). A campaign sender is that worker with a different query, not new infrastructure.
+
+⚠️ **Timing objection that outranks the artwork: the shop is 16 days old.** Trading started 31 Jul.
+A "we miss you, it has been ages" email to someone who ordered nine days ago at a two-week-old
+takeaway reads as desperate and is factually silly. The genuinely lapsed cohort is small and needs
+counting before anything is written.
+
+Templates and the discussion are in the artifact; nothing has been sent, built or authorised.
+
+</details>
+
+## 🔵 2026-08-14. OI-82 ANALYSED, NOT BUILT. Imran proposes 10% off orders over £50. The threshold is set above the 93rd percentile of his own baskets.
+
+Measured read-only against production, whole trading history: **31 Jul to 14 Aug, 108 real orders,
+£2,690.15 food revenue, AOV £24.91, median £22.95, p90 £38.15.**
+
+- **Only 7 orders (6.5%) already clear £50.** 10% off them = **£42.10 per 15 days (~£85/month)**
+  given to customers who spent it anyway. Guaranteed cost, speculative uplift.
+- **The nudge pool is empty.** 71% of orders are >£20 short of £50; the 3 orders in £40-50 average
+  a **£2.73** gap, so each would get ~£5 off for adding £2.73. Break-even (65% GM assumed) needs
+  **S < £42.31** for a nudge to pay at all, and ~9 to 28 extra £50 baskets per fortnight from a
+  £30-50 pool of **24 orders total**. Not reachable.
+- **A £50-plus basket is a different customer, not an upsell**: 7.86 units/order vs 2.72 below £50.
+- **A percentage costs more the bigger the basket.** Capped gives (free can approx **£7** per 15
+  days at a £35 threshold, free delivery over £40 = **£41.00**) buy more behaviour per pound.
+- **£40 is the best possible line and £50 is the worst on the board.** Nudgeable pool within £8
+  below, per free giveaway: £25 → 0.75, £30 → 0.88, £35 → 1.47, **£40 → 1.70**, £45 → 0.40,
+  **£50 → 0.43**. Too low and everyone qualifies free; too high and nobody can reach.
+- 🟢 **THE OPPORTUNITY IS THE BOTTOM OF THE MENU, NOT THE TOP. 53% of orders are one or two items
+  averaging under £20** (27 single-item at £12.39, 32 two-item at £19.70), i.e. **59 orders a
+  fortnight against 7 over £50**. Of the 67 orders under £25, **50 have no side, no drink and no
+  dip at all**, yet in the £25-38 band only 13 of 32 lack a side, so bigger orderers already
+  attach. **+£1 on every order = +£111/fortnight, +£2 = +£222**, against the discount's -£42.
+- **The real leak is repeat rate: 81 of 94 unique customers (86%) ordered once.** A two-time
+  customer is worth **£42.41** lifetime vs **£27.06**; converting 20 of the 81 is ~**£500**,
+  twelve times what the discount gives away.
+- **Upselling is already proven here and discounting has never been tried:** paid chips upgrades
+  have earned ~£42 on their own, the same as the whole discount scheme would cost.
+- ⚠️ **It is a build, not a setting**: `discount_amount=0` is hardcoded
+  (`public_order_service.py:572`) and the storefront has no promo UI at all.
+- 📌 **Assumption, not fact: 65% food gross margin**, and the free-item costings (~40p a can) too.
+  Only Imran has the real numbers, and every break-even figure above moves with them.
+
+**Recommendation, ranked:** checkout add-on prompt (add chips / can / dip) → "make it a meal" on
+the 27 one-item orders → repeat voucher on the existing review-email rail → and only if a
+threshold is insisted on, **£40 with a free item, never 10% over £50**.
+
+Write-up `_context/clients/chick-shack-uk/discount-analysis_2026-08-14.md` with re-runnable
+read-only SQL beside it; register entry `_state/open-items.md` OI-82; plain-English artifact
+`5fc8f9a0-9683-41f9-b45a-9d9c845f2a98`. **Nothing built, nothing authorised. Waiting on Imran.**
 
 ## 🟢 2026-08-14 ~00:40 PK. OI-81 SHIPPED AND VERIFIED LIVE (`2366c99` + Cloudflare `c8d8a9b6`). Deployed DURING service on Malik's explicit instruction ("deploy because we can have a live runtime experience").
 

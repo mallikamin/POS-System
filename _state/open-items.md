@@ -1,5 +1,143 @@
 # Open items register
 
+**OI-84 🟢 CLOSED 2026-08-16. Card orders were briefly indistinguishable from cash, and the money
+guard read the same wrong field. Fixed, deployed, verified live (`baa63f3`, alembic
+`v8w9x0y1z2a3`).**
+
+Found by Malik watching the live order screen: an order chimed, appeared, vanished for ~30s, then
+came back. His hypothesis ("the order still populates briefly in POS as it is placed, but then the
+payment guardrail comes into play") was right; the correction is that the guardrail was not late,
+its **input** was.
+
+- The storefront places a card order in **two requests**: the first creates and COMMITS the row, the
+  second sets `stripe_checkout_session_id` **~0.3s later** (measured on two abandoned orders whose
+  rows were never touched again: `260816-D004` 0.32s, `260807-D005` 0.26s).
+- Everything asking "is this a card order?" read that session id, so in the gap a card order matched
+  `is_real_order()`'s cash arm exactly. The tablet polls every **10s**, so a poll landing in the
+  window shows and chimes an unpaid order: roughly a **3% chance per card order**.
+- 🔴 **Worse than the flicker:** `accept_order`'s money guard was keyed on the same field, so an
+  order caught in the window could be **accepted as cash on delivery** — no authorisation checked,
+  no capture attempted, `accepted_at` set, then pinned visible forever by the `accepted_at` arm.
+  Food cooked, no money held. **No evidence it ever happened; a path, not an incident.**
+- **Fix:** new column `orders.intends_card_payment` written in the order's own INSERT; the cash arm
+  now requires **both** no intent and no session (so the flag only ever *adds* information); new
+  `order_visibility.is_card_order()` because the same question was asked inline in **four** files
+  (tablet card, confirmation email, printed ticket, accept guard); `accept_order` keys on intent and
+  refuses when a card order has no session.
+- **Verified:** 6 new tests + 2 end-to-end, **mutation-checked twice**; full suite 565 passed with
+  the same 10 failures + 2 errors as before. Live: backfill 45 false / 114 true, **0 contradictory
+  rows**, 5 hidden orders and all 5 correct, 0 exceptions, 0 5xx, Orbit untouched.
+- ⚠️ **The lesson, and it generalises past this bug:** the rule already had exactly one home and that
+  home was correct. What was wrong is that **the predicate read a field that had not been populated
+  yet**. One definition is necessary, not sufficient; its inputs must exist before anything queries
+  it. Same family as OI-61/65/66/68/73, one layer deeper.
+
+**OI-83 🟡 OPEN 2026-08-16. Win-back email campaign SENT (84 emails, 83 delivered). Too early to
+judge. Two follow-ups unbuilt.**
+
+- **The list, measured:** 103 people, every one of 126 real orders carries an email. **84 had ordered
+  exactly once**; 2 excluded as undeliverable, so **84 sent, 83 delivered, 1 blocked**.
+- Subject, Malik's pick: *"Fancy the same again, {first_name}?"*. Sent 18:35-18:46 UK at one every
+  7.5s (8/min) via `backend/app/scripts/winback_email.py` (`--dry-run` / `--test` / `--send`, resumable
+  sent-log, cannot double-email).
+- **Result so far: 0 attributable orders, ~4 opens, 1 click, and crucially 0 spam complaints and 0
+  unsubscribes.** Only ~1.5h of trading had elapsed. **Judge it Monday evening**, after a full
+  Sunday and Monday.
+- 🔴 **Two addresses are undeliverable and it is not only a campaign problem: `gmail.con` and
+  `gmail.cim`**, one-character typos that pass an RFC-shaped regex. **Those customers never received
+  their order confirmations either.** Worth telling Imran. One of the two is Imran's own £2.78 test
+  order.
+- 📌 **Unbuilt:** a real one-click unsubscribe (currently a `mailto:` "reply with STOP", honest and
+  working but not a route; well under an hour of work), and the one-tap reorder deep link the
+  template's button would ideally use — `cart.ts:reconcile()` already does the hard part.
+- ⚠️ **Standing brief set by Malik:** all Chick Shack marketing copy runs on a **village-centric,
+  local-independent register**, grounded in the reviews. See
+  `_context/clients/chick-shack-uk/voice-of-customer.md`. **Transactional order emails are excluded**
+  and stay plain, because reading as a transaction is what keeps them in Gmail's Primary tab.
+
+**OI-85 🔴 NEW 2026-08-16, NOT DIAGNOSED. The Google review email converts at zero.**
+
+Live since 10 Aug, ~240 sends, **0 reviews**. Not a deliverability problem, and all the easy excuses
+were checked and eliminated: the button works (opens the correct Chick Shack profile with the star
+form ready), the email lands in **Primary** not Promotions, and the open rate is ~55%. The profile's
+16 reviews all predate the email (newest ~3 weeks old, clustered around opening).
+📌 **Baseline now recorded: 16 reviews / 5.0 on 2026-08-16.** Nobody recorded it on 10 Aug, which is
+why six days of output could not be attributed. Candidates, untested: the 3-hour delay landing after
+people have moved on, the ask being work rather than a tap, and the sender being `orders@` rather
+than a person.
+
+**OI-82 🔵 NEW 2026-08-14. ANALYSED, NOT BUILT, NOT AUTHORISED. Imran proposes 10% off orders over
+£50. The data says the threshold is set where almost nobody is, and a percentage discount is the
+wrong instrument.**
+
+Requested by Imran via Malik, 2026-08-14. Measured read-only against production over the full
+trading history (**31 Jul to 14 Aug, 108 real orders, £2,690.15 food revenue**, `is_real_order()`
+minus rejected/voided).
+
+- **AOV £24.91, median £22.95, p90 £38.15.** £50 sits **above the 93rd percentile**.
+- **Only 7 of 108 orders (6.5%) already clear £50**, worth £421.01 (15.7% of food revenue).
+  A 10% discount on today's behaviour = **£42.10 per 15 days (~£85/month)** handed to people who
+  already spent it. That is the guaranteed cost; the uplift is the speculative part.
+- **The nudge pool is empty. 77 orders (71%) are more than £20 short of £50**; only 3 sit in
+  £40-50, and their average gap is **£2.73**, so those three get ~£5 off for adding ~£2.73.
+- **Break-even is arithmetically out of reach.** At an assumed 65% food GM, nudging a basket from
+  S to £50 only profits if `S < £42.31` (discount £5 must be beaten by GP on the incremental
+  spend). Break-even needs ~9 extra £50 baskets per fortnight if each jumps £15, or ~28 if each
+  jumps £10, from a £30-50 pool that contains **24 orders in total**.
+- **A £50-plus basket is structurally different, not a marginal upsell**: 7.86 units/order vs 2.72
+  below £50. You do not get from 2.7 items to 7.9 with 10% off; that is a bigger household.
+- **Percentage discounts cost more the bigger the basket**, exactly backwards. A capped give
+  (free side / free can / free delivery) costs the same at £50 and £65.
+- **Cheaper instruments, costed on the same 15 days:** free can over £35 approx **£7** (17
+  qualifying at ~£0.40 cost, £1.79 perceived); free delivery over £40 = **£41.00**; free delivery
+  over £35 = £62.50 (£57.00 capped at £4.50); £3 off over £35 = £51.00; 5% over £50 = £21.05.
+- **£40 is the best possible line and £50 is the worst on the board.** Measured as pool-within-£8
+  below per already-qualifying giveaway: £25 → 0.75, £30 → 0.88, £35 → 1.47, **£40 → 1.70**,
+  £45 → 0.40, **£50 → 0.43**. Too low and everyone qualifies free; too high and nobody can reach.
+  Imran picked the far side of the peak.
+- 🟢 **THE REAL OPPORTUNITY IS THE BOTTOM OF THE MENU, NOT THE TOP.** **53% of orders are one or
+  two items averaging under £20** (27 orders of 1 item at £12.39, 32 of 2 items at £19.70). That
+  is **59 orders a fortnight against 7 over £50**, a block eight times larger than the one being
+  discounted.
+- **Attach behaviour is missing specifically in the small orders.** Of 67 orders under £25:
+  **57 no side, 59 no drink, 64 no dip, 50 have none of the three.** But in the £25-38 band only
+  13 of 32 lack a side, so people who order a bit more already know to add chips.
+- **Scale of the prize vs the cost:** +£1 on every order = **+£111/fortnight**, +£2 = **+£222**,
+  +£4 = **+£444**, against the discount's **-£42**.
+- **The real leak is repeat rate, not basket size: 81 of 94 unique customers (86%) ordered once.**
+  A two-time customer is worth **£42.41** lifetime vs **£27.06**. Converting 20 of the 81 is
+  ~**£500**, twelve times what the discount gives away. The review-email timer built for OI-75 is
+  the rail that already exists.
+- **Upselling is already proven here and discounting has never been tried:** paid chips upgrades
+  have earned ~£42 on their own (plus ~£142 of wing portion upsizes), the same as the entire
+  discount scheme would cost.
+- ⚠️ **This is a BUILD, not a setting.** `discount_amount=0` is hardcoded at
+  `public_order_service.py:572` and the storefront has no promo/discount UI (grep: zero hits for
+  promo/discount/coupon in `storefront/src`). It would touch basket UI, price calc, Stripe line
+  items, print service, emails and reports, across **both deploy pipelines**.
+- 📌 **Unverified, and only Imran holds it: his actual food gross margin.** 65% is an assumption,
+  labelled as such. Every break-even figure above moves with it.
+
+**Recommendation, ranked:** (1) checkout add-on prompt (add chips £2.49 / can £1.79 / dip 99p),
+storefront-only and the cheapest change on the list; (2) attack the 27 one-item orders with a
+"make it a meal" prompt, the menu is already built for it; (3) repeat-purchase voucher on the
+existing review-email rail, targeting the 81 rather than the 7; (4) only if a threshold offer is
+insisted on, **£40 and a free item, not a percentage** (free side ≈ £1.20 a time vs £5.63).
+**Do not run 10% over £50.**
+
+**Three questions only Imran can answer:** his actual food gross margin; what a can and a portion
+of chips really cost him; and whether he is trying to fix average order size, order count, or
+repeat customers. He proposed a tool for the first while his biggest gap is the third.
+
+**Full write-up:** `_context/clients/chick-shack-uk/discount-analysis_2026-08-14.md`.
+**Re-runnable read-only SQL:** `_context/clients/chick-shack-uk/discount-analysis_queries.sql`.
+**Plain-English artifact for Malik:** `https://claude.ai/code/artifact/5fc8f9a0-9683-41f9-b45a-9d9c845f2a98`.
+
+**Next action: Malik puts the numbers to Imran and picks an instrument. Nothing built, nothing
+authorised.**
+
+---
+
 **OI-81 ✅ CLOSED 2026-08-14 (~00:40 PK). SHIPPED AND VERIFIED LIVE (`2366c99` + Cloudflare
 `c8d8a9b6`), deployed during service on Malik's explicit instruction. Residual: Malik's live UAT of
 a real tipped order. Full detail in STATE.md.**
