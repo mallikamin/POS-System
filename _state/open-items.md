@@ -16,7 +16,34 @@ and no campaign.
 reasoning stands. `gmail.con` is a perfectly well-formed address; it just does not exist. The
 backend validates nothing beyond `max_length=320`.
 
-**Proposed: a "did you mean?" suggestion, never a block.**
+✅ **DECIDED 2026-08-17 by Malik. The rule is: correct only within a short list of big consumer
+providers, and never touch anything else.**
+
+> *"i dont want to screwup on custom domains but gmail.com vs gmial gmali etc .com .co .con for
+> gmail variants - this should be common sense. so only common sense. but in any case keep the
+> customer original email recorded so anytime we have to resort to see what he actually wrote that
+> should be preserved."*
+
+**This is a better rule than either option I put up, and it dissolves the problem I was stuck on.**
+I was arguing about whether `gmial.com` is safe to rewrite in the abstract. Scoping by provider
+answers it: `gmial` is an obvious misspelling of a provider we have explicitly listed, so it is
+correctable; a custom or business domain is never in scope at all, so `spyco.co.uk` and
+`marvelous.com` cannot be damaged. It also settles the TLD question I got wrong — I said leave `.co`
+alone because it is Colombia, but **`gmail.co` is plainly wrong because Google does not run mail
+there**, while `mybusiness.co` is untouched. Both hold at once, because the list is the guard.
+
+**Scope: the provider brand, and the TLD, only within these canonical domains** —
+gmail.com, googlemail.com, hotmail.com, hotmail.co.uk, outlook.com, live.co.uk, icloud.com,
+btinternet.com, yahoo.co.uk, yahoo.com, aol.com, aol.co.uk, msn.com, sky.com.
+So `gmial/gmali/gmai/gnail` → `gmail`, and `gmail.co/.con/.cim` → `gmail.com`. **Anything not
+matching a listed provider is left exactly as typed, always.**
+
+🔴 **NON-NEGOTIABLE, stated explicitly by Malik: the customer's original address is preserved
+verbatim, forever.** Store the corrected address separately and send to that; never overwrite what
+they typed. There must always be a way to see what the customer actually wrote.
+
+**Also proposed, NOT yet decided, and secondary to the above: a "did you mean?" suggestion at
+checkout, never a block.**
 - On blur, compare the typed domain against a known-good list; if it is edit-distance 1 (2 for
   longer domains) from one but not an exact match, show an inline *"Did you mean
   chris@gmail.com?"* that the customer taps to accept.
