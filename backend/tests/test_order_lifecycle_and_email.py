@@ -689,3 +689,49 @@ def test_received_email_stripe_state_still_wins_over_stated_intent() -> None:
 )
 def test_money_renders_minor_units(amount: int, currency: str, expected: str) -> None:
     assert email_service._money(amount, currency) == expected
+
+
+# ---------------------------------------------------------------------------
+# OI-86: the typo repair has to reach the actual send, not just its own module
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_a_typo_domain_is_repaired_before_the_email_is_sent() -> None:
+    """`gmail.con` cannot receive mail, so we send to `gmail.com` instead.
+
+    Unit-testing `normalise_email` proves the rule; this proves it is actually
+    wired into the send path, which is the part that would silently regress.
+    """
+    order = _emailable(customer_email="chris@gmail.con")
+    captured: dict[str, str] = {}
+
+    def _capture(to: str, subject: str, body: str, html: str, bcc: str = "") -> None:
+        captured.update(to=to)
+
+    with patch.object(
+        type(email_service.settings), "email_configured", property(lambda _: True)
+    ), patch.object(email_service, "_send_blocking", side_effect=_capture):
+        sent = await email_service.send_order_email(order, "accepted")
+
+    assert sent is True
+    assert captured["to"] == "chris@gmail.com"
+    # The order itself is untouched: what the customer typed is preserved.
+    assert order.customer_email == "chris@gmail.con"
+
+
+@pytest.mark.asyncio
+async def test_a_custom_domain_is_never_altered_before_sending() -> None:
+    """A real business customer of ours. Looks odd, must survive untouched."""
+    order = _emailable(customer_email="chris@spyco.co.uk")
+    captured: dict[str, str] = {}
+
+    def _capture(to: str, subject: str, body: str, html: str, bcc: str = "") -> None:
+        captured.update(to=to)
+
+    with patch.object(
+        type(email_service.settings), "email_configured", property(lambda _: True)
+    ), patch.object(email_service, "_send_blocking", side_effect=_capture):
+        await email_service.send_order_email(order, "accepted")
+
+    assert captured["to"] == "chris@spyco.co.uk"

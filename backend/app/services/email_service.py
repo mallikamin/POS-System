@@ -45,6 +45,7 @@ import httpx
 
 from app.config import settings
 from app.models.order import Order
+from app.services.email_normalise import normalise_email
 from app.services.order_visibility import is_card_order
 
 logger = logging.getLogger(__name__)
@@ -728,7 +729,12 @@ async def send_order_email(
         logger.error("Unknown order email event %r", event)
         return False
 
-    to = (order.customer_email or "").strip()
+    # Repair an obvious typo in the DOMAIN before sending, e.g. gmail.con ->
+    # gmail.com (OI-86). Only the big consumer providers are in scope; a custom
+    # or business domain is returned exactly as typed. `order.customer_email`
+    # is NOT modified -- what the customer wrote stays in the database, and only
+    # the address we hand to the mail provider changes.
+    to, _repaired = normalise_email(order.customer_email)
     if not to:
         # Expected for phone-only customers and for orders placed before email
         # was collected. Not an error.

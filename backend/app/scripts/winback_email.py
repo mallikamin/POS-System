@@ -44,6 +44,7 @@ from sqlalchemy.orm import selectinload
 from app.config import settings
 from app.database import async_session_factory
 from app.models.order import Order, OrderItem
+from app.services.email_normalise import normalise_email
 from app.services.email_service import (
     _C_BODY_TEXT,
     _C_CREAM,
@@ -69,14 +70,18 @@ PACE_SECONDS = 7.5  # 8 emails/minute -> 85 recipients in about 10.5 minutes
 SENT_LOG = Path("/tmp/winback_sent.log")
 OPTOUT_FILE = Path("/tmp/winback_optout.txt")
 
-# Domains that do not exist. Both are one-character typos of gmail.com typed by
-# a customer at checkout, and both pass an RFC-shaped regex, which is why the
-# hygiene query reported zero malformed addresses. Mailing them earns a hard
-# bounce against a domain whose record is currently spotless.
+# ⚠️ SUPERSEDED by OI-86 and kept empty on purpose rather than deleted.
 #
-# Worth telling Imran separately: these two people never got their order
-# confirmation either, and never will.
-BAD_DOMAINS = {"gmail.con", "gmail.cim"}
+# This used to hold {"gmail.con", "gmail.cim"} and SKIP those recipients, because
+# mailing a domain that does not exist earns a hard bounce. That was the right
+# call when the only alternative was a bounce -- but it was treating the symptom.
+# `normalise_email` now repairs the domain before sending, so those customers are
+# reachable instead of skipped, and the skip would silently exclude the very
+# people the fix was written for.
+#
+# Anything genuinely undeliverable (a misspelt NAME, which nothing can detect)
+# still hard-bounces and is auto-suppressed by Brevo.
+BAD_DOMAINS: set[str] = set()
 
 BREVO_ENDPOINT = "https://api.brevo.com/v3/smtp/email"
 
@@ -350,7 +355,9 @@ async def main() -> int:
     print(f"SENDING to {len(pending)} customers. Ctrl-C is safe, progress is logged.\n")
     failures = 0
     for i, order in enumerate(pending, 1):
-        to = (order.customer_email or "").strip()
+        # Repair an obvious domain typo before sending (OI-86). The stored
+        # address is untouched; only what we hand Brevo changes.
+        to, _repaired = normalise_email(order.customer_email)
         try:
             await _send(to, _subject(order), _text_body(order), _html_body(order))
         except Exception as exc:  # noqa: BLE001 - one bad address must not stop the run
