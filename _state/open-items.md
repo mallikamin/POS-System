@@ -1,5 +1,43 @@
 # Open items register
 
+**OI-87 🔵 NEW 2026-08-17, RESEARCH NOT STARTED. Every online order is hand-typed into EposNow to
+mark it paid and reconcile the day. Find out whether we can push them in automatically.**
+
+Raised by Malik. Imran runs **EposNow** for in-house, dine-in and phone orders; we supply the online
+channel only. The two do not talk, so **his team re-keys every one of our orders into EposNow** purely
+so the till shows it paid and the day balances. Double entry on every order, during service, and it
+gets worse as the channel grows — which defeats the point of adding the channel.
+
+🔴 **This is NOT an EposNow displacement and must not be framed as one.** Settled on the 2026-07-26
+call and recorded as a superseded framing in `docs/history/README.md`. We push into his system; we
+do not replace it.
+
+📌 **The lead to chase first, and it is UNVERIFIED — Malik's recollection, not a record.** Imran
+wanted the `C001` / `D001` receipt numbering "as we have done", and **an EposNow account manager
+named Sam did technical plumbing to deliver that customisation.** If true it means EposNow will do
+bespoke work for this account and there is **a warm named technical contact inside EposNow**, which
+is worth far more than a cold support ticket. Confirm with Imran: Sam's surname, role, and what was
+actually customised.
+
+**Already in the repo and to be read before asking Imran anything:** a transcribed EposNow menu
+walkthrough with frames, `_context/clients/chick-shack-uk/voice-notes/2026-07-29_imran_eposnow-menu-
+walkthrough.md` and `refs/eposnow-menu/`. Also established: EposNow runs on **Android** there, and
+**the receipt printer is already shared** over Ethernet TCP:9100, so the two systems already coexist
+on one piece of hardware.
+
+⚠️ **The hard part is probably not the transport, it is the mapping.** Our catalogue and his are
+separate, and **meals vs solo items are separate products in EposNow, not conditional modifiers**
+(from the walkthrough) whereas our storefront models them as modifier groups. A pushed order has to
+reference his product ids, and that mapping rots the moment either side edits a menu.
+
+⚠️ **Do not repeat the QuickBooks Desktop mistake** (scoped at six weeks, built to 33%, parked).
+**Establish that the API exists and works on Imran's actual plan before designing anything**, and
+prefer an existing documented integration route — EposNow already integrates with Deliveroo, Just
+Eat and Uber Eats, so presenting as an online-ordering partner may be far cheaper than bespoke.
+
+**Full brief, with the research questions, constraints and suggested order of work:**
+`_context/clients/chick-shack-uk/eposnow-integration-brief.md`. **Nothing built, nothing promised.**
+
 **OI-86 🔵 NEW 2026-08-17, NOT BUILT. Catch mistyped email domains AT CHECKOUT, so no future customer
 is silently unreachable. Malik's framing, and it corrects mine.**
 
