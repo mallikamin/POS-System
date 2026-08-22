@@ -1,22 +1,431 @@
 # STATE — Restaurant POS System
 
-**Last refreshed:** 2026-08-16 (refresh run for the win-back email question, OI-83). HEAD is still
-**`1bcdb7b`**, branch `main`, **0 unpushed commits**, no functional drift since 08-14. Server last
-verified at `de10856`; storefront at Cloudflare version **`c8d8a9b6`**.
+**Last refreshed:** 2026-08-22 ~20:45 UK. **OI-89 + OI-90 SHIPPED AND VERIFIED LIVE (`50a8002`),
+deployed DURING service on Malik's instruction, tested by Imran on the shop printer.** Git: HEAD
+`50a8002` = `origin/main`, server at `50a8002`, tag `pre-oi89` (= `4b11c43`) pushed. One docs commit
+may sit unpushed after this refresh (see the 08-22 section); pushing it re-runs the deploy pipeline,
+so it waits for the 22:00 UK close. Section for OI-89/90 below updated from "mockups" to "live".
 
-⚠️ **Drift corrected on this refresh:** the header previously said "~105 dirty files". The tree now
-carries **132 dirty files**, because the OI-82 analysis docs written on 08-15
-(`discount-analysis_2026-08-14.md`, `discount-analysis_queries.sql`, this STATE block,
-`_state/open-items.md`, `PAUSE_CHECKPOINT_2026-08-15.md`) were deliberately held back from commit
-during trading hours and **are still uncommitted two days later.** Nothing is lost, but the "commit
-and push these docs when the shop is shut" item from 08-15 was never done.
+**Last refreshed (previous):** 2026-08-20 (Chick Shack refresh + Meta Page-access handover, PAUSED mid-flow).
+Git re-verified this pass: HEAD `4b11c43`, `git ls-remote origin main` = `4b11c43`, **0 unpushed**,
+132 dirty files (was 128). **No code or storefront change since the 08-17 deploy.** No dated file
+newer than this one exists, so nothing contradicted STATE this pass. New section added below for
+OI-72 (Page access).
+Content below unchanged from the 2026-08-18 ~21:55 UK refresh. **HEAD `4b11c43`**, branch
+`main`. ✅ **origin/main is now `4b11c43` and the server is at `4b11c43` — 0 unpushed. The
+08-17 scheduled deploy fired.**
+Container start times read from `docker inspect`: nginx/frontend/backend all
+**2026-08-17T21:32-21:33 UTC = 22:32 UK**, exactly the armed time. Storefront at Cloudflare
+`c8d8a9b6`, unchanged (no storefront work since). **128 dirty files.**
 
-**Open:** **OI-83** (win-back / re-engagement emails to past online customers, discussion stage,
-nothing built, no unsubscribe rail exists yet), **OI-82** (Imran's 10%-over-£50 discount, analysed,
-recommendation is do not run it as proposed, nothing built, nothing sent to Imran), **Malik's live
-UAT of the tip flow**, **OI-76** (what3words researched, verdict is do not buy, reply drafted and
-unsent), **OI-80** (CI and Deploy-to-Staging red on every recent commit, no signal), the chips-flow
-UAT from 08-13, and the held docs commit above.
+⚠️ **Three drifts corrected on this refresh, all of them recorded here rather than silently merged.**
+1. **STATE.md was a whole session stale.** Its header said `1bcdb7b`, 0 unpushed, and the file
+   carried **no OI-85, OI-86 or OI-87 section at all**: the entire 2026-08-17 session (campaign
+   judged, OI-86 built, deploy script generalised, OI-87 opened) was missing. Added below.
+2. 🔴 **"3 commits ahead" is wrong; it is 5.** `HANDOFF.md` and `PAUSE_CHECKPOINT_2026-08-17-B.md`
+   both name three unpushed commits (`565b42e`, `ad5e8ef`, `4b11c43`) and miss the two docs commits
+   underneath them, **`b5dcf21`** and **`2fc48f4`**. Verified against the real remote with
+   `git ls-remote` (`origin/main = 19ee3d1`), not the local tracking ref. Consequence, and it is
+   benign but should not be a surprise: tonight's deploy pushes **all five**, so the two OI-86
+   framing docs ship with it.
+3. **`_state/open-items.md` still headed OI-86 "NOT BUILT … storefront-only, ships via Cloudflare".**
+   It was built, backend-side, and committed as `565b42e` (5 files, +391 lines, incl.
+   `email_normalise.py` and 2 test files). Register header corrected on this refresh; the decision
+   record beneath it was already right.
+
+**Open:** **OI-72** (Meta Page access handover, moved 08-20, see below), **OI-88** (delivery minimum is flat £5 while the fee bands run £3 to £15, opened on this
+refresh, see below), **OI-87** (push our online orders into EposNow, researched), **OI-86**
+(built, committed and now **deployed**; effect in production still unverified), **OI-85** (Google review email converts at zero,
+undiagnosed), **OI-83** (campaign sent, **zero second orders**; decide whether to run another),
+**OI-82** (discount analysis, nothing sent to Imran), **OI-80** (CI red, no signal), **OI-76**
+(what3words reply drafted, unsent), one-click unsubscribe, HSTS, and Malik's tip-flow and chips-flow
+UATs.
+
+## 🟢 2026-08-22 ~20:30-20:40 UK. OI-89 + OI-90 SHIPPED AND VERIFIED LIVE (`50a8002`). Deployed in service, tested by Imran on the shop printer, QR scanned from paper to the Google review form.
+
+**Sequence, all verified by effect:** Imran approved the mockups (~18:00 UK). Built + 58 print tests
+(byte-exact QR sequence, fold-in across cash/paid/fee/zero-tip, QR on every copy, no QR without a
+URL); full suite **616 passed**, the 10 failures + 2 errors being the parked QB-Desktop suite and two
+bcrypt/passlib venv failures that reproduce identically at clean `4b11c43` in a worktree. Snapshot
+before deploy: backend image `866f26308068` tagged `pos-system-backend:pre-oi89`, env file backed up
+on the box, `pos_system_20260822T172231Z_pre_oi89.sql.gz` (42 tables, complete footer), git tag
+`pre-oi89`. Pushed 20:28 UK; server at `50a8002` after 2 min; backend healthy, started
+`2026-08-22T19:30:27Z`; nginx recreated; 0 exceptions; Orbit untouched. A real tipped order
+(`260822-D010`, £26.96 food + £2.00 tip) was rendered inside the production container first:
+Subtotal £28.96, no Tip line, TOTAL £32.66, QR ×3.
+
+**Imran's test, three slips photographed:**
+1. First Print tap printed the OLD format. Not a deploy failure: the tablet caches one `rawbt:` URL
+   per order in memory (`OnlineOrdersPage.tsx` `ticketUrls`, refetched only when `payment_status`
+   changes), and D010's was cached before the deploy. 📌 **Rule for next time: any ticket-format
+   change needs the tablet page reloaded after the deploy, or every already-listed order reprints the
+   old bytes.** A plain reload, no hard refresh.
+2. After reload: new format, printed by his printer. No Tip line, Subtotal/Platform Fee/Delivery/
+   TOTAL, PAID ONLINE, review line, QR. **The native `GS ( k` QR command works on his printer**, so the
+   raster fallback was never needed.
+3. Phone camera on the slip's QR opened the **Chick Shack Google review form** (his screenshot,
+   20:39). End to end on the real path.
+
+**Rollback, not needed, stays available for a few days:** `bash scripts/rollback-backend.sh pre-oi89`
+on the server (~30 s image swap, no build, no migration in this change), then `git revert`.
+
+**Still true:** checkout, Stripe Tip line, emails and the reports tips tiles are unchanged. Tenants
+with no `google_review_url` print no QR (only `chick-shack` has one; checked read-only). Imran was not
+told about the Tips Act point in the 08-22 opening note; Malik's call whether to raise it.
+
+### The opening note, kept for the audit trail (superseded above)
+
+
+**Malik, 2026-08-22:** *"tips are being printed on the receipts which make riders keep [them]. imran wants
+tips to be added in the subtotal and then the platform and delivery charges shown on receipt so its
+not visible to the riders. checkout page stays same, just whats printed on receipts."* And: *"this is
+eposnow receipt, it prints the QR code asking them for review on google, can we do the same on our
+receipts too."* He wants HTML mockups first, Imran approves, then we deploy.
+
+### OI-89, hide the tip on the printed ticket
+**What prints today** (`print_service.py` money block, lines ~235-246): `Subtotal`, `Discount`, `Tax`,
+`Platform Fee`, **`Tip`** (its own line, added by OI-81 on 08-14 precisely so the rider could see it),
+`Delivery`, `TOTAL`, then `*** PAID ONLINE ***` / `*** CARD APPROVED ***` / `*** NOT PAID *** COLLECT £x`.
+**Proposed:** `Subtotal` line = food subtotal **+ tip**; the `Tip` line is removed; everything else
+unchanged, including the cash `COLLECT` total (which already includes the tip and must keep doing so,
+or the rider under-collects). The cook list prints no prices, so nothing on the slip can be summed to
+reveal the tip. **Touches nothing else:** `orders.tip` column, checkout, Stripe line, customer emails,
+confirmation screen and the reports tiles all stay exactly as OI-81 shipped them.
+⚠️ **One thing Imran should hear once, not a blocker:** the UK Employment (Allocation of Tips) Act
+has applied since 1 Oct 2024 (tips must reach workers in full, allocated fairly, with a written
+policy). Hiding the tip from the slip is a print choice; how the shop then distributes tips is his
+obligation, not ours. The storefront makes no promise about where a tip goes (Malik cut the "goes to
+your rider" line on 08-13), so nothing customer-facing is contradicted.
+
+### OI-90, Google review QR on the printed ticket
+**Proposed:** after the payment banner, `Scan to leave us a Google review` + a QR of the SAME URL
+already held in `restaurant_configs.google_review_url` (used by the 08-10 review email), so reviews
+from email and paper pool into one link. The printer's review link decodes were verified 08-09.
+🔴 **Two things to settle before building, and both are Imran's to answer:**
+1. **Does any copy of our slip reach the customer?** Today 3 identical copies print and "all three go
+   to separate stations" (Imran, 08-01). A QR on a slip the customer never sees is wasted paper ×3. If
+   one copy goes in the bag, fine; if not, the QR belongs on the EposNow receipt he already re-keys
+   (OI-87) and prints, and this item closes with no code.
+2. ⚠️ **UNTESTED: whether his printer renders a QR.** It is an unnamed "ESC/POS general" printer behind
+   RawBT (`_state/printing.md`). Native `GS ( k` QR is standard on Epson-compatible units but has
+   never been sent to this one. Build plan if approved: render the QR as a raster bitmap (`GS v 0`,
+   supported by effectively every ESC/POS printer) rather than the native command, and give Malik a
+   one-tap test print before it goes near a real order. `qrcode` 8.2 is installed locally; it is not
+   yet in `backend/requirements.txt`.
+
+**Mockups:** `_context/clients/chick-shack-uk/receipt-mockups_2026-08-22.html` (also published as an
+artifact, link in the 08-22 session). Four proposed slips (delivery cash, delivery prepaid,
+collection cash, collection prepaid) beside today's slip, using Imran's own OI-81 example
+(£25.75 food + £3.50 tip, £0.70 platform fee, £3.00 delivery).
+
+**Deploy path when approved:** backend only (`git push origin main` after the 22:00 UK close, or the
+scheduled `scripts/deploy_after_close.sh`). No storefront deploy. Tests to add: the existing
+print_service test file gets "no `Tip` line", "Subtotal includes tip", "COLLECT still = total", and a
+QR-bytes-present case.
+
+## 🔵 2026-08-20. OI-72 MOVED: Imran has offered to hand over Page access. His proposed method (friend request) is the wrong one, and the access he can actually grant may be narrower than he thinks.
+
+**Malik, 2026-08-20:** *"imran is going to share his page access for us to handle social media and
+ads. he was saying i should add him as friend and then he can share."*
+
+**Friending is not required and should not be used.** In the New Pages Experience, Page access is
+granted from Meta Business Suite by **email address**. Friend-based sharing is the legacy Page Roles
+flow; it ties a business asset to a personal relationship and cannot be revoked cleanly.
+⚠️ **This paragraph is from general Meta product knowledge, not verified against Imran's screen.
+The screenshots in step 0 below are what verify it.**
+
+**Precedent checked in the other projects, both routes, neither used friending:**
+- `C:\FBAI\MEETING_CHECKLIST_ADEEL.md` step 5 (Rang Rasiya, 2026-02-27): *Business settings → Users →
+  Partners → Add → enter App ID `1152633793482968` → grant the ad account "View performance"*.
+  Partner-by-ID, no friendship.
+- `etisalat-shop`: assets sit under the **Etisalat business portfolio `281900244999301`** and access
+  flows through that portfolio plus system-user/app tokens. Again no friendship.
+- `C:\FBAI\creatives\PROBIZ_META_AUTHORIZATION_LETTER.md`: the separate paper trail (a signed
+  authorisation letter) used for Meta **Business Verification**, not for asset sharing. Different
+  problem, do not confuse the two.
+
+🔴 **The live risk, and it is the reason this cannot just be handed to Imran as a checklist.** The
+2026-08-08 diagnosis on his personal profile lists *"can't manage advertising assets or people for
+businesses"* among the restrictions. **Adding a partner to a business portfolio IS "managing people
+for businesses".** So the clean Partner-by-Business-ID route is the one most likely to be blocked
+for him, and it would fail with the same generic *"temporarily restricted"* popup he already saw
+when linking Instagram. **Page-level access assignment is a Page task rather than a business-assets
+task and is the more likely of the two to go through, but that is a prediction, not a verified fact.**
+
+**Sequencing decided on this refresh: separate SOCIAL from ADS. They are not one handover.**
+1. **Social media management** needs only Page access (+ the Instagram account linked to the Page).
+   It is independent of every ads restriction and can start immediately once granted.
+2. **Ads** stays blocked on two things that Page access does not solve: (a) Imran's advertising
+   restriction, which means ads must run from a **clean ad account inside a dedicated portfolio**,
+   and (b) 🔴 **the storefront still has zero measurement** (`fbq`/pixel/`gtag`/`dataLayer`: zero
+   hits, re-confirmed at the 08-08 diagnosis). Spending before measurement exists buys an unreadable
+   result. **Do not let a successful Page handover be read as "ads are unblocked".**
+
+⚠️ **Portfolio hygiene, unchanged and still binding:** the restriction notice cites *"associating
+with untrustworthy accounts"*. Any portfolio that takes on this Page must be **dedicated to Chick
+Shack**. Never the Etisalat portfolio `281900244999301` that runs goldennummbers / postpaidplans.
+
+### ⏸️ PAUSED 2026-08-20, mid-flow. Imran is at the restaurant with no laptop. Resume when he has one.
+
+**Decided this session, not a guess:** the account that receives Page access is
+**`amin@sitaratech.info`**, NOT `malik.amin187` / the personal Gmail. Reason given by Malik: that
+address is the one **Rang Rasiya was shared on and it worked fine**. Use it verbatim when Imran
+reaches the email field.
+
+**Where we stopped.** Malik is inside **his own** `Rang Rasiya Business Manager` (Settings →
+Accounts → Pages → `RANG RASIYA`, page ID `1078055745557087`) producing walkthrough screenshots to
+send Imran. Last instruction issued: click **Assign people**. **The resulting panel was never seen**,
+so the screenshot set is incomplete and nothing has been sent to Imran yet.
+
+⚠️ **Risk flagged before the screenshots go out, and it is the thing to check first on resume: the
+Rang Rasiya screen may not be the screen Imran sees.** Malik's view has `Assign people` /
+`Assign partner` / `Connect assets` because that Page is **owned by a business portfolio he
+controls**. If the Chick Shack Page sits on Imran's **personal profile with no portfolio**, those
+buttons do not exist for him and the path is instead Business Suite → Settings → **Page access** →
+`Add new`. **Which of the two he sees is exactly unverified item (3) from the 08-08 diagnosis (does a
+business portfolio already exist).** Sending portfolio-shaped screenshots to a man with no portfolio
+wastes his one laptop session.
+
+📌 **First thing to ask Imran when he is at a laptop, before any screenshot is sent:** open
+`business.facebook.com`, go to Settings, and say whether the left sidebar shows **Users / Accounts /
+Data Sources** (portfolio exists) or only Page-level options (no portfolio). That single answer picks
+the route and costs him 30 seconds.
+
+**Still true and still binding:** social media management is unblocked by Page access alone; **ads
+are not** (his advertising restriction plus zero storefront measurement). Do not read a successful
+Page handover as ads being unblocked.
+
+**Step 0, still the blocker, and it is 3 read-only screenshots from Imran on a laptop:**
+(1) Meta Business Suite → Settings → **Page access**, showing who currently holds Full control;
+(2) whether a `Request review` / `Disagree with decision` control still exists on his restriction
+detail; (3) what `See accounts` lists, i.e. whether a business portfolio already exists for the shop.
+**Nothing about the ads half can be decided without (2) and (3).** Nothing built, no ad spend, no
+storefront change on this refresh.
+
+## 🟢 2026-08-18 ~21:55 UK. IMRAN'S AOV HYPOTHESIS TESTED AGAINST THE REAL ORDER ROWS. It is directionally right and quantitatively wrong: fees explain about a QUARTER of the gap, not the gap.
+
+**Imran, 08-18 ~21:36 UK (WhatsApp):** website AOV "doubles as the delivery charge and also the
+platform fee is applied". He sent his EposNow Back Office ATV for both days alongside it, and said
+the 18th was a slow day on the till too.
+
+**Method: 17 rows read live from production `orders`, read-only**, 08-17 and 08-18, none rejected.
+`aov_food_only = subtotal - discount_amount`, i.e. **delivery_fee, service_fee ("Platform Fee") and
+tip all stripped.** Our `tax_amount` is 0 on every row (VAT-inclusive pricing, no separate line), so
+no tax adjustment is needed. Gross figures reconcile to his own screenshot to the penny: 08-18 =
+7 orders, £189.55, £27.07.
+
+| | 17 Aug | 18 Aug |
+|---|---|---|
+| EposNow till ATV (his screenshots) | £14.59 (9 tx, £131.34) | £11.29 (13 tx, £146.75) |
+| Website AOV as the dashboard shows it | £28.04 (10 orders) | £27.08 (7 orders) |
+| **Website AOV, food only** | **£24.21** | **£23.09** |
+| Fee + tip inflation | £3.83 (13.7%) | £3.99 (14.7%) |
+| Gap to till, before | £13.45 | £15.79 |
+| **Gap to till, after** | **£9.62** | **£11.80** |
+| Share of the gap the fees explain | **28%** | **25%** |
+
+🔴 **The hypothesis does not survive its own cleanest test: COLLECTION orders.** They carry **zero
+delivery fee**, only the 70p platform fee. **6 collection orders over the two days average £20.12 of
+food.** Against a till ATV of £11.29 to £14.59 that is still **1.4× to 1.8× higher with no delivery fee
+in play at all.** Per day: 08-17 collection £20.70 (5 orders), 08-18 collection £17.17 (1 order).
+
+📌 **What the number actually is: £23.75 of food per online order across both days (17 orders),
+against £11.29 to £14.59 on the till.** Roughly **1.7× to 2×**, and that is real basket size, not fees.
+
+⚠️ **The comparison is channel-vs-channel, not like-for-like, and must be presented that way.** The
+till is walk-in/in-house; the website is 11 delivery : 6 collection. A household ordering in is not
+the same buyer as one person at the counter. Two days and 17 orders is **directional, not
+conclusive** — do not present it as settled.
+
+🟡 **Unverified and honestly labelled:** whether EposNow "Sales" is gross or net of VAT, and whether
+it nets off its own charges. Both till figures were **read off screenshots**, not from his data.
+**This is a concrete business case for the OI-87 read-only pull.** One set of numbers, no
+screenshots, no VAT ambiguity.
+
+### 🔴 The real defect Imran found, which his AOV theory buried: the delivery minimum is FLAT while the fee is BANDED.
+
+`storefront/src/data/menu.ts:604`, `deliveryMinimum: 500` (£5.00, confirmed by Imran 07-27).
+Fee bands at `menu.ts:595-601` run **£3.00 (Rhu/Rosneath £4.50, Caravan Park £6.00, Kilcreggan
+£7.00) up to Helensburgh £10.00 and Arrochar £15.00.**
+
+His example, `260817-D002`: **£8.48 of food, £10.00 delivery to Helensburgh.** It cleared the £5
+minimum and still cost more to deliver than it sold. It is **the smallest food basket in the whole
+17-order set** (one order, not the pattern), but the structure that allowed it is live for every
+Helensburgh and Arrochar order.
+
+📌 **Proposal, not built, needs Imran's decision: make the minimum scale with the band** (e.g. ≥2×
+the delivery fee, so Helensburgh needs £20 and Arrochar £30), or set explicit per-area minimums.
+**Registered as OI-88.** Nothing changed in code.
+
+## ✅ 2026-08-17 22:32 UK. THE SCHEDULED DEPLOY OF `4b11c43` FIRED AND LANDED. Superseded the section below; kept for the audit trail.
+
+**Verified on this refresh from effect, not from the job's exit code:** `git ls-remote origin main`
+= `4b11c43`; server `~/pos-system` HEAD = `4b11c43`; nginx/frontend/backend container `StartedAt` =
+`2026-08-17T21:32-21:33Z` (= 22:32 UK), all five commits pushed as predicted. All 8 containers
+(5 POS + 3 Orbit) healthy at the time of this refresh.
+
+🟢 **Consequence: OI-86 (email typo repair, `565b42e`) is now DEPLOYED, not merely committed.**
+Wherever this file or `_state/open-items.md` still says "built, not deployed", that is stale.
+⚠️ **Its effect in production is still UNVERIFIED** — no typo'd address is known to have come
+through since. Deployed ≠ proven working.
+
+## 🕐 2026-08-17. TONIGHT'S SCHEDULED DEPLOY OF `4b11c43` IS ARMED, and there are TWO jobs running, not one. ✅ SUPERSEDED, IT FIRED, see above.
+
+**Verified from the process table at 22:45 PK, not from the checkpoint's narration:**
+- **PID 23252**: `deploy_after_close.sh 4b11c43 "2026-08-17 21:30:00"`, started 22:39 PK. **This is
+  the real one.** Fires 21:30 UTC = 22:30 UK = 02:30 PK.
+- ⚠️ **PID 9812**: `deploy_after_close.sh ad5e8ef "2026-08-17 21:30:00"`, started 22:02 PK. **A
+  stale duplicate from an earlier scheduling that was never killed.** It wakes at the same second.
+
+**Why the duplicate is harmless, read out of the script rather than assumed:** the `HEAD ==
+$EXPECTED_COMMIT` guard is at `scripts/deploy_after_close.sh:49`, which is **before** the ssh check,
+before `pg_dump` and before `git push`. HEAD is `4b11c43`, so PID 9812 dies at line 50 with
+*"HEAD is 4b11c43, expected ad5e8ef"* having touched nothing. **It will still print ABORTED, so do
+not read that output and conclude the deploy failed.** Judge the deploy by PID 23252's output and
+by effect on the server.
+
+🔴 **Do not commit anything before 22:30 UK tonight.** Any commit moves HEAD off `4b11c43` and the
+real job aborts too. To commit sooner, kill PID 23252 first and reschedule with
+`bash scripts/deploy_after_close.sh <new-sha> "2026-08-17 21:30:00"`.
+
+## 🟡 2026-08-17. OI-87 RESEARCHED, NOT BUILT, NOT SCOPED. The API exists and Imran can switch it on himself. Two things could still kill it, and neither is the transport.
+
+**Findings, with every claim carrying its source URL and the date checked:**
+`_context/clients/chick-shack-uk/eposnow-integration-research_2026-08-17.md`.
+
+- ✅ **The API is real and self-service.** Back Office > Web Integrations > REST API > Add Device,
+  HTTP Basic auth (Base64 of key:secret), `POST https://api.eposnowhq.com/api/V2/CompleteTransaction`
+  (**V2 is deprecated, use the V4 equivalent**). The transaction model carries a **TenderType** and a
+  **Tender amount**, which is what "push it in already paid" needs. **No EposNow permission required**,
+  which matters given the conflict of interest below.
+- ✅ **The mapping fear was largely obsolete, and that is measured not assumed.** OI-45 mirrored his
+  till on 07-29, so `storefront/src/data/menu.ts` already carries **25 separate Meal items** and the
+  **same four modifier group names** as his EposNow. It is a ~87-row lookup table, not a redesign.
+  It still rots on menu edits, so any build must **fail loudly on an unmapped item**, never push a
+  partial order (the OI-61 family rule, applied before the bug exists).
+- 🔴 **Killer 1: "An API device ... uses one of your device licenses."** This may cost Imran money
+  every month and **no price is published on either the UK or US API app page.**
+- 🔴 **Killer 2: nobody has proved a pushed transaction lands in his End Of Day.** That is the entire
+  business requirement, and **an order that looks pushed but does not reconcile is worse than the
+  double entry it replaced.** There is also **no sandbox**, so the first real test runs against his
+  live account, after close, with his permission.
+- ⚠️ **EposNow sells its own online ordering at "2.00% + 10p per delivery"**, roughly £0.60 an order
+  against our £35/month flat. **Their account manager is not a neutral party.** Chase the Sam lead
+  for speed; do not let the plan depend on their goodwill.
+- 📌 **Not confirmed and honestly labelled: the exact `CompleteTransaction` payload fields.** The
+  docs portal renders body params in JavaScript and the Chrome extension has been down since ~08-11,
+  so the field list could not be read. "Can it be pushed already paid" is **strongly indicated, not
+  proven.**
+
+**Approach set by Malik 2026-08-17: diagnostic, not build.** It is Imran's system, so we find out
+what is possible, then propose. **Four stages in section F of the research doc**, and the governing
+principle is: **do not design the payload from the docs, read one of his real transactions back
+through the API and copy its shape.** Stages 1 and 2 are read-only and risk nothing; stage 3 is a
+single test order after close; stage 4 deletes it (`DELETE /api/V2/Transaction/{Id}` exists, so it
+is reversible, though **a delete may still show in his "Void Lines" audit report and may not clear
+End Of Day**, so tell him first).
+
+🟢 **Read-only access is the sleeper win here.** Pulling his till sales into our reporting would give
+Imran **one set of numbers for the whole business** instead of two, and it carries none of the risk
+of writing transactions. Not proposed, not scoped, judged after stage 2.
+
+### 🟢 2026-08-17 21:23-21:36 UK. ANSWERED FROM IMRAN'S OWN ACCOUNT, via screenshots he sent. Not from documentation.
+
+Screenshots archived in `_context/clients/chick-shack-uk/refs/eposnow-backoffice/`.
+
+- ✅ **The API is available on his account**, needs no EposNow approval, and is **not currently
+  installed** (the AppStore button reads **Get**).
+- 💷 **It costs £15 per month** as an AppStore subscription. ⚠️ **Read off a blurred phone photo;
+  confirm on the Buy screen before quoting it.**
+- 🟢 **Rate limit is 5,000 requests per 24 hours per licence**, quoted from the listing. **That is
+  enormous headroom here and is not a risk.** Closes the last of section A's open questions.
+- 🔴 **The developer docs' menu path does not exist in his UI.** There is no "Web Integrations"
+  anywhere: not in the app grid, not in Setup. **The API section appears only after the app is
+  installed.** Documentation and live product disagree, and only the live product counts.
+- 🟢 **"Additional Logins" exists under Setup > Company**, which is the clean route to give Malik his
+  own Back Office login instead of asking Imran to click through things.
+- 📌 **Zapier Integration is also on his AppStore** (subscription), as a no-bespoke-code fallback.
+- ⚠️ **Unsettled: whether the £15 licence IS the device licence or consumes another on top.**
+
+**The business case, assumptions stated and unverified with Imran:** ~270 online orders a month at
+~90 seconds to re-key, at £11 to £12 an hour, is **£75 to £80 of staff time a month against a £15
+tool**. It pays even if the assumptions are generous by half, and that ignores mis-key errors.
+
+🔴 **The open decision is commercial, not technical: who pays the £15.** Imran, us, or a revised
+monthly. **Nothing to be bought until Malik decides.**
+
+📌 **Malik's read, and the evidence supports it: the £15 is ADDITIONAL to his current bill.** In the
+AppStore list every button said "Get" and the label beneath separated **"Free"** (Apicbase, Epos Now
+Capital, Rapid Edit, Factor4) from **"Subscription"** (API, Zapier, Flow, Morph), and the detail page
+says **"Buy App"** with a per-month price. Three signals agreeing. ⚠️ **Still inference from UI
+labels, not confirmed against his bill.**
+
+🔴 **Nobody should tap "Buy App" to investigate.** No confirmation step has been seen and it is a
+live client's billing. **The safe read-only check is Setup > Company > Subscriptions**, which shows
+what he pays today and how many device licences he holds, settling both the "is it additional"
+question and whether an API device consumes an existing licence.
+
+### ⏸️ 2026-08-17 late. BALL IS WITH IMRAN. He is discussing it with Sam, then deciding.
+
+✅ **The "Sam" lead is no longer just Malik's recollection.** Imran is taking this to Sam himself, so
+**a named EposNow contact for this account is real.** The brief's instruction to verify rather than
+assume it is now satisfied by Imran's own action, not by a record.
+
+**Nothing is bought, nothing is installed, nothing is built, and nothing has been promised to
+Imran.** The research answered what it set out to answer and the next move is his.
+
+**When he comes back, the order of work is unchanged:** confirm the £15 and the licence question,
+then install, then section F stage 1 (read-only pull of his catalogue, tender types and a handful of
+real transactions) before anything is written to his system.
+
+<details><summary>The original OI-87 framing, before the research</summary>
+
+## 🔵 2026-08-17. OI-87 OPENED. Every online order is re-keyed into EposNow by hand. RESEARCH NOT STARTED.
+
+Imran runs **EposNow** for in-house, dine-in and phone; we supply the online channel only. The two do
+not talk, so his team types every one of our orders into EposNow purely to mark it paid and balance
+the day. Double entry, during service, and it gets **worse as the channel grows**, which defeats the
+point of the channel.
+
+Three constraints, all from the brief at
+`_context/clients/chick-shack-uk/eposnow-integration-brief.md`:
+1. 🔴 **NOT an EposNow displacement.** Settled on the 2026-07-26 call. We push into his system.
+2. 📌 **The "Sam" lead is UNVERIFIED**, being Malik's recollection of an EposNow account manager who did
+   technical plumbing for Imran's `C001`/`D001` receipt numbering. If real, it is a warm technical
+   contact inside the vendor. Confirm with Imran before relying on it.
+3. ⚠️ **The hard part is catalogue mapping, not transport.** Meals are separate products in EposNow
+   but modifier groups in our storefront, and any id mapping rots when either side edits a menu.
+   **Prove the API exists on Imran's actual plan before designing anything.** QuickBooks Desktop was
+   scoped at six weeks, built to 33%, and parked.
+
+**Research only. Nothing built, nothing promised, nothing sent to Imran without Malik approving it.**
+
+</details>
+
+## 🟢 2026-08-17. OI-86 BUILT, TESTED, COMMITTED (`565b42e`). NOT DEPLOYED. Server-side repair, not a checkout prompt.
+
+**The design moved after the register entry was written, and the register was not updated** (fixed on
+this refresh). It is **not** the storefront "did you mean?" prompt originally proposed: it is a
+**server-side normalisation at send time**, `backend/app/services/email_normalise.py`, so there is
+one pipeline and zero friction at checkout. Malik's call.
+
+- **Curated provider tables, never edit distance.** `email.com` is one character from `gmail.com` and
+  is a real domain; a distance rule would silently redirect a real customer's mail to Google.
+- **Scoped to 14 big consumer providers.** `gmial/gmali/gnail` → `gmail`, `gmail.co/.con/.cim` →
+  `gmail.com`; a custom or business domain is never in scope, so `mybusiness.co` cannot be touched.
+- 🔴 **The customer's original address is preserved verbatim, always.** Non-negotiable, stated
+  explicitly by Malik. Corrected only at send time, never written back.
+- **41 unit tests + 2 integration, mutation-checked.** Full suite **608 passed**, same 10 failures +
+  2 errors as before.
+
+**Ships with tonight's push.** Backend-only, so `git push` is the right pipeline for it.
+
+## 🔴 2026-08-17. THE WIN-BACK CAMPAIGN PRODUCED ZERO SECOND ORDERS. 84 sent, 83 delivered, ~10% open, 1 click.
+
+Zero spam complaints and zero unsubscribes, so nothing was damaged, but nothing was earned either.
+**Two campaigns have now converted at zero** (this and the Google review email, OI-85, at ~240 sends).
+📌 **Before a third: 18:35 is the dinner peak, not a good send time.** 15:30 UK, before opening, is
+the next thing to try. Nothing authorised.
 
 ## 🟢 2026-08-16 22:30 UK. OI-84 DEPLOYED AND VERIFIED LIVE (`baa63f3`, alembic `v8w9x0y1z2a3`). The scheduled unattended deploy ran exactly as written.
 

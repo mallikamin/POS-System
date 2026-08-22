@@ -1,7 +1,82 @@
 # Open items register
 
-**OI-87 🔵 NEW 2026-08-17, RESEARCH NOT STARTED. Every online order is hand-typed into EposNow to
-mark it paid and reconcile the day. Find out whether we can push them in automatically.**
+**OI-90 ✅ SHIPPED + VERIFIED LIVE 2026-08-22 (`50a8002`). QR printed on the shop printer via native `GS ( k`, scanned from paper to the Google review form by Imran. Was: Google review QR on the printed ticket (Imran's ask,
+from his EposNow receipt).** Reuse `restaurant_configs.google_review_url`. Blocked on two answers from
+Imran: does any slip copy reach the customer at all (if not, this closes with no code), and approval of
+the mockup. Printer QR rendering UNTESTED; build as raster (`GS v 0`) with a test print first.
+See STATE.md 2026-08-22.
+
+**OI-89 ✅ SHIPPED + VERIFIED LIVE 2026-08-22 (`50a8002`). Tip folded into Subtotal on a real slip (`260822-D010`). Note: the tablet caches ticket URLs, so a format change needs a page reload after deploy. Was: Fold the tip into the ticket's `Subtotal` line and drop the
+`Tip` line, so riders cannot see it (Imran's ask).** Checkout, Stripe, emails, reports untouched. Cash
+`COLLECT` total must stay = total (tip included). Reverses the print-side half of OI-81 only.
+Mockup at `_context/clients/chick-shack-uk/receipt-mockups_2026-08-22.html`. See STATE.md 2026-08-22.
+
+**OI-88 🔴 OPENED 2026-08-18, DIAGNOSED NOT BUILT. The delivery minimum is a flat £5 while the
+delivery fee is banded £3.00 to £15.00, so a far-area order can cost more to deliver than it sells.**
+
+> **Found while testing Imran's AOV hypothesis against the real order rows, not from a bug report.**
+>
+> `storefront/src/data/menu.ts:604`, `deliveryMinimum: 500` (£5.00, confirmed by Imran 2026-07-27,
+> not printed on the board). Fee bands, `menu.ts:595-601`: Rhu/Rosneath £4.50, Caravan Park £6.00,
+> Kilcreggan & Cove £7.00, **Helensburgh £10.00, Arrochar £15.00** (base band £3.00).
+>
+> **The live example is Imran's own: `260817-D002`, £8.48 of food, £10.00 delivery to Helensburgh.**
+> It cleared the £5 minimum and still cost more to deliver than it sold. ⚠️ **It is the smallest
+> food basket in the 17-order 08-17/08-18 set — one order, not a pattern.** The structure that
+> allowed it, however, is live for every Helensburgh and Arrochar order.
+>
+> 📌 **Proposal, NOT BUILT, needs Imran's decision (it is his pricing, not ours):** make the minimum
+> scale with the band, e.g. minimum ≥ 2× the delivery fee (Helensburgh £20, Arrochar £30), or set
+> explicit per-area minimums. **Nothing has been changed in code.**
+>
+> ⚠️ **Whatever is chosen has to be enforced on the ORDER endpoint, not only in the checkout UI.**
+> That is the OI-61 family rule: a filter is not an invariant.
+
+**OI-87 🟡 RESEARCHED 2026-08-17, NOT BUILT, NOT SCOPED. Every online order is hand-typed into
+EposNow to mark it paid and reconcile the day. Find out whether we can push them in automatically.**
+
+> ✅ **Research done. Findings: `_context/clients/chick-shack-uk/eposnow-integration-research_2026-08-17.md`**
+> (every claim carries its source URL and the date checked).
+>
+> **The API exists and Imran can switch it on himself**, no EposNow permission needed: Back Office >
+> Web Integrations > REST API > Add Device, HTTP Basic auth, `POST .../CompleteTransaction` (V2 is
+> deprecated, V4 is the one to use), and the transaction model carries a **TenderType** and a
+> **Tender amount**, which is what "already marked paid" means.
+>
+> **The mapping fear in this entry is largely obsolete and that is measured, not assumed.** OI-45
+> already mirrored his till on 2026-07-29: our storefront carries **25 separate Meal items** and the
+> **same four modifier group names** as his EposNow. So it is a lookup table of ~87 rows, not a
+> structural redesign. It still rots on menu edits, so any build must fail loudly on an unmapped
+> item rather than push a partial order.
+>
+> 🔴 **Two things could still kill it, and neither is transport.** (1) **"An API device ... uses one
+> of your device licenses"**, so this may cost Imran money monthly, and **no price is published
+> anywhere**. (2) **Nobody has proved a pushed transaction reconciles into his End Of Day**, which is
+> the whole business requirement. There is also **no sandbox**, so the first test runs against his
+> live account.
+>
+> ⚠️ **Conflict of interest worth naming: EposNow sells its own online ordering** at "2.00% + 10p per
+> delivery", i.e. roughly £0.60 an order against our £35/month flat. Their account manager is not a
+> neutral party here. **Chase Sam for speed, but the plan must not depend on their goodwill.**
+>
+> **UPDATE 2026-08-17 evening: answered from Imran's own account, via screenshots he sent.**
+> Archived in `_context/clients/chick-shack-uk/refs/eposnow-backoffice/`.
+> - ✅ **The API is available to him and needs no EposNow approval**, but is **not installed** today.
+> - 💷 **£15 per month**, an AppStore subscription, **additional to his current bill** (inference
+>   from three agreeing UI labels, not yet confirmed against the bill itself).
+> - 🟢 **5,000 API requests per 24 hours per licence.** Enormous headroom here, not a risk.
+> - 🔴 **The developer docs' "Web Integrations" path does not exist in his UI at all.** It appears
+>   only once the app is installed. **Only the live product counts.**
+> - 🟢 **"Additional Logins" exists**, the clean way to give Malik his own Back Office access.
+> - 🔴 **Nobody should tap "Buy App" to investigate.** No confirmation step seen, live client
+>   billing. Read-only check is **Setup > Company > Subscriptions**.
+>
+> **Business case, assumptions stated:** ~270 orders/month at ~90s to re-key, at £11-12/hr, is
+> **£75-80 of staff time a month against a £15 tool.**
+>
+> ⏸️ **PARKED WITH THE CLIENT. Imran is discussing it with Sam, then deciding.** ✅ **This also
+> confirms the Sam lead is real** rather than Malik's recollection. **Nothing bought, installed,
+> built or promised.** The open decision is commercial: **who pays the £15.**
 
 Raised by Malik. Imran runs **EposNow** for in-house, dine-in and phone orders; we supply the online
 channel only. The two do not talk, so **his team re-keys every one of our orders into EposNow** purely
@@ -38,8 +113,18 @@ Eat and Uber Eats, so presenting as an online-ordering partner may be far cheape
 **Full brief, with the research questions, constraints and suggested order of work:**
 `_context/clients/chick-shack-uk/eposnow-integration-brief.md`. **Nothing built, nothing promised.**
 
-**OI-86 🔵 NEW 2026-08-17, NOT BUILT. Catch mistyped email domains AT CHECKOUT, so no future customer
-is silently unreachable. Malik's framing, and it corrects mine.**
+**OI-86 🟢 BUILT, COMMITTED (`565b42e`) AND DEPLOYED 2026-08-17 22:32 UK — effect in production
+still UNVERIFIED, no typo'd address known to have come through since. Repair mistyped email domains
+so no future customer is silently unreachable. Malik's framing, and it corrects mine.**
+
+> ⚠️ **Header corrected on the 2026-08-17 refresh.** It read "NOT BUILT … catch them AT CHECKOUT"
+> and closed with "storefront-only, ships via Cloudflare, NOT `git push`". **Both are now wrong for
+> what was actually built.** The design moved to **server-side repair at send time**
+> (`backend/app/services/email_normalise.py`, `email_service.py`, `winback_email.py`, +2 test files,
+> 391 lines): one pipeline, no checkout friction, Malik's call. It is **backend-only**, so `git
+> push` IS the right pipeline for it, and it ships with tonight's scheduled deploy. The decision
+> record below (provider allowlist, original preserved verbatim) was already correct and stands;
+> the "did you mean?" checkout prompt below remains **unbuilt and secondary**, as written.
 
 I filed the two dead addresses (`gmail.con`, `gmail.cim`) as something to tell Imran about two
 customers. **Wrong frame.** Malik: *"thats not for imran to fix - thats for us to normalize at every
@@ -749,8 +834,46 @@ them:
 
 ---
 
-**OI-72 🔵 NEW, NOT STARTED. Meta ads experiment for online ordering (raised 2026-08-07, Imran via
+**OI-72 ⏸️ IN PROGRESS, PAUSED 2026-08-20. Meta ads experiment for online ordering (raised 2026-08-07, Imran via
 Malik). Blocked before it begins, and the measurement layer does not exist.**
+
+⏸️ **UPDATED 2026-08-20, and the entry now has TWO halves that must not be run together.**
+Imran offered to hand over Page access so Sitara can run social media and ads. **Split them:**
+**social media needs only Page access and is unblocked the moment it lands; ads are NOT unblocked
+by it** (his advertising restriction stands, and the storefront still has zero measurement).
+
+- **Friending is the wrong mechanism and was rejected.** Imran proposed *"add me as a friend and
+  then he can share"*. That is the legacy Page Roles flow. Current Meta grants Page access by
+  **email address** from Business Suite, revocable in one click. Precedent checked in both other
+  projects, neither used friending: `C:\FBAI\MEETING_CHECKLIST_ADEEL.md` step 5 (Rang Rasiya:
+  Business settings → Users → Partners → Add → App ID `1152633793482968`), and `etisalat-shop`
+  (assets under the Etisalat portfolio `281900244999301` plus system-user tokens).
+  `PROBIZ_META_AUTHORIZATION_LETTER.md` is Business **Verification**, a different problem entirely.
+- **Receiving account decided: `amin@sitaratech.info`.** Not `malik.amin187`, not the personal
+  Gmail. Malik: Rang Rasiya was shared on that address and it worked fine.
+- ⚠️ **Predicted, not verified: the Partner-by-Business-ID route is the one most likely to FAIL for
+  Imran.** The 08-08 restriction list includes *"can't manage advertising assets or people for
+  businesses"*, and adding a partner to a portfolio is exactly that. Page-level access assignment is
+  a Page task rather than a business-assets task, so it is the likelier of the two to go through.
+  Try Page-level first; if a generic *"temporarily restricted"* popup appears, screenshot it rather
+  than retrying.
+- ⏸️ **PAUSED mid-flow, 2026-08-20: Imran is at the restaurant with no laptop.** Malik was inside
+  **his own** `Rang Rasiya Business Manager` building walkthrough screenshots (Settings → Accounts →
+  Pages → `RANG RASIYA`, page ID `1078055745557087`); the last instruction was to click
+  **Assign people** and **that panel was never seen**. Screenshot set incomplete, nothing sent to
+  Imran yet.
+- 🔴 **Check before sending those screenshots: Malik's screen may not be Imran's screen.** The
+  `Assign people` / `Assign partner` / `Connect assets` buttons exist because that Page is owned by a
+  **business portfolio** he controls. If Chick Shack's Page sits on Imran's personal profile with no
+  portfolio, those buttons do not exist for him and the route is Business Suite → Settings →
+  **Page access** → `Add new`. **This is unverified item (3) below (does a business portfolio already
+  exist).** Sending portfolio-shaped screenshots to a man with no portfolio wastes his one laptop
+  session.
+- 📌 **Resume with one 30-second question to Imran, before any screenshot goes out:** open
+  `business.facebook.com` → Settings, and say whether the left sidebar shows **Users / Accounts /
+  Data Sources** (portfolio exists) or only Page-level options (no portfolio). That single answer
+  picks the route.
+
 
 **The ask:** Imran proposed running Meta ads to push online ordering. Malik: *"we'll need to first
 connect his fb/ig - get admin access."*
