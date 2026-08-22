@@ -94,6 +94,7 @@ def build_online_order_ticket(
     width: int = 48,
     utc_offset_minutes: int = 60,
     copies: int = 1,
+    review_url: str | None = None,
 ) -> bytes:
     """Render one accepted online order as ESC/POS bytes.
 
@@ -108,6 +109,9 @@ def build_online_order_ticket(
     and not in the tablet because every `rawbt:` navigation is a separate
     chance for Chrome to drop or coalesce the handoff (see ERROR_LOG
     2026-07-29): one payload, one navigation, N slips.
+
+    `review_url`, when set, prints a "leave us a Google review" QR at the
+    foot of every copy (OI-90). None or blank prints nothing.
     """
     t = Ticket(width=width)
     copies = max(1, copies)
@@ -118,6 +122,7 @@ def build_online_order_ticket(
             shop_name=shop_name,
             currency=currency,
             utc_offset_minutes=utc_offset_minutes,
+            review_url=review_url,
         )
     return t.bytes()
 
@@ -129,6 +134,7 @@ def _render_copy(
     shop_name: str,
     currency: str,
     utc_offset_minutes: int,
+    review_url: str | None = None,
 ) -> None:
     """One complete slip, ending in its own cut."""
     is_delivery = (order.service_type or "").lower() == "delivery"
@@ -224,18 +230,21 @@ def _render_copy(
     t.rule()
 
     # --- money ---
-    t.columns("Subtotal", money(order.subtotal, currency))
+    # The tip rides INSIDE the Subtotal line and is never printed on its own
+    # (OI-89, Imran 2026-08-22). OI-81 had given it its own line so the rider
+    # could see it; in practice that line told the rider exactly how much of
+    # the COLLECT total was "theirs" to keep. Cook lines carry no prices, so
+    # nothing on the slip can be summed to reveal it. TOTAL and COLLECT still
+    # include it, so the rider brings the full amount back and the shop hands
+    # tips out its own way. `orders.tip` is still stored and reported
+    # separately -- only what prints changed.
+    t.columns("Subtotal", money(order.subtotal + (order.tip or 0), currency))
     if order.discount_amount:
         t.columns("Discount", f"-{money(order.discount_amount, currency)}")
     if order.tax_amount:
         t.columns("Tax", money(order.tax_amount, currency))
     if order.service_fee:
         t.columns("Platform Fee", money(order.service_fee, currency))
-    if order.tip:
-        # Its own line, not folded into the total silently: on a cash order
-        # the rider collects the full TOTAL below, and this line is how the
-        # driver and the shop both see the tip was part of it (OI-81).
-        t.columns("Tip", money(order.tip, currency))
     if order.delivery_fee:
         t.columns("Delivery", money(order.delivery_fee, currency))
     t.columns("TOTAL", money(order.total, currency), bold=True)
@@ -277,6 +286,16 @@ def _render_copy(
         t.center("*** NOT PAID ***", bold=True, big=True)
         t.center(f"COLLECT {money(order.total, currency)}", bold=True)
 
+    # --- review QR (OI-90) --- after the money, so a slip that goes in the
+    # bag ends the way the EposNow receipt does: a thank-you and a code the
+    # customer can scan. Same link the review email uses, so every review,
+    # paper or email, lands on the one Google profile.
+    if review_url and review_url.strip():
+        t.rule()
+        t.center("Enjoyed your meal? Scan to leave")
+        t.center("us a Google review. Thank you.")
+        t.qr(review_url.strip())
+
     t.rule("=")
     t.cut()
 
@@ -311,6 +330,7 @@ async def build_ticket_for_order(
 
     currency = (config.currency if config else None) or "GBP"
     tz_name = (config.timezone if config else None) or "UTC"
+    review_url = (config.google_review_url if config else None) or None
 
     return build_online_order_ticket(
         order,
@@ -319,6 +339,7 @@ async def build_ticket_for_order(
         width=width,
         utc_offset_minutes=_offset_minutes(tz_name, order.accepted_at or order.created_at),
         copies=copies,
+        review_url=review_url,
     )
 
 

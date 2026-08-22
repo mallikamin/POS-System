@@ -77,6 +77,40 @@ _TRANSLITERATE = str.maketrans(
 )
 
 
+_QR_EC = {"L": 48, "M": 49, "Q": 50, "H": 51}
+
+
+def qr_code(data: str, *, module: int = 8, ec: str = "M") -> bytes:
+    """A QR code drawn BY THE PRINTER, via the native `GS ( k` function set.
+
+    Sent as five commands in the order Epson documents them (model, module
+    size, error correction, store data, print). The whole thing is ~70 bytes
+    for a URL -- which is the reason it is used instead of a raster bitmap:
+    the tablet carries the ticket inside a `rawbt:` URL, three copies in one
+    payload, and a bitmap QR would add ~20 KB to that URL for every copy.
+
+    `module` is the dot size of one QR cell (1..16). At 8 a 29-cell URL code
+    is ~232 dots, ~29 mm on 203 dpi paper, about the size EposNow prints.
+
+    ⚠️ Native QR is standard on Epson-compatible printers but was UNTESTED on
+    the shop's printer until the OI-90 live test. If a printer ignores the
+    command, the rest of the ticket is unaffected; it simply prints no code.
+    """
+    if not 1 <= module <= 16:
+        raise ValueError("QR module size must be 1..16 dots")
+    payload = data.encode("ascii")
+    store_len = len(payload) + 3
+    if store_len > 7092:
+        raise ValueError("QR payload too long for the printer")
+    return (
+        GS + b"(k\x04\x001A2\x00"  # fn 165: model 2
+        + GS + b"(k\x03\x001C" + bytes([module])  # fn 167: module size
+        + GS + b"(k\x03\x001E" + bytes([_QR_EC[ec]])  # fn 169: error correction
+        + GS + b"(k" + bytes([store_len & 0xFF, store_len >> 8]) + b"1P0" + payload  # fn 180: store
+        + GS + b"(k\x03\x001Q0"  # fn 181: print the stored symbol
+    )
+
+
 def encode(text: str) -> bytes:
     """Encode text for the printer, never raising on odd input.
 
@@ -212,6 +246,11 @@ class Ticket:
         self._buf += feed(lines)
         return self
 
+    def qr(self, data: str, *, module: int = 8) -> "Ticket":
+        """A centred QR code drawn by the printer. See `qr_code`."""
+        self._buf += ALIGN_CENTER + qr_code(data, module=module) + ALIGN_LEFT
+        return self
+
     def cut(self) -> "Ticket":
         # Feed before cutting or the cutter slices through the last lines --
         # the blade sits some way above the print head.
@@ -244,13 +283,23 @@ def preview(payload: bytes) -> str:
     ):
         out = out.replace(token, b"")
 
-    # Whatever is left: ESC d n (feed) is the only multi-byte command we emit.
+    # Whatever is left: ESC d n (feed) and the GS ( k QR functions are the
+    # only multi-byte commands we emit. A QR "store" is rendered as
+    # `[QR: <data>]` so a preview (and a test) can see what the code says;
+    # the model / size / print commands around it vanish.
     cleaned = bytearray()
     i = 0
     while i < len(out):
         if out[i : i + 2] == ESC + b"d" and i + 2 < len(out):
             cleaned += b"\n" * out[i + 2]
             i += 3
+            continue
+        if out[i : i + 3] == GS + b"(k" and i + 5 <= len(out):
+            length = out[i + 3] + out[i + 4] * 256
+            body = out[i + 5 : i + 5 + length]
+            if body[:3] == b"1P0":
+                cleaned += b"[QR: " + body[3:] + b"]\n"
+            i += 5 + length
             continue
         cleaned.append(out[i])
         i += 1

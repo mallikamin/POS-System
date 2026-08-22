@@ -247,18 +247,93 @@ def test_zero_service_fee_prints_no_line():
     assert "Platform Fee" not in out
 
 
-def test_tip_prints_as_its_own_line_and_rides_the_collect_total():
-    """OI-81: on a cash order the rider collects the TOTAL, which includes the
-    tip -- the Tip line is how driver and shop both see why the total is
-    bigger than the food."""
+def test_qr_code_bytes_follow_the_epson_function_sequence():
+    """Model 2, module size, EC level, store, print -- in that order, with the
+    store length = data + 3 as the spec requires. Checked byte for byte
+    because a printer that gets one wrong byte prints nothing, silently."""
+    out = escpos.qr_code("ab", module=8, ec="M")
+    assert out == (
+        b"\x1d(k\x04\x001A2\x00"
+        b"\x1d(k\x03\x001C\x08"
+        b"\x1d(k\x03\x001E1"
+        b"\x1d(k\x05\x001P0ab"
+        b"\x1d(k\x03\x001Q0"
+    )
+
+
+def test_qr_store_length_spans_two_bytes_for_long_data():
+    data = "x" * 300  # 303 = 0x012F
+    out = escpos.qr_code(data)
+    assert b"\x1d(k\x2f\x011P0" + data.encode() in out
+
+
+def test_ticket_qr_is_centred_and_previews_as_its_payload():
+    t = escpos.Ticket().text("before").qr("https://g.page/r/abc/review").text("after")
+    assert escpos.ALIGN_CENTER + escpos.GS + b"(k" in t.bytes()
+    assert t.preview() == "before\n[QR: https://g.page/r/abc/review]\nafter\n"
+
+
+def test_tip_is_folded_into_subtotal_and_never_printed_as_its_own_line():
+    """OI-89 (Imran, 2026-08-22): a visible Tip line on a cash order told the
+    rider how much of the COLLECT total was "theirs". The tip now rides inside
+    Subtotal; TOTAL and COLLECT still include it so the rider brings the full
+    amount back. Reverses the print half of OI-81 only -- the column, the
+    checkout and the reports are untouched."""
     out = _preview(_order(tip=350, total=2050))
-    assert "Tip" in out
-    assert "£3.50" in out
-    assert "COLLECT £20.50" in out  # unpaid ticket collects the tip too
+    assert "Tip" not in out
+    subtotal_line = next(line for line in out.splitlines() if line.startswith("Subtotal"))
+    assert subtotal_line.endswith("£20.50")  # 17.00 food + 3.50 tip
+    assert "£17.00" not in out  # the food-only figure must not leak anywhere
+    assert "COLLECT £20.50" in out  # unpaid ticket still collects the tip
 
 
-def test_zero_tip_prints_no_line():
+def test_paid_order_with_tip_also_folds_it_into_subtotal():
+    out = _preview(_order(tip=200, total=1900, payment_status="paid"))
+    assert "Tip" not in out
+    subtotal_line = next(line for line in out.splitlines() if line.startswith("Subtotal"))
+    assert subtotal_line.endswith("£19.00")
+    assert "PAID ONLINE" in out and "COLLECT £" not in out
+
+
+def test_tip_folds_in_before_fees_so_fee_lines_are_unchanged():
+    out = _preview(_order(tip=350, service_fee=70, delivery_fee=300, total=2420))
+    lines = [line for line in out.splitlines() if line.strip()]
+    money_lines = [line for line in lines if line.startswith(("Subtotal", "Platform", "Delivery", "TOTAL"))]
+    assert [line.split()[0] for line in money_lines] == ["Subtotal", "Platform", "Delivery", "TOTAL"]
+    assert money_lines[0].endswith("£20.50")
+    assert money_lines[1].endswith("£0.70")
+    assert money_lines[2].endswith("£3.00")
+    assert money_lines[3].endswith("£24.20")
+
+
+def test_review_qr_prints_after_the_payment_banner_when_configured():
+    """OI-90: same link as the review email, at the foot of the slip."""
+    url = "https://g.page/r/Ccxrn-XKIKecEBI/review"
+    out = _preview(_order(), review_url=url)
+    assert f"[QR: {url}]" in out
+    assert out.index("NOT PAID") < out.index("Google review") < out.index("[QR:")
+    assert out.index("[QR:") < out.rindex("=" * 48)  # QR sits above the closing rule
+
+
+def test_no_review_url_prints_no_qr():
+    for url in (None, "", "   "):
+        payload = build_online_order_ticket(_order(), shop_name="Chick Shack", review_url=url)
+        assert escpos.GS + b"(k" not in payload
+        assert "Google review" not in escpos.preview(payload)
+
+
+def test_review_qr_is_on_every_copy():
+    payload = build_online_order_ticket(
+        _order(), shop_name="Chick Shack", copies=3, review_url="https://g.page/r/x/review"
+    )
+    assert payload.count(b"1P0https://g.page/r/x/review") == 3
+    assert payload.count(escpos.CUT) == 3
+
+
+def test_zero_tip_leaves_subtotal_as_the_food_figure():
     out = _preview(_order(tip=0))
+    subtotal_line = next(line for line in out.splitlines() if line.startswith("Subtotal"))
+    assert subtotal_line.endswith("£17.00")
     assert "Tip" not in out
 
 
