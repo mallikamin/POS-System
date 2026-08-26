@@ -73,6 +73,158 @@ undiagnosed), **OI-83** (campaign sent, **zero second orders**; decide whether t
 (what3words reply drafted, unsent), one-click unsubscribe, HSTS, and Malik's tip-flow and chips-flow
 UATs.
 
+## 🟢 2026-08-26 ~11:45 UK. BOTH FZ LOCATIONS ARE LIVE AND VERIFIED ON PRODUCTION (`815a21e`). Chick Shack byte-identical through two deploys.
+
+**Martin's demo link: `https://eats.sitaratech.info/login?shop=martin-fz`.** Credentials in
+`backend/app/scripts/seed_fz_llc.py` (`ADMIN_USER`), not repeated here.
+
+📌 **Deadline corrected on Malik's instruction: the real target is FRIDAY 2026-08-28**, not
+Monday. Build + UAT + fixes done Friday, link and proposal to Martin so he and his partners review
+over the weekend, reconnect Monday 08-31.
+
+**The two locations, exactly as described on the call:**
+| | Location 1 | Location 2 |
+|---|---|---|
+| Name / code | Production & Wholesale (PROD) | Delivery Kitchen (DEL) |
+| Type | production | delivery |
+| Billing | **A4 VAT tax invoice**, legal name `FZ LLC`, TRN `100123456700003` | thermal ticket |
+| Stock | 15 ingredients incl. 3 produced sub-recipes | 3 ingredients |
+
+**Shipped in `815a21e`** (migration `x0y1z2a3b4c5`, entirely additive): `locations`,
+`location_stock`, `sales_channels`, `stock_transfers`, `stock_transfer_items`; `orders` gained
+`location_id`, `sales_channel_id`, `channel_commission_minor`; `inventory_transactions` gained
+`location_id`. Five new services (stock, production, transfer, location, tax invoice), 20 new API
+routes, **seven new admin screens** plus sub-recipe support in the recipe builder.
+
+🟢 **VERIFIED ON PRODUCTION THROUGH THE PUBLIC URL, 43 checks, all passing** (not the internal
+network, not the test suite): both locations returned; stock scoped per site and isolated;
+low-stock alert fires on the seeded Espresso Beans shortage; a production run consumed 6 inputs and
+raised Croissant Dough 15 to 25 kg; a transfer created, sent, received, and correctly refused a
+second receipt (400) and a same-location transfer (422); profitability breaks down by all 6 channels
+and both sites; and the A4 tax invoice returns with the legal name, TRN, sequential number
+`FWZ-00002`, VAT shown separately and lines reconciling to the total.
+
+📌 **The number that makes Martin's own case for him: Talabat nets 66.25% margin against
+80.2% direct.** That ~14-point gap is exactly what he said off-the-shelf reporting hides, and it is
+now visible in the demo data.
+
+🔴 **THREE REAL BUGS FOUND AND FIXED while building. All three were invisible to the test suite:**
+1. **`InventoryTransaction.transaction_date` was missing `DateTime(timezone=True)`** - every stock
+   movement would have failed against Postgres. Never hit only because no tenant had ever held
+   stock. Same class as the `recipes.effective_date` bug. **A scan of all 33 datetime columns found
+   no others**; `StockCount.count_date` is correctly a `Date` and was deliberately left alone.
+2. **The recipe LIST endpoint did no enrichment at all**, so every recipe reached the UI unlabelled.
+   Four duplicated inline blocks collapsed onto one helper that also names sub-recipes.
+3. 🔴 **Product cost was multiplied by 100 in the profitability report.** `cost_per_serving` is
+   already in minor units. This overstated cost 100x and produced margins of -1790%. **The unit test
+   had the same wrong assumption baked into its fixture, so only end-to-end verification against the
+   real API caught it.** Lesson worth keeping: a test written by the same person who wrote the bug
+   will happily agree with it.
+📌 Also found: **`IngredientManagementPage` and `RecipeBuilderPage` were commented out of the
+router** since BOM Phase 3, so the whole inventory UI was unreachable. That is *why* a
+Postgres-only bug survived a "100% complete" status. Both are now routed.
+
+**Chick Shack, measured before and after BOTH deploys and the seed, never assumed:**
+227 orders, newest `2026-08-25 20:03:19.780197+00`, 172 customers, 222 payments, **0 locations** (it
+is single-site and stays that way). All four hostnames return 200 each serving its own certificate.
+Orbit containers untouched. Only backend log output is the known trapped `bcrypt.__about__` noise.
+
+**Rollback:** `/root/backups/pos_system_20260826T114101Z_pre_fzllc.sql.gz` (42 tables, footer
+verified), images tagged `pos-system-backend:pre-fzllc` / `pos-system-frontend:pre-fzllc`, migration
+`x0y1z2a3b4c5` has a tested `downgrade()` (upgrade, downgrade, upgrade round-trip verified locally).
+
+⚠️ **STILL NOT BUILT, and must not be oversold to Martin:** supplier master + PO workflow +
+email PO sending; OCR goods receiving; AI-assisted PO quantity suggestion; Tier-B e-commerce; and
+**the two-tier written quote itself**, which is the actual deliverable Martin asked for.
+
+🟢 **Universal system-admin now applied to ALL FOUR production tenants** (chick-shack,
+cosa-nostra, demo-restaurant, martin-fz) on Malik's instruction, after a read-only pre-flight
+confirmed no PIN collision would lock any staff member out. Verified by live login, password AND
+PIN, on every tenant. Supersedes the "NOT applied to production" note below.
+
+## 🟢 2026-08-26 ~10:32-10:50 UK. FZ LLC DEPLOYED TO PRODUCTION (`902e35f`). `martin-fz` IS LIVE ON `eats.sitaratech.info`. Chick Shack verified byte-identical before and after. Tenant isolation PROVEN, not assumed.
+
+📌 **DECISION, Malik 2026-08-26, overriding an earlier plan of mine:** **one host serves every
+tenant** — `eats.sitaratech.info` with `?shop=<slug>` — **not a subdomain per client.** A subdomain
+per tenant would mean DNS + cert + nginx block + a deploy for every new client, which does not
+scale. `sitaratech.info` is **Sitara's own domain** (`chickshackg84.com` is Imran's); an earlier
+note in this session wrongly framed `eats.` as "Imran's URL" and that framing is **withdrawn**.
+📌 Consequence: **no DNS record, no new certificate and no nginx config change were needed**,
+which removed the single riskiest part of the plan outright.
+
+**Martin's demo link: `https://eats.sitaratech.info/login?shop=martin-fz`.** Credentials are in
+`backend/app/scripts/seed_fz_llc.py` (`ADMIN_USER`) — deliberately **not** repeated here.
+
+**Rollback assets, all verified, all still on the box:**
+- `/root/snapshots/fzllc_pre_deploy_20260826T100702Z/` — nginx conf, compose file, `.env.demo`,
+  mounts, cert list, container/image IDs, git state.
+- DB dumps: `/root/backups/pos_system_20260826T100702Z_pre_fzllc.sql.gz` (pre-deploy) and
+  `pos_system_20260826T103916Z_pre_seed_martinfz.sql.gz` (pre-seed). Both size-checked **and**
+  footer-checked for truncation.
+- Images tagged `pos-system-backend:pre-fzllc` / `pos-system-frontend:pre-fzllc`.
+
+**Migration was REHEARSED before it went near production** — the standard worth keeping. The real
+production dump was restored into a local scratch DB (`pos_rehearsal`) and `w9x0y1z2a3b4` run
+against it: applied cleanly on `v8w9x0y1z2a3`, chick-shack's 227 orders / 172 customers /
+222 payments unchanged, all three constraints created, no model-vs-DB drift.
+📌 **The reason it was safe is worth recording: `recipes` and `ingredients` were EMPTY on
+production for every tenant**, so the new `ck_recipe_exactly_one_target` check constraint had no
+existing row it could reject. Verify that again before any future constraint-adding migration.
+
+**Chick Shack, measured before and after, not assumed:**
+
+| | Baseline 10:07 | After deploy + seed |
+|---|---|---|
+| chick-shack orders | 227, newest `2026-08-25 20:03:19.780197+00` | **identical** |
+| customers / payments | 172 / 222 | **172 / 222** |
+| menu_items (all tenants) | 338 | 342 (+4 = martin-fz's own) |
+| Orbit containers | up | untouched, up 2-4 months |
+
+All four hostnames returned **HTTP 200 each serving its own certificate**: `eats.sitaratech.info`,
+`pos-demo.duckdns.org`, `orbit-voice.duckdns.org` and `parkcity.sitaratech.info`.
+⚠️ **The deploy workflow only checks the first three** — `parkcity` (Orbit's) was checked by hand.
+Worth adding to `deploy-production.yml`'s verify loop.
+
+🟢 **TENANT ISOLATION PROVEN ON THE LIVE PUBLIC PATH** (not the internal network, and not asserted
+from the architecture). Martin's real token, through nginx:
+- `/customers/search?phone=07` — a term matching **101 real chick-shack phone numbers** — returned
+  **0 rows**. Broadest probes `7` and `1` also **0 rows**.
+- Foreign record IDs → **404**. His menu returns his own 4 items, orders **0** (not 227).
+- **Martin's credentials on `chick-shack` → 401 rejected.**
+- Unknown slug → generic **401**, so tenant names cannot be enumerated.
+- ⚠️ Two earlier "failures" in this run were **my test being wrong**, not the system: a `405`
+  (bare GET on `/customers`, the route is `/customers/search`) and a `422` (param is `phone`, not
+  `q`). A **429** also appeared once — nginx rate-limiting the login endpoint under repeated
+  probes, which is why the re-test backs off. **Do not read a 429 there as an auth result.**
+
+⚠️ **Universal system-admin is STILL NOT on production chick-shack** — verified live, it returns
+**401** there while working on `martin-fz`. Unchanged from the checkpoint; needs Malik's explicit
+go-ahead as its own step.
+
+🔴 **NOT VERIFIED, and it is the exact shape of the Meta-review failure: nobody has opened the
+demo in a browser.** The API is proven end to end and `/login?shop=martin-fz` serves the SPA shell
+(HTTP 200), but **that the page renders and the login form works visually is UNTESTED** — there is
+no browser tooling in this environment (see [[no-claude-in-chrome]]). **Someone must click the link
+before it goes to Martin.**
+
+📌 **Two operational lessons from this deploy, both new:**
+1. **The backend container has a read-only rootfs**, so `docker cp` into it fails. To run a one-off
+   script against production, build a throwaway image `FROM pos-system-backend` with
+   `COPY --chmod=644` (mode matters — the container runs as non-root) and
+   `docker run --rm --entrypoint python --network pos-system_default --env-file .env.demo`.
+   The image's own entrypoint runs migrations then uvicorn, so **`--entrypoint python` is required**
+   or the module argument is swallowed by uvicorn.
+2. **The seed scripts are deliberately NOT in git.** `system_admin.py` and `seed_fz_llc.py` hold
+   plaintext passwords and **this repo is public** — they live at `/root/fz-scripts/` (mode 600)
+   on the server and in the local working tree only. Keep it that way.
+
+🔴 **SEPARATE FINDING, RAISED AND NOT ACTED ON (Malik's call): `github.com/mallikamin/POS-System`
+is a PUBLIC repo and `.env.demo` is committed to it** (present in the `50a8002` tree, 3 commits of
+history, not gitignored). `docs/DEPLOYMENT_PLAYBOOK.md:124` describes that file as carrying live
+credentials. Contents were **not** read — the cred-guard hook blocked it and was not worked around.
+📌 Note that flipping the repo to private is **not** a free click: if the server's `git pull`
+authenticates over HTTPS it would break the deploy pipeline. Check that first.
+
 ## 🔴 2026-08-26. FZ LLC (Martin Zubeldia, UAE) — NEW LEAD, HARD DEADLINE MONDAY 2026-08-31. Core technical ask BUILT AND VERIFIED locally; the client-visible demo URL is the blocker and it collides with Chick Shack's deploy pipeline.
 
 ⚠️ **This entire session was missing from STATE.md until this refresh.** Sources reconciled:

@@ -29,6 +29,40 @@ Each entry follows:
 
 ---
 
+### 2026-08-26 — Recipe creation fails against Postgres (missing DateTime timezone)
+- **Error**: `asyncpg.exceptions.DataError: can't subtract offset-naive and offset-aware datetimes`
+  on every `POST /inventory/recipes`, even a plain single-layer recipe.
+- **Context**: Building the FZ LLC multi-layer sub-recipe feature; first attempt at
+  `recipe_service.create_recipe` against the local Postgres dev DB.
+- **Root Cause**: `Recipe.effective_date` (and `StockCount.reviewed_at`) in
+  `backend/app/models/inventory.py` were declared `Mapped[datetime] = mapped_column(...)` without
+  `DateTime(timezone=True)`, unlike `BaseMixin.created_at`/`updated_at` which do it correctly. The
+  DB column was already `timestamp with time zone`; only the SQLAlchemy Python-side type mapping
+  was wrong, so a tz-aware Python datetime got bound against a naive-cast parameter. The test
+  suite runs on SQLite, which doesn't enforce this, so it never caught it — and there was no test
+  file for the recipe/BOM module at all before this session, despite
+  `BOM_IMPLEMENTATION_STATUS.md` marking it "100% Complete."
+- **Fix**: Added `DateTime(timezone=True)` to both columns (no migration needed, DB type was
+  already correct). Added `backend/tests/test_recipe_service.py` (4 tests) so this can't regress
+  silently again. `BOM_IMPLEMENTATION_STATUS.md` got a correction note.
+- **Rule**: Any new `datetime` column must use `DateTime(timezone=True)` explicitly — a bare
+  `Mapped[datetime]` silently defaults to naive and only breaks against Postgres, never against
+  the SQLite test suite. Full writeup in memory `recipe-module-tz-bug-and-test-gap.md`.
+
+### 2026-08-26 — Seed script hits UniqueViolationError on permissions_code_key
+- **Error**: `duplicate key value violates unique constraint "permissions_code_key"` when seeding
+  a new tenant (`martin-fz`).
+- **Context**: `backend/app/scripts/seed_fz_llc.py`, permission-seeding loop copied from
+  `seed_multi_tenant_bom.py`'s pattern.
+- **Root Cause**: `Permission.code` is globally unique across all tenants (see the model's own
+  docstring), not scoped per tenant — the copied pattern filtered the lookup by
+  `Permission.tenant_id == tenant.id`, so it never found the already-existing global row (created
+  by `demo-restaurant`'s or `chick-shack`'s earlier seed) and tried to insert a duplicate `code`.
+- **Fix**: Look up `Permission` by `code` alone and reuse the existing row across tenants; only
+  `Role`/`RolePermission`/`User` rows are actually tenant-scoped.
+- **Rule**: Before reusing another tenant's seed script as a template, check whether the tables it
+  touches are actually tenant-scoped (most are; `permissions` is a documented exception).
+
 ### 2026-02-20 — Floor Editor not loading
 - **Error**: `/floor-editor` page blank or failing to render
 - **Context**: Pre-Phase 6 stabilization — page had not been validated since Phase 4
@@ -846,3 +880,78 @@ Each entry follows:
   line-for-line against a same-clock clean-HEAD worktree run. Identical both sides.
 - **Rule**: for a regression claim, diff two captured RUN OUTPUTS from the same clock, never the
   pytest cache — and never pipe a run you'll need to audit through `tail`.
+
+### 2026-08-26 - Product cost overstated 100x, and the unit test agreed with the bug
+- **Error**: the new profitability report returned product cost 2,914,918 minor units against
+  revenue of 156,500, giving net margins of -1790%.
+- **Context**: first end-to-end run of `/locations/reports/profitability` against the real API with
+  the seeded FZ LLC demo data. The 37 unit tests for the same module were all green.
+- **Root Cause**: `_product_cost_minor` multiplied `Recipe.cost_per_serving` by 100 to "convert
+  major to minor units". `cost_per_serving` is ALREADY in minor units - the seed prints it as
+  `cost_per_serving/100` precisely because of that. **The unit test asserted the same wrong
+  convention (`cost_per_serving=Decimal("2.00")` expecting 200 minor), so it confirmed the bug
+  rather than catching it.**
+- **Fix**: dropped the `* 100`; corrected the test fixture to `Decimal("200")` with a comment
+  naming the convention. Cost then read 29,142 (18.6% food cost) and Talabat's margin came out
+  66.25% vs 80.2% direct, which is plausible and is the client's actual point.
+- **Rule**: a test written by whoever wrote the code will happily encode the same wrong assumption.
+  For anything involving units (money, quantities, rates) verify end-to-end against real data and
+  sanity-check the magnitude, not just the test. "Cost is 18x revenue" is visible in one glance;
+  a green unit test is not.
+
+### 2026-08-26 - Inventory UI had been unreachable since BOM Phase 3
+- **Error**: `IngredientManagementPage` (775 lines) and `RecipeBuilderPage` (944 lines) existed and
+  compiled, but both their `lazy()` imports and their `<Route>` entries were commented out in
+  `frontend/src/App.tsx`.
+- **Context**: surveying the frontend before building the multi-location screens.
+- **Root Cause**: routes were commented out for an earlier client ("hidden for Italian restaurant
+  client") and never re-enabled. `BOM_IMPLEMENTATION_STATUS.md` meanwhile said "100% Complete".
+- **Fix**: both routed, plus seven new screens and nav entries.
+- **Rule**: this is the mechanism by which a Postgres-only bug in recipe creation survived a
+  "100% complete" status for months - nothing could reach the code. When a status doc claims a
+  module is done, check the module is REACHABLE, not just that the files exist.
+
+### 2026-08-26 - Third instance of the missing-timezone column bug
+- **Error**: `InventoryTransaction.transaction_date` declared as `Mapped[datetime]` with a tz-aware
+  default but no `DateTime(timezone=True)`, so asyncpg would raise "can't subtract offset-naive and
+  offset-aware datetimes" on every stock movement against Postgres.
+- **Context**: building the per-location stock engine, which writes an InventoryTransaction on every
+  movement. Never triggered before only because no tenant had ever held stock.
+- **Root Cause**: same as `recipes.effective_date` and `stock_counts.reviewed_at` fixed earlier the
+  same day. The SQLite test suite does not enforce it.
+- **Fix**: added `DateTime(timezone=True)` in the model and an `alter_column` in migration
+  `x0y1z2a3b4c5`. Then scanned ALL 33 datetime columns across every model with a paren-balancing
+  script (a line-based grep gives false positives on multi-line `mapped_column(...)` calls, and
+  initially reported 32 "missing" when only 2 were real). No further instances.
+- **Rule**: when you find this bug class, sweep the whole codebase in the same session rather than
+  fixing the one instance in front of you. And when a scan reports an implausible number of hits,
+  re-check the scanner before reporting it - `StockCount.count_date` is deliberately a `Date` and
+  "fixing" it would have been the real regression.
+
+### 2026-08-26 - Cannot docker cp into the production backend container
+- **Error**: `Error response from daemon: container rootfs is marked read-only`, then
+  `PermissionError: [Errno 13]` after working around it, then
+  `Error: No such option '-m'` from uvicorn.
+- **Context**: running the FZ LLC seed and verification scripts against production without putting
+  their plaintext secrets into the public git repo.
+- **Root Cause**: three separate things. The container has a read-only rootfs; files copied in at
+  root's default mode are unreadable by the non-root app user; and the image's ENTRYPOINT is
+  `start.sh` (migrations then uvicorn), so a bare `python -m ...` argument gets handed to uvicorn.
+- **Fix**: build a throwaway image `FROM pos-system-backend` with `COPY --chmod=644`, then
+  `docker run --rm --entrypoint python -w /app -e PYTHONPATH=/app --network pos-system_default
+  --env-file <the env file> <image> -m app.scripts.<name>`, and `docker rmi` after.
+- **Rule**: this is now the standard way to run a one-off script against production. It touches no
+  running container, needs no code in git, and leaves nothing behind.
+
+### 2026-08-26 - Line-based grep mis-reported a whole class of schema bugs
+- **Error**: `grep "Mapped\[datetime" | grep -v "DateTime(timezone=True)"` reported 32 columns
+  "missing" timezone awareness, including ones in orders, payments and user login that demonstrably
+  work in production every day.
+- **Context**: sweeping for further instances of the asyncpg timezone bug.
+- **Root Cause**: most `mapped_column(...)` declarations span multiple lines, so a line-based grep
+  never sees the `DateTime(timezone=True)` sitting on the next line.
+- **Fix**: wrote a short paren-balancing scanner that captures the whole call. Real count: 2, of
+  which only 1 was a genuine bug.
+- **Rule**: do not report a scan result that contradicts observed reality. Orders and logins work,
+  so "31 broken datetime columns" was evidence the scanner was wrong, not the code. Re-check the
+  tool before raising the alarm.

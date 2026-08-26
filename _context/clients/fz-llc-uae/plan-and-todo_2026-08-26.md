@@ -1,3 +1,53 @@
+# FZ LLC (Martin Zubeldia, UAE) - plan and TODO
+
+## 🔴 STANDING DIRECTIVE, Malik 2026-08-26 (evening). READ BEFORE ANYTHING ELSE.
+
+**Framing, and it changes the priority calculus:** this is a demo, but it is also our chance to
+fine-tune the product and open avenues we can **upsell to other clients**. Malik's words: *"we have
+only to gain here"* and *"we have ample time to play around and plus learn more about UAE market."*
+So build these properly as product capabilities, not as demo props.
+
+**Deadline: Friday 2026-08-28** for build + UAT + fixes. Link and proposal to Martin on Friday so he
+and his partners review over the weekend. Reconnect Monday 2026-08-31.
+
+### Build ALL the actual items Martin asked for
+Everything in his scope doc, not a subset. Still outstanding at the time of writing:
+- Supplier master + PO workflow + **email PO sending**
+- **OCR-based goods receiving**
+- **AI-assisted PO quantity suggestion** (weekly production target -> what and how much to order,
+  from current stock + recipes). ⚠️ Consult the `api-cost-playbook` skill BEFORE writing any
+  LLM-calling code for this.
+- Back-office **quotations** (distinct from the A4 tax invoice, which is built)
+- Tier-B e-commerce, if Tier B is the chosen shape
+
+### Then the three deliverables, in this order
+**(i) Demo video for Martin.** Malik doing the UAT on camera: full system navigation, test
+transactions, dashboards. Needs a script/shot-list Malik can follow while recording. The `video`
+skill exists for editing.
+
+**(ii) UAT playbook as a PDF.** Step by step, so Martin and his partners can replicate every step
+themselves. This is a reference document, so the one-step-at-a-time rule does NOT apply to it -
+write the whole thing.
+
+**(iii) Quotation, two tiers (with / without e-commerce).** Plus:
+- Third-party integration playbook: cost, timeline, and how each route works.
+- 🔴 **Uber Eats does NOT operate in the UAE. It is Careem now.** Raise this with Martin
+  directly rather than silently substituting, since he named Uber Eats himself.
+- Payment gateway comparison: costs, fees, side by side.
+- ⚠️ **State plainly that these are PUBLIC documents referred to, and that actual costs and
+  timelines may vary depending on the third-party integrators.** Do not present researched figures
+  as quoted contract terms.
+- **"Let's be smart about what we send."** Curate. This goes to a man who has had three bad POS
+  experiences and is price-sensitive; volume is not credibility.
+
+**Research leads Malik found (start here, do not re-derive):**
+- Aggregators: **Deliverect**, **GetOrder**
+- Careem developer hub: `https://engineering.careem.com/tech/developerhub`
+- Grubtech integrations: `https://grubtech.com/en/integrations/`
+- Existing research already on disk: `integrations/2026-08-26_delivery-and-payment-research.md`
+
+---
+
 # FZ LLC (Martin Zubeldia, UAE) — plan and TODO
 
 ## 🔴 Standing directive from Malik, 2026-08-26 (later same day) — read this before doing anything else
