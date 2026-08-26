@@ -1,5 +1,131 @@
 # Open items register
 
+**OI-93 🟡 OPENED 2026-08-27, DIAGNOSED NOT BUILT, DEFERRED UNTIL AFTER MARTIN. There is no
+per-tenant module entitlement. Every tenant's admin can reach every module we have ever built.**
+
+> **Opened by Malik's challenge, not by a failure.** While reviewing the AI spend guardrails he
+> said: *"but again, chick shack doesnt have a supplier module given to them. its just website
+> integration. so the backend module has to be given access first to chickshack."* That is a
+> reasonable belief about how the system works. **It is not how it works**, and the correction is
+> worth keeping because pricing decisions rest on it.
+>
+> **Verified three ways, code not assumption:**
+> 1. **No entitlement concept exists in the data model.** No `enabled_modules`, feature-flag or
+>    entitlement field on `tenants` or `restaurant_configs`. There is nothing to grant.
+> 2. **`require_role` checks the role NAME and nothing else** (`backend/app/api/deps.py:93`,
+>    `if current_user.role.name not in roles`). Not the tenant, not what the tenant bought. Every
+>    admin of every tenant passes `require_role("admin", "manager")` identically.
+> 3. **The admin sidebar is a static array with no tenant conditional**
+>    (`frontend/src/components/layout/AdminLayout.tsx:53-54` lists Suppliers and Purchase Orders
+>    unconditionally).
+>
+> Chick Shack has **2 active admin users**. So a Chick Shack admin sees Suppliers and Purchase
+> Orders in the sidebar today, can open them, create a supplier and raise a purchase order.
+>
+> 📌 **The exposure is commercial, not a cost or a security hole.** Nothing crosses a tenant
+> boundary: isolation was proven on the live path on 2026-08-26 (a `martin-fz` token searching `07`
+> returns 0 of 101 matching chick-shack phones; foreign ids 404). Each tenant sees only its own
+> data. The issue is that **Chick Shack was sold the online ordering channel at £300 + £35/month and
+> their login can reach the entire back office**: inventory, recipes, locations, procurement,
+> quotations, profitability. It generalises in both directions with every tenant added: whatever is
+> sold to one is visible to all.
+>
+> ⚠️ **Do not confuse this with the AI tenant allowlist built on 2026-08-27**
+> (`AI_ENABLED_TENANT_SLUGS`). That gate is narrow and specific: it stops other tenants **spending
+> money** on the Anthropic key. It does not, and is not meant to, stop them **seeing modules**.
+> This item is the general case and is much larger.
+>
+> **Shape of the fix, not built, not costed properly:** a tenant-level module list (a column or a
+> small join table), one dependency wrapping the module routers the way `require_role` wraps them
+> today, and nav filtering driven off the same list so the sidebar reflects what a tenant actually
+> has. ⚠️ **The gate has to be on the ENDPOINTS, not only the nav.** Hiding a sidebar item is a
+> filter, not an invariant - the OI-61 family rule, and the single most likely way this gets built
+> wrong.
+>
+> **Deferred: after the FZ LLC / Martin work is complete**, same as OI-92. It blocks nothing today.
+
+**OI-92 🟡 OPENED 2026-08-26, DESIGNED NOT BUILT, DEFERRED BY MALIK UNTIL THE FZ LLC / MARTIN WORK
+IS COMPLETE. Deployment hygiene: a production deploy currently needs a closed-shop window, and that
+does not survive a fifth tenant.**
+
+> **Opened by Malik's question, not from a failure.** Asked while `c23b574` was held back because
+> Chick Shack was mid-service: *"lets say we have 5 tenants. so everytime we have to deploy changes
+> to production we will be locked out because of restaurant timings? whats the most effective and
+> lean way of solving this (dont tell me separate servers for each tenant. the whole pt of multi
+> tenants is to spread the cost out)."* Per-tenant servers are explicitly ruled out and that ruling
+> is correct: it defeats the cost-sharing that multi-tenancy exists for.
+>
+> **📌 The measured facts, so nobody re-derives them.** From the last real code deploy, `815a21e`,
+> GitHub Actions run `32964635563`: the whole server-side script (`scripts/deploy-remote.sh`) ran
+> in **72 seconds** (11:43:44 -> 11:44:56 UTC). The window in which a tenant can actually see a 502
+> is the span from the frontend recreate to the nginx recreate, so **under a minute of that 72**,
+> not the "about 5 minutes" first estimated in session. ⚠️ A deploy whose `requirements.txt`
+> changed busts the pip layer cache and takes materially longer; that case has **not** been measured.
+>
+> **This is not a multi-tenancy problem. It is that the deploy has a stop-the-world step, twice:**
+> 1. **nginx resolves `frontend` and `backend` to container IPs once, at config load, and caches
+>    them.** Recreating either leaves nginx pointing at a dead IP, which is why
+>    `deploy-remote.sh` is forced to recreate nginx as its last act. **nginx is the shared thing**,
+>    so this single behaviour is the entire reason a POS deploy can reach Chick Shack's tablet and
+>    Orbit CRM at all.
+> 2. **The frontend is a container**, so shipping static files requires a container replace.
+>
+> Neither scales with tenant count, and the window is already nearly gone at two tenants: UK 22:00
+> = UAE 01:00 = Pakistan 02:00. At five tenants there is no shared window at all.
+>
+> **The fix, ranked by payoff per hour. Not built, none of it.**
+>
+> **1. Stop nginx caching upstream IPs. ~30 minutes, highest value on the list.** About 10 lines in
+> `docker/nginx/nginx.demo.conf`: Docker's embedded DNS plus a variable in `proxy_pass`, which
+> forces per-request re-resolution instead of resolve-at-startup.
+> ```nginx
+> resolver 127.0.0.11 valid=10s;
+> set $pos_backend  http://backend:8000;
+> proxy_pass $pos_backend;
+> ```
+> **nginx then never needs recreating on a code deploy again**, and Orbit CRM plus every tenant stop
+> being exposed to POS deploys entirely. Costs exactly one deploy window to apply, which is the last
+> window ever needed. ⚠️ Verify with a real browser afterwards, not curl (the box 444s curl by
+> design), and confirm `voice.conf` still loads.
+>
+> **2. Take the frontend out of Docker. ~half a day.** It is static files, and CI already rsyncs
+> `dist/` to the box. Land it in `releases/<sha>/`, `ln -sfn releases/<sha> current`, and have nginx
+> serve `current` from a bind mount. A symlink swap is atomic, so the frontend deploy becomes
+> **genuinely zero downtime with no container operation at all**. Also deletes a container on a 2GB
+> box, which is a second win.
+>
+> **3. Backend: start the new container before stopping the old. ~half a day, do it last.** Only
+> works after (1). Bring up the new backend, wait on its healthcheck, then drop the old one, with
+> `proxy_next_upstream` so in-flight requests retry rather than error. This is the only component
+> that genuinely needs a process restart. Tight on 2GB while both run, which is why it is last.
+>
+> **4. Write down the migration rule we are already following. Free.** Additive-only,
+> expand/contract: never rename or drop a column in the same deploy that changes the code. Add,
+> backfill, switch the code, drop weeks later. The last three migrations were already "entirely
+> additive", so this is documentation, not work. **It matters because none of 1 to 3 save you if a
+> migration takes an exclusive lock on `orders` at 20:00.**
+>
+> **5. Per-tenant feature flags so new code lands dark. Small.** `restaurant_configs` is already the
+> right home. A deploy at 20:00 then changes nobody's screen until a flag is flipped for one tenant.
+>
+> **Items 1, 2 and 4 together get to "push whenever, only the backend blips for a second", for
+> roughly one day of work.** Malik's instruction: **do it after Martin's work is complete**, not
+> before. Worth doing before tenant three, not before tenant five.
+
+**OI-91 🔴 OPENED 2026-08-25, BLOCKED BY META, NOTHING TO BUILD. Run a 24/7 FB Live on the Chick
+Shack Page the way GN/UPN do it from loom-edge-01.** Meta gates live-streaming-from-software on
+**60-day account age + 100 Page followers + Facebook-or-task access**
+(`facebook.com/help/587160588142067`, fetched 2026-08-25). We hold task access, so clause 3 is met.
+🟢 **Clause 1 (60-day age) is CLEARED** — a Page post dated **May 14 2026** (Malik's screenshot,
+2026-08-25) puts the Page at ~103 days, so the "page had to be 2 months old" report via Bilal Waheed
+is a real rule that **we already pass**. 🔴 **Clause 2 fails and is the only thing left: the Page has
+58 followers, needs 100.** Architecture is a solved problem
+(`stream.py` → `POST /{page}/live_videos` → ffmpeg RTMPS loop of a pre-rendered mp4, systemd,
+8h session rotation) but both GN streams are **currently disabled**, `livett-stream` since
+2026-07-07 after Meta repeatedly flagged the number-board VODs and the warning reached Malik's
+personal profile, which is the same profile holding Chick Shack access. Do not build creatives
+before the follower count clears 100. Full detail in `STATE.md` under the OI-91 heading.
+
 **OI-90 ✅ SHIPPED + VERIFIED LIVE 2026-08-22 (`50a8002`). QR printed on the shop printer via native `GS ( k`, scanned from paper to the Google review form by Imran. Was: Google review QR on the printed ticket (Imran's ask,
 from his EposNow receipt).** Reuse `restaurant_configs.google_review_url`. Blocked on two answers from
 Imran: does any slip copy reach the customer at all (if not, this closes with no code), and approval of
@@ -834,8 +960,21 @@ them:
 
 ---
 
-**OI-72 ⏸️ IN PROGRESS, PAUSED 2026-08-20. Meta ads experiment for online ordering (raised 2026-08-07, Imran via
+**OI-72 🟢 SOCIAL HALF DONE 2026-08-25 (ads half still open). Meta ads experiment for online ordering (raised 2026-08-07, Imran via
 Malik). Blocked before it begins, and the measurement layer does not exist.**
+
+🔵 **2026-08-25:** Imran is on a laptop. **He has NO business portfolio** - unverified item (3)
+from the 08-08 diagnosis is answered **NO**. His Business Suite settings show a flat **Profiles**
+list with no People/Partners/System users sections, and clicking `Chick Shack` only switches profile
+and loops back to Home. The portfolio "Assign people" route from the Rang Rasiya walkthrough
+**does not exist on his account**. 🟢 Good news: his advertising restriction **did not fire**
+- no error popup at any point, so *"Doesn't allow me to"* was navigation confusion, not a block.
+Route is now **Page-level access via the Page's Professional dashboard** (no portfolio needed,
+least exposed to the "managing people for businesses" restriction); building him a portfolio is a
+fallback, not the plan. **Nothing granted yet; `amin@sitaratech.info` not entered anywhere.**
+See the 2026-08-25 section in `STATE.md`.
+
+🟢 **RESOLVED 2026-08-25 ~00:34 UK, verified by effect.** Imran granted Page access from the Page-level `Add new` dialog to **`malik.amin187@gmail.com`** (the dialog does accept an email; his "must be friends" was an assumption). Malik accepted, `Chick Shack` now appears in his profile switcher, and `facebook.com/chickshackuk` loads the **full Manage Page rail** (Professional dashboard, Insights, Ad Center, Create ads, Settings). **Full control, not task access.** ⚠️ Sits on the personal account, not `amin@sitaratech.info` - the standing rule is knowingly bent because that address has no Facebook profile. 📌 **Ads are now blocked by ONE thing, not two:** Imran's advertising restriction is routed around (Malik's own clean account holds Ad Center), leaving 🔴 **zero storefront measurement** as the sole blocker. No spend before the pixel exists.
 
 ⏸️ **UPDATED 2026-08-20, and the entry now has TWO halves that must not be run together.**
 Imran offered to hand over Page access so Sitara can run social media and ads. **Split them:**

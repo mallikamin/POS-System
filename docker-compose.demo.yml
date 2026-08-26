@@ -113,6 +113,41 @@ services:
       - STRIPE_SUCCESS_URL=${STRIPE_SUCCESS_URL:-}
       - STRIPE_CANCEL_URL=${STRIPE_CANCEL_URL:-}
       - STRIPE_ACCOUNT_CURRENCY=${STRIPE_ACCOUNT_CURRENCY:-gbp}
+      # AI: OCR goods receiving and the ordering advisor. Third time the same
+      # rule bites in this one file, so it is worth stating once more: this
+      # service has NO `env_file:`, and `--env-file` only feeds ${...}
+      # interpolation. A key sitting in .env.demo that is not named HERE never
+      # reaches the container. The symptom is not an error -- it is the feature
+      # politely reporting "AI is not configured on this server" while the
+      # deploy runs green and the key looks fine on disk.
+      #
+      # Unset leaves both features cleanly OFF, which is the correct default:
+      # receiving and ordering are the product, the model is an assist. Nothing
+      # else in the system changes.
+      #
+      # 🔴 The caps are the answer to "how do I not get a $1000 invoice", and
+      # AI_DAILY_COST_CAP_USD_PER_TENANT is the one that binds. Defaults here
+      # match config.py deliberately: if this file and config.py ever disagree,
+      # the looser of the two wins in production, which is the wrong direction
+      # for a spending limit.
+      #
+      # 🔴 AI_ENABLED_TENANT_SLUGS is the blast-radius control and it is NOT
+      # optional on this box. The key is server-wide; four tenants share this
+      # server. Without a slug list, setting a key enables the feature for ALL
+      # of them and the ceiling becomes the per-tenant cap x 4. Empty = nobody,
+      # which fails loudly and free rather than silently and billed.
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - AI_ENABLED_TENANT_SLUGS=${AI_ENABLED_TENANT_SLUGS:-}
+      - AI_MODEL=${AI_MODEL:-claude-opus-5}
+      - AI_DAILY_CALL_CAP_PER_TENANT=${AI_DAILY_CALL_CAP_PER_TENANT:-200}
+      - AI_DAILY_TOKEN_CAP_PER_TENANT=${AI_DAILY_TOKEN_CAP_PER_TENANT:-2000000}
+      - AI_DAILY_COST_CAP_USD_PER_TENANT=${AI_DAILY_COST_CAP_USD_PER_TENANT:-5.00}
+    # Bind-mounted so logs survive container recreation (every deploy) and are
+    # readable straight off the host -- `read_only: true` below still applies
+    # to everything else. Host dir owned by uid 1000, matching Dockerfile's
+    # pinned posapp uid; created/chowned idempotently in deploy-remote.sh.
+    volumes:
+      - /root/pos-system/logs/backend:/app/logs
     expose:
       - "8000"
     depends_on:

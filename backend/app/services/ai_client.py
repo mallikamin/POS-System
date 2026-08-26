@@ -42,6 +42,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.models.ai_usage import AIUsageLog
+from app.models.tenant import Tenant
 
 logger = logging.getLogger(__name__)
 
@@ -191,7 +192,7 @@ async def usage_summary(
         ).all()
     ]
 
-    today_calls, today_tokens, _today_cost = await daily_usage(db, tenant_id)
+    today_calls, today_tokens, today_cost = await daily_usage(db, tenant_id)
 
     return {
         "date_from": date_from,
@@ -205,13 +206,58 @@ async def usage_summary(
         "by_kind": sorted(by_kind, key=lambda row: -row["calls"]),
         "today_calls": today_calls,
         "today_tokens": today_tokens,
+        # Today's spend against the ceiling that actually binds. Shown together
+        # so the admin screen can answer "how close am I?" without arithmetic.
+        "today_cost_usd": today_cost,
         "daily_call_cap": settings.AI_DAILY_CALL_CAP_PER_TENANT,
         "daily_token_cap": settings.AI_DAILY_TOKEN_CAP_PER_TENANT,
+        "daily_cost_cap_usd": settings.AI_DAILY_COST_CAP_USD_PER_TENANT,
     }
 
 
+async def _check_tenant_enabled(db: AsyncSession, tenant_id: uuid.UUID) -> None:
+    """Is this restaurant allowed to spend at all? (playbook D, blast radius.)
+
+    🔴 The API key is a property of the SERVER; permission to spend it is a
+    property of the TENANT. Conflating the two is how "switch the AI on for this
+    client" quietly means "switch it on for everyone sharing the box". Four
+    production tenants share this one, so without this gate the real ceiling is
+    the per-tenant cap times four, and three of those four never asked for the
+    feature.
+
+    Checked before the caps because it is the cheaper and more restrictive
+    question: a tenant that may not spend at all need not have its daily total
+    computed.
+    """
+    allowed = settings.ai_enabled_tenant_slugs
+    if not allowed:
+        raise AIUnavailable(
+            "AI features are not enabled for any restaurant on this server. "
+            "Everything works by hand; ask your administrator to enable them."
+        )
+
+    slug = (
+        await db.execute(select(Tenant.slug).where(Tenant.id == tenant_id))
+    ).scalar_one_or_none()
+
+    if slug is None or slug.lower() not in allowed:
+        raise AIUnavailable(
+            "AI features are not enabled for this restaurant. Everything works "
+            "by hand; ask your administrator to enable them."
+        )
+
+
 async def _check_caps(db: AsyncSession, tenant_id: uuid.UUID) -> None:
-    calls, tokens, _cost = await daily_usage(db, tenant_id)
+    """Three ceilings, checked before the call. Any one of them stops it.
+
+    Deliberately three, in three different units. The cost cap is the one that
+    answers the question an owner actually asks, but it is derived from a rate
+    table this codebase maintains by hand -- if Anthropic changes its prices and
+    nobody updates `_RATES_PER_MTOK`, the money cap silently drifts. The call and
+    token caps cannot drift, because the API reports those directly. Belt and
+    braces, and the braces are the ones denominated in money.
+    """
+    calls, tokens, cost = await daily_usage(db, tenant_id)
     if calls >= settings.AI_DAILY_CALL_CAP_PER_TENANT:
         raise AIUnavailable(
             "Today's AI allowance for this restaurant has been used up "
@@ -223,6 +269,16 @@ async def _check_caps(db: AsyncSession, tenant_id: uuid.UUID) -> None:
             "Today's AI allowance for this restaurant has been used up. It "
             "resets at midnight UTC. Everything still works by hand in the "
             "meantime."
+        )
+    if cost >= settings.AI_DAILY_COST_CAP_USD_PER_TENANT:
+        # Says the number out loud. "Allowance used up" invites a support call;
+        # "$5.02 of $5.00" tells the operator exactly what happened and that
+        # raising it is a decision someone can make.
+        raise AIUnavailable(
+            "Today's AI spending limit for this restaurant has been reached "
+            f"(about ${cost:.2f} of ${settings.AI_DAILY_COST_CAP_USD_PER_TENANT:.2f}). "
+            "It resets at midnight UTC. Everything still works by hand in the "
+            "meantime, and your administrator can raise the limit."
         )
 
 
@@ -336,6 +392,10 @@ async def call_model(
     key, cap reached, rate limited, model error. It does not raise anything
     else.
     """
+    # Order matters: may this tenant spend at all, then has it spent enough
+    # today, then is the server even configured. Cheapest and most restrictive
+    # question first, and every one of them before any billable call.
+    await _check_tenant_enabled(db, tenant_id)
     await _check_caps(db, tenant_id)
 
     client = _client()

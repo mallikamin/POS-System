@@ -1,12 +1,60 @@
 # STATE — Restaurant POS System
 
-**Last refreshed:** 2026-08-26 (evening, second fresh session via HANDOFF.md; `/refresh` run).
+**Last refreshed:** 2026-08-26 (late evening, THIRD fresh session via HANDOFF.md; `/refresh` run).
+**One drift corrected. No contradiction on substance.** Git re-verified against the real remote,
+not the tracking ref: HEAD **`c23b574`**, `git ls-remote origin main` = **`be7abc8`**,
+**1 UNPUSHED COMMIT**, 144 dirty files. **No code, storefront or server change on this refresh pass.**
+
+⚠️ **Drift corrected on this pass:** the header above previously read HEAD `be7abc8` / **0 unpushed**,
+and this file recorded the procurement work only as "built, local only" without naming a commit.
+It was committed as **`c23b574`** (42 files, +13,555 lines) at the end of the previous session and
+is **unpushed**. The substance was already right (built, verified locally, not deployed); only the
+commit identity and the unpushed count were stale. `c23b574` audited this pass: **it contains no
+proposal file and no credential-bearing script** - the `proposal/`, `seed_fz_llc`, `system_admin`
+and `verify_*` files are all still correctly untracked, and all six are present on disk.
+
+🔴 **DEPLOY IS BLOCKED ON A TIMING DECISION, NOT ON THE CODE.** At this refresh it is **19:36 UK
+on Wednesday 2026-08-26**. Chick Shack trades **16:00-22:00 UK, 7 days**
+(`_context/clients/chick-shack-uk/menu.md`), so the shop is **OPEN and mid-service**, closing at
+**22:00 UK = 02:00 PKT**. `git push origin main` IS the deploy and it recreates the SHARED nginx
+serving Chick Shack's live tablet.
+
+✅ **DECIDED by Malik, 2026-08-26 ~19:50 UK: WAIT FOR THE 22:00 UK CLOSE.** *"lets resume when Chick
+Shack shop closes in 2 hours. i'll ping u when we are ready."* **Nothing has been pushed and nothing
+on the server has been touched.** `c23b574` sits unpushed, deliberately. **He pings to resume; do not
+push unprompted.** The deploy sequence to run on his ping is in `PAUSE_CHECKPOINT_2026-08-26-C.md`:
+measure the Chick Shack baseline first (do not trust the recorded numbers), `pg_dump`, push, watch
+`Deploy to Production` only, verify all FOUR hostnames with a browser UA including
+`parkcity.sitaratech.info` which the workflow does not check, then re-measure Chick Shack.
+
+📌 **`OI-93` opened on this pass, DEFERRED until after Martin. There is no per-tenant module
+entitlement in this system.** Malik believed Chick Shack would need the supplier module "given
+access" before they could use it. **They would not.** Verified three ways: no entitlement field
+exists on `tenants` or `restaurant_configs`; `require_role` checks only the role NAME
+(`deps.py:93`); the admin sidebar is a static array with no tenant conditional
+(`AdminLayout.tsx:53-54`). Chick Shack has 2 active admin users, so their admin sees Suppliers and
+Purchase Orders today. **Tenant data isolation is NOT affected and remains proven** - the exposure
+is commercial (they bought the online channel and can see the whole back office), not a leak.
+⚠️ Not the same thing as the AI `AI_ENABLED_TENANT_SLUGS` allowlist, which only stops other tenants
+SPENDING, not SEEING. Full detail in `_state/open-items.md`.
+
+📌 **`OI-92` opened on this pass and DEFERRED by Malik until Martin's work is complete.** Deployment
+hygiene: the deploy needs a closed-shop window today, and that does not survive a fifth tenant. The
+measured facts and the full ranked fix are in `_state/open-items.md`. In one line: the deploy has a
+stop-the-world step because **nginx caches upstream container IPs at config load**, which is the only
+reason a POS deploy can reach Chick Shack and Orbit CRM at all; a `resolver 127.0.0.11` plus a
+variable `proxy_pass` removes it in about 10 lines, and serving the frontend from a bind-mounted
+symlink removes the other one. **Measured, not estimated: the whole server-side deploy script runs in
+72 seconds** (run `32964635563`), and the window a tenant can actually 502 in is under a minute of
+that. An earlier in-session estimate of "about 5 minutes" was a guess and was wrong.
+
+**Last refreshed (previous):** 2026-08-26 (evening, second fresh session via HANDOFF.md; `/refresh` run).
 **Verified current, four small drifts corrected, no contradiction on substance.**
 Git re-verified this pass, against the real remote not the tracking ref: HEAD `be7abc8`,
 `git ls-remote origin main` = `be7abc8`, **0 unpushed**, 138 dirty files. **No code, storefront or
 server change on this refresh pass.**
 
-⚠️ **Drifts corrected on this pass:**
+⚠️ **Drifts corrected on that pass:**
 1. **`HANDOFF.md` and `PAUSE_CHECKPOINT_2026-08-26-B.md` both name HEAD as `815a21e`. It is
    `be7abc8`.** The docs commit `be7abc8` was made and pushed at 17:07 PKT, after the checkpoint
    was written. `0 unpushed` still holds, so the substance is unchanged, but both files are one
@@ -103,6 +151,105 @@ undiagnosed), **OI-83** (campaign sent, **zero second orders**; decide whether t
 **OI-82** (discount analysis, nothing sent to Imran), **OI-80** (CI red, no signal), **OI-76**
 (what3words reply drafted, unsent), one-click unsubscribe, HSTS, and Malik's tip-flow and chips-flow
 UATs.
+
+## 🟢 2026-08-27 (late). AI SPEND GUARDRAILS BUILT FOR MARTIN. A $5/DAY MONEY CAP, AND THE BLOCKER THAT WOULD HAVE MADE THE KEY DO NOTHING.
+
+**Malik's instruction:** *"yes we set it up for Martin with proper guardrails and rate limiting. we
+dont want martin to be scanning 500 documents. just put a daily limit of lets say $5 for now (should
+cover 3-5 docs at least) -- make sure proper playbook caching optimizations are in place. need no
+surprises with a $1000 bill on API."* `api-cost-playbook` invoked, as the global rule requires.
+
+**Not deployed. Local only, uncommitted.** Rides the same window as `c23b574`.
+
+🔴 **THE BLOCKER, and it would have cost an hour at 02:00.** `docker-compose.demo.yml` is the
+PRODUCTION compose file and it had **no AI environment passthrough at all**. The backend service
+there has no `env_file:`, and `--env-file` only feeds `${...}` interpolation, so a key placed in
+`.env.demo` would **never have reached the container**. The symptom is not an error: the deploy runs
+green, the key looks right on disk, and the feature politely reports "AI is not configured on this
+server". The file already documents this exact trap twice, for email and for Stripe. **Fixed: all
+five AI vars now declared there.**
+
+🔴 **There was no money cap, and the caps that existed were not what Malik thinks they were.**
+The shipped caps were 200 calls and 2,000,000 tokens per tenant per day. Worked out against real
+`claude-opus-5` pricing, those two together still permit about **$27.50 a day, roughly $825 a
+month**: 200 calls x 4,000 max output = 800k output @ $25/Mtok = $20.00, plus the remaining 1.2M of
+the token cap as input @ $6.25/Mtok = $7.50. **His "$1000 bill" fear was quantitatively justified
+under the settings that were already in place.** A cap denominated in tokens is a cap in a unit
+nobody budgets in.
+
+**Built: `AI_DAILY_COST_CAP_USD_PER_TENANT`, default `5.00`.** Per tenant, per UTC day, checked
+before the call, degrading gracefully like the others. All three caps kept deliberately: the money
+cap binds and is the one to tune, but it derives from a rate table kept by hand and drifts if
+Anthropic changes prices; the call and token caps are reported by the API and cannot drift.
+
+🔴 **SECOND GAP, FOUND BY MALIK'S QUESTION, NOT BY ME: the feature was not Martin-only.** He asked
+*"the API calls live only for martin. no other tenant is getting API calls feature?"* **The answer
+was no.** The key is a server-wide setting and the two AI endpoints are gated by
+`require_role("admin", "manager")` and nothing else. **No per-tenant AI flag existed anywhere** in
+the codebase (grepped, not assumed). So a key on production would have switched the feature on for
+**all four production tenants at once**, each with its own separate $5/day cap. **The true ceiling
+was $20/day, about $600/month, not the $150 first reported to him.** Corrected out loud.
+
+**Built: `AI_ENABLED_TENANT_SLUGS`, a comma-separated tenant allowlist**, enforced in
+`_check_tenant_enabled` at the same single chokepoint, **before** the caps (a tenant that may not
+spend at all should never have its daily total computed). **Empty means NO tenant, deliberately** -
+a second opt-in lock alongside the key, failing in the safe direction. A forgotten setting surfaces
+instantly as "AI is not enabled for this restaurant" and costs nothing; the opposite default would
+fail silently by spending money. With `AI_ENABLED_TENANT_SLUGS=martin-fz` the ceiling is back to
+**$5/day total**, and Chick Shack, parkcity and demo-restaurant cannot spend a cent.
+
+⚠️ **Correcting Malik's number, because he sized the cap from it.** He expects $5/day to cover
+"3-5 docs". **The measured cost is $0.026 per delivery-note scan**, so **$5/day is roughly 190
+scans**, not 3-5. Off by about 40x. $5 is still a safe ceiling ($150/month worst case, versus $825
+before), but if the intent was "a handful of documents", the number he actually wants is nearer
+**$0.50/day (~19 scans)**. **His call, not made yet.**
+
+⚠️ **It is a ceiling, not a budget.** Checked before the call, so a tenant at $4.99 is allowed one
+more request. Worst overshoot is one call, a few cents.
+
+**Caching, checked rather than assumed.** The B1 rule is genuinely implemented, not just claimed:
+the static instruction block is cached, and the user message carries only the image plus a compact
+numbered allowlist the model answers with INDEXES into, so the ingredient master is never sent.
+📌 **Honest caveat worth keeping:** `cache_control: ephemeral` has a ~5 minute TTL. The measured
+"1,563 written once, 3,126 read back" came from three calls in quick succession during verification.
+In Martin's real pattern, a few scans hours apart, **almost every call will be a cache write at
+1.25x, not a read at 0.1x.** The difference is about $0.002 a call, so it is not worth changing, but
+the caching should not be sold as a saving in this workload.
+
+**Tests: 17 new, in `backend/tests/test_ai_caps.py`. The caps had ZERO coverage before this.**
+They were the only thing between a client tenant and a runaway invoice and nothing checked they
+fired. Covers all three caps, the per-tenant isolation (Chick Shack cannot be locked out by the FZ
+demo burning its allowance), UTC day rollover, failed-calls-still-count, an unknown model falling
+back to the dearest rate rather than zero, and an F2 tripwire pinning Anthropic call sites to exactly
+one file so a second uncapped one fails the build.
+
+🔴 **A mistake of mine, recorded rather than buried: three of those tests made REAL, BILLED API
+calls** on the first run, against Thrive Timesheet's key, which is still in the local container's
+environment. They asserted "AI is not configured" as proof a cap had not fired, and the container
+**is** configured. Cost is a fraction of a cent, but the principle is not: a test suite must never be
+able to spend money. Fixed with an `autouse` fixture blanking the key for every test in the file.
+Written up in `ERROR_LOG.md`.
+
+**Full suite: 751 passed, 12 failed, 2 errors. Zero regressions.** The baseline is 736 passed with
+10 failures; 736 + 17 new = 753, minus 2 = 751. The two extra failures are
+`test_public_tenant_routing.py`'s date-range tests, **named explicitly in OI-63** as pre-existing
+date-boundary failures, and the UTC/local date boundary rolled over mid-session. Verified against the
+register, not assumed.
+
+**`api-cost-playbook` outbound loop completed, as the global rule requires.** Logged in
+`PLAYBOOK.md` Section L. Back-applicability to Thrive **verified by grep, not assumed**: Thrive has
+no USD cap and no cost column at all, so it applies, and an OPEN item is filed in Thrive's `STATE.md`
+for its next `/refresh`.
+
+🔴 **ONE DECISION STILL NEEDED FROM MALIK BEFORE THE KEY GOES ON PRODUCTION: WHICH KEY.** The only
+key touched so far is **Thrive Timesheet's**, borrowed for verification. Putting it on Martin's
+production would bill another project for a client demo, make the spend unattributable, and mean
+revoking it breaks Thrive. **Martin's demo needs its own Anthropic key.** Not resolved.
+
+**Files changed (uncommitted):** `backend/app/config.py`, `backend/app/services/ai_client.py`,
+`backend/app/schemas/procurement.py` (the two new fields, or the API would silently drop them),
+`docker-compose.demo.yml`, `docker-compose.yml`, `.env.example`, new `backend/tests/test_ai_caps.py`,
+`ERROR_LOG.md`, `_state/open-items.md` (OI-92), this file.
 
 ## 🟢 2026-08-26 (evening). THE REST OF MARTIN'S SCOPE IS BUILT AND VERIFIED LOCALLY. NOT YET DEPLOYED — waiting for the UK shop to close.
 

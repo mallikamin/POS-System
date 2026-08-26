@@ -441,8 +441,12 @@ class AIUsageSummary(BaseModel):
     by_kind: list[dict]
     today_calls: int
     today_tokens: int
+    # Today's spend and the ceiling it is measured against. This is the pair an
+    # owner reads; the call and token caps are engineering backstops.
+    today_cost_usd: Decimal
     daily_call_cap: int
     daily_token_cap: int
+    daily_cost_cap_usd: Decimal
 
 
 class ReceivingHistoryRow(BaseModel):

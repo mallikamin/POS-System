@@ -29,6 +29,30 @@ Each entry follows:
 
 ---
 
+### 2026-08-27 (late) - The test suite spent real money, because the dev container had a key
+- **Error**: `Failed: DID NOT RAISE <class 'app.services.ai_client.AIUnavailable'>` on three of the
+  new cap tests. The tests did not just fail; they **made real, billed Anthropic API calls.**
+- **Context**: writing `backend/tests/test_ai_caps.py`, the first test coverage the AI spending caps
+  had ever had. The tests that check a call is ALLOWED through (the complement of the cap tests,
+  without which a permanently-stuck cap would pass) asserted that `call_model` fails with "AI is not
+  configured" - using the absence of a key as the proof the cap had not fired.
+- **Root Cause**: the local dev container **does** have a key. It was injected during the 2026-08-26
+  verification session and is still in the running container's environment. So `_check_caps` passed,
+  `_client()` succeeded, and `messages.parse` went out over the wire. `settings.ai_configured`
+  returned `True`, which is exactly what a correctly configured server looks like. The test had no
+  defence against being run on one.
+- **Fix**: an `autouse` fixture in that file blanking `settings.ANTHROPIC_API_KEY` for **every** test
+  in it. `_client()` now raises deterministically on any machine, configured or not, and no test in
+  the file can reach the network.
+- **Rule**: **a test that exercises a paid-API code path must blank the credential itself, not
+  assume the environment lacks one.** Two separate failures were hiding in that assumption. First, a
+  suite must never be able to spend money, and "it only bills on a developer's machine" is not a
+  mitigation, it is the most likely machine. Second, a test that passes because an ambient credential
+  happens to be absent is not testing a property, it is testing the weather - it would flip to green
+  or red on a different box with no code change. Blank the key in the fixture and the test means the
+  same thing everywhere. Same family as "a green assertion that proved nothing" below: both are tests
+  that reported a result they had not actually established.
+
 ### 2026-08-26 (evening) - A just-written record was invisible to the request that wrote it
 - **Error**: `500 {"detail":"Receipt vanished after write."}` on the first end-to-end goods
   receipt. The row was in the database; the API could not see it.

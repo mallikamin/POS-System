@@ -55,9 +55,14 @@ services:
       # simply off; nothing else changes. Caps are per tenant per UTC day and
       # are enforced in `ai_client`, not here.
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      # Empty = no tenant may spend. Same semantics as production, on purpose:
+      # a dev default of "everyone" would mean the gate is never exercised here
+      # and first meets reality on the box that has a real key.
+      - AI_ENABLED_TENANT_SLUGS=${AI_ENABLED_TENANT_SLUGS:-}
       - AI_MODEL=${AI_MODEL:-claude-opus-5}
       - AI_DAILY_CALL_CAP_PER_TENANT=${AI_DAILY_CALL_CAP_PER_TENANT:-200}
       - AI_DAILY_TOKEN_CAP_PER_TENANT=${AI_DAILY_TOKEN_CAP_PER_TENANT:-2000000}
+      - AI_DAILY_COST_CAP_USD_PER_TENANT=${AI_DAILY_COST_CAP_USD_PER_TENANT:-5.00}
     expose:
       - "8000"
     depends_on:

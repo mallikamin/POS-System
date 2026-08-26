@@ -1,4 +1,5 @@
 import sys
+from decimal import Decimal
 
 from pydantic_settings import BaseSettings
 
@@ -185,6 +186,25 @@ class Settings(BaseSettings):
     # Sized for a two-site operator; raise them deliberately before scaling.
     # -----------------------------------------------------------------
     ANTHROPIC_API_KEY: str = ""
+    # 🔴 WHICH TENANTS MAY SPEND. The key is server-wide; this is not.
+    #
+    # Without this, setting a key switches the AI features on for EVERY tenant
+    # on the box at once, because the endpoints are gated by role and nothing
+    # else. Four production tenants share this server, so the ceiling would be
+    # the per-tenant cap multiplied by four, which is not what "enable it for
+    # this client" means to anybody who asks for it.
+    #
+    # Comma-separated tenant slugs. EMPTY MEANS NO TENANT, deliberately: this is
+    # a second, independent opt-in lock alongside the key, and the safe failure
+    # is the loud one. A forgotten setting here shows up instantly as "AI is not
+    # enabled for this restaurant" during testing and costs nothing; the reverse
+    # default would fail silently, by spending money.
+    #
+    # A `str` and not a `list[str]` on purpose -- see CLAUDE.md: pydantic-settings
+    # v2 tries to JSON-decode a list-typed env var before any validator runs, so
+    # a comma-separated value raises. Split it in the property below, the same
+    # way CORS_ORIGINS does.
+    AI_ENABLED_TENANT_SLUGS: str = ""
     # One constant, one place. Overridable so the operator can choose a cheaper
     # tier for their own volume; that is their decision, not a default.
     AI_MODEL: str = "claude-opus-5"
@@ -195,6 +215,43 @@ class Settings(BaseSettings):
     AI_MAX_UPLOAD_BYTES: int = 8 * 1024 * 1024
     AI_DAILY_CALL_CAP_PER_TENANT: int = 200
     AI_DAILY_TOKEN_CAP_PER_TENANT: int = 2_000_000
+    # 🔴 THE CAP THAT ACTUALLY BOUNDS THE INVOICE, and the one to change.
+    #
+    # The two caps above are denominated in the wrong unit for the question
+    # anybody actually asks, which is "what is the worst this can cost me?".
+    # Worked out on `claude-opus-5` with AI_MAX_OUTPUT_TOKENS=4000, the two of
+    # them together still permit ~$27.50 a day, about $825 a month:
+    #   200 calls x 4000 output tokens = 800k out  @ $25/Mtok = $20.00
+    #   remaining 1.2M of the token cap as input   @ $6.25/Mtok = $7.50
+    # That is a surprise invoice, which is precisely what a cap is for.
+    #
+    # So spend is capped in money, per tenant per UTC day, summed from the
+    # `estimated_cost_usd` column that every call already writes. Checked
+    # BEFORE the call, like the others, and degrading the same graceful way.
+    #
+    # ⚠️ It is a CEILING, not a budget, and it can be overshot by at most one
+    # call: a tenant sitting at $4.99 is still under the cap and is allowed one
+    # more request. Worst realistic overshoot is a few cents.
+    #
+    # ⚠️ The sum is an ESTIMATE from `_RATES_PER_MTOK` in ai_client.py, not an
+    # invoice. If Anthropic changes its prices and that table is not updated,
+    # this cap drifts with it. The Anthropic console is the authority; reconcile
+    # against it. This is why the call and token caps are kept as well: they are
+    # denominated in units that cannot silently drift.
+    #
+    # For scale: a delivery-note scan measured $0.026 on 2026-08-26, so $5.00
+    # is roughly 190 scans a day, not a handful. Set it to what the operator
+    # should be allowed to spend, not to what you expect them to use.
+    AI_DAILY_COST_CAP_USD_PER_TENANT: Decimal = Decimal("5.00")
+
+    @property
+    def ai_enabled_tenant_slugs(self) -> set[str]:
+        """Slugs allowed to spend. Lower-cased so a capitalised env var still works."""
+        return {
+            part.strip().lower()
+            for part in self.AI_ENABLED_TENANT_SLUGS.split(",")
+            if part.strip()
+        }
 
     @property
     def ai_configured(self) -> bool:
