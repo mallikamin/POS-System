@@ -12,6 +12,14 @@ import {
   Shield,
   ArrowLeft,
   LogOut,
+  Carrot,
+  ChefHat,
+  Store,
+  Boxes,
+  ArrowLeftRight,
+  Percent,
+  TrendingUp,
+  Receipt,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { useUIStore } from "@/stores/uiStore";
@@ -28,6 +36,17 @@ const baseNavItems = [
   { to: "/admin/z-report", label: "Z-Report", icon: FileText, end: false },
   { to: "/admin/roles", label: "Roles", icon: Shield, end: false },
   { to: "/admin/discounts", label: "Discounts", icon: Tag, end: false },
+  // Inventory, production and multi-location. Grouped in this order because it
+  // follows the actual workflow: define ingredients, build recipes, hold stock
+  // at a location, move it between locations, then read what it earned.
+  { to: "/admin/ingredients", label: "Ingredients", icon: Carrot, end: false },
+  { to: "/admin/recipes", label: "Recipes", icon: ChefHat, end: false },
+  { to: "/admin/locations", label: "Locations", icon: Store, end: false },
+  { to: "/admin/stock", label: "Stock", icon: Boxes, end: false },
+  { to: "/admin/transfers", label: "Transfers", icon: ArrowLeftRight, end: false },
+  { to: "/admin/channels", label: "Sales Channels", icon: Percent, end: false },
+  { to: "/admin/profitability", label: "Profitability", icon: TrendingUp, end: false },
+  { to: "/admin/tax-invoices", label: "Tax Invoices", icon: Receipt, end: false },
 ];
 
 function AdminLayout() {

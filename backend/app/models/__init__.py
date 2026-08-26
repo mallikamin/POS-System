@@ -32,6 +32,13 @@ from app.models.inventory import (
     InventoryTransaction,
     StockCount,
 )
+from app.models.location import (
+    Location,
+    LocationStock,
+    SalesChannel,
+    StockTransfer,
+    StockTransferItem,
+)
 
 __all__ = [
     "Base",
@@ -75,4 +82,9 @@ __all__ = [
     "RecipeItem",
     "InventoryTransaction",
     "StockCount",
+    "Location",
+    "LocationStock",
+    "SalesChannel",
+    "StockTransfer",
+    "StockTransferItem",
 ]

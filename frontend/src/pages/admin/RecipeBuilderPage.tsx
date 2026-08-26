@@ -1,12 +1,18 @@
 /**
  * Recipe Builder Page
- * Two-panel interface: Menu Items ← → Recipe Editor
- * Auto-calculates food cost % with real-time updates
+ * Two-panel interface: target list (menu items or ingredients) -> Recipe Editor
+ *
+ * A recipe produces EITHER a sellable menu item OR an ingredient. The second
+ * kind is a sub-recipe: dough, a sauce, a stuffing, which other recipes then
+ * consume as an ordinary ingredient line. That is what makes multi-layer
+ * production chains work (raw -> sub-recipe -> intermediate -> final item).
+ * Auto-calculates food cost % with real-time updates.
  */
 
 import { useCallback, useEffect, useState } from "react";
 import {
   ChefHat,
+  Layers,
   Plus,
   Save,
   Trash2,
@@ -38,14 +44,47 @@ import type { MenuItem, Category } from "@/types/menu";
 import type {
   Ingredient,
   Recipe,
+  RecipeCreate,
   RecipeItemCreate,
 } from "@/types/inventory";
 import * as menuApi from "@/services/menuApi";
 import * as inventoryApi from "@/services/inventoryApi";
 import { formatPKR } from "@/utils/currency";
 
+type TargetMode = "menu_item" | "sub_recipe";
+
+/**
+ * The backend 422s on both targets or neither (a DB CHECK constraint plus a
+ * Pydantic validator), so the two keys are modelled as a union rather than two
+ * loose optional fields that could both be filled in by mistake.
+ */
+type RecipeTarget =
+  | { menu_item_id: string; produces_ingredient_id?: never }
+  | { produces_ingredient_id: string; menu_item_id?: never };
+
+type RecipeSavePayload = RecipeTarget & {
+  yield_servings?: number;
+  prep_time_minutes?: number | null;
+  cook_time_minutes?: number | null;
+  instructions?: string | null;
+  notes?: string | null;
+  recipe_items?: RecipeItemCreate[];
+};
+
+/**
+ * IngredientResponse carries is_produced, but the shared Ingredient type has
+ * not caught up and widening it here would touch a type other pages depend on.
+ */
+function isProducedIngredient(ingredient: Ingredient): boolean {
+  return Reflect.get(ingredient, "is_produced") === true;
+}
+
 export default function RecipeBuilderPage() {
   const { toast } = useToast();
+
+  // What this recipe produces: a sellable menu item, or an ingredient
+  const [targetMode, setTargetMode] = useState<TargetMode>("menu_item");
+  const isSubRecipe = targetMode === "sub_recipe";
 
   // Menu items + categories
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
@@ -53,13 +92,21 @@ export default function RecipeBuilderPage() {
   const [categoryFilter, setCategoryFilter] = useState("");
   const [loading, setLoading] = useState(true);
 
-  // Ingredients (for dropdown)
+  // Ingredients (dropdown + sub-recipe target list)
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
+  const [ingredientsLoading, setIngredientsLoading] = useState(true);
+  const [ingredientFilter, setIngredientFilter] = useState("");
 
-  // Selected menu item + recipe
+  // Active recipes: labels which targets already have one, and is how a
+  // sub-recipe is looked up (there is no by-ingredient endpoint)
+  const [activeRecipes, setActiveRecipes] = useState<Recipe[]>([]);
+
+  // Selected target + recipe (exactly one of the two selections is ever set)
   const [selectedMenuItem, setSelectedMenuItem] = useState<MenuItem | null>(
     null
   );
+  const [selectedIngredientTarget, setSelectedIngredientTarget] =
+    useState<Ingredient | null>(null);
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [recipeLoading, setRecipeLoading] = useState(false);
 
@@ -76,6 +123,7 @@ export default function RecipeBuilderPage() {
   const [newIngredientId, setNewIngredientId] = useState("");
   const [newQuantity, setNewQuantity] = useState("");
   const [newWaste, setNewWaste] = useState("");
+  const [addIngredientError, setAddIngredientError] = useState("");
 
   // Delete confirmation
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -107,8 +155,9 @@ export default function RecipeBuilderPage() {
     }
   }, [categoryFilter, toast]);
 
-  // Fetch ingredients (for dropdown)
+  // Fetch ingredients (dropdown + sub-recipe target list)
   const fetchIngredients = useCallback(async () => {
+    setIngredientsLoading(true);
     try {
       const data = await inventoryApi.fetchIngredients({ is_active: true });
       setIngredients(data);
@@ -117,17 +166,70 @@ export default function RecipeBuilderPage() {
         variant: "destructive",
         title: "Failed to load ingredients",
       });
+    } finally {
+      setIngredientsLoading(false);
+    }
+  }, [toast]);
+
+  // Fetch active recipes (target badges + sub-recipe lookup)
+  const fetchActiveRecipes = useCallback(async (): Promise<Recipe[]> => {
+    try {
+      const data = await inventoryApi.fetchRecipes({
+        is_active: true,
+        limit: 500,
+      });
+      setActiveRecipes(data);
+      return data;
+    } catch (err) {
+      toast({
+        variant: "destructive",
+        title: "Failed to load recipes",
+      });
+      return [];
     }
   }, [toast]);
 
   useEffect(() => {
     fetchMenuData();
     fetchIngredients();
-  }, [fetchMenuData, fetchIngredients]);
+    fetchActiveRecipes();
+  }, [fetchMenuData, fetchIngredients, fetchActiveRecipes]);
+
+  // Fill the editor from a saved recipe
+  const applyRecipeToEditor = useCallback((recipeData: Recipe) => {
+    setRecipe(recipeData);
+    setYieldServings(recipeData.yield_servings);
+    setPrepTime(recipeData.prep_time_minutes);
+    setCookTime(recipeData.cook_time_minutes);
+    setInstructions(recipeData.instructions || "");
+    setNotes(recipeData.notes || "");
+
+    // Convert recipe_items to RecipeItemCreate format
+    setRecipeItems(
+      recipeData.recipe_items.map((item) => ({
+        ingredient_id: item.ingredient_id,
+        quantity: item.quantity,
+        unit: item.unit,
+        waste_factor: item.waste_factor,
+        notes: item.notes || undefined,
+      }))
+    );
+  }, []);
+
+  const resetEditor = useCallback(() => {
+    setRecipe(null);
+    setYieldServings(1);
+    setPrepTime(null);
+    setCookTime(null);
+    setInstructions("");
+    setNotes("");
+    setRecipeItems([]);
+  }, []);
 
   // Load recipe when menu item is selected
   const loadRecipe = useCallback(
     async (menuItem: MenuItem) => {
+      setSelectedIngredientTarget(null);
       setSelectedMenuItem(menuItem);
       setRecipeLoading(true);
 
@@ -135,33 +237,9 @@ export default function RecipeBuilderPage() {
         const recipeData = await inventoryApi.getRecipeByMenuItem(menuItem.id);
 
         if (recipeData) {
-          // Recipe exists - load it
-          setRecipe(recipeData);
-          setYieldServings(recipeData.yield_servings);
-          setPrepTime(recipeData.prep_time_minutes);
-          setCookTime(recipeData.cook_time_minutes);
-          setInstructions(recipeData.instructions || "");
-          setNotes(recipeData.notes || "");
-
-          // Convert recipe_items to RecipeItemCreate format
-          setRecipeItems(
-            recipeData.recipe_items.map((item) => ({
-              ingredient_id: item.ingredient_id,
-              quantity: item.quantity,
-              unit: item.unit,
-              waste_factor: item.waste_factor,
-              notes: item.notes || undefined,
-            }))
-          );
+          applyRecipeToEditor(recipeData);
         } else {
-          // No recipe - reset to defaults
-          setRecipe(null);
-          setYieldServings(1);
-          setPrepTime(null);
-          setCookTime(null);
-          setInstructions("");
-          setNotes("");
-          setRecipeItems([]);
+          resetEditor();
         }
       } catch (err) {
         toast({
@@ -172,7 +250,44 @@ export default function RecipeBuilderPage() {
         setRecipeLoading(false);
       }
     },
-    [toast]
+    [toast, applyRecipeToEditor, resetEditor]
+  );
+
+  // Load the sub-recipe that produces the selected ingredient.
+  // getRecipeByMenuItem cannot serve this: a sub-recipe has no menu_item_id,
+  // so the active recipe is found in the list by produces_ingredient_id.
+  const loadRecipeForIngredient = useCallback(
+    async (ingredient: Ingredient) => {
+      setSelectedMenuItem(null);
+      setSelectedIngredientTarget(ingredient);
+      setRecipeLoading(true);
+
+      try {
+        const recipes = await inventoryApi.fetchRecipes({
+          is_active: true,
+          limit: 500,
+        });
+        setActiveRecipes(recipes);
+
+        const recipeData = recipes.find(
+          (r) => r.produces_ingredient_id === ingredient.id
+        );
+
+        if (recipeData) {
+          applyRecipeToEditor(recipeData);
+        } else {
+          resetEditor();
+        }
+      } catch (err) {
+        toast({
+          variant: "destructive",
+          title: "Failed to load recipe",
+        });
+      } finally {
+        setRecipeLoading(false);
+      }
+    },
+    [toast, applyRecipeToEditor, resetEditor]
   );
 
   // Real-time cost calculation
@@ -199,6 +314,56 @@ export default function RecipeBuilderPage() {
   }, [recipeItems, ingredients, yieldServings, selectedMenuItem]);
 
   const { totalCost, costPerServing, foodCostPct } = calculateCosts();
+
+  const hasTarget = selectedMenuItem !== null || selectedIngredientTarget !== null;
+
+  // Yield is servings for a menu item, but a quantity in the produced
+  // ingredient's own unit for a sub-recipe (5 meaning 5 kg of dough)
+  const producedUnit = selectedIngredientTarget?.unit ?? "unit";
+
+  // Dough cannot be made from dough. A sub-recipe that lists its own output as
+  // an input would loop forever when costs are rolled up.
+  const selfReferencingItem =
+    selectedIngredientTarget !== null &&
+    recipeItems.some(
+      (item) => item.ingredient_id === selectedIngredientTarget.id
+    );
+
+  const ingredientCategories = Array.from(
+    new Set(ingredients.map((ing) => ing.category).filter((c) => c.length > 0))
+  ).sort();
+
+  // Produced ingredients first, because they are the usual sub-recipe target,
+  // but any ingredient stays pickable: creating its recipe is exactly what
+  // marks it as produced.
+  const ingredientTargets = ingredients
+    .filter((ing) => !ingredientFilter || ing.category === ingredientFilter)
+    .sort((a, b) => {
+      const aRank = isProducedIngredient(a) ? 0 : 1;
+      const bRank = isProducedIngredient(b) ? 0 : 1;
+      if (aRank !== bRank) return aRank - bRank;
+      return a.name.localeCompare(b.name);
+    });
+
+  // Switch between the two recipe targets
+  function handleModeChange(mode: TargetMode) {
+    if (mode === targetMode) return;
+
+    // The modes select from different lists, so no selection can carry over
+    setTargetMode(mode);
+    setSelectedMenuItem(null);
+    setSelectedIngredientTarget(null);
+    resetEditor();
+  }
+
+  // Reload whichever target is currently selected
+  function handleReloadTarget() {
+    if (selectedIngredientTarget) {
+      loadRecipeForIngredient(selectedIngredientTarget);
+    } else if (selectedMenuItem) {
+      loadRecipe(selectedMenuItem);
+    }
+  }
 
   // Check if recipe items changed (for versioning)
   const hasItemsChanged = useCallback(() => {
@@ -241,6 +406,17 @@ export default function RecipeBuilderPage() {
       return;
     }
 
+    // A sub-recipe cannot consume the ingredient it produces
+    if (
+      selectedIngredientTarget &&
+      newIngredientId === selectedIngredientTarget.id
+    ) {
+      setAddIngredientError(
+        `${selectedIngredientTarget.name} is what this sub-recipe produces, so it cannot also be one of its inputs.`
+      );
+      return;
+    }
+
     const ingredient = ingredients.find((i) => i.id === newIngredientId);
     if (!ingredient) return;
 
@@ -258,7 +434,14 @@ export default function RecipeBuilderPage() {
     setNewIngredientId("");
     setNewQuantity("");
     setNewWaste("");
+    setAddIngredientError("");
     setAddIngredientOpen(false);
+  }
+
+  // Clear the inline error whenever the dialog opens or closes
+  function handleAddIngredientOpenChange(open: boolean) {
+    setAddIngredientError("");
+    setAddIngredientOpen(open);
   }
 
   // Remove ingredient from recipe
@@ -281,7 +464,7 @@ export default function RecipeBuilderPage() {
 
   // Save recipe
   async function handleSave() {
-    if (!selectedMenuItem) return;
+    if (!hasTarget) return;
 
     if (recipeItems.length === 0) {
       toast({
@@ -294,57 +477,73 @@ export default function RecipeBuilderPage() {
     if (yieldServings <= 0) {
       toast({
         variant: "destructive",
-        title: "Yield servings must be greater than 0",
+        title: isSubRecipe
+          ? "Yield quantity must be greater than 0"
+          : "Yield servings must be greater than 0",
       });
+      return;
+    }
+
+    if (selfReferencingItem && selectedIngredientTarget) {
+      toast({
+        variant: "destructive",
+        title: `Remove ${selectedIngredientTarget.name} from its own inputs before saving`,
+      });
+      return;
+    }
+
+    // Sending recipe_items is what makes the backend cut a new version, so a
+    // metadata-only edit deliberately leaves the key off the request
+    const itemsChanged = !recipe || hasItemsChanged();
+    const base = {
+      yield_servings: yieldServings,
+      prep_time_minutes: prepTime || null,
+      cook_time_minutes: cookTime || null,
+      instructions: instructions.trim() || null,
+      notes: notes.trim() || null,
+      recipe_items: itemsChanged ? recipeItems : undefined,
+    };
+
+    // Exactly one target key, never both, never neither: the other combination
+    // is a 422 from the backend validator
+    let payload: RecipeSavePayload;
+    if (selectedIngredientTarget) {
+      payload = {
+        produces_ingredient_id: selectedIngredientTarget.id,
+        ...base,
+      };
+    } else if (selectedMenuItem) {
+      payload = { menu_item_id: selectedMenuItem.id, ...base };
+    } else {
       return;
     }
 
     setSaving(true);
     try {
-      const payload: any = {
-        menu_item_id: selectedMenuItem.id,
-        yield_servings: yieldServings,
-        prep_time_minutes: prepTime || null,
-        cook_time_minutes: cookTime || null,
-        instructions: instructions.trim() || null,
-        notes: notes.trim() || null,
-      };
-
       if (recipe) {
-        // Existing recipe - check if items changed
-        const itemsChanged = hasItemsChanged();
-
-        if (itemsChanged) {
-          // Create new version
-          payload.recipe_items = recipeItems;
-          await inventoryApi.updateRecipe(recipe.id, payload);
-          toast({
-            variant: "success",
-            title: "Recipe updated (new version created)",
-          });
-        } else {
-          // Update metadata only (no new version)
-          await inventoryApi.updateRecipe(recipe.id, payload);
-          toast({
-            variant: "success",
-            title: "Recipe metadata updated",
-          });
-        }
-
-        // Reload recipe
-        await loadRecipe(selectedMenuItem);
+        await inventoryApi.updateRecipe(recipe.id, payload);
+        toast({
+          variant: "success",
+          title: itemsChanged
+            ? "Recipe updated (new version created)"
+            : "Recipe metadata updated",
+        });
       } else {
-        // New recipe
-        payload.recipe_items = recipeItems;
-        await inventoryApi.createRecipe(payload);
-
+        // RecipeCreate in the shared types still models the menu-item-only
+        // backend; the sub-recipe payload is widened at this call alone
+        await inventoryApi.createRecipe(payload as RecipeCreate);
         toast({
           variant: "success",
           title: "Recipe created (Version 1)",
         });
+      }
 
-        // Reload recipe
+      // Reload the target and refresh the "has a recipe" badges
+      if (selectedIngredientTarget) {
+        await loadRecipeForIngredient(selectedIngredientTarget);
+      } else if (selectedMenuItem) {
         await loadRecipe(selectedMenuItem);
+        await fetchActiveRecipes();
       }
     } catch (err: any) {
       const msg = err.response?.data?.detail || "Failed to save recipe";
@@ -370,15 +569,8 @@ export default function RecipeBuilderPage() {
       });
 
       setDeleteConfirmOpen(false);
-
-      // Reset editor
-      setRecipe(null);
-      setRecipeItems([]);
-      setYieldServings(1);
-      setPrepTime(null);
-      setCookTime(null);
-      setInstructions("");
-      setNotes("");
+      resetEditor();
+      await fetchActiveRecipes();
     } catch (err: any) {
       const msg = err.response?.data?.detail || "Failed to delete recipe";
       toast({
@@ -396,10 +588,15 @@ export default function RecipeBuilderPage() {
   }
 
   // Get menu item badge
-  function getMenuItemBadge(_menuItem: MenuItem) {
-    // Check if recipe exists (would need to fetch all recipes or add to menu item)
-    // For now, simplified version
-    return null;
+  function getMenuItemBadge(menuItem: MenuItem) {
+    const hasRecipe = activeRecipes.some((r) => r.menu_item_id === menuItem.id);
+    if (!hasRecipe) return null;
+
+    return (
+      <Badge variant="secondary" className="text-pos-xs">
+        Recipe
+      </Badge>
+    );
   }
 
   return (
@@ -412,30 +609,130 @@ export default function RecipeBuilderPage() {
         </h1>
       </div>
 
+      {/* Target mode switch: what this recipe produces */}
+      <Card>
+        <CardContent className="flex flex-col gap-3 pt-6 sm:flex-row sm:items-center">
+          <span className="text-pos-sm font-medium text-secondary-700">
+            This recipe produces:
+          </span>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant={isSubRecipe ? "outline" : "default"}
+              onClick={() => handleModeChange("menu_item")}
+              className="min-h-[48px] gap-2"
+            >
+              <ChefHat className="h-4 w-4" />
+              Menu item recipe
+            </Button>
+            <Button
+              variant={isSubRecipe ? "default" : "outline"}
+              onClick={() => handleModeChange("sub_recipe")}
+              className="min-h-[48px] gap-2"
+            >
+              <Layers className="h-4 w-4" />
+              Sub-recipe (produces an ingredient)
+            </Button>
+          </div>
+          <p className="text-pos-xs text-secondary-500 sm:ml-auto sm:max-w-xs">
+            {isSubRecipe
+              ? "An in-house ingredient such as dough, a sauce, or a stuffing, which other recipes then use as an input line."
+              : "A sellable item on the menu, priced and ordered by customers."}
+          </p>
+        </CardContent>
+      </Card>
+
       {/* Two-panel layout */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* LEFT PANEL: Menu Items List */}
+        {/* LEFT PANEL: Target list (menu items or ingredients) */}
         <Card className="lg:col-span-1">
           <CardHeader>
-            <CardTitle className="text-pos-lg">Menu Items</CardTitle>
+            <CardTitle className="text-pos-lg">
+              {isSubRecipe ? "Ingredients" : "Menu Items"}
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Category filter */}
-            <Select
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-              className="min-h-[48px]"
-            >
-              <option value="">All Categories</option>
-              {categories.map((cat) => (
-                <option key={cat.id} value={cat.id}>
-                  {cat.name}
-                </option>
-              ))}
-            </Select>
+            {isSubRecipe ? (
+              <Select
+                value={ingredientFilter}
+                onChange={(e) => setIngredientFilter(e.target.value)}
+                className="min-h-[48px]"
+              >
+                <option value="">All Ingredient Categories</option>
+                {ingredientCategories.map((cat) => (
+                  <option key={cat} value={cat}>
+                    {cat}
+                  </option>
+                ))}
+              </Select>
+            ) : (
+              <Select
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                className="min-h-[48px]"
+              >
+                <option value="">All Categories</option>
+                {categories.map((cat) => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.name}
+                  </option>
+                ))}
+              </Select>
+            )}
 
-            {/* Menu items list */}
-            {loading ? (
+            {/* Target list */}
+            {isSubRecipe ? (
+              ingredientsLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary-600" />
+                </div>
+              ) : ingredientTargets.length === 0 ? (
+                <div className="py-8 text-center text-pos-sm text-secondary-500">
+                  No ingredients found.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {ingredientTargets.map((ing) => {
+                    const isSelected = selectedIngredientTarget?.id === ing.id;
+                    const hasSubRecipe = activeRecipes.some(
+                      (r) => r.produces_ingredient_id === ing.id
+                    );
+
+                    return (
+                      <button
+                        key={ing.id}
+                        onClick={() => loadRecipeForIngredient(ing)}
+                        className={`w-full rounded-lg border p-3 text-left transition-colors ${
+                          isSelected
+                            ? "border-primary-500 bg-primary-50"
+                            : "border-secondary-200 hover:bg-secondary-50"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1">
+                            <div className="text-pos-sm font-medium text-secondary-900">
+                              {ing.name}
+                            </div>
+                            <div className="text-pos-xs text-secondary-500">
+                              {formatPKR(ing.cost_per_unit)} per {ing.unit}
+                            </div>
+                          </div>
+                          {hasSubRecipe ? (
+                            <Badge variant="secondary" className="text-pos-xs">
+                              Sub-recipe
+                            </Badge>
+                          ) : isProducedIngredient(ing) ? (
+                            <Badge variant="secondary" className="text-pos-xs">
+                              Produced
+                            </Badge>
+                          ) : null}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )
+            ) : loading ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-6 w-6 animate-spin text-primary-600" />
               </div>
@@ -483,9 +780,11 @@ export default function RecipeBuilderPage() {
             <CardTitle className="text-pos-lg">Recipe Editor</CardTitle>
           </CardHeader>
           <CardContent>
-            {!selectedMenuItem ? (
+            {!hasTarget ? (
               <div className="py-12 text-center text-secondary-500">
-                Select a menu item to create or edit its recipe.
+                {isSubRecipe
+                  ? "Select an ingredient to create or edit the sub-recipe that produces it."
+                  : "Select a menu item to create or edit its recipe."}
               </div>
             ) : recipeLoading ? (
               <div className="flex items-center justify-center py-12">
@@ -493,15 +792,21 @@ export default function RecipeBuilderPage() {
               </div>
             ) : (
               <div className="space-y-6">
-                {/* Header: Menu Item Info */}
+                {/* Header: Target Info */}
                 <div className="rounded-lg border border-secondary-200 bg-secondary-50 p-4">
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="text-pos-base font-semibold text-secondary-900">
-                        {selectedMenuItem.name}
+                        {selectedIngredientTarget
+                          ? selectedIngredientTarget.name
+                          : selectedMenuItem?.name}
                       </div>
                       <div className="text-pos-sm text-secondary-600">
-                        Price: {formatPKR(selectedMenuItem.price)}
+                        {selectedIngredientTarget
+                          ? `Sub-recipe, measured in ${selectedIngredientTarget.unit}`
+                          : selectedMenuItem
+                            ? `Price: ${formatPKR(selectedMenuItem.price)}`
+                            : ""}
                       </div>
                     </div>
                     {recipe && (
@@ -515,18 +820,31 @@ export default function RecipeBuilderPage() {
                 {/* Metadata fields */}
                 <div className="grid grid-cols-3 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="yield">Yield Servings *</Label>
+                    <Label htmlFor="yield">
+                      {isSubRecipe
+                        ? `Yield Quantity (${producedUnit}) *`
+                        : "Yield Servings *"}
+                    </Label>
                     <Input
                       id="yield"
                       type="number"
-                      min="1"
-                      step="1"
+                      min={isSubRecipe ? "0.01" : "1"}
+                      step={isSubRecipe ? "0.01" : "1"}
                       value={yieldServings}
                       onChange={(e) =>
-                        setYieldServings(parseInt(e.target.value) || 1)
+                        setYieldServings(
+                          (isSubRecipe
+                            ? parseFloat(e.target.value)
+                            : parseInt(e.target.value)) || 1
+                        )
                       }
                       className="min-h-[48px]"
                     />
+                    <p className="text-pos-xs text-secondary-500">
+                      {isSubRecipe
+                        ? `How much one batch makes, in ${producedUnit}. Enter 5 for a batch yielding 5 ${producedUnit}.`
+                        : "Servings produced by one batch of this recipe."}
+                    </p>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="prep">Prep Time (min)</Label>
@@ -577,6 +895,17 @@ export default function RecipeBuilderPage() {
                       Add Ingredient
                     </Button>
                   </div>
+
+                  {selfReferencingItem && selectedIngredientTarget && (
+                    <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-pos-sm text-red-700">
+                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                      <span>
+                        {selectedIngredientTarget.name} is listed as one of its
+                        own inputs. An ingredient cannot be made from itself.
+                        Remove that line before saving.
+                      </span>
+                    </div>
+                  )}
 
                   {recipeItems.length === 0 ? (
                     <div className="rounded-lg border border-dashed border-secondary-300 bg-secondary-50 py-8 text-center text-pos-sm text-secondary-500">
@@ -701,54 +1030,80 @@ export default function RecipeBuilderPage() {
                         </div>
                         <div className="flex items-center justify-between text-pos-sm">
                           <span className="text-secondary-700">
-                            Cost per Serving (÷ {yieldServings}):
+                            {isSubRecipe
+                              ? `Cost per ${producedUnit} (÷ ${yieldServings}):`
+                              : `Cost per Serving (÷ ${yieldServings}):`}
                           </span>
                           <span className="font-semibold text-secondary-900">
                             {formatPKR(costPerServing)}
                           </span>
                         </div>
-                        <div className="flex items-center justify-between text-pos-sm">
-                          <span className="text-secondary-700">
-                            Menu Item Price:
-                          </span>
-                          <span className="font-semibold text-secondary-900">
-                            {formatPKR(selectedMenuItem.price)}
-                          </span>
-                        </div>
-                        <div className="border-t border-primary-200 pt-3">
-                          <div className="flex items-center justify-between">
-                            <span className="text-pos-base font-semibold text-secondary-900">
-                              Food Cost %:
-                            </span>
-                            <Badge
-                              className={`text-pos-base font-bold ${getFoodCostColorClass(
-                                foodCostPct
-                              )}`}
-                            >
-                              {foodCostPct.toFixed(2)}%
-                            </Badge>
+
+                        {/* Food cost % needs a selling price. A sub-recipe has
+                            none, so it reports cost per produced unit instead. */}
+                        {selectedIngredientTarget ? (
+                          <div className="border-t border-primary-200 pt-3">
+                            <div className="flex items-center justify-between">
+                              <span className="text-pos-base font-semibold text-secondary-900">
+                                Cost per {producedUnit}:
+                              </span>
+                              <Badge className="bg-primary-100 text-pos-base font-bold text-primary-700">
+                                {formatPKR(costPerServing)}
+                              </Badge>
+                            </div>
+                            <div className="mt-2 text-pos-xs text-secondary-600">
+                              This is the unit cost that flows into every recipe
+                              using {selectedIngredientTarget.name}. A sub-recipe
+                              is not sold on its own, so food cost % does not
+                              apply here.
+                            </div>
                           </div>
-                          <div className="mt-2 text-pos-xs text-secondary-600">
-                            {foodCostPct < 25 && (
-                              <span className="flex items-center gap-1 text-green-600">
-                                <CheckCircle className="h-3 w-3" />
-                                Excellent - within target (&lt;25%)
+                        ) : selectedMenuItem ? (
+                          <>
+                            <div className="flex items-center justify-between text-pos-sm">
+                              <span className="text-secondary-700">
+                                Menu Item Price:
                               </span>
-                            )}
-                            {foodCostPct >= 25 && foodCostPct < 35 && (
-                              <span className="flex items-center gap-1 text-yellow-600">
-                                <AlertCircle className="h-3 w-3" />
-                                Acceptable - monitor closely (25-35%)
+                              <span className="font-semibold text-secondary-900">
+                                {formatPKR(selectedMenuItem.price)}
                               </span>
-                            )}
-                            {foodCostPct >= 35 && (
-                              <span className="flex items-center gap-1 text-red-600">
-                                <AlertTriangle className="h-3 w-3" />
-                                High - consider price adjustment (&gt;35%)
-                              </span>
-                            )}
-                          </div>
-                        </div>
+                            </div>
+                            <div className="border-t border-primary-200 pt-3">
+                              <div className="flex items-center justify-between">
+                                <span className="text-pos-base font-semibold text-secondary-900">
+                                  Food Cost %:
+                                </span>
+                                <Badge
+                                  className={`text-pos-base font-bold ${getFoodCostColorClass(
+                                    foodCostPct
+                                  )}`}
+                                >
+                                  {foodCostPct.toFixed(2)}%
+                                </Badge>
+                              </div>
+                              <div className="mt-2 text-pos-xs text-secondary-600">
+                                {foodCostPct < 25 && (
+                                  <span className="flex items-center gap-1 text-green-600">
+                                    <CheckCircle className="h-3 w-3" />
+                                    Excellent - within target (&lt;25%)
+                                  </span>
+                                )}
+                                {foodCostPct >= 25 && foodCostPct < 35 && (
+                                  <span className="flex items-center gap-1 text-yellow-600">
+                                    <AlertCircle className="h-3 w-3" />
+                                    Acceptable - monitor closely (25-35%)
+                                  </span>
+                                )}
+                                {foodCostPct >= 35 && (
+                                  <span className="flex items-center gap-1 text-red-600">
+                                    <AlertTriangle className="h-3 w-3" />
+                                    High - consider price adjustment (&gt;35%)
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </>
+                        ) : null}
                       </div>
                     </CardContent>
                   </Card>
@@ -797,7 +1152,7 @@ export default function RecipeBuilderPage() {
                   <div className="flex items-center gap-3">
                     <Button
                       variant="outline"
-                      onClick={() => loadRecipe(selectedMenuItem)}
+                      onClick={handleReloadTarget}
                       className="min-h-[48px]"
                     >
                       Discard Changes
@@ -805,7 +1160,10 @@ export default function RecipeBuilderPage() {
                     <Button
                       onClick={handleSave}
                       disabled={
-                        recipeItems.length === 0 || yieldServings <= 0 || saving
+                        recipeItems.length === 0 ||
+                        yieldServings <= 0 ||
+                        selfReferencingItem ||
+                        saving
                       }
                       className="min-h-[48px] gap-2"
                     >
@@ -822,7 +1180,10 @@ export default function RecipeBuilderPage() {
       </div>
 
       {/* Add Ingredient Dialog */}
-      <Dialog open={addIngredientOpen} onOpenChange={setAddIngredientOpen}>
+      <Dialog
+        open={addIngredientOpen}
+        onOpenChange={handleAddIngredientOpenChange}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Add Ingredient to Recipe</DialogTitle>
@@ -838,7 +1199,10 @@ export default function RecipeBuilderPage() {
               <Select
                 id="ingredient"
                 value={newIngredientId}
-                onChange={(e) => setNewIngredientId(e.target.value)}
+                onChange={(e) => {
+                  setAddIngredientError("");
+                  setNewIngredientId(e.target.value);
+                }}
                 className="min-h-[48px]"
               >
                 <option value="">Select ingredient...</option>
@@ -849,12 +1213,20 @@ export default function RecipeBuilderPage() {
                         (item) => item.ingredient_id === ing.id
                       )
                   )
+                  // A sub-recipe cannot consume what it produces
+                  .filter((ing) => ing.id !== selectedIngredientTarget?.id)
                   .map((ing) => (
                     <option key={ing.id} value={ing.id}>
                       {ing.name} ({ing.unit}) - {formatPKR(ing.cost_per_unit)}
                     </option>
                   ))}
               </Select>
+              {addIngredientError && (
+                <p className="flex items-start gap-1 text-pos-xs text-red-600">
+                  <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
+                  {addIngredientError}
+                </p>
+              )}
             </div>
 
             {/* Quantity */}
@@ -895,7 +1267,7 @@ export default function RecipeBuilderPage() {
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => setAddIngredientOpen(false)}
+              onClick={() => handleAddIngredientOpenChange(false)}
               className="min-h-touch"
             >
               Cancel

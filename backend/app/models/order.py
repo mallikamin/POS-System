@@ -78,6 +78,36 @@ class Order(BaseMixin, Base):
         nullable=True,
         index=True,
     )
+    # WHERE this sale happened. Stock is deducted from this location and never
+    # from any other, and revenue reports break down by it. Nullable so that
+    # existing single-site tenants (chick-shack, demo-restaurant) are untouched;
+    # when it is null the tenant's default location is assumed.
+    location_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid,
+        ForeignKey("locations.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    # HOW the sale arrived, and therefore what commission it carries. Distinct
+    # from `order_type`, which is a coarse operational category: two `online`
+    # orders can come via Talabat (15%) and direct WhatsApp (0%) and have very
+    # different net profit. See SalesChannel.
+    sales_channel_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid,
+        ForeignKey("sales_channels.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    # Commission is SNAPSHOTTED onto the order at completion, not read live from
+    # the channel. Rates get renegotiated; last month's profit must not silently
+    # change when today's rate does.
+    channel_commission_minor: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        nullable=False,
+        comment="Channel commission charged on this order, in minor units",
+    )
+
     customer_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     customer_phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
     # Where confirmations for THIS order go. Held on the order rather than only

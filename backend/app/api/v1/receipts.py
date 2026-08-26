@@ -9,9 +9,30 @@ from app.api.deps import get_current_user
 from app.database import get_db
 from app.models.user import User
 from app.schemas.receipt import ReceiptData
-from app.services import receipt_service
+from app.schemas.tax_invoice import TaxInvoiceData
+from app.services import receipt_service, tax_invoice_service
+from app.services.tax_invoice_service import TaxInvoiceError
 
 router = APIRouter(prefix="/receipts", tags=["receipts"])
+
+
+@router.get("/orders/{order_id}/tax-invoice", response_model=TaxInvoiceData)
+async def get_order_tax_invoice(
+    order_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> TaxInvoiceData:
+    """A4 VAT tax invoice for an order, with VAT shown as its own figure.
+
+    Distinct from the thermal receipt above: this is the legal document a B2B
+    customer needs, carrying the supplier's registered name and TRN.
+    """
+    try:
+        return await tax_invoice_service.get_tax_invoice(
+            db, current_user.tenant_id, order_id
+        )
+    except TaxInvoiceError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
 
 
 @router.get("/orders/{order_id}", response_model=ReceiptData)

@@ -271,11 +271,18 @@ class InventoryTransaction(BaseMixin, Base):
     ingredient_id: Mapped[uuid.UUID] = mapped_column(
         Uuid, ForeignKey("ingredients.id"), nullable=False
     )
+    # WHERE the movement happened. Nullable for rows written before locations
+    # existed and for single-site tenants; when set, `balance_after` is that
+    # location's balance, not the tenant-wide one.
+    location_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("locations.id", ondelete="SET NULL"), index=True
+    )
 
     # Transaction details
     transaction_type: Mapped[str] = mapped_column(
         String(50), nullable=False
-    )  # purchase | consumption | waste | adjustment | transfer
+    )  # purchase | consumption | production | waste | adjustment |
+    # transfer_out | transfer_in
     quantity: Mapped[Decimal] = mapped_column(
         Numeric(12, 3), nullable=False
     )  # Positive = increase, Negative = decrease
@@ -291,8 +298,13 @@ class InventoryTransaction(BaseMixin, Base):
     balance_after: Mapped[Decimal] = mapped_column(Numeric(12, 3), nullable=False)
 
     # References
+    # DateTime(timezone=True) is NOT optional: the default above is tz-aware, and
+    # without it asyncpg raises "can't subtract offset-naive and offset-aware
+    # datetimes" on every write. The SQLite test suite does not enforce this, so
+    # it only ever surfaces against real Postgres -- same root cause as the
+    # Recipe.effective_date bug fixed on 2026-08-26.
     transaction_date: Mapped[datetime] = mapped_column(
-        default=lambda: datetime.now(timezone.utc)
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
     order_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid, ForeignKey("orders.id")

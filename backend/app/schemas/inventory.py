@@ -158,6 +158,9 @@ class RecipeResponse(RecipeBase):
     # Calculated fields
     menu_item_name: str | None = None
     menu_item_price: int | None = None  # paisa
+    # Set instead of menu_item_name when this is a sub-recipe. Without it the
+    # UI has an id and no way to label a dough or sauce recipe.
+    produces_ingredient_name: str | None = None
     food_cost_percentage: Decimal | None = None  # calculated
 
     model_config = {"from_attributes": True}

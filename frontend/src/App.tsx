@@ -41,9 +41,18 @@ const QBDesktopPage = lazy(() => import("@/pages/admin/QBDesktopPage"));
 const ZReportPage = lazy(() => import("@/pages/admin/ZReportPage"));
 const DiscountTypesPage = lazy(() => import("@/pages/admin/DiscountTypesPage"));
 const RoleManagementPage = lazy(() => import("@/pages/admin/RoleManagementPage"));
-// BOM Phase 3 — routes commented out, uncomment when ready
-// const IngredientManagementPage = lazy(() => import("@/pages/admin/IngredientManagementPage"));
-// const RecipeBuilderPage = lazy(() => import("@/pages/admin/RecipeBuilderPage"));
+/* Inventory & production. Built during BOM Phase 3 but left unrouted, so the
+   screens were unreachable and never exercised — which is why the Postgres
+   timezone bug in recipe creation survived a "100% complete" status. Enabled
+   2026-08-26 for FZ LLC, whose whole case rests on these. */
+const IngredientManagementPage = lazy(() => import("@/pages/admin/IngredientManagementPage"));
+const RecipeBuilderPage = lazy(() => import("@/pages/admin/RecipeBuilderPage"));
+const LocationsPage = lazy(() => import("@/pages/admin/LocationsPage"));
+const StockPage = lazy(() => import("@/pages/admin/StockPage"));
+const TransfersPage = lazy(() => import("@/pages/admin/TransfersPage"));
+const SalesChannelsPage = lazy(() => import("@/pages/admin/SalesChannelsPage"));
+const ProfitabilityPage = lazy(() => import("@/pages/admin/ProfitabilityPage"));
+const TaxInvoicesPage = lazy(() => import("@/pages/admin/TaxInvoicesPage"));
 
 function LoadingFallback() {
   return (
@@ -103,9 +112,16 @@ export function App() {
             <Route path="qb-desktop" element={<QBDesktopPage />} />
             <Route path="roles" element={<RoleManagementPage />} />
             <Route path="discounts" element={<DiscountTypesPage />} />
-            {/* BOM routes - hidden for Italian restaurant client */}
-            {/* <Route path="ingredients" element={<IngredientManagementPage />} /> */}
-            {/* <Route path="recipes" element={<RecipeBuilderPage />} /> */}
+            {/* Inventory, production and multi-location. Every tenant can reach
+                these; a single-site tenant simply has one location. */}
+            <Route path="ingredients" element={<IngredientManagementPage />} />
+            <Route path="recipes" element={<RecipeBuilderPage />} />
+            <Route path="locations" element={<LocationsPage />} />
+            <Route path="stock" element={<StockPage />} />
+            <Route path="transfers" element={<TransfersPage />} />
+            <Route path="channels" element={<SalesChannelsPage />} />
+            <Route path="profitability" element={<ProfitabilityPage />} />
+            <Route path="tax-invoices" element={<TaxInvoicesPage />} />
           </Route>
         </Routes>
       </Suspense>

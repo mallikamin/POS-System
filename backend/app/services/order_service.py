@@ -489,11 +489,56 @@ async def transition_order(
             table.status = "available"
 
     await db.flush()
+
+    if new_status == "completed":
+        await _apply_inventory_and_commission(db, tenant_id, order)
     await _sync_customer_stats_for_order(db, tenant_id, order)
     # Force fresh load with all relationships by fetching anew
     order_id = order.id
     db.expunge(order)
     return await get_order(db, order_id, tenant_id)  # type: ignore[return-value]
+
+
+async def _apply_inventory_and_commission(
+    db: AsyncSession, tenant_id: uuid.UUID, order: Order
+) -> None:
+    """On completion: deduct the recipe ingredients and freeze the commission.
+
+    Both are OPTIONAL capabilities. A tenant that has never configured locations
+    or recipes -- which is every existing tenant, chick-shack included -- must
+    complete orders exactly as it always has. Stock tracking must never be able
+    to block a sale from closing: an inventory problem is a bookkeeping problem,
+    and a till that refuses to finish an order because of one is a worse
+    outcome than a stock figure that needs correcting.
+    """
+    from app.models.location import Location
+    from app.services import location_service, production_service
+    from app.services.stock_service import StockError
+
+    has_locations = (
+        await db.execute(
+            select(Location.id).where(Location.tenant_id == tenant_id).limit(1)
+        )
+    ).scalar_one_or_none()
+    if has_locations is None:
+        return  # Single-site tenant, nothing to do. The pre-locations behaviour.
+
+    try:
+        await production_service.consume_for_order(
+            db, tenant_id=tenant_id, order_id=order.id
+        )
+    except StockError as exc:
+        # Recorded, never raised. See the docstring.
+        logger.warning(
+            "Stock deduction skipped for order %s: %s", order.order_number, exc
+        )
+
+    try:
+        await location_service.snapshot_commission(db, tenant_id, order)
+    except StockError as exc:
+        logger.warning(
+            "Commission snapshot skipped for order %s: %s", order.order_number, exc
+        )
 
 
 async def void_order(

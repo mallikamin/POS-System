@@ -24,6 +24,33 @@ from app.services import recipe_service
 router = APIRouter(prefix="/inventory", tags=["inventory"])
 
 
+def _enrich_recipe(recipe) -> RecipeResponse:
+    """Label a recipe by whatever it produces, and cost it against its price.
+
+    A recipe has no name column of its own: it is identified by its target. A
+    normal recipe is named after its menu item; a sub-recipe after the
+    ingredient it makes (dough, sauce, stuffing). The list endpoint previously
+    did none of this, so sub-recipes and menu-item recipes alike arrived at the
+    UI with nothing to display.
+
+    Requires `menu_item` and `produces_ingredient` to be eager-loaded.
+    """
+    response = RecipeResponse.model_validate(recipe)
+
+    if recipe.menu_item is not None:
+        response.menu_item_name = recipe.menu_item.name
+        response.menu_item_price = recipe.menu_item.price
+        if recipe.menu_item.price > 0:
+            # Menu price and recipe cost are both in minor units.
+            response.food_cost_percentage = (
+                recipe.cost_per_serving / recipe.menu_item.price * 100
+            )
+    elif recipe.produces_ingredient is not None:
+        response.produces_ingredient_name = recipe.produces_ingredient.name
+
+    return response
+
+
 # ---------------------------------------------------------------------------
 # INGREDIENT ENDPOINTS
 # ---------------------------------------------------------------------------
@@ -164,22 +191,12 @@ async def create_recipe(
             db, current_user.tenant_id, data, current_user.id
         )
         await db.commit()
-        await db.refresh(recipe, ["recipe_items", "menu_item"])
-
-        # Build response with enriched data
-        response = RecipeResponse.model_validate(recipe)
-        if recipe.menu_item:
-            response.menu_item_name = recipe.menu_item.name
-            response.menu_item_price = recipe.menu_item.price
-
-            # Calculate food cost percentage
-            if recipe.menu_item.price > 0:
-                # menu price is in paisa, cost is also in paisa
-                response.food_cost_percentage = (
-                    recipe.cost_per_serving / recipe.menu_item.price * 100
-                )
-
-        return response
+        # produces_ingredient must be refreshed too, or a newly created
+        # sub-recipe comes back with no label at all.
+        await db.refresh(
+            recipe, ["recipe_items", "menu_item", "produces_ingredient"]
+        )
+        return _enrich_recipe(recipe)
 
     except ValueError as e:
         raise HTTPException(
@@ -205,9 +222,7 @@ async def list_recipes(
         limit=limit,
     )
 
-    return [
-        RecipeResponse.model_validate(r) for r in recipes
-    ]
+    return [_enrich_recipe(r) for r in recipes]
 
 
 @router.get("/recipes/{recipe_id}", response_model=RecipeResponse)
@@ -226,18 +241,8 @@ async def get_recipe(
             detail="Recipe not found",
         )
 
-    await db.refresh(recipe, ["menu_item"])
-    response = RecipeResponse.model_validate(recipe)
-
-    if recipe.menu_item:
-        response.menu_item_name = recipe.menu_item.name
-        response.menu_item_price = recipe.menu_item.price
-        if recipe.menu_item.price > 0:
-            response.food_cost_percentage = (
-                recipe.cost_per_serving / recipe.menu_item.price * 100
-            )
-
-    return response
+    await db.refresh(recipe, ["menu_item", "produces_ingredient"])
+    return _enrich_recipe(recipe)
 
 
 @router.get(
@@ -259,18 +264,8 @@ async def get_recipe_by_menu_item(
             detail="No active recipe found for this menu item",
         )
 
-    await db.refresh(recipe, ["menu_item"])
-    response = RecipeResponse.model_validate(recipe)
-
-    if recipe.menu_item:
-        response.menu_item_name = recipe.menu_item.name
-        response.menu_item_price = recipe.menu_item.price
-        if recipe.menu_item.price > 0:
-            response.food_cost_percentage = (
-                recipe.cost_per_serving / recipe.menu_item.price * 100
-            )
-
-    return response
+    await db.refresh(recipe, ["menu_item", "produces_ingredient"])
+    return _enrich_recipe(recipe)
 
 
 @router.patch(
@@ -303,18 +298,10 @@ async def update_recipe(
             db, recipe, data, current_user.id
         )
         await db.commit()
-        await db.refresh(updated, ["recipe_items", "menu_item"])
-
-        response = RecipeResponse.model_validate(updated)
-        if updated.menu_item:
-            response.menu_item_name = updated.menu_item.name
-            response.menu_item_price = updated.menu_item.price
-            if updated.menu_item.price > 0:
-                response.food_cost_percentage = (
-                    updated.cost_per_serving / updated.menu_item.price * 100
-                )
-
-        return response
+        await db.refresh(
+            updated, ["recipe_items", "menu_item", "produces_ingredient"]
+        )
+        return _enrich_recipe(updated)
 
     except ValueError as e:
         raise HTTPException(

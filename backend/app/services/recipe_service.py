@@ -262,7 +262,14 @@ async def get_recipe(
     """Get recipe with items."""
     result = await db.execute(
         select(Recipe)
-        .options(selectinload(Recipe.recipe_items))
+        # menu_item and produces_ingredient are eager-loaded because the API
+        # layer labels every recipe by whichever one it produces, and a lazy
+        # load on an async session raises MissingGreenlet.
+        .options(
+            selectinload(Recipe.recipe_items),
+            selectinload(Recipe.menu_item),
+            selectinload(Recipe.produces_ingredient),
+        )
         .where(
             Recipe.id == recipe_id,
             Recipe.tenant_id == tenant_id,
@@ -279,7 +286,14 @@ async def get_recipe_by_menu_item(
     """Get active recipe for a menu item."""
     result = await db.execute(
         select(Recipe)
-        .options(selectinload(Recipe.recipe_items))
+        # menu_item and produces_ingredient are eager-loaded because the API
+        # layer labels every recipe by whichever one it produces, and a lazy
+        # load on an async session raises MissingGreenlet.
+        .options(
+            selectinload(Recipe.recipe_items),
+            selectinload(Recipe.menu_item),
+            selectinload(Recipe.produces_ingredient),
+        )
         .where(
             Recipe.menu_item_id == menu_item_id,
             Recipe.tenant_id == tenant_id,
@@ -299,7 +313,14 @@ async def list_recipes(
     """List recipes."""
     query = (
         select(Recipe)
-        .options(selectinload(Recipe.recipe_items))
+        # menu_item and produces_ingredient are eager-loaded because the API
+        # layer labels every recipe by whichever one it produces, and a lazy
+        # load on an async session raises MissingGreenlet.
+        .options(
+            selectinload(Recipe.recipe_items),
+            selectinload(Recipe.menu_item),
+            selectinload(Recipe.produces_ingredient),
+        )
         .where(Recipe.tenant_id == tenant_id)
     )
 

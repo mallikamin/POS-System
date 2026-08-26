@@ -91,7 +91,15 @@ export interface RecipeItemUpdate {
 export interface Recipe {
   id: string;
   tenant_id: string;
-  menu_item_id: string;
+  /**
+   * A recipe produces EITHER a sellable menu item OR an ingredient, never both
+   * and never neither (the database enforces it). A recipe that produces an
+   * ingredient is a sub-recipe: dough, a sauce, a stuffing, which other recipes
+   * then consume. That is what makes multi-layer production chains possible.
+   */
+  menu_item_id: string | null;
+  produces_ingredient_id: string | null;
+  produces_ingredient_name: string | null;
   menu_item_name: string | null; // Denormalized for display
   menu_item_price: number | null; // paisa (denormalized)
   yield_servings: number;
