@@ -19,13 +19,57 @@ on Wednesday 2026-08-26**. Chick Shack trades **16:00-22:00 UK, 7 days**
 **22:00 UK = 02:00 PKT**. `git push origin main` IS the deploy and it recreates the SHARED nginx
 serving Chick Shack's live tablet.
 
-✅ **DECIDED by Malik, 2026-08-26 ~19:50 UK: WAIT FOR THE 22:00 UK CLOSE.** *"lets resume when Chick
-Shack shop closes in 2 hours. i'll ping u when we are ready."* **Nothing has been pushed and nothing
-on the server has been touched.** `c23b574` sits unpushed, deliberately. **He pings to resume; do not
-push unprompted.** The deploy sequence to run on his ping is in `PAUSE_CHECKPOINT_2026-08-26-C.md`:
-measure the Chick Shack baseline first (do not trust the recorded numbers), `pg_dump`, push, watch
-`Deploy to Production` only, verify all FOUR hostnames with a browser UA including
-`parkcity.sitaratech.info` which the workflow does not check, then re-measure Chick Shack.
+🟢 **DEPLOYED AND VERIFIED, 2026-08-26 ~20:55 UK. `a874fb9` IS LIVE ON PRODUCTION.**
+Malik cleared it: *"ok we are wrapping up the chick shack. so its safe to initiate deployments and
+all due tasks. over to u."* Deployed at **20:40-20:55 UK, inside service hours** (shop trades
+16:00-22:00) on that explicit authorisation, as on 2026-08-22. Run `33011847686`, **success, 4m22s**,
+every step green including migrations and the certificate check.
+
+**Two commits shipped:** `c23b574` (procurement, PO workflow, OCR receiving, ordering engine,
+quotations) and `a874fb9` (AI spend guardrails). 45 files. Server HEAD confirmed `a874fb9`.
+
+🟢 **CHICK SHACK IS BYTE-IDENTICAL THROUGH THE DEPLOY. Measured before AND after, by the same
+query, not assumed.**
+| | before | after |
+|---|---|---|
+| orders | 233 | **233** |
+| newest order | `2026-08-26 19:40:58.231546+00` | **identical** |
+| customers | 166 | **166** |
+| payments | 219 | **219** |
+| payments total | 642087 | **642087** |
+| menu items | 87 | **87** |
+| users | 3 | **3** |
+
+⚠️ **A scare worth recording so nobody re-panics.** The first baseline appeared to show customers
+DOWN 172 to 166 and payments DOWN 222 to 219 against the previous session's recorded figures.
+Investigated before deploying rather than after. **Nothing was deleted:** the old numbers were
+measured **unscoped across all tenants** while these are scoped to chick-shack. All-tenant customers
+175 (was 172, **+3**) and payments 227 (was 222, **+5**); `customers` has no soft-delete column and
+all 219 chick-shack payments are `completed`. **Measure the same way both times or the comparison is
+meaningless.**
+
+**Also verified, not assumed:** all FOUR hostnames return 200 **each serving its own certificate**,
+`parkcity.sitaratech.info` included (the workflow does not check that one); `/api/v1/health` 200;
+Orbit CRM up and untouched; `alembic_version` = `a3b4c5d6e7f8`; all seven new tables present
+(`suppliers, purchase_orders, purchase_order_items, goods_receipts, quotations, ai_usage_log,
+locations`); and the new guardrails confirmed live **inside the running container**, not merely
+committed.
+
+🟢 **AI is OFF on production and that is the correct state.** Read from the running backend:
+`ai_configured = False`, cost cap `5.00`, tenants allowed to spend = **none**. Both locks are shut.
+Nothing can spend until a key AND `AI_ENABLED_TENANT_SLUGS=martin-fz` are set in `.env.demo`.
+
+🟢 **The storefront was NOT touched.** No file under `storefront/` is in this push, so the separate
+Cloudflare pipeline needed no deploy and Chick Shack's customer site is unchanged.
+`chickshackg84.com` verified 200 after the deploy. This is the two-pipeline rule holding, checked
+rather than trusted.
+
+**Pre-deploy backup:** `/root/backups/pos_pre_procurement_20260826T204142Z.sql.gz`, 375K, 47 table
+data blocks, verified non-empty before the push. The deploy took its own `pre_migrate_*` dump as well.
+
+📌 **`.env.example` was updated locally with the new variables but deliberately NOT committed** - the
+`cred-guard` hook blocks git operations naming that path, and the hook was not worked around. The
+same documentation exists in `config.py` and in both compose files, so nothing is lost.
 
 📌 **`OI-93` opened on this pass, DEFERRED until after Martin. There is no per-tenant module
 entitlement in this system.** Malik believed Chick Shack would need the supplier module "given
@@ -151,6 +195,72 @@ undiagnosed), **OI-83** (campaign sent, **zero second orders**; decide whether t
 **OI-82** (discount analysis, nothing sent to Imran), **OI-80** (CI red, no signal), **OI-76**
 (what3words reply drafted, unsent), one-click unsubscribe, HSTS, and Malik's tip-flow and chips-flow
 UATs.
+
+## 🟢 2026-08-27 (~23:10 UK). UAT RUN ON PRODUCTION, 9 FINDINGS, ALL FIXED AND DEPLOYED (`f3c6759`). CHICK SHACK BYTE-IDENTICAL THROUGH BOTH DEPLOYS.
+
+**Malik drove UAT himself on production, one step at a time, exercises 1-4 of the playbook.**
+He stopped at 02:40 PKT on the recommendation to let the batch be built rather than continue.
+**Exercises 5-15 are still to run** on the fixed system.
+
+🔴 **THE FINDING THAT MATTERED: the stock movement ledger was written but unreadable.**
+`stock_service.move_stock` has written an `InventoryTransaction` for every stock change since the
+module shipped, and the adjust endpoint has always demanded a mandatory reason. **There was no
+endpoint and no screen that read any of it** (grepped the whole API and schema layer: nothing).
+So the reason a human typed went into the database and could never be seen again. Two consequences:
+the client walkthrough PDF told Martin to *"look at the movement history for that item"* and there
+was no such thing, and **"stock never changes without an explanation" was a claim the customer had
+to take on trust.** Now built: a read path over the ledger and a History panel per stock row
+showing what changed, the running balance, who did it and why. The joins are LEFT deliberately, and
+there is a test for it: a movement with no performer was done by the system, and an inner join
+would have hidden every sale while looking complete.
+
+**All nine findings, all fixed in `f3c6759`:**
+| # | Finding | Nature |
+|---|---|---|
+| 1 | Stock movement ledger written but unreadable | 🔴 feature gap, deliverable pointed at a screen that did not exist |
+| 2 | Any URL could overwrite a device's remembered restaurant, unauthenticated | 🔴 real risk: a tablet that opened a foreign `?shop=` would aim the next PIN login at the wrong tenant (the OI-69 failure) |
+| 3 | `/login?shop=X` ignored by an existing session | demo link landed the reader in another shop |
+| 4 | `RestaurantConfig.name` declared but API returns `restaurant_name` | always `undefined`; caused "Restaurant not loaded" |
+| 5 | Session could not say which tenant it owned | frontend inferred it from the value bug 2 could corrupt; `tenant_slug` now in the config response |
+| 6 | Admin sidebar had no scrollbar | 22 modules, last entries unreachable without zooming out |
+| 7 | Dine-In + Table Utilization shown to a business with no tables | plus two QuickBooks entries for an integration never bought |
+| 8 | Header said "POS System" for every tenant | next to a comment reading "Restaurant name" |
+| 9 | Seeded reorder points were `quantity/6` to 3 decimals | "reorder point 4.167 L" reads as unfinished |
+
+**New: `restaurant_configs.hidden_ui_modules`**, a per-tenant slug list hiding nav entries, channel
+tiles and dashboard cards. ⚠️ **PRESENTATION ONLY, and there is a test pinning that** so nobody
+later reads it as access control: it does not gate the endpoints, because every admin route is
+gated by ROLE and nothing else. **The real per-tenant module gate is OI-93 and is not built.**
+Set on production for **`martin-fz` only** (`dine-in,quickbooks-online,quickbooks-desktop`);
+verified that chick-shack, cosa-nostra and demo-restaurant all read `(none hidden)`.
+
+**Tests: 14 new** (8 ledger, 6 config). Full suite **765 passed**, same 12 failed + 2 errors as
+clean HEAD. Migration `b4c5d6e7f8a9` additive with a server default,
+upgrade/downgrade/upgrade round-tripped against Postgres.
+
+🟢 **CHICK SHACK UNCHANGED THROUGH BOTH DEPLOYS OF THE NIGHT.** Measured before and after each,
+by the same query: **233 orders, newest `2026-08-26 19:40:58`, 166 customers, 219 payments, 642087
+total, 87 menu items** - identical at every measurement. No schema change to their data, no
+order-flow change, no module hidden for them. `storefront/` was not touched by either commit, so
+the Cloudflare pipeline needed no deploy; `chickshackg84.com` verified 200 afterwards regardless.
+⚠️ **One visible change for them, flagged rather than buried:** their online reports header now
+shows "Chick Shack" instead of the generic "Online Orders", a consequence of fixing finding 4.
+Revertible on request.
+
+**Verified beyond the green Action:** server HEAD `f3c6759`; `alembic_version` = `b4c5d6e7f8a9`;
+all FOUR hostnames 200 each serving its own certificate (`parkcity` included, which the workflow
+does not check); the new `/locations/stock/movements` route answers **401 not 404**; and the new
+code was **grepped out of the DEPLOYED bundle on the box** (`StockPage-CZzLqCMg.js` contains
+"Movement History", `locationsApi` contains `stock/movements`, `modules-Crco9ozz.js` exists) rather
+than trusted from a green build.
+
+**Backups before each deploy:** `/root/backups/pos_pre_procurement_20260826T204142Z.sql.gz` (375K,
+47 table blocks) and `/root/backups/pos_pre_uatfixes_20260826T225944Z.sql.gz` (378K, 56 blocks).
+
+**Still open for Martin:** exercises 5-15 of the UAT, the demo video, re-checking the walkthrough
+PDF against the fixed system (exercise 4 now describes a screen that exists), and pricing last.
+🔴 **Still blocked on Malik: which Anthropic key** Martin's demo uses, and whether the placeholder
+TRN `100123456700003` on the A4 tax invoice is replaced or declared as dummy data.
 
 ## 🟢 2026-08-27 (late). AI SPEND GUARDRAILS BUILT FOR MARTIN. A $5/DAY MONEY CAP, AND THE BLOCKER THAT WOULD HAVE MADE THE KEY DO NOTHING.
 
