@@ -1,6 +1,12 @@
 # STATE — Restaurant POS System
 
-**Last refreshed:** 2026-08-26 (late evening, THIRD fresh session via HANDOFF.md; `/refresh` run).
+**Last refreshed:** 2026-08-27 (~23:20 UK / 04:20 PKT). **HEAD `f486642` = origin = server, 0
+unpushed.** Three production deploys today, all green. **AI live for `martin-fz` only, proved by a
+real call.** 🔴 **Next session: ROTATE THE ANTHROPIC KEY FIRST** (it was echoed by a docker compose
+error; see the section immediately below and `ERROR_LOG.md`). Then UAT exercises 5-15, one step at
+a time. Resume from **`PAUSE_CHECKPOINT_2026-08-27.md`**.
+
+**Last refreshed (previous):** 2026-08-26 (late evening, THIRD fresh session via HANDOFF.md; `/refresh` run).
 **One drift corrected. No contradiction on substance.** Git re-verified against the real remote,
 not the tracking ref: HEAD **`c23b574`**, `git ls-remote origin main` = **`be7abc8`**,
 **1 UNPUSHED COMMIT**, 144 dirty files. **No code, storefront or server change on this refresh pass.**
@@ -195,6 +201,40 @@ undiagnosed), **OI-83** (campaign sent, **zero second orders**; decide whether t
 **OI-82** (discount analysis, nothing sent to Imran), **OI-80** (CI red, no signal), **OI-76**
 (what3words reply drafted, unsent), one-click unsubscribe, HSTS, and Malik's tip-flow and chips-flow
 UATs.
+
+## 🟢 2026-08-27 (~23:20 UK). AI IS LIVE ON PRODUCTION FOR MARTIN ONLY, PROVED BY A REAL CALL. 🔴 THE KEY MUST BE ROTATED FIRST THING.
+
+**Malik's instruction:** *"buddy use timelogging key for now. i gave u the path for it."* Then,
+mid-operation: *"buddy its running live on timesheet droplet."* Done, with that caveat recorded.
+
+🔴 **ROTATE THE ANTHROPIC KEY BEFORE ANY OTHER WORK.** During this session **docker compose echoed
+the key in full** in an error message: a UTF-8 BOM landed in front of the variable name, compose
+could not parse the NAME, and its error quotes the whole `name=value` pair. **It is Thrive
+Timesheet's LIVE PRODUCTION key.** Nothing public and nothing hostile, but a credential that has
+appeared in a log is burned. Rotate it in **two** places - Thrive's droplet first, then
+`.env.demo` here - and ⚠️ **do not revoke before replacing on Thrive**, or its daily draft job
+breaks silently. Written up in `ERROR_LOG.md`; runbook in `PAUSE_CHECKPOINT_2026-08-27.md`.
+
+🟢 **VERIFIED BY A REAL CALL ON THE BOX, not by reading config.** Config alone could not settle
+whether the droplet can even reach the API - its egress is restricted, which is why email goes via
+Brevo over HTTPS rather than SMTP.
+```
+martin-fz       -> LIVE CALL OK, model said: ready
+chick-shack     -> refused (correct)
+demo-restaurant -> refused (correct)
+cosa-nostra     -> refused (correct)
+usage martin-fz : 1 call, 243 units, $0.001455
+```
+Read from inside the running container: `ai_configured=True`, `claude-opus-5`, cost cap `5.00`,
+`tenants allowed: ['martin-fz']`.
+
+⚠️ **Billing, as Malik flagged:** the key is Thrive's live one, so Martin's demo spend lands on
+Thrive's invoice and the Anthropic console cannot separate the two. **Our own `ai_usage_log` can**,
+per tenant, so reconciliation is possible from this side. The exposure is bounded by the cap at
+**$5/day, $150/month**, and exactly one tenant can reach it.
+
+**Chick Shack re-measured after the backend and nginx recreation: identical again** (233 / newest
+`2026-08-26 19:40:58` / 166 / 219 / 642087). All five hostnames 200, `chickshackg84.com` included.
 
 ## 🟢 2026-08-27 (~23:10 UK). UAT RUN ON PRODUCTION, 9 FINDINGS, ALL FIXED AND DEPLOYED (`f3c6759`). CHICK SHACK BYTE-IDENTICAL THROUGH BOTH DEPLOYS.
 

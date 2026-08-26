@@ -29,6 +29,29 @@ Each entry follows:
 
 ---
 
+### 2026-08-27 - A BOM in an env file made docker compose print the API key in full
+- **Error**: `failed to read /root/pos-system/.env.demo: line 45: unexpected character "﻿" in
+  variable name "﻿ANTHROPIC_API_KEY=sk-ant-..."` - **with the entire key value in the message.**
+- **Context**: writing the Anthropic key into production's `.env.demo` so the AI features could be
+  enabled for the FZ LLC tenant. The value was deliberately never echoed: it was read into a
+  variable, written to a temp file, `scp`'d, and appended remotely. None of that mattered.
+- **Root Cause**: the file was written with a UTF-8 byte-order mark, which landed immediately
+  before `ANTHROPIC_API_KEY`. Docker compose could not parse the variable NAME, and its error
+  message quotes **the whole `name=value` pair** to show you what it choked on. So the one code
+  path that prints an env line verbatim is the failure path, and it fires precisely when the file
+  is malformed.
+- **Fix**: strip the BOM (`sed -i 's/\xEF\xBB\xBF//g'`), and write env files with an explicitly
+  BOM-free encoding - in PowerShell,
+  `[IO.File]::WriteAllText($p, $t, (New-Object System.Text.UTF8Encoding($false)))`.
+  Then **rotate the key**, because it has been in a log.
+- **Rule**: **handling a secret carefully is not the same as it staying secret.** The value was
+  never printed by any command that was written deliberately; it was printed by a parser
+  complaining about the file. Before writing a credential into a config file, run the parser's own
+  validation first (`docker compose ... config`) on a file that does NOT yet contain the secret, or
+  accept that a malformed line will be echoed back with its value attached. And treat any
+  credential that has appeared in a log as burned: rotate it, do not reason about who might have
+  seen it.
+
 ### 2026-08-27 (late) - The test suite spent real money, because the dev container had a key
 - **Error**: `Failed: DID NOT RAISE <class 'app.services.ai_client.AIUnavailable'>` on three of the
   new cap tests. The tests did not just fail; they **made real, billed Anthropic API calls.**
