@@ -20,6 +20,10 @@ import {
   Percent,
   TrendingUp,
   Receipt,
+  Truck,
+  ClipboardList,
+  Sparkles,
+  FileSignature,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { useUIStore } from "@/stores/uiStore";
@@ -44,8 +48,14 @@ const baseNavItems = [
   { to: "/admin/locations", label: "Locations", icon: Store, end: false },
   { to: "/admin/stock", label: "Stock", icon: Boxes, end: false },
   { to: "/admin/transfers", label: "Transfers", icon: ArrowLeftRight, end: false },
+  // Procurement sits between holding stock and reporting on it: this is where
+  // stock comes FROM.
+  { to: "/admin/suppliers", label: "Suppliers", icon: Truck, end: false },
+  { to: "/admin/purchase-orders", label: "Purchase Orders", icon: ClipboardList, end: false },
+  { to: "/admin/order-planner", label: "Order Planner", icon: Sparkles, end: false },
   { to: "/admin/channels", label: "Sales Channels", icon: Percent, end: false },
   { to: "/admin/profitability", label: "Profitability", icon: TrendingUp, end: false },
+  { to: "/admin/quotations", label: "Quotations", icon: FileSignature, end: false },
   { to: "/admin/tax-invoices", label: "Tax Invoices", icon: Receipt, end: false },
 ];
 

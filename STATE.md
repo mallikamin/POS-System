@@ -1,6 +1,37 @@
 # STATE — Restaurant POS System
 
-**Last refreshed:** 2026-08-26 (fresh session via HANDOFF.md; `/refresh` run). ⚠️ **STATE.md was a
+**Last refreshed:** 2026-08-26 (evening, second fresh session via HANDOFF.md; `/refresh` run).
+**Verified current, four small drifts corrected, no contradiction on substance.**
+Git re-verified this pass, against the real remote not the tracking ref: HEAD `be7abc8`,
+`git ls-remote origin main` = `be7abc8`, **0 unpushed**, 138 dirty files. **No code, storefront or
+server change on this refresh pass.**
+
+⚠️ **Drifts corrected on this pass:**
+1. **`HANDOFF.md` and `PAUSE_CHECKPOINT_2026-08-26-B.md` both name HEAD as `815a21e`. It is
+   `be7abc8`.** The docs commit `be7abc8` was made and pushed at 17:07 PKT, after the checkpoint
+   was written. `0 unpushed` still holds, so the substance is unchanged, but both files are one
+   commit stale.
+2. 🟢 **That push fired a production deploy neither file records** (`Deploy to Production` run
+   `32966929610`, **success**, 3m24s, 12:08 UTC). Docs-only diff, so no behaviour change was
+   expected. **Verified independently rather than assumed: all FOUR production hostnames return
+   200** with a browser UA, `parkcity.sitaratech.info` included (the workflow does not check that
+   one). Chick Shack row counts NOT re-measured this pass; the documented baseline stands and will
+   be re-measured immediately before the next deploy, which is the point at which it is load-bearing.
+3. **The STATE.md header itself was stale** (it read `cd57170` / origin `50a8002` / 1 unpushed /
+   149 dirty, from the morning pass) even though this same file's own sections below already
+   recorded the two deploys that followed. Header corrected above.
+4. ⚠️ **`_context/clients/fz-llc-uae/plan-and-todo_2026-08-26.md` contradicts itself.** Its newest
+   top section is current, but the older lower half still says the 2-location model is "not
+   started", the A4 tax invoice is "not started", the universal system-admin login is "NOT applied
+   to production", and everything is "local dev only". **All four are now false.** The top section
+   supersedes. Flagged rather than silently merged because a reader landing mid-file is misled.
+
+📌 Known and unchanged, not new failures: the `CI` workflow is red (47s) and `Deploy to Staging`
+fails in 12s. That is **OI-80**, long-standing, no signal. `Deploy to Production` is the pipeline
+that matters and it is green on both `815a21e` and `be7abc8`. Local dev stack is up: all five
+`pos-system-*` containers healthy.
+
+**Last refreshed (previous):** 2026-08-26 (fresh session via HANDOFF.md; `/refresh` run). ⚠️ **STATE.md was a
 whole session stale on entry** — it carried **no record at all** of the 2026-08-26 FZ LLC (Martin
 Zubeldia, UAE) build session: sub-recipe production chain, the Postgres tz bug fix, the `martin-fz`
 tenant, and the universal system-admin login were all missing. Reconstructed below from
@@ -72,6 +103,69 @@ undiagnosed), **OI-83** (campaign sent, **zero second orders**; decide whether t
 **OI-82** (discount analysis, nothing sent to Imran), **OI-80** (CI red, no signal), **OI-76**
 (what3words reply drafted, unsent), one-click unsubscribe, HSTS, and Malik's tip-flow and chips-flow
 UATs.
+
+## 🟢 2026-08-26 (evening). THE REST OF MARTIN'S SCOPE IS BUILT AND VERIFIED LOCALLY. NOT YET DEPLOYED — waiting for the UK shop to close.
+
+**Every remaining item in FZ LLC's written scope is now built.** Procurement, OCR receiving, the
+AI ordering advisor and back-office quotations. All verified end to end against the real API
+through nginx, not only by unit test.
+
+🔴 **NOT DEPLOYED. Local only.** `git push origin main` recreates the SHARED nginx serving Chick
+Shack's tablet, and the UK shop opened during this session. **Deploy after close, and take the
+Chick Shack baseline immediately before.**
+
+**Shipped in this session (local):**
+| Block | Verification |
+|---|---|
+| Supplier master, catalogue, purchase history | **45/45 live API checks** |
+| PO workflow: draft → send → receive → stock, partial + over-delivery, email sending, printable A4 PO | same run |
+| Ordering engine: production target → recipe explosion → what to buy | **35/35 live checks**, arithmetic hand-worked from the seed |
+| OCR goods receiving | **42/42 live checks with REAL model calls**, PDF and photo |
+| Back-office quotations: raise → send → win/lose → convert to order | **33/33 live checks** |
+| Regression tests | 67 new (30 + 16 + 21). **Full suite 736 passed**, same 10 failed + 2 errors as clean HEAD |
+| Migrations | 3 new, entirely additive, each upgrade/downgrade/upgrade round-tripped |
+
+**Three real bugs found by end-to-end runs that the unit tests missed** (all in `ERROR_LOG.md`):
+a stale eager-loaded collection made a just-written goods receipt invisible to its own request
+(`populate_existing`); a magnitude assertion passed on a zero total and proved nothing; the
+frontend `Ingredient` type had been missing `is_produced` since the sub-recipe work shipped.
+
+📌 **AI design decision worth keeping.** The ordering quantities are **computed, not generated** —
+the recipe explosion is arithmetic and a model never touches a number that lands on a purchase
+order. The AI reads the finished plan and adds judgement it cannot act on. OCR likewise only ever
+**proposes**; a human confirms through the same receiving endpoint manual entry uses. Both
+features are opt-in and the system is fully functional with no API key at all.
+
+📌 **`api-cost-playbook` applied, not improvised.** Instrumentation first (`ai_usage_log`, one row
+per call with its four token classes), one model constant, cached system block, the B1 rule (the
+model gets a compact numbered allowlist and answers with indexes, never the ingredient master),
+per-tenant daily caps that degrade gracefully, and an admin usage endpoint. **Prompt caching
+confirmed live, not assumed: 1,563 tokens written once, 3,126 read back across the next two
+calls.** Measured cost ≈ **$0.026 per delivery-note scan** on `claude-opus-5`.
+
+⚠️ **The AI key used for verification is Thrive Timesheet's**, read from that project on Malik's
+instruction for testing only. **Production has no key**, so OCR and the advisor are OFF there
+until one is set. Everything else works without it.
+
+**Deliverables written** (in `_context/clients/fz-llc-uae/proposal/`, Markdown source + PDF):
+demo recording shot-list, client system-walkthrough/UAT playbook, and the two-tier proposal with
+the integration playbook and payment-gateway comparison.
+
+🔴 **The proposal is NOT committed, deliberately. `github.com/mallikamin/POS-System` is PUBLIC and
+`_context/clients/` IS tracked.** Committing it would publish Sitara's pricing, the margin
+reasoning, and a live client negotiation. Left unstaged pending Malik's decision. Note this is a
+pre-existing exposure, not a new one: Chick Shack's discovery notes, meeting transcripts and
+discount analysis are already public in that repo.
+
+⚠️ **The proposal's numbers are DRAFT** and carry an internal "remove before sending" block.
+Malik has not approved them. The one tension flagged for him: the Tier B e-commerce delta of
+AED 120/month is below the Chick Shack precedent (£35/mo) for comparable functionality.
+
+**Still untracked and must stay that way** (plaintext credentials, public repo):
+`backend/app/scripts/{system_admin,sync_system_admin,seed_fz_llc,seed_demo_kitchen}.py`, plus the
+four new verification scripts that import from them —
+`verify_procurement.py`, `verify_suggestion.py`, `verify_ocr.py`, `verify_quotations.py`.
+**They are the verification evidence for this session; do not lose them.**
 
 ## 🟢 2026-08-26 ~11:45 UK. BOTH FZ LOCATIONS ARE LIVE AND VERIFIED ON PRODUCTION (`815a21e`). Chick Shack byte-identical through two deploys.
 

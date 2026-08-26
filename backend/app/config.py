@@ -170,6 +170,42 @@ class Settings(BaseSettings):
         """
         return bool(self.STRIPE_WEBHOOK_SECRET)
 
+    # -----------------------------------------------------------------
+    # AI (Anthropic) -- OCR goods receiving and the ordering advisor
+    #
+    # Both features are OPT-IN and both degrade to nothing useful being lost:
+    # OCR falls back to typing the delivery note in by hand, and the ordering
+    # suggestion still produces its full deterministic plan without any model
+    # call at all. Unset means no AI, and every other part of the system works
+    # exactly as before.
+    #
+    # Caps exist so a pathological day cannot produce a surprise invoice. They
+    # are per tenant per UTC day, counted in the `ai_usage_log` table, and they
+    # degrade gracefully: the caller is told the cap is reached, never crashed.
+    # Sized for a two-site operator; raise them deliberately before scaling.
+    # -----------------------------------------------------------------
+    ANTHROPIC_API_KEY: str = ""
+    # One constant, one place. Overridable so the operator can choose a cheaper
+    # tier for their own volume; that is their decision, not a default.
+    AI_MODEL: str = "claude-opus-5"
+    # A delivery note is a page of text. This bounds the output, not the input.
+    AI_MAX_OUTPUT_TOKENS: int = 4000
+    # Uploaded documents. 8MB comfortably covers a phone photo of an A4 note
+    # and stays well inside the API's 32MB request limit.
+    AI_MAX_UPLOAD_BYTES: int = 8 * 1024 * 1024
+    AI_DAILY_CALL_CAP_PER_TENANT: int = 200
+    AI_DAILY_TOKEN_CAP_PER_TENANT: int = 2_000_000
+
+    @property
+    def ai_configured(self) -> bool:
+        """AI is opt-in. Without a key, nothing calls a model.
+
+        Deliberately not fatal, for the same reason `email_configured` is not:
+        receiving goods and ordering stock are the product; the model is an
+        assist on top of them.
+        """
+        return bool(self.ANTHROPIC_API_KEY)
+
     model_config = {
         "env_file": ".env",
         "env_file_encoding": "utf-8",

@@ -50,6 +50,10 @@ const RecipeBuilderPage = lazy(() => import("@/pages/admin/RecipeBuilderPage"));
 const LocationsPage = lazy(() => import("@/pages/admin/LocationsPage"));
 const StockPage = lazy(() => import("@/pages/admin/StockPage"));
 const TransfersPage = lazy(() => import("@/pages/admin/TransfersPage"));
+const SuppliersPage = lazy(() => import("@/pages/admin/SuppliersPage"));
+const PurchaseOrdersPage = lazy(() => import("@/pages/admin/PurchaseOrdersPage"));
+const OrderPlannerPage = lazy(() => import("@/pages/admin/OrderPlannerPage"));
+const QuotationsPage = lazy(() => import("@/pages/admin/QuotationsPage"));
 const SalesChannelsPage = lazy(() => import("@/pages/admin/SalesChannelsPage"));
 const ProfitabilityPage = lazy(() => import("@/pages/admin/ProfitabilityPage"));
 const TaxInvoicesPage = lazy(() => import("@/pages/admin/TaxInvoicesPage"));
@@ -119,6 +123,10 @@ export function App() {
             <Route path="locations" element={<LocationsPage />} />
             <Route path="stock" element={<StockPage />} />
             <Route path="transfers" element={<TransfersPage />} />
+            <Route path="suppliers" element={<SuppliersPage />} />
+            <Route path="purchase-orders" element={<PurchaseOrdersPage />} />
+            <Route path="order-planner" element={<OrderPlannerPage />} />
+            <Route path="quotations" element={<QuotationsPage />} />
             <Route path="channels" element={<SalesChannelsPage />} />
             <Route path="profitability" element={<ProfitabilityPage />} />
             <Route path="tax-invoices" element={<TaxInvoicesPage />} />

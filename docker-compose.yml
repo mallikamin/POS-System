@@ -46,6 +46,18 @@ services:
       - QB_CLIENT_SECRET=${QB_CLIENT_SECRET:-}
       - QB_REDIRECT_URI=${QB_REDIRECT_URI:-http://localhost:8090/api/v1/integrations/quickbooks/callback}
       - QB_ENVIRONMENT=${QB_ENVIRONMENT:-sandbox}
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-}
+      - STRIPE_PUBLISHABLE_KEY=${STRIPE_PUBLISHABLE_KEY:-}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-}
+      - STRIPE_SUCCESS_URL=${STRIPE_SUCCESS_URL:-http://localhost:5173/order-confirmation}
+      - STRIPE_CANCEL_URL=${STRIPE_CANCEL_URL:-http://localhost:5173/checkout}
+      # OCR goods receiving and the ordering advisor. Unset means both are
+      # simply off; nothing else changes. Caps are per tenant per UTC day and
+      # are enforced in `ai_client`, not here.
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - AI_MODEL=${AI_MODEL:-claude-opus-5}
+      - AI_DAILY_CALL_CAP_PER_TENANT=${AI_DAILY_CALL_CAP_PER_TENANT:-200}
+      - AI_DAILY_TOKEN_CAP_PER_TENANT=${AI_DAILY_TOKEN_CAP_PER_TENANT:-2000000}
     expose:
       - "8000"
     depends_on:

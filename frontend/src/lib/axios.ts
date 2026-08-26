@@ -35,6 +35,16 @@ api.interceptors.request.use(
     if (token) {
       config.headers.set("Authorization", `Bearer ${token}`);
     }
+    // A file upload must NOT carry this client's default
+    // `Content-Type: application/json`. Deleting it here lets the browser set
+    // `multipart/form-data` together with the boundary it generates -- a
+    // Content-Type without that boundary is unparseable server-side, and the
+    // upload fails with a 422 that looks like a validation problem rather than
+    // a header one. Done in the interceptor rather than per call site so it
+    // cannot be forgotten by the next one.
+    if (typeof FormData !== "undefined" && config.data instanceof FormData) {
+      config.headers.delete("Content-Type");
+    }
     return config;
   },
   (error) => Promise.reject(error)

@@ -16,3 +16,8 @@ reportlab==4.1.0
 openpyxl==3.1.5
 lxml==5.2.1  # QB Desktop QBXML processing
 stripe==15.3.1  # Card payments for online orders (authorise, capture on accept)
+# OCR goods receiving + the ordering advisor. Both features are opt-in and the
+# system runs unchanged without an API key, but the package is imported lazily
+# so it must be installed for them to be available at all. 1.x is built on
+# httpx2, which coexists with the httpx pin above rather than conflicting.
+anthropic==1.0.0

@@ -29,6 +29,67 @@ Each entry follows:
 
 ---
 
+### 2026-08-26 (evening) - A just-written record was invisible to the request that wrote it
+- **Error**: `500 {"detail":"Receipt vanished after write."}` on the first end-to-end goods
+  receipt. The row was in the database; the API could not see it.
+- **Context**: `POST /procurement/purchase-orders/{id}/receive` writes a `GoodsReceipt`, commits,
+  re-reads the purchase order with `selectinload(PurchaseOrder.receipts)`, and looks for the
+  receipt it just created.
+- **Root Cause**: SQLAlchemy returns the instance already in the identity map, and **does not
+  overwrite collections that are already loaded**. `receipts` had been loaded (empty) at the
+  start of the request, so the re-query handed back that stale empty list. `selectinload` does
+  not help: the object is not re-populated at all.
+- **Fix**: `.execution_options(populate_existing=True)` on `get_purchase_order`, and the same on
+  `quotation_service.get_quotation` which has the identical write-then-re-read shape.
+- **Rule**: any service that writes a child row and then re-reads the parent **in the same
+  request** must use `populate_existing=True`. No unit test would have caught this: each test
+  gets a fresh session, so there is never a stale collection in the identity map to return. It
+  only appears on a real request against a real session.
+
+### 2026-08-26 (evening) - A green magnitude check that proved nothing
+- **Error**: `PASS  estimated spend 0.00 AED for 500 croissants is plausible`.
+- **Context**: verifying the ordering engine end to end. The assertion was
+  `0 <= total < 100000`, and the total was zero because seeded stock happened to cover the
+  target, so nothing needed ordering.
+- **Root Cause**: the check was written to catch a 100x error, but a zero satisfies almost any
+  range test. Pricing, pack rounding and supplier grouping were never executed, and the run
+  reported green across all of them. The pack-rounding assertion was worse: it looped over
+  lines with a pack size, there were none, and the loop asserted nothing at all.
+- **Fix**: added a deliberately larger target (20,000 units) that forces a real shortfall, plus
+  explicit setup creating a supplier with a 25 kg pack so the rounding path has something to
+  round. Both then failed-or-passed on their merits. Spend came out at 9,159.71 AED, which is
+  checkable by eye.
+- **Rule**: a passing assertion over an empty set is not evidence. If a check can be satisfied
+  by zero rows or a zero value, it must first assert that the set is non-empty. Same family as
+  "silent truncation reads as success" - when a test can pass without executing the thing it
+  names, it is worse than no test, because it reports coverage that does not exist.
+
+### 2026-08-26 (evening) - The frontend was blind to `is_produced` since the sub-recipe work
+- **Error**: `TS2339: Property 'is_produced' does not exist on type 'Ingredient'`, hit while
+  filtering produced ingredients out of the purchase-order screens.
+- **Context**: the API has returned `is_produced` on every ingredient since the sub-recipe
+  feature shipped earlier the same day; `frontend/src/types/inventory.ts` was never updated.
+- **Root Cause**: a backend schema field added without the corresponding TypeScript type. There
+  is no check that the two agree, so nothing complained until a screen needed the field.
+- **Fix**: added to the type with a note on why it matters (a produced ingredient cannot be
+  purchased, and its cost is a rollup owned by the recipe engine).
+- **Rule**: when adding a field to a response schema, update the matching TS interface in the
+  same change. The gap is silent in both directions and only surfaces when somebody needs it.
+
+### 2026-08-26 (evening) - A missing PDF glyph renders as nothing, not as a box
+- **Error**: `raw -> sub-recipe -> intermediate -> final` printed in the client proposal as
+  `raw   sub-recipe   intermediate   final`. The arrows vanished.
+- **Context**: `scripts/md_to_pdf.py`, rendering the FZ LLC deliverables with reportlab.
+- **Root Cause**: two compounding mistakes. First, symbols were substituted for HTML entities
+  BEFORE `html.escape`, so `&#8594;` became the literal text `&amp;#8594;`. After fixing the
+  order, the entity was parsed correctly - and the standard PDF Helvetica has no glyph for
+  U+2192, so reportlab drew **nothing at all**. Not a tofu box. Silently absent.
+- **Fix**: escape first, substitute after, and map every non-ASCII symbol to an ASCII
+  equivalent (`-&gt;`, `NOTE:`, `x`) rather than an entity.
+- **Rule**: in a PDF, a missing glyph is invisible, so proofread the rendered output, not the
+  source. And when escaping and substituting in the same function, escape first - otherwise
+  every replacement containing `&` is corrupted by the escape that follows it.
+
 ### 2026-08-26 — Recipe creation fails against Postgres (missing DateTime timezone)
 - **Error**: `asyncpg.exceptions.DataError: can't subtract offset-naive and offset-aware datetimes`
   on every `POST /inventory/recipes`, even a plain single-layer recipe.

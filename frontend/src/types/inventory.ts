@@ -22,6 +22,15 @@ export interface Ingredient {
   current_stock: number;
   is_active: boolean;
   notes: string | null;
+  /**
+   * True when this ingredient is MADE in-house by a recipe rather than bought.
+   * The API has returned it since the sub-recipe work landed; it was missing
+   * from this type, so every screen was blind to the distinction. It matters:
+   * a produced ingredient cannot be put on a purchase order, and its
+   * `cost_per_unit` is a rollup owned by the recipe engine, not a price
+   * anybody pays.
+   */
+  is_produced: boolean;
   created_at: string;
   updated_at: string | null;
 }

@@ -789,3 +789,48 @@ async def send_order_email(
 
     logger.info("Sent %r email for order %s", event, order.order_number)
     return True
+
+
+async def send_document_email(
+    *,
+    to: str,
+    subject: str,
+    text: str,
+    html: str = "",
+    bcc: str = "",
+) -> tuple[bool, str]:
+    """Send one already-rendered document by email. Additive, no order involved.
+
+    Used by the purchase-order workflow to send a PO to a supplier. It reuses
+    the two transports above rather than opening a third, so the Brevo-vs-SMTP
+    decision (and the reason production must use Brevo -- the droplet cannot
+    reach any outbound SMTP port) is made in exactly one place.
+
+    Differs from `send_order_email` in one deliberate way: it returns the
+    failure reason instead of only logging it. A customer email that fails is
+    a courtesy that did not arrive; a purchase order that fails to send is
+    something the buyer must be told about, because the supplier does not know
+    about the order. The caller records the message against the PO.
+
+    Still never raises. The caller has usually already committed intent.
+    """
+    if not to or "@" not in to:
+        return False, "No valid email address to send to."
+    if not settings.email_configured:
+        logger.warning("Email not configured; would have sent %r to %s", subject, to)
+        return False, (
+            "Email is not configured on this server, so the order was not sent. "
+            "Download or print it and send it to the supplier by hand."
+        )
+
+    try:
+        if settings.BREVO_API_KEY:
+            await _send_via_brevo(to, subject, text, html, bcc)
+        else:
+            await asyncio.to_thread(_send_blocking, to, subject, text, html, bcc)
+    except Exception as exc:  # noqa: BLE001 -- see send_order_email
+        logger.exception("Failed to send document email %r to %s", subject, to)
+        return False, f"{type(exc).__name__}: {exc}"[:500]
+
+    logger.info("Sent document email %r to %s", subject, to)
+    return True, ""

@@ -39,6 +39,16 @@ from app.models.location import (
     StockTransfer,
     StockTransferItem,
 )
+from app.models.ai_usage import AIUsageLog
+from app.models.quotation import Quotation, QuotationItem
+from app.models.procurement import (
+    GoodsReceipt,
+    GoodsReceiptLine,
+    PurchaseOrder,
+    PurchaseOrderItem,
+    Supplier,
+    SupplierItem,
+)
 
 __all__ = [
     "Base",
@@ -87,4 +97,13 @@ __all__ = [
     "SalesChannel",
     "StockTransfer",
     "StockTransferItem",
+    "Supplier",
+    "SupplierItem",
+    "PurchaseOrder",
+    "PurchaseOrderItem",
+    "GoodsReceipt",
+    "GoodsReceiptLine",
+    "AIUsageLog",
+    "Quotation",
+    "QuotationItem",
 ]

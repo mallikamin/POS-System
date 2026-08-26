@@ -20,6 +20,8 @@ from app.api.v1.table_sessions import router as table_sessions_router
 from app.api.v1.discounts import router as discounts_router
 from app.api.v1.inventory import router as inventory_router
 from app.api.v1.locations import router as locations_router
+from app.api.v1.procurement import router as procurement_router
+from app.api.v1.quotations import router as quotations_router
 from app.api.v1.public import router as public_router  # storefront, unauthenticated
 
 api_v1_router = APIRouter()
@@ -44,4 +46,6 @@ api_v1_router.include_router(table_sessions_router)
 api_v1_router.include_router(discounts_router)
 api_v1_router.include_router(inventory_router)
 api_v1_router.include_router(locations_router)
+api_v1_router.include_router(procurement_router)
+api_v1_router.include_router(quotations_router)
 api_v1_router.include_router(public_router)
