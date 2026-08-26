@@ -1,11 +1,41 @@
 # Bill of Materials (BOM) Implementation Status
 
-**Last Updated:** 2026-03-26
+---
+**⚠️ QUALITY ASSURANCE NOTICE**
+
+All outputs from Claude Code are subject to dual review:
+1. **Codex AI** — Automated accuracy validation
+2. **Senior Personnel** — Manual verification & approval
+
+Every implementation, configuration, deployment, and documentation must be **100% correct** and production-ready. No exceptions.
+---
+
+**Last Updated:** 2026-08-26 (correction below; body otherwise unchanged from 2026-03-26)
 **Project:** POS System - Inventory & Recipe Management
 
 ---
 
-## 📊 Overall Progress: **100% Complete**
+## 🔴 Correction, 2026-08-26
+
+This doc's "100% Complete" / all-checkmarks status was **not accurate**: recipe creation had
+never actually been exercised against the real Postgres database. `Recipe.effective_date` was
+missing `DateTime(timezone=True)` in the model, so every `POST /inventory/recipes` failed against
+Postgres with an asyncpg timezone error (SQLite, which the test suite runs on, doesn't enforce this
+and never caught it). There was also **no test file for this module at all** before today. Both are
+now fixed: the model column, and a new `backend/tests/test_recipe_service.py` (4 tests, passing).
+See memory `recipe-module-tz-bug-and-test-gap.md` for the full writeup. The rest of this document's
+checkmarks are otherwise left as originally written, including "⏳ needs browser testing" markers
+that were the actual signal something here hadn't been verified — read those literally.
+
+**Also added 2026-08-26:** multi-layer recipe/sub-recipe support. A `Recipe` can now produce either
+a `menu_item_id` (as before) or a `produces_ingredient_id` — an in-house intermediate like dough,
+sauce, or stuffing — enabling raw → sub-recipe → intermediate → final production chains. See
+migration `w9x0y1z2a3b4` and `Ingredient.is_produced`. Built for the FZ LLC UAE lead
+(`_context/clients/fz-llc-uae/`); no frontend UI yet to build a sub-recipe from the admin screen.
+
+---
+
+## 📊 Overall Progress: **100% Complete (see correction above)**
 
 | Phase | Status | Lines of Code | Files |
 |-------|--------|---------------|-------|

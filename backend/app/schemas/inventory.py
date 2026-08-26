@@ -6,7 +6,7 @@ import uuid
 from datetime import date, datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 # ---------------------------------------------------------------------------
@@ -48,6 +48,7 @@ class IngredientResponse(IngredientBase):
     id: uuid.UUID
     tenant_id: uuid.UUID
     current_stock: Decimal
+    is_produced: bool
     created_at: datetime
     updated_at: datetime | None
 
@@ -96,12 +97,36 @@ class RecipeItemResponse(RecipeItemBase):
 
 
 class RecipeBase(BaseModel):
-    menu_item_id: uuid.UUID
-    yield_servings: Decimal = Field(default=1, gt=0, description="Number of servings")
+    """A recipe produces exactly one of `menu_item_id` (a sellable final
+    product) or `produces_ingredient_id` (an in-house sub-recipe/intermediate
+    like dough, sauce, or stuffing that other recipes then consume as an
+    ingredient) -- never both, never neither.
+    """
+
+    menu_item_id: uuid.UUID | None = None
+    produces_ingredient_id: uuid.UUID | None = None
+    yield_servings: Decimal = Field(
+        default=1,
+        gt=0,
+        description="Number of servings (menu item) or yield quantity in "
+        "the produced ingredient's own unit (sub-recipe), e.g. 5 for a "
+        "batch that yields 5 kg of dough.",
+    )
     prep_time_minutes: int | None = Field(None, ge=0)
     cook_time_minutes: int | None = Field(None, ge=0)
     instructions: str | None = None
     notes: str | None = None
+
+    @model_validator(mode="after")
+    def _exactly_one_target(self) -> "RecipeBase":
+        has_menu_item = self.menu_item_id is not None
+        has_ingredient = self.produces_ingredient_id is not None
+        if has_menu_item == has_ingredient:
+            raise ValueError(
+                "Exactly one of menu_item_id or produces_ingredient_id "
+                "must be set."
+            )
+        return self
 
 
 class RecipeCreate(RecipeBase):

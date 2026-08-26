@@ -1,6 +1,34 @@
 # STATE — Restaurant POS System
 
-**Last refreshed:** 2026-08-22 ~20:45 UK. **OI-89 + OI-90 SHIPPED AND VERIFIED LIVE (`50a8002`),
+**Last refreshed:** 2026-08-26 (fresh session via HANDOFF.md; `/refresh` run). ⚠️ **STATE.md was a
+whole session stale on entry** — it carried **no record at all** of the 2026-08-26 FZ LLC (Martin
+Zubeldia, UAE) build session: sub-recipe production chain, the Postgres tz bug fix, the `martin-fz`
+tenant, and the universal system-admin login were all missing. Reconstructed below from
+`PAUSE_CHECKPOINT_2026-08-26.md` and `_context/clients/fz-llc-uae/plan-and-todo_2026-08-26.md`.
+Git re-verified: HEAD `cd57170`, `git ls-remote origin main` = `50a8002`, **1 unpushed docs commit**,
+**149 dirty files** (STATE said 138; the delta is this session's untracked FZ LLC files, not drift).
+**No code, storefront or server change on this refresh pass.** 🔴 **The live priority is now FZ LLC,
+not Chick Shack** — Martin's written quote + a client-visible demo URL are due **Monday 2026-08-31**.
+
+**Last refreshed (previous):** 2026-08-25 (second pass, same day, FB Live feasibility for the Chick Shack Page,
+**OI-91 opened**). Git re-verified: HEAD `cd57170`, `git ls-remote origin main` = `50a8002`, **1
+unpushed docs commit**, 138 dirty files (STATE said 130, routine scratch drift, not a code change).
+**No code, storefront or server change this pass.** New material fact: **Meta's own Help Centre
+gates live-streaming-from-software at 60-day account age AND 100 Page followers**, Chick Shack has
+**58 followers**, so the FB Live idea is **blocked on a number, not on our architecture**. See the
+🔴 FB LIVE section below. The "page had to be 2 months old" report (via Bilal Waheed / ccbw) is
+**confirmed real** and is the 60-day half of that same rule.
+
+**Last refreshed (previous):** 2026-08-25 (OI-72 Meta Page-access handover, RESUMED). Git unchanged since
+08-22 except one unpushed docs commit `cd57170`; HEAD `cd57170`, `origin/main` = `50a8002`, server at
+`50a8002`, 130 dirty files. **No code or storefront change this pass.** ⚠️ `cd57170` is still
+unpushed and pushing it re-runs the deploy pipeline, so it must wait for a closed-shop window.
+Material new fact this pass: **Imran has NO business portfolio** (verified from three of his own
+screenshots, see the 08-25 section below), which answers unverified item (3) from the 08-08
+diagnosis and kills the portfolio route. ⚠️ An earlier claim on this same refresh that a
+portfolio DID exist was **wrong** and is corrected in place below.
+
+**Last refreshed (previous):** 2026-08-22 ~20:45 UK. **OI-89 + OI-90 SHIPPED AND VERIFIED LIVE (`50a8002`),
 deployed DURING service on Malik's instruction, tested by Imran on the shop printer.** Git: HEAD
 `50a8002` = `origin/main`, server at `50a8002`, tag `pre-oi89` (= `4b11c43`) pushed. One docs commit
 may sit unpushed after this refresh (see the 08-22 section); pushing it re-runs the deploy pipeline,
@@ -33,13 +61,498 @@ Container start times read from `docker inspect`: nginx/frontend/backend all
    `email_normalise.py` and 2 test files). Register header corrected on this refresh; the decision
    record beneath it was already right.
 
-**Open:** **OI-72** (Meta Page access handover, moved 08-20, see below), **OI-88** (delivery minimum is flat £5 while the fee bands run £3 to £15, opened on this
+**Open:** 🔴 **FZ LLC / Martin Zubeldia (UAE) — the live priority, hard deadline Monday 2026-08-31**:
+two-tier written quote + a client-visible demo URL, plus the unbuilt scope list (2-location model,
+per-channel net-profit, A4 tax invoice, supplier/PO, OCR receiving, AI PO suggestions, sub-recipe
+admin UI). See the 2026-08-26 section immediately below. Then the Chick Shack items: **OI-91** (FB Live on the Chick Shack Page, **blocked by Meta's 100-follower / 60-day
+eligibility gate, Page has 58**; opened on the 08-25 second pass, see below), **OI-72** (Meta Page access handover, **resumed 08-25, portfolio confirmed, mid-flow on Imran's laptop**, see below), **OI-88** (delivery minimum is flat £5 while the fee bands run £3 to £15, opened on this
 refresh, see below), **OI-87** (push our online orders into EposNow, researched), **OI-86**
 (built, committed and now **deployed**; effect in production still unverified), **OI-85** (Google review email converts at zero,
 undiagnosed), **OI-83** (campaign sent, **zero second orders**; decide whether to run another),
 **OI-82** (discount analysis, nothing sent to Imran), **OI-80** (CI red, no signal), **OI-76**
 (what3words reply drafted, unsent), one-click unsubscribe, HSTS, and Malik's tip-flow and chips-flow
 UATs.
+
+## 🔴 2026-08-26. FZ LLC (Martin Zubeldia, UAE) — NEW LEAD, HARD DEADLINE MONDAY 2026-08-31. Core technical ask BUILT AND VERIFIED locally; the client-visible demo URL is the blocker and it collides with Chick Shack's deploy pipeline.
+
+⚠️ **This entire session was missing from STATE.md until this refresh.** Sources reconciled:
+`PAUSE_CHECKPOINT_2026-08-26.md` (authoritative for what was done) and
+`_context/clients/fz-llc-uae/plan-and-todo_2026-08-26.md` (authoritative for what remains).
+
+**Who/what:** prospective UAE client, contact **Martin Zubeldia**, bakery/cafe, **delivery-only, no
+dine-in, 2 locations** (production/B2B + delivery-only). Wants POS + Inventory + Procurement +
+multi-layer recipe/sub-recipe production + OCR goods receiving + AI-assisted PO suggestions +
+per-channel net-profit reporting. Commercial anchor: **near-zero upfront + flat 225 AED/month
+all-inclusive**, two-tier quote (with / without e-commerce). Standing directive from Malik verbatim:
+**"I need the complete thing. No half-cooked jobs."**
+
+🟢 **Built and verified 2026-08-26 (local dev only, `localhost:8090`, nothing client-visible):**
+- **Multi-layer sub-recipe production chain** — migration `w9x0y1z2a3b4`: `recipes.menu_item_id` now
+  nullable, new `recipes.produces_ingredient_id`, DB check constraint enforcing exactly one target,
+  `ingredients.is_produced`. `recipe_service.sync_produced_ingredient_cost` rolls a sub-recipe's cost
+  onto the ingredient it produces, so raw → sub-recipe → intermediate → final costs roll up
+  automatically. 4 new tests in `backend/tests/test_recipe_service.py`, all passing.
+- 🔴 **A real pre-existing bug was found and fixed on the way:** `Recipe.effective_date` and
+  `StockCount.reviewed_at` were missing `DateTime(timezone=True)`, so **any** recipe creation against
+  Postgres failed with an asyncpg tz mismatch. The test suite is SQLite in-memory and cannot catch
+  this class of bug. **This is why `BOM_IMPLEMENTATION_STATUS.md` said "100% Complete" wrongly** —
+  recipe creation had never been exercised against Postgres. Correction note added to that file.
+  Full writeup in memory `recipe-module-tz-bug-and-test-gap.md`.
+- **`martin-fz` demo tenant seeded** (`backend/app/scripts/seed_fz_llc.py`, idempotent): AED, 5% VAT,
+  no floors/tables, 3 categories, 4 menu items, 12 raw ingredients, 3 sub-recipes, 4 final recipes.
+  Verified through the **real HTTP API**, not just the seed script's prints. ⚠️ The page render was
+  **never visually checked** — no browser tooling in that session.
+- **Universal system-admin login** — `backend/app/scripts/system_admin.py` is now the one canonical
+  definition of Malik's own `malik@sitaratech.info` identity (create-or-sync, self-healing).
+  ⚠️ **Applied to LOCAL DEV ONLY** (`chick-shack` + `martin-fz`). **NOT applied to the live
+  production Chick Shack server** — needs Malik's explicit go-ahead as a separate step.
+- Backend regression after the work: **620 passed**, 10 failed + 2 errors, all pre-existing (parked
+  QB-Desktop suite + 2 bcrypt/passlib venv failures) and already documented as failing at clean HEAD.
+- Local dev DB backed up pre-migration:
+  `_files/2026-08/2026-08-26/pos_system_20260826_pre_fzllc_recipe_migration.dump` (251KB, verified).
+
+🔴 **NOT done, and this is the real remaining deliverable — do not oversell any of it:**
+demo URL · admin UI for building a sub-recipe · 2-location model + inter-location transfer ·
+per-channel commission % and net-profit-by-channel reporting · A4 VAT tax invoice + back-office
+quotations · supplier master + PO workflow + email PO · OCR goods receiving · AI-assisted PO
+quantity suggestion · Tier-B e-commerce site · **the two-tier written quote itself**.
+
+🔴 **THE BLOCKER, and the thing that makes this a Chick Shack risk event.** Everything above runs
+only on `localhost:8090`. Standing rule: **never hand `pos-demo.duckdns.org` to a client.** Putting
+`martin-fz` on a client-visible URL on the shared droplet means **all three** of the following, each
+of which touches live Chick Shack infrastructure — this was verified against
+`docs/DEPLOYMENT_PLAYBOOK.md` and `docker/nginx/nginx.demo.conf` on this refresh, not assumed:
+1. **`git push origin main` IS the deploy.** It rebuilds backend **and** frontend and recreates
+   **nginx** — the same nginx serving `eats.sitaratech.info` (Imran's live order tablet),
+   `pos-demo.duckdns.org`, `orbit-voice.duckdns.org` and `parkcity.sitaratech.info` (Orbit's, not
+   ours). There is no way to ship the backend without recreating shared nginx.
+2. **The pipeline runs `alembic upgrade head` on the production DB.** Migration `w9x0y1z2a3b4`
+   would execute against the database holding Chick Shack's real orders. The workflow does `pg_dump`
+   first and aborts on an empty dump, but this is still the single highest-risk step.
+3. **A new subdomain needs a new nginx `server` block + its own Let's Encrypt cert.**
+   `parkcity.sitaratech.info` (lines ~417-455 of `nginx.demo.conf`) is the working precedent for the
+   shape: an `:80` block for the ACME challenge plus an `:443` block with its own cert pair.
+   ⚠️ A cert that does not exist yet means nginx **fails to start**, which takes down **both**
+   Chick Shack and Orbit. Order of operations is not optional: DNS → issue cert → add block →
+   `nginx -t` → recreate.
+📌 **Also still true and unresolved:** HEAD `cd57170` is **1 unpushed docs commit**, and pushing it
+alone re-runs the whole pipeline. There is no docs-only push on this repo.
+
+📌 **Timing:** Chick Shack closes **22:00 UK**. `scripts/deploy_after_close.sh` exists for exactly
+this. Any push should be timed to a closed-shop window unless Malik explicitly says otherwise.
+
+⚠️ **Minor contradiction found and recorded rather than silently merged:**
+`PAUSE_CHECKPOINT_2026-08-26.md` claims a `.txt` call transcript was produced alongside the video.
+**No `.txt` exists** in `_context/clients/fz-llc-uae/voice-notes/` — only the 1.04 GB `.mp4`
+(gitignored via `.gitignore:96`, so no repo bloat). The call's content **is** captured in
+`discovery.md` and `plan-and-todo_2026-08-26.md`, so nothing is lost, but the transcript file itself
+is gone and would need regenerating (faster-whisper, local) if the raw wording is ever needed again.
+
+## 🔴 2026-08-25. OI-91 OPENED, FB LIVE ON THE CHICK SHACK PAGE IS BLOCKED BY META'S OWN ELIGIBILITY GATE, NOT BY OUR STACK.
+
+**Ask (Malik, 2026-08-25):** now that Page access is granted, run a 24/7 FB Live on the Chick Shack
+Page the same way GN/UPN do it from the Tailscale edge box; creatives to follow, Imran to approve.
+Third-party report carried in: *"ccbw bilal waheed couldn't get it done because page had to be 2
+months old."*
+
+🟢 **That report is CORRECT and it is now verified at source.** Meta Help Centre
+`facebook.com/help/587160588142067` ("Go live on Facebook using streaming software") states three
+requirements: (1) **the account must be at least 60 days old**, (2) **the Page or professional-mode
+profile must have at least 100 followers**, (3) **Facebook access or task access** to create content.
+Fetched 2026-08-25; the page rendered in Urdu on our locale but the three clauses are unambiguous.
+📌 This is the **streaming-software / Live Video API** path specifically, the same path
+`stream.py` uses. Going live from the phone app is a different, laxer surface.
+
+🔴 **Chick Shack fails clause (2) today: the Page has 58 followers** (read off the live Page
+on the 08-25 pass, recorded below). 58 < 100.
+
+🟢 **Clause (1), the 60-day age gate, is CLEARED.** Malik's screenshot (2026-08-25) shows a
+Page post by `Imran Rasul` dated **May 14** with no year, i.e. **2026-05-14**, which is **~103 days
+before today**. A post on that date proves the Page existed then, so the exact creation date does not
+matter: it is a lower bound comfortably past 60 days. Malik's own personal account, the one that
+would carry the stream, is years old on either reading of "your account".
+
+🔴 **CORRECTION to a claim made earlier in this same session.** This file said Page age was
+"inferred-young" from 58 followers, the ~2w-old "ONLINE ORDERING IS NOW LIVE" post, and every
+full-control admin being added inside the last week. **That inference was wrong.** Recent *admin*
+adds and a low follower count say nothing about *Page* age, and the Page is at least 3.4 months old.
+Recorded rather than silently edited because the wrong version briefly made this look like a
+two-clause block.
+
+Clause (3) **we already satisfy**, our grant is task-level `Content, Messages and
+calls, Community activity, Ads, Insights`, and task access is explicitly sufficient.
+
+📌 **Net: exactly ONE clause is left, and it is a number. 58 followers, need 100.**
+
+📌 **So the blocker is a follower count, not an architecture problem.** Nothing needs
+building or proving on our side to unblock it; the Page needs +42 followers and probably some
+calendar time. Do not spend build effort on the stream until the count clears 100.
+
+**The GN architecture, for the record (verified from source, not memory):**
+`C:\FBAI\desktop\LiveTTAgent\winlive\stream.py` (436 lines, Windows original) → ported to
+`/opt/livett` + `/opt/upn-live` on **loom-edge-01**, the IT-room Ubuntu Server box on the tailnet at
+`100.119.110.37`. Per session: resolve the Page token from the canonical
+`goldennummbers\config\config.json` (rotated by `tools/rotate_fb_token.py`) → `POST
+/{PAGE_ID}/live_videos` asking for `id,permalink_url,secure_stream_url`, with a 6-retry DNS-blip
+guard → **ffmpeg loops a pre-rendered `live_loop.mp4` + `audio/voiceover.mp3` with `-re`** at
+`VIDEO_BITRATE=2500k` → pushes **RTMPS** to `secure_stream_url` → auto-posts and pins the CTA comment
+→ runs `STREAM_DURATION_SEC` (**28800 = 8h**, deliberate session rotation) → ends and optionally
+deletes the `live_video` (`DELETE_ON_END`). `build_loop.py` regenerates the mp4 on a daily 06:00 PKT
+cron. systemd units `livett-stream` / `upn-live-stream`, `Restart=always`, SIGTERM teardown so a
+clean stop ends the live_video properly. `fleet-monitor.sh` watches both units.
+
+**Both GN streams are off today because WE turned them off**, deliberately and manually:
+`livett-stream` on 2026-07-07 (Malik chose pause over harden) and `upn-live-stream` on 2026-08-17
+in the brand pause. Neither was stopped by Meta, and both resume with
+`systemctl enable --now <unit>`. **The encoder capacity is free, which helps rather than hurts
+this idea.** Do not read the "off" state as a warning sign.
+
+📌 **The one thing worth carrying across from GN:** the classifier signature that got the
+number-board VODs removed was *number grid + solicitation CTA*, which food content does not have, so
+this is **not** a reason to refuse. The
+part that **does** carry over is the **24/7 identical loop**, which is a spam signal in its own
+right independent of subject matter. If we build this, the GN lessons already paid for are: short
+scheduled windows rather than 24/7, `DELETE_ON_END=1` so no permanent re-scannable VOD accumulates,
+no repeated identical pinned CTA comment, and vary the board.
+
+**Also binding on this idea, carried from elsewhere in this file:** Instagram is **not linked** and
+is gated until ~2026-09-01; and the storefront still has **no pixel** (`fbq`/`gtag`/`dataLayer` all
+zero at the 08-08 diagnosis, unchanged), so a live that drives orders would be **unmeasurable**,
+same as ads.
+
+**Next action on OI-91:** nothing to build, and nothing left to verify. **The only task is getting
+the Page from 58 to 100 followers.** Creatives and Imran's approval come **after** that, not before,
+because a rejected creative for a stream we cannot legally start is wasted work on both sides.
+
+## 🟢 2026-08-25. OI-72 SOCIAL HALF DONE AND VERIFIED BY EFFECT. Imran granted Page access, Malik accepted, and the full **Manage Page** admin view renders on Malik's own account. Ads are now blocked by ONE thing, not two.
+
+🔴 **CORRECTION, made within this same refresh. The first read of his screenshots was wrong.**
+On first sight of `business.facebook.com/latest/settings/profiles?asset_id=1176900818828909` listing
+three Pages (Supra Cleaning Services, Supra Security Ltd, Chick Shack) this file recorded
+"a portfolio exists, id `1176900818828909`". **That was an over-read of an `asset_id` in a URL.**
+Two further screenshots refuted it and the corrected reading is below. Recorded rather than silently
+edited, because the wrong version briefly drove the plan.
+
+**What his screens actually show, and the two tests that settle it:**
+1. **The settings surface has no people-management sections at all.** Malik's own Rang Rasiya
+   portfolio (the walkthrough he was screenshotting) shows **People / Partners / System users /
+   Accounts > Pages / Ad accounts / Business asset groups**. Imran's shows a three-icon rail and a
+   flat **Profiles** list. A real business portfolio cannot render without People and Partners.
+   His screen is the **personal-account** "pages I manage" list.
+2. **The Profiles rows are a profile SWITCHER, not a drill-in.** Clicking `Chick Shack` lands on
+   `business.facebook.com/latest/home?asset_id=1176900818828909` with `Chick Shack` selected in the
+   top-left switcher: Business Suite Home for the Page, no permissions pane. Malik, 08-25: *"its a
+   loop. he clicks on settings it shows that page he clicks on chick shack redirects on the same
+   window."* The `asset_id` never changing across both views is the selected-profile context, not
+   proof of a container.
+
+📌 **Consequences:**
+1. **Unverified item (3) from 08-08 is answered: NO portfolio exists.** The 08-20 plan's clean
+   "Partner-by-Business-ID" route and the "Assign people" route **both require a portfolio he does
+   not have**. The Rang Rasiya walkthrough screenshots are therefore **not usable for him** - the
+   exact failure mode flagged on 08-20 ("sending portfolio-shaped screenshots to a man with no
+   portfolio wastes his one laptop session") is what happened.
+2. 🟢 **His advertising restriction did NOT fire.** He reached Business Suite Home for the
+   Page with no error popup and no "temporarily restricted" dialog. His *"Doesn't allow me to"*
+   (00:12) was **navigation confusion, not a block**. That is materially better news than the 08-20
+   prediction assumed, but note it only clears the *Page* path; the ads restriction itself is
+   untested and unchanged.
+3. **The route is Page-level access via the Page's own Professional dashboard**, which needs no
+   portfolio and is the path least exposed to a "managing people for businesses" restriction.
+   ⚠️ **Unverified on his build** - the exact label and whether the field accepts an email
+   rather than a profile name has not been seen on his screen yet.
+4. Building him a portfolio from scratch stays a **fallback, not the plan**: it is heavier and it is
+   precisely the "managing people for businesses" action his restriction names.
+
+**Other facts read off his screens, minor:** Chick Shack has **58 Facebook followers**; Instagram is
+**not connected** to the Page ("Connect Instagram" still showing), which matters because social
+management was scoped to include IG; a regional-privacy alert limits some Inbox/messaging insights;
+his most recent Page comment activity is the *"ONLINE ORDERING IS NOW LIVE"* post from ~2w prior.
+
+⚠️ **BLOCKER RAISED THEN REFUTED 2026-08-25, inside the same session. Recorded in full
+because the wrong version briefly drove the plan toward a portfolio build.**
+
+🔴 **What was claimed (WRONG):** that the Page-level screen has NO email field and granting
+by email is Business-Manager-only.
+🟢 **What refuted it:** Imran opened `Add new` and the dialog reads
+*"Who should have Facebook access to this Page?"* over a field labelled
+**"Search by name or email address"**. **The Page-level flow accepts an email.** Imran's
+*"You need to be on my friend list to add you on"* was **his assumption, not a UI constraint**, and
+it was taken at face value for one step. ⚠️ Still unverified: whether an email that is not
+a friend actually **resolves** (Facebook's "who can look you up by email" privacy setting can block
+it). **The portfolio detour (Route A) is off unless the lookup fails.**
+
+📌 **Receiving-account rule bent, deliberately, by Malik.** Malik, 2026-08-25: *"my account
+is associated with malik.amin187@gmail.com"*, i.e. **`amin@sitaratech.info` has no Facebook profile**
+- it is a Business Manager invite address only. Since the Page flow searches Facebook profiles, the
+standing `sitara-meta-receiving-account` rule (*never the personal account*) **cannot be satisfied on
+this route**. Flagged to Malik; he proceeded. Access is therefore landing on the **personal profile
+`malik.amin187@gmail.com`**. 📌 **Revisit if a portfolio is ever created** - move it to
+`amin@sitaratech.info` then.
+
+⚠️ **Tier note:** the dialog Imran opened is **People with Facebook access** (full control),
+not **People with task access**. Plan is to proceed there and switch **Page deletion** and
+**Permissions** OFF on the permissions screen that follows.
+
+**Superseded detail, kept for the trail:** Imran reached `facebook.com/settings/?tab=profile_access` (route:
+Professional dashboard -> All tools -> Profile -> **Page access**) and reported: *"You need to be on
+my friend list to add you on"*. **He is right, this is not user error.** On the New Pages Experience
+Page-access screen, both **People with Facebook access** and **People with task access** resolve
+people by searching the Page admin's **Facebook friends**. Granting by **email address** is a
+**Business Manager** mechanism, not a Page mechanism.
+
+📌 **This also corrects the reasoning behind the `amin@sitaratech.info` rule.** Rang Rasiya
+worked on that address because it was a **Business Manager invite**, where the email is an *invite
+address* the recipient accepts with whatever Facebook account they hold. It is **not** evidence that
+`amin@sitaratech.info` is a searchable Facebook profile. ⚠️ **Whether a Facebook profile
+exists on that address is UNKNOWN and is the question the route now hinges on.**
+
+**Two routes, put to Malik 2026-08-25, undecided at time of writing:**
+- **Route A, portfolio (no friending).** Imran creates a business portfolio, adds the Chick Shack
+  Page to it, invites `amin@sitaratech.info` by email. Same mechanism as Rang Rasiya, and it is the
+  structure ads need anyway. Costs: a structural change to a live Page, and 🔴 adding people
+  to a business is **precisely** what his advertising restriction names ("can't manage advertising
+  assets or **people for businesses**"). Untested. His restriction has not fired at any point tonight.
+- **Route B, friend then task access.** Two minutes, works immediately. Violates the standing rule
+  that client assets never land on a personal profile - **unless** `amin@sitaratech.info` has its own
+  Facebook profile, in which case Imran friends that and the rule's substance is respected.
+
+**Read off the Page access screen, worth keeping:** ⚠️ **three accounts hold FULL
+"Facebook access"** on the Chick Shack Page - `Imran Rasul (you)`, `Zeinab Rasul`, and a **second
+`Imran Rasul` account** - each with `Page deletion, Permissions, Content, Messages and calls,
+Community activity, Ads, Insights`. **People with task access is empty** apart from the
+Community managers entry. Whatever we take should be **task access**, never Facebook access; we do
+not need Page deletion or Permissions.
+
+🟢 **GRANTED AND VERIFIED, 2026-08-25 ~00:34 UK.** Imran sent the invite from the Page-access
+`Add new` dialog using **`malik.amin187@gmail.com`**; Malik accepted. **Verified by effect, not by
+the invite mail:**
+1. `facebook.com/malik.amin.9` -> profile switcher -> **"Your profiles & Pages"** lists **Chick
+   Shack** (1 notification) alongside Sitara InfoTech, Telecom Store UAE, Golden Numbers UAE,
+   Postpaid Plans, KS Consulting and others.
+2. Switching in loads `facebook.com/chickshackuk/` with the **full `Manage Page` rail**:
+   Professional dashboard, Insights, **Ad Center**, **Create ads**, Boost Instagram post, Settings,
+   Meta Verified, Leads Center, Meta Business Suite, Nonprofit Manager, plus `Edit cover photo`,
+   `Edit`, `Edit details` and a live composer.
+3. ✅ **CORRECTION to a claim made minutes earlier in this same session.** The Manage Page rail
+   looked like full control and was written up as such. **It is not.** Imran's own screenshot of the
+   Page-access list (00:32 UK) shows Malik's row as **`Content, Messages and calls, Community
+   activity, Ads, Insights`** with a red *"Deletion ... 30 days"* note, and **without `Page deletion`
+   or `Permissions`** - which Imran's and Zeinab's rows both carry. **So the scoped set we wanted was
+   granted by default**, and the earlier worry about holding deletion rights on a live client Page
+   does not apply. Meta withholds deletion/permissions from newly added people for a waiting period.
+
+⚠️ **A SECOND, UNIDENTIFIED PERSON was added at the same time.** The list now holds five
+people. Directly under Malik's row sits **`Sulem Javaid`** (spelling uncertain, read from a photo of
+a screen), with the **identical** permission set and the identical 30-day note - i.e. added in the
+same window as us. **We do not know who this is.** It is not Sitara. 📌 **Ask Imran who it
+is and whether it is intended** before any social work starts; an unknown account with Content,
+Messages and Ads on a live Page is a real exposure, not a formality.
+
+🔴 **INSTAGRAM IS BLOCKED, AND THE EXACT META RULE IS NOW ON RECORD.** Imran, 00:35 UK:
+*"I need to wait 1 week to link Instagram account"*, from Business Suite. He screenshotted the
+dialog verbatim:
+
+> **You can't connect this Page yet.** You need to have **full control access of a Page for at least
+> a week** before you can connect it to Instagram. **You can ask another person with full control to
+> add it** or wait until your week has passed and you're eligible.
+
+The Page is therefore confirmed **not** IG-linked; the `Boost Instagram post` entry in the Manage
+Page rail is not evidence of a link, exactly as suspected.
+
+📌 **Two things follow.** (a) **Malik cannot do this either** - he was added tonight and does
+not hold full control at all, so the same rule bites harder. (b) **There is a documented way out the
+dialog itself offers:** another full-control holder can link it. **Two other accounts already carry
+`Page deletion, Permissions`: `Zeinab Rasul` and the second `Imran Rasul` account.** ⚠️
+Whether either has held it for over a week is **unverified** - it is worth trying, not certain. This
+also implies the account Imran was using **acquired full control recently**, which is itself worth
+understanding.
+
+🔴 **TRIED AND BLOCKED, 00:40 UK. The second `Imran Rasul` account is RESTRICTED.** He logged
+into it and got the generic popup: *"Your account is restricted. You're temporarily restricted from
+taking this action to protect your profile. Please try again later."* ⚠️ **This is the same
+popup he hit on 2026-08-08 when he last tried to link Instagram** - so an IG link has now been
+blocked twice by a Meta restriction, on two different accounts of his. Treat "his personal accounts
+can link Instagram" as **disproven for both**, not merely untested.
+
+🔴 **ZEINAB IS OUT TOO - NO ELIGIBLE ACCOUNT EXISTS. Imran, 00:44 UK:** *"Will need to wait
+as zeinab account was added same time as the other new one."* So **every** full-control holder
+acquired it inside the last week, which is consistent with the Page itself being only a few weeks old
+(58 followers, the "ONLINE ORDERING IS NOW LIVE" post ~2w back). ⚠️ Note this is Imran's
+own account of it - the Page-access list showed Zeinab **without** the red 30-day note that Malik's
+and `Sulem Javaid`'s rows carry, so the two readings do not perfectly agree. **Taking Imran's word;
+he knows his own Page. Not worth another laptop session to reconcile.**
+
+✅ **DECIDED: hard wait to ~2026-09-01, and the agreed fallback runs meanwhile** - post to
+Facebook and Instagram **separately** for the week, then connect once someone is eligible. **Nothing
+further to try.** The Facebook half is live and working today; only the IG half slips.
+
+📌 **Lesson worth carrying to the next client:** Meta's Instagram-link gate is
+**per-person-per-Page and time-based**, so a brand-new Page whose admins were all added recently has
+**nobody** who can link Instagram, no matter how many full-control accounts it has. Ask "how long has
+someone held full control" **before** promising an IG start date.
+
+⚠️ **One consequence to revisit:** the `sitara-meta-receiving-account` rule is **bent** -
+access sits on `malik.amin187@gmail.com`, not `amin@sitaratech.info`, because the Page flow searches
+Facebook profiles and that address has none. Move it if a portfolio is ever built. Nothing was posted
+or edited during verification.
+
+📌 **The ads picture has genuinely changed, and this is the most useful thing to come out of
+tonight.** The 08-20 position was that ads were blocked by **two** things: (a) Imran's advertising
+restriction, and (b) zero storefront measurement. **(a) is now routed around** - Malik holds Ad
+Center and Create ads from his own clean account, so ads need not touch Imran's restricted profile at
+all. 🔴 **(b) is untouched and is now the sole blocker**: `fbq`/pixel/`gtag`/`dataLayer` were
+all zero at the 08-08 diagnosis and no storefront change has shipped since. **Do not start spend
+before the pixel exists** - it buys an unreadable result. Also still binding: any portfolio that runs
+this must be **dedicated to Chick Shack**, never the Etisalat portfolio `281900244999301`.
+
+**Read off the live Page, useful for the social work and not previously recorded:**
+`facebook.com/chickshackuk`, **58 followers, 0 following**, category `Meal Takeaway - Chicken Joint`,
+address `Main St, Garelochhead, Helensburgh, UK`, phone `+44 1436 653143`, WhatsApp
+`+44 7719 566889`, website **`chickshackg84.com`** (correct, matches the live storefront).
+⚠️ **The Page has NO bio** ("Add bio" is empty) and nothing is Featured - both are free,
+immediate wins. 🔴 **Instagram confirmed NOT linked and blocked ~7 days** (see above).
+
+**NEXT (not started), in order:** (1) ~~ask Imran who `Sulem Javaid` is~~ - **DROPPED on Malik's
+instruction, 2026-08-25.** Raised as an unknown account holding Content/Messages/Ads on the live
+Page; Malik said drop it and stay on the Instagram thread. **Not investigated, not cleared** - if it
+matters later, it starts from scratch. (2) write the Page bio (currently empty) in the
+village-centric register from `_context/clients/chick-shack-uk/voice-of-customer.md`; (3) the
+storefront pixel, now the **only** thing standing between here and ads; (4) re-attempt the Instagram
+link on or after **~2026-09-01**.
+
+🟢 **GOOGLE BUSINESS PROFILE ACCESS GRANTED AND VERIFIED, 2026-08-25 ~01:00 UK. Same night,
+separate asset from Meta.** Malik, on Google: *"for google ads and gbp"*; Imran: *"On Google. What I
+need to do"*.
+
+**Route used (it worked first time, unlike Meta):** Imran opened the Chick Shack profile's
+**People and access** panel directly from Google Search, clicked **Add**, invited
+**`mallikamiin@gmail.com`** as **Manager** (not Owner). Malik accepted.
+
+✅ **Verified by effect, not by the invite mail:** a Google search for `Chick Shack` from Malik's
+account renders **"Your business on Google"** with the full manager toolbar - `Edit profile`,
+`Read reviews`, `Photos`, `Posts`, `Performance`, `Edit menu`, `Food ordering`, `Waitlists`,
+`Bookings`, `Ask for reviews`, `Profiles` - plus the knowledge panel badge **"You manage this
+Business Profile"** and the footer **"Only managers of this profile can see this"**.
+
+📌 **Receiving account decision, and it deliberately differs from the Meta one.** GBP went to
+**`mallikamiin@gmail.com`**, not `amin@sitaratech.info`, on Malik's call: his existing GBP profiles
+for **Sitara Infotech** and **goldennummbers** already live there, and splitting across two logins
+means switching accounts on every touch. Unlike the Meta grant, **GBP manager access is removable in
+one click with no waiting period**, so the separability argument is weak and a later move is cheap.
+
+**Profile ownership:** primary owner is **`RB Dining Group`** (`rbdining.group.ltd@gmail.com`),
+account group `am-919422655814423188`. Before Malik was added, that owner was the **only** person on
+the profile.
+
+📊 **Live numbers read off the profile, none of them previously recorded:**
+- **5.0 stars, 17 Google reviews.** ⚠️ `_context/clients/chick-shack-uk/voice-of-customer.md`
+  was built from **16**. **If the +1 post-dates 2026-08-22 it is the first conversion from the OI-90
+  review QR** - which would matter, because OI-85 records the review *email* converting at zero.
+  **UNVERIFIED: the review's date has not been read.** Check before claiming anything.
+- **2,497 people saw the profile in search results last month**; **1,872 customer interactions**.
+  Free, high-intent traffic already owned, larger than anything the storefront gets from ads today.
+- **Profile strength is INCOMPLETE** ("Complete info"); Google is prompting for an **exterior photo**.
+- Listed as `£1-10 - Fried chicken takeaway`, hours close 22:00.
+
+🔴 **OPENED, and it may be the highest-value thing found tonight: the knowledge panel carries
+`Order pickup` and `Order delivery` buttons above the fold.** Where they point is **unverified**. If
+they route to an **aggregator**, every order through them pays commission on traffic Imran already
+owns for free, and repointing them at **`chickshackg84.com`** is a pure margin win needing **zero ad
+spend**. The `Food ordering` tool in the manager toolbar is what controls this. **Next action on the
+Google side.**
+
+🟢 **GOOGLE ADS ACCOUNT CREATED + CONVERSION TRACKING SHIPPED AND VERIFIED, 2026-08-25
+overnight.** Third asset of the night, and the only one that involved a code change.
+
+**Account:** **`758-817-4548`**, created by Imran from scratch (none existed). Malik holds
+**Standard** access on `mallikamiin@gmail.com` (not Admin, not Billing - deliberately, so we can run
+campaigns and never touch his payment details). ✅ Verified by effect: the account loads under
+Malik's own login.
+
+**Billing, Imran's own, we never see the card.** Business payments profile "Chick Shack", purpose
+**Business** (needed for correct VAT invoices, cannot be changed later). Primary = **UK direct debit
+`GB••…•2586`, mandate PENDING** (3-5 working days). Backup = **Mastercard
+••••5881**, added because the DD alone left a *"New form of payment required -
+your current payment methods can't be charged"* banner and nothing could run. That banner has now
+cleared.
+
+🔴 **The signup produced a PERFORMANCE MAX campaign, and it is deliberately left as an
+unfinished DRAFT.** `Draft: Performance Max-1`, £3.00/day. Google's flow gives no choice.
+**PMax is the wrong shape here:** no keyword control, effectively no negative keyword list, spend
+sprayed across YouTube/Display/Gmail, and it is driven almost entirely by conversion history the
+account does not have. It is also the answer to Malik's *"where do I add keywords, negative keywords
+etc?"* - PMax has none. 📌 **Do not click Finish. Build a Search campaign instead.**
+The draft costs nothing sitting there.
+
+**Budget defence:** Google offered £8.50/day (£258/mo) as "recommended"; a custom
+£3.00/day (£91/mo cap) was entered instead. Location auto-resolved to **8 miles of
+Garelochhead**. ⚠️ **Promo with a deadline:** spend **£400 by 2026-10-24** unlocks
+**£800 credit**. At £3/day he reaches ~£180 and misses it. Real money, but chasing it
+means spending £400 fast. **Malik's call, explicitly deferred.**
+
+### ✅ Conversion tracking: BUILT, DEPLOYED, VERIFIED ON PRODUCTION
+
+**Conversion action:** `Purchase`, Primary, Website, **manual event snippet** (not auto-detect -
+auto-detect keys off URL changes and the confirmation is a view swap on `/`, so it would never
+fire). Click-through window cut from Google's default **90 days to 30**, because a takeaway order
+happens the same evening and 90 days would credit ads for orders months later.
+- Tag: **`AW-18408520125`** · Conversion: **`AW-18408520125/xy0DCPb1kOccEL3z7slE`**
+
+🔴 **A UK PECR gap was found and closed on the way.** The storefront had **no cookie banner,
+no consent handling and no privacy mechanism of any kind**. Dropping an ads tag in as-is would have
+been a live compliance exposure for Imran's business. Built with **Consent Mode v2** instead:
+`index.html` pushes `consent default: denied` for all four signals **before** gtag.js loads (verified
+in the built artifact AND on the live domain - defaults at line 40, gtag.js at line 52), plus
+`ads_data_redaction` and `url_passthrough` so a declined visit is still modelled.
+
+**Files (storefront, Cloudflare Workers pipeline - NOT the backend `git push` pipeline):**
+`index.html` (tag + consent defaults) · `src/lib/consent.ts` (new) ·
+`src/lib/analytics.ts` (new) · `src/components/ConsentBar.tsx` (new) · `src/App.tsx`
+(mounts the bar; ONE effect hung off `placed` fires the conversion, so **both** routes to the
+confirmation - fresh order and Stripe return - count exactly once).
+
+📌 **Decision to revisit: conversion value is the FOOD SUBTOTAL, not the total paid.**
+Delivery fee largely passes to the driver and the tip is not the shop's, so bidding on the total
+would systematically overvalue delivery orders and teach Google to chase the wrong basket.
+Malik was told and did not object.
+
+**Deployed** via `cd storefront && npm run deploy` (version `1f0c3d7c-cd0d-4435-b2db-123874a1356b`),
+during the closed window. **Verified on the live domain with a browser UA, not on the Action.**
+
+✅ **Verified by effect, in this order:** (1) consent bar renders on `chickshackg84.com`;
+(2) tapping Allow and reloading keeps it gone, so the stored choice replays - the part that would
+silently break for returning customers; (3) Tag Assistant reports **"This conversion action is
+sending data to Google Ads"** with `Conversion value 1 GBP`, `Transaction ID TEST-001` and the
+matching label.
+
+⚠️ **What is NOT verified, stated plainly:** that event was fired **by hand from the
+browser console**, not by the app. **Google receiving the event is proven; our confirmation screen
+calling it, with the right value, on a real order is NOT.** Only the first genuine order proves that.
+**Check the first real order's conversion in Google Ads before trusting any number.**
+✅ The `Purchase` goal flipped from `Misconfigured / Inactive` to **`Active`** on the strength of
+the manual test ping - so "Active" here means *Google has received data*, NOT *the app fires it
+correctly*. Do not read it as the latter.
+
+**NEXT on Google:** build the **Search** campaign (real keywords, negative list, tight radius),
+leaving the PMax draft unfinished.
+
+**Where we are in the WhatsApp flow (Malik driving, Imran executing):** Malik sent the Rang Rasiya
+walkthrough (Settings -> Accounts -> Pages -> Assign people -> type the email). Imran replied he had
+no laptop (08-24 20:12 UK), then at 00:10-00:12 got to Business Suite -> Settings and reached the
+**Profiles** list, replying *"Doesn't allow me to"*. Malik replied *"wait"*. **Nothing has been
+granted. `amin@sitaratech.info` has not been entered anywhere yet.**
+
+**Next single step to send him:** click the **Chick Shack** row in that Profiles list, which opens
+that Page's detail pane where people/permissions are assigned - and report whether he gets the pane
+or an error popup. That one action both advances the handover and disambiguates point 3 above.
+
+**Unchanged and still binding:** the receiving account is **`amin@sitaratech.info`** verbatim, never
+the personal Gmail. **Friending is not the route.** Social media management is unblocked by Page
+access alone; **ads are not** - his advertising restriction plus 🔴 zero storefront
+measurement (`fbq`/pixel/`gtag`/`dataLayer` all zero at the 08-08 diagnosis). Do not read a
+successful Page handover as ads being unblocked. Any portfolio that ends up running ads must be
+**dedicated to Chick Shack**, never the Etisalat portfolio `281900244999301`.
 
 ## 🟢 2026-08-22 ~20:30-20:40 UK. OI-89 + OI-90 SHIPPED AND VERIFIED LIVE (`50a8002`). Deployed in service, tested by Imran on the shop printer, QR scanned from paper to the Google review form.
 

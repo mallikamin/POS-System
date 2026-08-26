@@ -8,8 +8,10 @@ from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     Date,
+    DateTime,
     ForeignKey,
     Index,
     Integer,
@@ -82,6 +84,15 @@ class Ingredient(BaseMixin, Base):
     is_active: Mapped[bool] = mapped_column(default=True)
     notes: Mapped[str | None] = mapped_column(Text)
 
+    # Production
+    is_produced: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False
+    )  # True when this ingredient is made in-house via a Recipe (its
+    # produces_ingredient_id points here) rather than purchased. When true,
+    # cost_per_unit is a rollup kept in sync from that recipe's
+    # cost_per_serving, not entered by hand -- see
+    # recipe_service.sync_produced_ingredient_cost().
+
     # Relationships
     tenant: Mapped["Tenant"] = relationship("Tenant")
     recipe_items: Mapped[list["RecipeItem"]] = relationship(
@@ -89,6 +100,12 @@ class Ingredient(BaseMixin, Base):
     )
     transactions: Mapped[list["InventoryTransaction"]] = relationship(
         "InventoryTransaction", back_populates="ingredient"
+    )
+    production_recipe: Mapped["Recipe | None"] = relationship(
+        "Recipe",
+        back_populates="produces_ingredient",
+        uselist=False,
+        foreign_keys="Recipe.produces_ingredient_id",
     )
 
 
@@ -106,15 +123,34 @@ class Recipe(BaseMixin, Base):
     __tablename__ = "recipes"
     __table_args__ = (
         UniqueConstraint("tenant_id", "menu_item_id", name="uq_recipe_tenant_item"),
+        UniqueConstraint(
+            "tenant_id",
+            "produces_ingredient_id",
+            name="uq_recipe_tenant_produces_ingredient",
+        ),
         Index("ix_recipe_tenant_active", "tenant_id", "is_active"),
+        CheckConstraint(
+            "(menu_item_id IS NOT NULL) != (produces_ingredient_id IS NOT NULL)",
+            name="ck_recipe_exactly_one_target",
+        ),
     )
 
     # Identity
     tenant_id: Mapped[uuid.UUID] = mapped_column(
         Uuid, ForeignKey("tenants.id"), nullable=False, index=True
     )
-    menu_item_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid, ForeignKey("menu_items.id"), nullable=False
+    # A recipe produces exactly one of these two things (enforced by the
+    # check constraint above):
+    #   - menu_item_id: a sellable final product (existing behaviour)
+    #   - produces_ingredient_id: an in-house-made sub-recipe/intermediate
+    #     (dough, sauce, stuffing) that other recipes then consume as a
+    #     RecipeItem, enabling raw -> sub-recipe -> intermediate -> final
+    #     production chains. See Ingredient.is_produced.
+    menu_item_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("menu_items.id"), nullable=True
+    )
+    produces_ingredient_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("ingredients.id"), nullable=True
     )
 
     # Recipe metadata
@@ -138,7 +174,7 @@ class Recipe(BaseMixin, Base):
         default=True
     )  # Only one active recipe per menu item
     effective_date: Mapped[datetime] = mapped_column(
-        default=lambda: datetime.now(timezone.utc)
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
     created_by: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("users.id"))
 
@@ -148,7 +184,14 @@ class Recipe(BaseMixin, Base):
 
     # Relationships
     tenant: Mapped["Tenant"] = relationship("Tenant")
-    menu_item: Mapped["MenuItem"] = relationship("MenuItem", back_populates="recipe")
+    menu_item: Mapped["MenuItem | None"] = relationship(
+        "MenuItem", back_populates="recipe"
+    )
+    produces_ingredient: Mapped["Ingredient | None"] = relationship(
+        "Ingredient",
+        back_populates="production_recipe",
+        foreign_keys=[produces_ingredient_id],
+    )
     creator: Mapped["User"] = relationship("User")
     recipe_items: Mapped[list["RecipeItem"]] = relationship(
         "RecipeItem", back_populates="recipe", cascade="all, delete-orphan"
@@ -306,7 +349,7 @@ class StockCount(BaseMixin, Base):
     # Personnel
     counted_by: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("users.id"))
     reviewed_by: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("users.id"))
-    reviewed_at: Mapped[datetime | None] = mapped_column()
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     # Summary
     total_variance_cost: Mapped[Decimal] = mapped_column(

@@ -117,27 +117,49 @@ async def create_recipe(
 ) -> Recipe:
     """Create a new recipe with recipe items.
 
-    Automatically calculates total cost and cost per serving.
+    Automatically calculates total cost and cost per serving. A recipe
+    produces either a sellable `menu_item_id` or, for a sub-recipe/
+    intermediate (dough, sauce, stuffing), a `produces_ingredient_id` --
+    schema-validated as exactly one of the two.
     """
-    # Verify menu item exists and belongs to tenant
-    menu_item_result = await db.execute(
-        select(MenuItem).where(
-            MenuItem.id == data.menu_item_id,
-            MenuItem.tenant_id == tenant_id,
-        )
-    )
-    menu_item = menu_item_result.scalar_one_or_none()
-    if not menu_item:
-        raise ValueError("Menu item not found")
+    produced_ingredient: Ingredient | None = None
 
-    # Check if an active recipe already exists for this menu item
-    existing_recipe_result = await db.execute(
-        select(Recipe).where(
-            Recipe.menu_item_id == data.menu_item_id,
-            Recipe.tenant_id == tenant_id,
-            Recipe.is_active == True,
+    if data.menu_item_id is not None:
+        menu_item_result = await db.execute(
+            select(MenuItem).where(
+                MenuItem.id == data.menu_item_id,
+                MenuItem.tenant_id == tenant_id,
+            )
         )
-    )
+        if menu_item_result.scalar_one_or_none() is None:
+            raise ValueError("Menu item not found")
+
+        existing_recipe_result = await db.execute(
+            select(Recipe).where(
+                Recipe.menu_item_id == data.menu_item_id,
+                Recipe.tenant_id == tenant_id,
+                Recipe.is_active == True,
+            )
+        )
+    else:
+        ingredient_result = await db.execute(
+            select(Ingredient).where(
+                Ingredient.id == data.produces_ingredient_id,
+                Ingredient.tenant_id == tenant_id,
+            )
+        )
+        produced_ingredient = ingredient_result.scalar_one_or_none()
+        if produced_ingredient is None:
+            raise ValueError("Ingredient not found")
+
+        existing_recipe_result = await db.execute(
+            select(Recipe).where(
+                Recipe.produces_ingredient_id == data.produces_ingredient_id,
+                Recipe.tenant_id == tenant_id,
+                Recipe.is_active == True,
+            )
+        )
+
     existing_recipe = existing_recipe_result.scalar_one_or_none()
 
     # If exists, deactivate it (new version)
@@ -150,6 +172,7 @@ async def create_recipe(
     recipe = Recipe(
         tenant_id=tenant_id,
         menu_item_id=data.menu_item_id,
+        produces_ingredient_id=data.produces_ingredient_id,
         version=version,
         yield_servings=data.yield_servings,
         prep_time_minutes=data.prep_time_minutes,
@@ -163,10 +186,14 @@ async def create_recipe(
     db.add(recipe)
     await db.flush()
 
-    # Create recipe items and calculate cost
+    # Create recipe items and calculate cost. An ingredient here may itself
+    # be `is_produced` (a sub-recipe), in which case its cost_per_unit is
+    # already the rolled-up cost from its own production recipe (kept in
+    # sync by sync_produced_ingredient_cost below) -- so this same
+    # quantity * cost_per_unit * waste calculation transparently handles
+    # multi-layer raw -> sub-recipe -> intermediate -> final chains.
     total_cost = Decimal(0)
     for item_data in data.recipe_items:
-        # Get ingredient with current cost
         ingredient_result = await db.execute(
             select(Ingredient).where(
                 Ingredient.id == item_data.ingredient_id,
@@ -202,9 +229,29 @@ async def create_recipe(
     recipe.total_ingredient_cost = total_cost
     recipe.cost_per_serving = total_cost / data.yield_servings
 
+    if produced_ingredient is not None:
+        sync_produced_ingredient_cost(produced_ingredient, recipe)
+
     await db.flush()
     await db.refresh(recipe, ["recipe_items"])
     return recipe
+
+
+def sync_produced_ingredient_cost(ingredient: Ingredient, recipe: Recipe) -> None:
+    """Roll a sub-recipe's cost up onto the ingredient it produces.
+
+    `recipe.cost_per_serving` is cost per unit of `recipe.yield_servings`,
+    which for a producing recipe is expressed in the produced ingredient's
+    own unit (e.g. a batch yielding 5 kg of dough) -- so it doubles
+    directly as that ingredient's `cost_per_unit`. Any recipe that later
+    consumes this ingredient picks up the new cost automatically the next
+    time IT is saved; this is the same "snapshot on save" model the rest of
+    the recipe engine already uses (see RecipeItem.cost_per_unit_snapshot),
+    not live/reactive -- a parent recipe can go stale until resaved, same
+    as an ingredient price change today.
+    """
+    ingredient.is_produced = True
+    ingredient.cost_per_unit = recipe.cost_per_serving
 
 
 async def get_recipe(
@@ -285,6 +332,7 @@ async def update_recipe(
         # Build new recipe data
         new_recipe_data = RecipeCreate(
             menu_item_id=recipe.menu_item_id,
+            produces_ingredient_id=recipe.produces_ingredient_id,
             yield_servings=data.yield_servings or recipe.yield_servings,
             prep_time_minutes=data.prep_time_minutes or recipe.prep_time_minutes,
             cook_time_minutes=data.cook_time_minutes or recipe.cook_time_minutes,
