@@ -31,6 +31,9 @@ class RestaurantConfigUpdate(BaseModel):
     discount_approval_threshold_bps: int | None = Field(None, ge=0, le=10000)
     discount_approval_threshold_fixed: int | None = Field(None, ge=0)
     online_ordering_only: bool | None = None
+    # Presentation only. Hides nav entries and dashboard cards; does NOT gate
+    # the endpoints behind them (OI-93). Empty string clears it.
+    hidden_ui_modules: str | None = Field(None, max_length=500)
 
 
 @router.get("/restaurant", response_model=RestaurantConfigResponse)
@@ -52,14 +55,17 @@ async def get_restaurant_config(
             detail="Restaurant configuration not found for this tenant",
         )
 
-    # Include tenant name in response
+    # Include the tenant's name AND its slug. The slug is what makes the session
+    # self-describing: without it the frontend had to infer which shop it was
+    # signed in to from a localStorage value that any URL could overwrite.
     tenant_result = await db.execute(
-        select(Tenant.name).where(Tenant.id == current_user.tenant_id)
+        select(Tenant.name, Tenant.slug).where(Tenant.id == current_user.tenant_id)
     )
-    tenant_name = tenant_result.scalar_one_or_none()
+    tenant_row = tenant_result.one_or_none()
 
     resp = RestaurantConfigResponse.model_validate(config)
-    resp.restaurant_name = tenant_name
+    if tenant_row is not None:
+        resp.restaurant_name, resp.tenant_slug = tenant_row
     return resp
 
 
@@ -122,7 +128,27 @@ async def update_restaurant_config(
         )
     if data.online_ordering_only is not None:
         config.online_ordering_only = data.online_ordering_only
+    if data.hidden_ui_modules is not None:
+        # Normalised on the way in so the frontend never has to cope with
+        # "Dine-In , quickbooks-online" typed by a human into a settings box.
+        config.hidden_ui_modules = ",".join(
+            part.strip().lower()
+            for part in data.hidden_ui_modules.split(",")
+            if part.strip()
+        )
 
     await db.commit()
     await db.refresh(config)
-    return RestaurantConfigResponse.model_validate(config)
+
+    # PATCH previously returned a response with no restaurant_name, because only
+    # the GET above bothered to fetch it. A client that re-read config from this
+    # response therefore lost the shop's name until the next full reload -- which
+    # is what puts "Restaurant not loaded" on screen. Same lookup as the GET.
+    tenant_result = await db.execute(
+        select(Tenant.name, Tenant.slug).where(Tenant.id == current_user.tenant_id)
+    )
+    tenant_row = tenant_result.one_or_none()
+    resp = RestaurantConfigResponse.model_validate(config)
+    if tenant_row is not None:
+        resp.restaurant_name, resp.tenant_slug = tenant_row
+    return resp

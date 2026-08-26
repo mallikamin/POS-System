@@ -3,7 +3,16 @@ import { Navigate, useNavigate } from "react-router-dom";
 import { UtensilsCrossed, ShoppingBag, Phone, Loader2 } from "lucide-react";
 import { useUIStore } from "@/stores/uiStore";
 import { useConfigStore } from "@/stores/configStore";
+import { isModuleHidden, type UiModule } from "@/lib/modules";
+import { cn } from "@/lib/utils";
 import type { OrderType } from "@/types";
+
+/** Channel to module slug. Kept next to the cards so the two cannot drift. */
+const CHANNEL_MODULES: Record<OrderType, UiModule> = {
+  dine_in: "dine-in",
+  takeaway: "takeaway",
+  call_center: "call-center",
+};
 
 /* Preload POS-critical chunks so navigation is instant */
 const preloadDineIn = () => import("@/pages/dine-in/DineInPage");
@@ -92,6 +101,22 @@ function DashboardPage() {
     navigate(channel.route);
   };
 
+  /*
+   * Only the channels this restaurant actually operates.
+   *
+   * Found in UAT on 2026-08-27: a bakery with no tables at all was shown
+   * "Dine-In" as the largest and left-most action on the first screen after
+   * signing in. Offering a client a channel they do not have is not a neutral
+   * default, it reads as a system built for somebody else.
+   *
+   * Empty hidden list means all three, which is every existing tenant, so this
+   * changes nothing for anyone until a slug is set. Grid columns are derived
+   * from the count rather than fixed at three, or hiding one would leave a hole.
+   */
+  const visibleChannels = channels.filter(
+    (channel) => !isModuleHidden(config, CHANNEL_MODULES[channel.type]),
+  );
+
   return (
     <div className="flex h-full flex-col items-center justify-center p-8">
       <h2 className="mb-2 text-pos-2xl font-bold text-secondary-800">
@@ -101,8 +126,15 @@ function DashboardPage() {
         Choose how you would like to take the order
       </p>
 
-      <div className="grid w-full max-w-4xl grid-cols-1 gap-6 sm:grid-cols-3">
-        {channels.map((channel) => (
+      <div
+        className={cn(
+          "grid w-full max-w-4xl grid-cols-1 gap-6",
+          visibleChannels.length === 1 && "sm:max-w-sm sm:grid-cols-1",
+          visibleChannels.length === 2 && "sm:max-w-2xl sm:grid-cols-2",
+          visibleChannels.length >= 3 && "sm:grid-cols-3",
+        )}
+      >
+        {visibleChannels.map((channel) => (
           <button
             key={channel.type}
             onClick={() => handleChannelSelect(channel)}

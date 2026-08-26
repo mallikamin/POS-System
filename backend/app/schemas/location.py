@@ -154,6 +154,33 @@ class LocationStockRow(BaseModel):
     is_low: bool
 
 
+class StockMovementRow(BaseModel):
+    """One line of the stock ledger, shaped for a human reading a history panel.
+
+    `location_name` and `performed_by_name` are nullable and that is meaningful,
+    not an oversight: a movement with no location predates the multi-site model,
+    and one with no performer was done by the system rather than a person, which
+    is exactly what consumption from an online order looks like.
+    """
+
+    id: uuid.UUID
+    ingredient_id: uuid.UUID
+    ingredient_name: str
+    location_id: uuid.UUID | None
+    location_name: str | None
+    transaction_type: str
+    quantity: Decimal
+    unit: str
+    balance_after: Decimal
+    unit_cost: Decimal
+    total_cost: Decimal
+    transaction_date: datetime
+    performed_by_name: str | None
+    notes: str | None
+    reference_number: str | None
+    order_id: uuid.UUID | None
+
+
 class StockAdjustRequest(BaseModel):
     ingredient_id: uuid.UUID
     location_id: uuid.UUID | None = None

@@ -30,6 +30,8 @@ import { useUIStore } from "@/stores/uiStore";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import api from "@/lib/axios";
+import { isModuleHidden } from "@/lib/modules";
+import { useConfigStore } from "@/stores/configStore";
 
 const baseNavItems = [
   { to: "/admin", label: "Dashboard", icon: LayoutDashboard, end: true },
@@ -61,6 +63,7 @@ const baseNavItems = [
 
 function AdminLayout() {
   const { isAuthenticated, user, logout } = useAuthStore();
+  const config = useConfigStore((s) => s.config);
   const { sidebarOpen, setSidebarOpen } = useUIStore();
   const navigate = useNavigate();
   const [qbConnectionType, setQbConnectionType] = useState<string | null>(null);
@@ -83,13 +86,25 @@ function AdminLayout() {
     }
   }, [isAuthenticated]);
 
-  // Build nav items with conditional QB links
+  // Build nav items with conditional QB links.
+  //
+  // Two independent conditions, and they answer different questions. The QB
+  // connection type answers "which QuickBooks does this tenant use"; the hidden
+  // module list answers "does this tenant want to see QuickBooks at all". A
+  // client who has never bought an accounting integration should not be shown
+  // two entries for one, which is what Martin saw in UAT on 2026-08-27.
   const navItems = [...baseNavItems];
   if (qbLoaded) {
-    if (!qbConnectionType || qbConnectionType === "online") {
+    if (
+      (!qbConnectionType || qbConnectionType === "online") &&
+      !isModuleHidden(config, "quickbooks-online")
+    ) {
       navItems.push({ to: "/admin/quickbooks", label: "QuickBooks Online", icon: BookOpen, end: false });
     }
-    if (!qbConnectionType || qbConnectionType === "desktop") {
+    if (
+      (!qbConnectionType || qbConnectionType === "desktop") &&
+      !isModuleHidden(config, "quickbooks-desktop")
+    ) {
       navItems.push({ to: "/admin/qb-desktop", label: "QB Desktop", icon: BookOpen, end: false });
     }
   }
@@ -130,8 +145,16 @@ function AdminLayout() {
           </button>
         </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 space-y-1 p-3">
+        {/* Navigation
+            `overflow-y-auto` AND `min-h-0` are both required, and the second is
+            the one that is easy to miss. A flex child defaults to
+            `min-height: auto`, so `flex-1` alone will not let this shrink below
+            its content: the list grew past the viewport, the `overflow-hidden`
+            on the page wrapper clipped it, and the last entries became
+            unreachable with no scrollbar to reveal them. Found in UAT on
+            2026-08-27 with 22 modules in the list, where Quotations and Tax
+            Invoices could only be reached by zooming the browser out. */}
+        <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto p-3">
           {navItems.map((item) => (
             <NavLink
               key={item.to}

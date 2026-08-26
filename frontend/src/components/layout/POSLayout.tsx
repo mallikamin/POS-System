@@ -31,6 +31,7 @@ function POSLayout() {
   const { isAuthenticated, user, logout } = useAuthStore();
   const { currentChannel } = useUIStore();
   const { fetchConfig } = useConfigStore();
+  const config = useConfigStore((s) => s.config);
   const navigate = useNavigate();
 
   // Fetch restaurant config once after the user is authenticated
@@ -57,7 +58,18 @@ function POSLayout() {
       <header className="flex h-14 shrink-0 items-center justify-between border-b border-secondary-200 bg-white px-4 shadow-sm">
         {/* Left: Restaurant name + channel */}
         <div className="flex items-center gap-3">
-          <Link to="/" className="text-pos-lg font-bold text-secondary-800 hover:text-primary-600 transition-colors">POS System</Link>
+          {/* The comment above said "Restaurant name" while the code said "POS
+              System" for every tenant. The name has always been in the config
+              response as `restaurant_name`; nothing read it. A client sitting in
+              front of a demo should see their own business at the top of the
+              screen, not our internal product name. Falls back only for the
+              frame before config lands. */}
+          <Link
+            to="/"
+            className="text-pos-lg font-bold text-secondary-800 hover:text-primary-600 transition-colors"
+          >
+            {config?.restaurant_name ?? "POS System"}
+          </Link>
           {channel && (
             <span
               className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold text-white ${channel.color}`}

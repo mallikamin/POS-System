@@ -32,9 +32,11 @@ from decimal import Decimal
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from app.models.inventory import Ingredient, InventoryTransaction
 from app.models.location import Location, LocationStock
+from app.models.user import User
 
 # Movement types. `consumption` is a sale; `production` is a recipe run adding
 # its output; `transfer_out`/`transfer_in` are the two halves of a transfer.
@@ -214,6 +216,84 @@ async def move_stock(
 
     await _resync_ingredient_total(db, ingredient)
     return txn
+
+
+async def get_stock_movements(
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    ingredient_id: uuid.UUID | None = None,
+    location_id: uuid.UUID | None = None,
+    limit: int = 100,
+    offset: int = 0,
+) -> list[dict]:
+    """The movement history: every change to stock, and why it happened.
+
+    🔴 **Why this exists.** `move_stock` has written an `InventoryTransaction`
+    for every stock change since the module shipped, and the adjustment endpoint
+    has always demanded a mandatory reason. None of it was readable: there was no
+    endpoint and no screen, so the reason a human typed went into the database
+    and was never seen again. Found in UAT on 2026-08-27, when the client
+    walkthrough told the reader to "look at the movement history for that item"
+    and there was no such thing.
+
+    That mattered more than a missing screen. "Stock never changes without an
+    explanation" is the claim this module is sold on, and a claim the customer
+    cannot inspect is a claim they have to take on trust.
+
+    Ordered newest first, and by `id` as a tiebreak: several movements can share
+    a `transaction_date` to the microsecond (a production run consumes its inputs
+    and adds its output in one transaction), and without a stable second key the
+    page order wobbles between requests.
+
+    Joins are LEFT for `location` and `performed_by` on purpose: `location_id` is
+    null for rows written before locations existed, and `performed_by` is null for
+    anything the system did on its own, such as consumption from an online order.
+    An inner join would silently hide exactly those rows, which is the failure
+    mode a history screen must never have.
+    """
+    performer = aliased(User)
+    stmt = (
+        select(InventoryTransaction, Ingredient, Location, performer)
+        .join(Ingredient, Ingredient.id == InventoryTransaction.ingredient_id)
+        .outerjoin(Location, Location.id == InventoryTransaction.location_id)
+        .outerjoin(performer, performer.id == InventoryTransaction.performed_by)
+        .where(InventoryTransaction.tenant_id == tenant_id)
+    )
+    if ingredient_id is not None:
+        stmt = stmt.where(InventoryTransaction.ingredient_id == ingredient_id)
+    if location_id is not None:
+        stmt = stmt.where(InventoryTransaction.location_id == location_id)
+
+    stmt = stmt.order_by(
+        InventoryTransaction.transaction_date.desc(),
+        InventoryTransaction.id.desc(),
+    ).limit(limit).offset(offset)
+
+    rows = (await db.execute(stmt)).all()
+    return [
+        {
+            "id": txn.id,
+            "ingredient_id": txn.ingredient_id,
+            "ingredient_name": ingredient.name,
+            "location_id": txn.location_id,
+            "location_name": location.name if location is not None else None,
+            "transaction_type": txn.transaction_type,
+            "quantity": txn.quantity,
+            "unit": txn.unit,
+            "balance_after": txn.balance_after,
+            "unit_cost": txn.unit_cost,
+            "total_cost": txn.total_cost,
+            "transaction_date": txn.transaction_date,
+            # The two columns that make this a record rather than a number.
+            "performed_by_name": (
+                performed.full_name if performed is not None else None
+            ),
+            "notes": txn.notes,
+            "reference_number": txn.reference_number,
+            "order_id": txn.order_id,
+        }
+        for txn, ingredient, location, performed in rows
+    ]
 
 
 async def get_location_stock(

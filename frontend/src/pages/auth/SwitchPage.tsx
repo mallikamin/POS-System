@@ -43,8 +43,22 @@ export default function SwitchPage() {
     return <Navigate to="/login" replace />;
   }
 
-  const shopName = config?.name;
-  const shopSlug = getTenantSlug();
+  /*
+   * 🔴 Both of these read the SESSION, not the device.
+   *
+   * This screen used to show `config?.name` (a field that does not exist on the
+   * response -- the API returns `restaurant_name`, so it was always undefined
+   * and the screen permanently read "Restaurant not loaded") next to
+   * `getTenantSlug()`, which prefers `?shop=` from the URL and otherwise reads
+   * localStorage. The combination meant that opening a link for one restaurant
+   * while signed in to another displayed the second one's slug underneath the
+   * first one's user. Found in UAT on 2026-08-27. Nothing crossed tenants, but
+   * showing a client another client's slug is not something to leave standing.
+   *
+   * The session knows which shop it belongs to. Ask it.
+   */
+  const shopName = config?.restaurant_name;
+  const shopSlug = config?.tenant_slug ?? getTenantSlug();
 
   function handleSwitch() {
     setSigningOut(true);

@@ -71,7 +71,10 @@ function DownloadButton({ onClick }: { onClick: () => void }) {
 export default function OnlineReportsPage() {
   const config = useConfigStore((s) => s.config);
   const fetchConfig = useConfigStore((s) => s.fetchConfig);
-  const shopName = config?.name ?? "Online Orders";
+  // Was `config?.name`, a field the API never returns, so this had always
+  // silently fallen through to the generic label. Corrected 2026-08-27 with the
+  // rest of that type mismatch; the fallback stays for the pre-load frame.
+  const shopName = config?.restaurant_name ?? "Online Orders";
   const currency = config?.currency ?? "GBP";
 
   const [dateFrom, setDateFrom] = useState(todayISO());

@@ -44,7 +44,29 @@ export interface AuthTokens {
 // Restaurant Config
 // ---------------------------------------------------------------------------
 export interface RestaurantConfig extends BaseEntity {
-  name: string;
+  /**
+   * The shop's display name, from the tenant record.
+   *
+   * 🔴 This field was declared as `name` here while the API has always returned
+   * `restaurant_name`, so `config.name` was permanently `undefined` and every
+   * screen that tried to show the shop's name silently showed nothing. That is
+   * what put "Restaurant not loaded" on the switch-account screen. Found in UAT
+   * on 2026-08-27. Same failure as the missing `is_produced` in
+   * `types/inventory.ts`: a response field with no matching TS type, silent in
+   * both directions until somebody needs it.
+   *
+   * Nullable because a tenant row could in principle have no name; render a
+   * fallback rather than an empty gap.
+   */
+  restaurant_name: string | null;
+  /**
+   * The slug of the tenant this session actually belongs to.
+   *
+   * The authoritative answer to "which shop am I signed in to". Unlike the
+   * remembered slug in localStorage, this arrives with the session and cannot be
+   * contradicted by a query string, which is what made the old inference wrong.
+   */
+  tenant_slug: string | null;
   payment_flow: "order_first" | "pay_first";
   currency: string;
   timezone: string;
@@ -57,6 +79,18 @@ export interface RestaurantConfig extends BaseEntity {
    * the POS lands on the online-orders queue instead of the channel selector.
    */
   online_ordering_only: boolean;
+  /**
+   * Comma-separated UI module slugs this tenant should not be shown, e.g.
+   * `"dine-in,quickbooks-online"`. Read it through `isModuleHidden()` in
+   * `lib/modules.ts` rather than splitting it at each call site.
+   *
+   * ⚠️ Presentation only. It hides navigation and dashboard cards so a client is
+   * not shown modules they do not use. It does NOT gate the endpoints behind
+   * them, because every admin route is gated by role and nothing else. The real
+   * per-tenant module gate is OI-93 and does not exist yet. Do not describe this
+   * to anyone as access control.
+   */
+  hidden_ui_modules: string;
 }
 
 // ---------------------------------------------------------------------------

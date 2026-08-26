@@ -11,6 +11,7 @@ import type {
   LocationCreate,
   LocationOrderRow,
   LocationStockRow,
+  StockMovementRow,
   LocationUpdate,
   ProductionRunResult,
   ProfitabilityReport,
@@ -89,6 +90,27 @@ export async function fetchStockPosition(params?: {
 }): Promise<LocationStockRow[]> {
   const { data } = await api.get<LocationStockRow[]>(
     "/locations/stock/position",
+    { params },
+  );
+  return data;
+}
+
+/**
+ * The movement ledger for an item: why the stock figure is what it is.
+ *
+ * Scope it to BOTH ingredient and location for a per-row history. The
+ * `balance_after` column is that location's running balance, so mixing two
+ * sites' movements into one list produces a balance column that jumps around
+ * and means nothing.
+ */
+export async function fetchStockMovements(params: {
+  ingredient_id?: string;
+  location_id?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<StockMovementRow[]> {
+  const { data } = await api.get<StockMovementRow[]>(
+    "/locations/stock/movements",
     { params },
   );
   return data;

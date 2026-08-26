@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import uuid
 from datetime import date
-from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,6 +20,7 @@ from app.schemas.location import (
     LocationOrderRow,
     LocationResponse,
     LocationStockRow,
+    StockMovementRow,
     LocationUpdate,
     ProductionRunRequest,
     ProductionRunResponse,
@@ -232,6 +232,39 @@ async def stock_position(
         db, current_user.tenant_id, location_id, low_only
     )
     return [LocationStockRow(**r) for r in rows]
+
+
+@router.get("/stock/movements", response_model=list[StockMovementRow])
+async def stock_movements(
+    ingredient_id: uuid.UUID | None = Query(None),
+    location_id: uuid.UUID | None = Query(None),
+    limit: int = Query(100, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[StockMovementRow]:
+    """Why the stock figure is what it is: every movement, newest first.
+
+    🔴 The ledger behind this has been written since the module shipped and was
+    unreadable until 2026-08-27 -- no endpoint, no screen. The mandatory reason
+    on a manual adjustment went into the database and could never be seen again,
+    which made "stock never changes without an explanation" a claim the customer
+    had to take on trust. This is the door.
+
+    Deliberately readable by any signed-in user, not just admin and manager,
+    unlike the adjust endpoint next to it. Making a change is privileged;
+    inspecting why the number moved is the opposite of privileged, and a history
+    that only managers can see does not settle an argument on the floor.
+    """
+    rows = await stock_service.get_stock_movements(
+        db,
+        current_user.tenant_id,
+        ingredient_id=ingredient_id,
+        location_id=location_id,
+        limit=limit,
+        offset=offset,
+    )
+    return [StockMovementRow(**r) for r in rows]
 
 
 @router.post(

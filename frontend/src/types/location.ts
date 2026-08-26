@@ -92,6 +92,34 @@ export interface LocationStockRow {
   is_low: boolean;
 }
 
+/**
+ * One line of the stock ledger: what changed, by how much, who did it and why.
+ *
+ * `location_name` and `performed_by_name` are nullable and both nulls carry
+ * meaning. No location means the movement predates the multi-site model. No
+ * performer means the system did it rather than a person, which is what
+ * consumption from an online order looks like. Render those as words, not as an
+ * empty cell that reads like missing data.
+ */
+export interface StockMovementRow {
+  id: string;
+  ingredient_id: string;
+  ingredient_name: string;
+  location_id: string | null;
+  location_name: string | null;
+  transaction_type: string;
+  quantity: string;
+  unit: string;
+  balance_after: string;
+  unit_cost: string;
+  total_cost: string;
+  transaction_date: string;
+  performed_by_name: string | null;
+  notes: string | null;
+  reference_number: string | null;
+  order_id: string | null;
+}
+
 export interface TransferItem {
   id: string;
   ingredient_id: string;

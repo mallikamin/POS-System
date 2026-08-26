@@ -1,11 +1,12 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, Navigate } from "react-router-dom";
 import { AxiosError } from "axios";
 import { useAuthStore } from "@/stores/authStore";
+import { useConfigStore } from "@/stores/configStore";
 import { NumberPad } from "@/components/pos/NumberPad";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { getTenantSlug, setTenantSlug } from "@/lib/tenant";
+import { getTenantSlug, setTenantSlug, tenantSlugFromUrl } from "@/lib/tenant";
 
 /** Extract a human-readable message from an API error response. */
 function getErrorMessage(err: unknown, fallback: string): string {
@@ -23,8 +24,9 @@ function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const { loginWithPin, loginWithPassword, isLoading, isAuthenticated } =
+  const { loginWithPin, loginWithPassword, isLoading, isAuthenticated, logout } =
     useAuthStore();
+  const config = useConfigStore((s) => s.config);
   const navigate = useNavigate();
 
   /*
@@ -40,8 +42,39 @@ function LoginPage() {
   const [shop, setShop] = useState(getTenantSlug() ?? "");
   const [showShop, setShowShop] = useState(!getTenantSlug());
 
-  // If the user is already authenticated, redirect straight to the dashboard
-  if (isAuthenticated) {
+  /*
+   * If the user is already authenticated, redirect straight to the dashboard --
+   * UNLESS this URL is explicitly asking for a different restaurant.
+   *
+   * 🔴 Found in UAT on 2026-08-27. Opening `/login?shop=martin-fz` while signed
+   * in to Chick Shack bounced silently to Chick Shack's dashboard. The URL asked
+   * for one tenant and the app delivered another, with nothing on screen to say
+   * so. Nothing leaked -- you simply stayed who you were -- but a demo link that
+   * lands the reader in somebody else's shop is not a link we can send a client.
+   *
+   * An explicit `?shop=` is a deliberate instruction and outranks a session that
+   * happens to be lying around. Signing out here is safe: the alternative is
+   * obeying a stale session over a stated intent.
+   */
+  const requestedShop = tenantSlugFromUrl()?.toLowerCase();
+  // The session's OWN slug, never `getTenantSlug()` -- that one reads `?shop=`
+  // first and so would always compare equal to itself, which is exactly the
+  // mistake that hides this bug.
+  const signedInShop = config?.tenant_slug?.toLowerCase();
+  const wantsDifferentShop = Boolean(
+    isAuthenticated && requestedShop && signedInShop && requestedShop !== signedInShop,
+  );
+
+  useEffect(() => {
+    if (wantsDifferentShop) logout();
+  }, [wantsDifferentShop, logout]);
+
+  // Redirect when the URL is not asking for anything different. Note the
+  // deliberate asymmetry: if we cannot yet tell which shop the session belongs
+  // to (config still loading), we redirect rather than sign the user out.
+  // Wrongly redirecting costs a click; wrongly signing someone out during
+  // service costs a PIN that whoever is on shift may not have.
+  if (isAuthenticated && !wantsDifferentShop) {
     return <Navigate to="/" replace />;
   }
 

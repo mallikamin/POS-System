@@ -115,6 +115,25 @@ class RestaurantConfig(BaseMixin, Base):
     )
 
     # Relationships
+    # Comma-separated UI module slugs this tenant should NOT be shown, e.g.
+    # "dine-in,quickbooks-online,quickbooks-desktop".
+    #
+    # ⚠️ **PRESENTATION ONLY. This is NOT an entitlement or a security boundary,
+    # and must never be described as one.** It hides navigation entries and
+    # dashboard cards so a client is not shown modules they do not use. The
+    # endpoints behind them remain reachable, because every admin route in this
+    # system is gated by ROLE and nothing else. The real per-tenant module gate
+    # is OI-93 and it does not exist yet. Hiding a nav item is a filter; a filter
+    # is not an invariant.
+    #
+    # Empty means hide nothing, which is exactly today's behaviour for every
+    # existing tenant. That is deliberate: adding this column changes nothing for
+    # anybody until a slug is written into it, so Chick Shack's screens are
+    # untouched by its existence.
+    hidden_ui_modules: Mapped[str] = mapped_column(
+        String(500), nullable=False, default="", server_default=""
+    )
+
     tenant: Mapped["Tenant"] = relationship("Tenant", back_populates="config")
 
 

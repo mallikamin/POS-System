@@ -21,12 +21,18 @@ import { formatMoney, getActiveCurrency } from "@/utils/currency";
 import {
   adjustStock,
   fetchLocations,
+  fetchStockMovements,
   fetchStockPosition,
   runProduction,
   setReorderLevel,
 } from "@/services/locationsApi";
 import { fetchIngredients, fetchRecipes } from "@/services/inventoryApi";
-import type { Location, LocationStockRow } from "@/types/location";
+import { cn } from "@/lib/utils";
+import type {
+  Location,
+  LocationStockRow,
+  StockMovementRow,
+} from "@/types/location";
 import type { Ingredient, Recipe } from "@/types/inventory";
 
 /** Decimals arrive as strings from the API. Anything unparseable reads as 0. */
@@ -92,6 +98,9 @@ function StockPage() {
 
   // Reorder dialog
   const [reorderRow, setReorderRow] = useState<LocationStockRow | null>(null);
+  const [historyRow, setHistoryRow] = useState<LocationStockRow | null>(null);
+  const [history, setHistory] = useState<StockMovementRow[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [reorderPoint, setReorderPoint] = useState("");
   const [reorderQuantity, setReorderQuantity] = useState("");
 
@@ -160,6 +169,30 @@ function StockPage() {
     setAdjustRow(row);
     setAdjustDelta("");
     setAdjustReason("");
+  }
+
+  async function openHistory(row: LocationStockRow) {
+    setHistoryRow(row);
+    setHistory([]);
+    setHistoryLoading(true);
+    try {
+      // Scoped to this ingredient AND this location. The tenant-wide history of
+      // an ingredient is a different question, and mixing two sites' movements
+      // in one list makes the running balance column nonsense.
+      setHistory(
+        await fetchStockMovements({
+          ingredient_id: row.ingredient_id,
+          location_id: row.location_id,
+          limit: 200,
+        }),
+      );
+    } catch {
+      // The global axios interceptor raises the toast. Leaving the list empty
+      // shows the honest "no movements" state rather than a stale one.
+      setHistory([]);
+    } finally {
+      setHistoryLoading(false);
+    }
   }
 
   function openReorder(row: LocationStockRow) {
@@ -418,6 +451,13 @@ function StockPage() {
                         <Button
                           variant="ghost"
                           size="sm"
+                          onClick={() => openHistory(row)}
+                        >
+                          History
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           onClick={() => openReorder(row)}
                         >
                           Set Reorder Level
@@ -488,6 +528,118 @@ function StockPage() {
               ) : (
                 "Save Adjustment"
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Movement History Dialog
+          Why the stock figure is what it is. Every movement this system has ever
+          written for this ingredient at this site, newest first, with who did it
+          and the reason they gave.
+
+          🔴 This ledger has been written since the module shipped and had no
+          reader at all until 2026-08-27: no endpoint, no screen. The mandatory
+          reason on a manual adjustment went into the database and could never be
+          seen again, which made "stock never changes without an explanation" a
+          claim a customer had to take on trust. */}
+      <Dialog
+        open={historyRow !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setHistoryRow(null);
+            setHistory([]);
+          }
+        }}
+      >
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Movement History</DialogTitle>
+            <DialogDescription>
+              {historyRow
+                ? `Every change to ${historyRow.ingredient_name} at ${historyRow.location_name}, newest first.`
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+
+          {historyLoading ? (
+            <div className="flex justify-center py-10">
+              <Loader2 className="h-6 w-6 animate-spin text-secondary-400" />
+            </div>
+          ) : history.length === 0 ? (
+            <p className="py-8 text-center text-pos-sm text-secondary-500">
+              No movements recorded yet for this item at this location.
+            </p>
+          ) : (
+            <div className="max-h-[60vh] overflow-y-auto">
+              <table className="w-full text-pos-sm">
+                <thead className="sticky top-0 bg-white">
+                  <tr className="border-b border-secondary-200 text-left text-secondary-500">
+                    <th className="px-3 py-2 font-medium">When</th>
+                    <th className="px-3 py-2 font-medium">Type</th>
+                    <th className="px-3 py-2 text-right font-medium">Change</th>
+                    <th className="px-3 py-2 text-right font-medium">Balance</th>
+                    <th className="px-3 py-2 font-medium">Who</th>
+                    <th className="px-3 py-2 font-medium">Why</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {history.map((m) => {
+                    const delta = toNumber(m.quantity);
+                    return (
+                      <tr
+                        key={m.id}
+                        className="border-b border-secondary-100 align-top"
+                      >
+                        <td className="whitespace-nowrap px-3 py-2 text-secondary-600">
+                          {new Date(m.transaction_date).toLocaleString()}
+                        </td>
+                        <td className="px-3 py-2">
+                          <Badge variant="secondary">
+                            {m.transaction_type.replace(/_/g, " ")}
+                          </Badge>
+                        </td>
+                        {/* Signed and colour-coded: the single most-read number
+                            here is "did this go up or down". */}
+                        <td
+                          className={cn(
+                            "whitespace-nowrap px-3 py-2 text-right tabular-nums font-medium",
+                            delta < 0 ? "text-danger-600" : "text-success-600",
+                          )}
+                        >
+                          {delta > 0 ? "+" : ""}
+                          {formatQty(m.quantity)} {m.unit}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-secondary-700">
+                          {formatQty(m.balance_after)} {m.unit}
+                        </td>
+                        {/* A null performer is the system, not a gap in the
+                            record: consumption from an online order has no
+                            human behind it. Say so rather than showing a dash
+                            that reads as missing data. */}
+                        <td className="px-3 py-2 text-secondary-600">
+                          {m.performed_by_name ?? (
+                            <span className="italic text-secondary-400">
+                              System
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2 text-secondary-600">
+                          {m.notes ?? m.reference_number ?? (
+                            <span className="text-secondary-300">--</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setHistoryRow(null)}>
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>

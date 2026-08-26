@@ -15,6 +15,9 @@ import type {
   ItemPerformance,
 } from "@/types/order";
 import { formatPKR } from "@/utils/currency";
+import { isModuleHidden } from "@/lib/modules";
+import { cn } from "@/lib/utils";
+import { useConfigStore } from "@/stores/configStore";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   DollarSign,
@@ -298,6 +301,8 @@ function TopItemsChart({ data }: { data: ItemPerformance | null }) {
 /* ---------- main component ---------- */
 
 function AdminDashboard() {
+  const config = useConfigStore((s) => s.config);
+  const hideDineIn = isModuleHidden(config, "dine-in");
   const [kpis, setKpis] = useState<DashboardKpis | null>(null);
   const [live, setLive] = useState<LiveOperations | null>(null);
   const [hourly, setHourly] = useState<HourlyBreakdown | null>(null);
@@ -423,27 +428,33 @@ function AdminDashboard() {
           iconBg="bg-accent-50"
           iconColor="text-accent-500"
         />
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-pos-sm font-medium text-secondary-600">
-              Table Utilization
-            </CardTitle>
-            <div className="rounded-lg bg-warning-50 p-2">
-              <BarChart3 className="h-5 w-5 text-warning-500" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <p className="text-pos-2xl font-bold text-secondary-800">
-              {kpis ? `${Math.round(kpis.table_utilization)}%` : "--"}
-            </p>
-            <div className="mt-2 h-2 w-full rounded-full bg-secondary-100">
-              <div
-                className="h-2 rounded-full bg-warning-400 transition-all"
-                style={{ width: `${utilPct}%` }}
-              />
-            </div>
-          </CardContent>
-        </Card>
+        {/* Table utilisation is a dine-in metric and reads as a broken gauge in
+            a business with no tables: a permanent 0% with an empty bar. Hidden
+            with the dine-in module rather than given its own switch, because
+            they are the same fact about the business. */}
+        {!hideDineIn && (
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-pos-sm font-medium text-secondary-600">
+                Table Utilization
+              </CardTitle>
+              <div className="rounded-lg bg-warning-50 p-2">
+                <BarChart3 className="h-5 w-5 text-warning-500" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <p className="text-pos-2xl font-bold text-secondary-800">
+                {kpis ? `${Math.round(kpis.table_utilization)}%` : "--"}
+              </p>
+              <div className="mt-2 h-2 w-full rounded-full bg-secondary-100">
+                <div
+                  className="h-2 rounded-full bg-warning-400 transition-all"
+                  style={{ width: `${utilPct}%` }}
+                />
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Live Operations */}
@@ -451,13 +462,20 @@ function AdminDashboard() {
         <h2 className="mb-3 text-pos-lg font-semibold text-secondary-700">
           Live Operations
         </h2>
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
-          <LiveColumn
-            title="Dine-In"
-            icon={UtensilsCrossed}
-            iconColor="text-primary-500"
-            orders={live?.dine_in ?? []}
-          />
+        <div
+          className={cn(
+            "grid grid-cols-1 gap-4",
+            hideDineIn ? "lg:grid-cols-3" : "lg:grid-cols-4",
+          )}
+        >
+          {!hideDineIn && (
+            <LiveColumn
+              title="Dine-In"
+              icon={UtensilsCrossed}
+              iconColor="text-primary-500"
+              orders={live?.dine_in ?? []}
+            />
+          )}
           <LiveColumn
             title="Takeaway"
             icon={Package}
