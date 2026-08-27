@@ -77,6 +77,15 @@ function TaxInvoicesPage() {
     try {
       setLoadingInvoice(true);
       setInvoice(await fetchTaxInvoice(orderId));
+      // F36: the document renders below the sales table, well past the fold,
+      // so clicking "Tax Invoice" looked like nothing had happened -- it was
+      // reported as a dead button during UAT and only found by scrolling on a
+      // hunch. Bring it into view so the click has a visible result.
+      requestAnimationFrame(() => {
+        document
+          .getElementById("tax-invoice-document")
+          ?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
     } catch {
       toast({ title: "Failed to build the tax invoice", variant: "destructive" });
     } finally {
@@ -129,15 +138,13 @@ function TaxInvoicesPage() {
               </Select>
             </div>
 
-            {selected && selected.invoice_format !== "a4_tax_invoice" && (
-              <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-                <strong>{selected.name}</strong> is set to print thermal
-                tickets, not A4 tax invoices. You can still issue an invoice for
-                a sale here, but if this site bills businesses, switch its
-                invoice format on the Locations screen so it carries a legal
-                name and TRN.
-              </div>
-            )}
+            {/* F35: an amber banner used to appear here whenever the site's
+                invoice_format was thermal_ticket, telling the reader to switch
+                the format "so it carries a legal name and TRN". That was
+                false. invoice_format only decides which document the site
+                prints by DEFAULT; it has never gated the legal fields, and
+                these invoices carry the TRN either way. The banner below is
+                the real check: it fires on a site that genuinely has no TRN. */}
 
             {selected && !selected.tax_registration_number && (
               <div className="rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-900">

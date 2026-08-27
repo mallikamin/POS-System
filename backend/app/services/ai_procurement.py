@@ -34,6 +34,7 @@ money.
 from __future__ import annotations
 
 import base64
+import re
 import uuid
 from decimal import Decimal, InvalidOperation
 
@@ -95,7 +96,13 @@ class ExtractedDeliveryNote(BaseModel):
         default=None,
         description=(
             "Anything the person checking this should know: unreadable areas, "
-            "rows you could not match, ambiguity. One or two sentences."
+            "rows you could not match, ambiguity. One or two sentences. "
+            "This text is shown to the customer exactly as written, so describe "
+            "the OUTCOME in plain words. Never mention line_index, the value -1, "
+            "field names, or any other internal detail: say 'it is not on this "
+            "order' rather than 'it is returned as -1'. Use plain ASCII "
+            "punctuation only -- no em dashes, no curly quotes, and never an "
+            "escape sequence such as \\u2014."
         ),
     )
 
@@ -132,7 +139,52 @@ Rules that matter more than completeness:
 a line it probably is not.
 
 Everything you return is checked by a person before it changes any stock, so an \
-honest "I could not read this" is more useful than a confident guess."""
+honest "I could not read this" is more useful than a confident guess.
+
+The `notes` field is shown to the customer word for word. Write it as plain \
+prose about the delivery. Never name a field, an index, or the value -1 in it: \
+"the Sugar row is not on this order, so it has been left out" is right, \
+"returned as -1" is not. Plain ASCII punctuation only, and never an escape \
+sequence such as \\u2014."""
+
+
+_UNICODE_ESCAPE = re.compile(r"\\u([0-9a-fA-F]{4})")
+_SENTINEL = re.compile(r"\s*(?:and\s+)?(?:is|are)\s+returned\s+as\s+-?1\.?", re.I)
+
+
+def _clean_prose(text: str | None) -> str | None:
+    """Make model prose safe to show a client verbatim.
+
+    Two things have actually reached a customer's screen from this field:
+    a literal `\\u2014` escape rendering as `"u2014` mid-sentence (F41), and
+    the internal no-match sentinel as `is returned as -1` (F42). The prompt now
+    forbids both, but a prompt is a request, not a guarantee, so the same two
+    are removed here as well.
+    """
+    if not text:
+        return None
+    # A literal escape the model wrote as characters rather than as the glyph.
+    out = _UNICODE_ESCAPE.sub(lambda m: chr(int(m.group(1), 16)), text)
+    # Any em/en dash, curly quote or stray control character.
+    out = (
+        out.replace("\u2014", " - ")
+        .replace("\u2013", "-")
+        .replace("\u2018", "'")
+        .replace("\u2019", "'")
+        .replace("\u201c", '"')
+        .replace("\u201d", '"')
+    )
+    out = "".join(ch for ch in out if ch >= " " or ch in "\n\t")
+    # The sentinel, if the model mentioned it anyway.
+    out = _SENTINEL.sub("", out)
+    out = " ".join(out.split())
+    if not out:
+        return None
+    # Cutting the sentinel off the end of a sentence takes its full stop with
+    # it, leaving prose that reads as truncated. Put one back.
+    if out[-1] not in ".!?:;":
+        out += "."
+    return out
 
 
 def _document_block(data: bytes, media_type: str) -> dict:
@@ -296,7 +348,7 @@ async def extract_delivery_note(
         "lines": proposed,
         "unmatched": unmatched,
         "duplicate_line_ids": sorted(duplicates, key=str),
-        "notes": result.notes,
+        "notes": _clean_prose(result.notes),
     }
 
 

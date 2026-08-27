@@ -579,6 +579,12 @@ function StockPage() {
                     <th className="px-3 py-2 font-medium">Type</th>
                     <th className="px-3 py-2 text-right font-medium">Change</th>
                     <th className="px-3 py-2 text-right font-medium">Balance</th>
+                    {/* F43: the price paid on each movement was stored and
+                        returned by the API all along, and shown nowhere. */}
+                    <th className="px-3 py-2 text-right font-medium">
+                      Unit price
+                    </th>
+                    <th className="px-3 py-2 text-right font-medium">Value</th>
                     <th className="px-3 py-2 font-medium">Who</th>
                     <th className="px-3 py-2 font-medium">Why</th>
                   </tr>
@@ -612,6 +618,24 @@ function StockPage() {
                         </td>
                         <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-secondary-700">
                           {formatQty(m.balance_after)} {m.unit}
+                        </td>
+                        {/* What this movement was actually valued at, rather
+                            than what the ingredient costs today. A purchase
+                            made at 3.50 stays 3.50 here after a later delivery
+                            at 3.75. */}
+                        <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-secondary-700">
+                          {toNumber(m.unit_cost) > 0 ? (
+                            formatMoney(toNumber(m.unit_cost), currency)
+                          ) : (
+                            <span className="text-secondary-300">--</span>
+                          )}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-secondary-700">
+                          {toNumber(m.total_cost) > 0 ? (
+                            formatMoney(toNumber(m.total_cost), currency)
+                          ) : (
+                            <span className="text-secondary-300">--</span>
+                          )}
                         </td>
                         {/* A null performer is the system, not a gap in the
                             record: consumption from an online order has no

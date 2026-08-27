@@ -654,3 +654,226 @@ harness: an assertion that cannot fail on the thing that is actually broken.
 
 **Status:** OPEN - needs a stored, reserved number assigned once at first issue. Requires a
 migration.
+
+---
+
+## Resolution log — 2026-08-27, deploy `c074bc6` (sixth green deploy of the day)
+
+**F31 — FIXED AND DEPLOYED.** `OrderCreate` now accepts `location_id` and
+`sales_channel_id`; `order_service._resolve_sale_attribution()` resolves them through the
+shared `stock_service.resolve_location`; the tax invoice AND the quotation document both fall
+back to the tenant's default site instead of reading the raw column. A POS selector sits on
+the cart panel and renders nothing for a tenant with no locations.
+
+**F33 — FIXED AND DEPLOYED.** Migration `c5d6e7f8a9b0` adds `orders.tax_invoice_number`
+(nullable, unique per tenant) and `tax_invoice_sequences`. Numbers are reserved once at first
+issue behind `SELECT ... FOR UPDATE`. **Not backfilled** — verified 0 of 266 orders carried a
+number immediately after the migration.
+
+**Proved on production, through the real code path, not by SQL:**
+```
+FZ-0001 -> FZD-00001   TRN 100123456700003   net 6475  VAT 325  gross 6800 AED
+FZ-0002 -> FZD-00002 ... FZ-0007 -> FZD-00007
+FZ-0008 -> FZW-00001   net 34285 VAT 1715 gross 36000
+FZ-0009 -> FZW-00002   net 72380 VAT 3620 gross 76000
+distinct numbers: 9 of 9        re-read identical: True
+```
+Every invoice carries the TRN, VAT is backed out of the inclusive price, and re-reading after
+issue reproduces the identical document. Before this deploy those same nine orders produced
+exactly **two** numbers between them.
+
+**Demo tenant cleaned.** `260827-001/002/003` removed inside one guarded transaction that
+refused to run unless the data matched exactly what had been measured (3 orders, 3 consumption
+rows, one tenant, one ingredient, one location). The 0.840 kg of Croissant Dough they had
+consumed was returned, restoring Production & Wholesale to **35.000** and the roll-up to
+**45.000** — round numbers matching the original seed, which is the check that the restore was
+right. `260827-001`, the pre-F19 order whose invoice read 27.00 against an order total of
+28.35, is gone with them. Backup first: `pos_pre_uatclean_20260827T114102Z.sql.gz`, gzip
+verified.
+
+**The report Martin asked for now reads clean:** 9 orders, six real named channels, two real
+sites, **no "Direct / unassigned" row and no "Unassigned" location**, 78.92% net margin, direct
+channels 80-81% against platforms 66-77%.
+
+🟢 **Chick Shack measured before and after every step: 233 / 166 / 219 / 642087 / 87 / 3.**
+
+### Still open
+| # | What | Blocks the demo? |
+|---|---|---|
+| F30 | `martin-fz` has no kitchen stations | only if the video mentions the kitchen |
+| F21 | Walkthrough PDF Exercise 8 is factually wrong | must fix in the PDF |
+| F34 | **NEW** — online orders carry no channel. The storefront builds its own `Order()` and was deliberately NOT touched, because that is Chick Shack's live order path. A website sale on `martin-fz` still reports as "Direct / unassigned". Their tax invoice DOES get a TRN, because the fallback lives in the document service and so covers every order path including historical rows. | no, but it is a real gap for a delivery-led business |
+| F10 | Admin sidebar does not collapse | no |
+| F11 | Recipe Builder ingredient list has no search | no |
+| F12 | Login leaks `e.g. chick-shack` as a placeholder | cosmetic, first screen of the video |
+| F20 | Deploy never prunes old bundles | no |
+| F25 | No frontend test suite exists | after Martin |
+| — | **TRN `100123456700003` is still a placeholder** and now prints on nine issued invoices | decision needed before the call |
+
+## F35 — a false warning banner on the Tax Invoices screen 🔴 (fix next round)
+
+`TaxInvoicesPage.tsx:132-137`, added in `815a21e` (2026-08-26) **unprompted**. When the
+selected site is `invoice_format = thermal_ticket` it tells the reader to switch the format
+*"so it carries a legal name and TRN"*.
+
+**Untrue.** `invoice_format` only decides which document the site prints by DEFAULT; it has
+never gated the legal fields. Delivery Kitchen has both `legal_name` and
+`tax_registration_number` set, and its invoices carry them — verified on production:
+`FZ-0001 -> FZD-00001, TRN 100123456700003`, and the same for all seven FZD invoices.
+
+So the banner sits on the exact screen the playbook sends Martin to and tells him seven of his
+nine tax invoices lack fields they do not lack.
+
+**Fix:** delete the banner. Once the false claim is removed there is nothing true and useful
+left in it — the page already issues the invoice and the invoice is already correct.
+
+**Rule:** do not add advisory copy to a client-facing screen that was not asked for. This one
+was invented by a previous session, states something the code does not do, and would have cost
+credibility in front of the client.
+
+## F36 — "Tax Invoice" looks like a dead button 🔴 (UX, found in UAT)
+
+Clicking **Tax Invoice** renders the document far below the fold with no scroll, no spinner
+and no visible change anywhere near the button. Malik, driving UAT, was **about to report the
+button as broken** and only found the invoice by scrolling down on a hunch.
+
+If the person who built the system cannot tell the click worked, the client cannot either.
+This is the same class as a dead button, because the observable behaviour is identical.
+
+**Fix:** on issue, either scroll the invoice into view, or open it in a modal / new tab the way
+the receipt already does. Whichever is chosen, the click must produce an immediate visible
+response.
+
+**Status:** OPEN — bundle with F35 in the next round.
+
+## F37 — supplier "Code" is required, and nobody asked for it
+
+`New supplier` refuses to save without a **Code**, an internal short handle the client never
+requested. `ALMAYA` is only a greyed placeholder, so the form looks complete and then fails
+with "Name and code are required".
+
+Martin's discovery notes ask for suppliers, catalogues and purchase orders. They do not ask
+him to invent a short code for every supplier he already knows by name.
+
+**Fix:** derive the code from the name (`Al Maya Trading` -> `ALMAYA`), keep the field visible
+and editable for anyone who has their own coding scheme, and stop blocking the save.
+
+**Status:** OPEN — bundle with F35 and F36.
+
+## F38 — supplier SKU was built speculatively; hide it until asked for
+
+The catalogue and purchase order carry a **supplier SKU**, printed on the PO the supplier
+receives as `Flour [SKU]` (`purchase_order_document.py:220`). The mechanism works and is
+optional everywhere.
+
+But it was built by a previous session **without Martin having shared a single real supplier
+invoice**, so nobody knows whether his suppliers quote codes at all. Malik's call: hide the
+column and the input in the next batch, keep the field and the document logic intact, and
+surface it again only if his actual invoices show supplier codes.
+
+**Related:** same pattern as F35. Previous sessions added client-facing surface nobody asked
+for. **Build what the discovery notes ask for; park the rest behind evidence.**
+
+**Status:** OPEN — bundle with F35, F36, F37.
+
+## F39 — drop email sending from Purchase Orders 🔴
+
+The PO "Send" dialog reuses the shared `email_service`, whose Brevo account and from-address
+belong to **Chick Shack**. Emailing FZ LLC's purchase orders through it would send them under
+another client's identity and spend their sending reputation.
+
+**Nothing has gone out.** This was found during UAT, on the "Mark sent without emailing" path.
+
+**Martin never asked for supplier emailing.** Remove the email capability from the PO flow:
+keep Print and "Mark sent", drop "Send by email" and "Resend".
+
+**Rule, and it is the general one:** an integration configured for one tenant is scoped to
+that tenant. Never reuse another tenant's account, domain or sending identity to deliver a
+second tenant's documents. Saved to memory as `tenant-scoped-integrations.md`.
+
+**Status:** OPEN — bundle with F35, F36, F37, F38.
+
+## F40 — Receive dialog columns do not line up with their headers
+
+The header row reads **STILL OWED · RECEIVED NOW · PRICE PAID**, but the owed figure is bare
+text while the next two are input boxes of a different width, so nothing sits under its own
+heading. On the Flour row the "10" owed, the "10" received and the "3.5" price all appear at
+different offsets from the labels above them.
+
+The person entering a delivery is reading across a row under time pressure and has to work out
+which box is which. It reads as three loose fields rather than a table.
+
+**Fix:** one grid, fixed column widths, inputs right-aligned under their headers, units shown
+inside the field rather than only in the item name.
+
+**Status:** OPEN — bundle with F35-F39.
+
+## F41 — unicode escapes leak into the OCR message shown to the client
+
+The scan result rendered: `The supplied image is not a delivery note or invoice "u2014 it is a
+slide titled "Test assets only"`.
+
+`u2014` is a raw `\u2014` (em dash) escape reaching the screen as literal text, and the quote
+marks around the title are mangled the same way. The model returns escaped unicode and it is
+being inserted without being decoded, or it is being double-encoded on the way out.
+
+Client-facing copy with visible escape sequences in it looks broken regardless of how good the
+underlying feature is — and this feature is good: it correctly refused a non-delivery-note and
+explained why without booking anything in.
+
+**Fix:** decode properly at the boundary, and strip/normalise any residual escapes before
+render. Check the same path for the quotation and AI reply surfaces.
+
+**Status:** OPEN — bundle with F35-F40.
+
+## F42 — internal sentinel value leaks into the OCR explanation
+
+The scan message reads: *"The 'Sugar, white refined' row (10 kg @ 2.40) does not match any
+order line and **is returned as -1**."*
+
+`-1` is the internal "no match" sentinel. It means nothing to a client and reads like an error
+code in the middle of an otherwise well-written explanation.
+
+**Fix:** phrase the outcome, not the implementation — "it is not on this order, so it has been
+left out". The rest of the message is good and should not be touched.
+
+**Note:** the feature itself performed correctly here — matched "Flour, all purpose" to Flour,
+picked up the delivered price of 3.75 rather than the ordered 3.50, flagged the unordered
+Sugar line, left Butter blank because it was absent from the note, and filled the delivery
+note number. Only the wording is at fault.
+
+**Status:** OPEN — bundle with F35-F41.
+
+## F43 — last-price costing revalues the whole stock holding 🔴
+
+`_update_costs_from_receipt` overwrites `Ingredient.cost_per_unit` with the price just paid.
+The Stock screen then values the ENTIRE quantity on hand at that price.
+
+**Measured on production, Flour at Production & Wholesale:**
+```
+120 kg @ 3.50   opening
+  6 kg @ 3.50   GRN-260827-001
+  4 kg @ 3.75   GRN-260827-002   <- master cost overwritten to 3.75
+on hand 106.45 kg
+valued by the system   106.45 x 3.75 = AED 399.19
+actually cost          102.45 x 3.50 + 4 x 3.75 = AED 373.58
+overstated by                                     AED  25.61
+```
+A single 4 kg delivery revalued 106 kg. Malik: *"only 10 kg is priced at 3.75."* On a real
+bakery's ingredient list this compounds across every line, and it feeds recipe costing and
+therefore the profitability report.
+
+**The data is not lost.** `inventory_transactions` records `unit_cost` and `total_cost` on
+every movement, so a correct valuation is computable today. The defect is that the master cost
+is treated as the value of all stock rather than as "the last price we paid".
+
+**Two things to decide with Martin, not for him:**
+1. **Valuation basis** — weighted average is the usual answer for stock on hand and stops one
+   odd delivery skewing everything; FIFO is more accurate and more work. Last-price is fine
+   for *reorder* decisions and wrong for *valuation*. His accountant will have a view.
+2. **He should have a purchase log.** Malik: *"martin should have a detailed log of what he
+   bought, when, how much he paid."* The Movement History dialog currently shows When / Type /
+   Change / Balance / Who / Why and **no price column**, even though unit cost and total cost
+   are stored on every row. Add unit price and line value, and a filter for purchases.
+
+**Status:** OPEN — this is a substantive one, not cosmetic. Do not bundle with the UI batch.

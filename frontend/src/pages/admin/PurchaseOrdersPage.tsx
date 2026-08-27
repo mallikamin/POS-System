@@ -13,7 +13,6 @@ import {
   AlertTriangle,
   ClipboardList,
   Loader2,
-  Mail,
   PackageCheck,
   Plus,
   Printer,
@@ -143,9 +142,6 @@ function PurchaseOrdersPage() {
 
   // Send
   const [sendFor, setSendFor] = useState<PurchaseOrder | null>(null);
-  const [sendTo, setSendTo] = useState("");
-  const [sendMessage, setSendMessage] = useState("");
-  const [sendCopySelf, setSendCopySelf] = useState(false);
 
   // Receive
   const [receiveFor, setReceiveFor] = useState<PurchaseOrder | null>(null);
@@ -319,19 +315,19 @@ function PurchaseOrdersPage() {
 
   function openSend(order: PurchaseOrder) {
     setSendFor(order);
-    setSendTo(order.supplier_email ?? "");
-    setSendMessage("");
-    setSendCopySelf(false);
   }
 
-  async function submitSend(skipEmail: boolean) {
+  async function submitSend() {
     if (!sendFor) return;
     setSaving(true);
     try {
+      // F39: always skip_email. The endpoint still records the transition and
+      // the audit trail; only the outbound mail is gone.
+      const skipEmail = true;
       const result = await sendPurchaseOrder(sendFor.id, {
-        to: skipEmail ? null : sendTo.trim() || null,
-        message: skipEmail ? null : sendMessage.trim() || null,
-        cc_self: skipEmail ? false : sendCopySelf,
+        to: null,
+        message: null,
+        cc_self: false,
         skip_email: skipEmail,
       });
       if (skipEmail) {
@@ -627,22 +623,17 @@ function PurchaseOrdersPage() {
                           Send
                         </Button>
                       )}
+                      {/* F39: a "Resend" button used to sit here. Emailing was
+                          removed from this flow -- the shared mail service runs
+                          on another tenant's account and sending domain, and
+                          this client never asked for supplier emailing. Print
+                          the order and send it however he already does. */}
                       {(order.status === "sent" ||
                         order.status === "partially_received") && (
-                        <>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => openSend(order)}
-                          >
-                            <Mail className="mr-1 h-4 w-4" />
-                            Resend
-                          </Button>
-                          <Button size="sm" onClick={() => openReceive(order)}>
-                            <PackageCheck className="mr-1 h-4 w-4" />
-                            Receive
-                          </Button>
-                        </>
+                        <Button size="sm" onClick={() => openReceive(order)}>
+                          <PackageCheck className="mr-1 h-4 w-4" />
+                          Receive
+                        </Button>
                       )}
                       {order.status !== "received" &&
                         order.status !== "cancelled" && (
@@ -990,65 +981,29 @@ function PurchaseOrdersPage() {
           <DialogHeader>
             <DialogTitle>Send {sendFor?.po_number}</DialogTitle>
             <DialogDescription>
-              The supplier receives the order as an email with the full document.
+              Marks the order as sent so it can be received against. Print it
+              and pass it to the supplier however you normally do.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-3">
-            <div>
-              <Label>To</Label>
-              <Input
-                type="email"
-                value={sendTo}
-                onChange={(e) => setSendTo(e.target.value)}
-                placeholder="orders@supplier.com"
-              />
-              {!sendFor?.supplier_email && (
-                <p className="mt-1 text-xs text-warning-600">
-                  This supplier has no email on file. Type one here, or mark the
-                  order sent without emailing it.
-                </p>
-              )}
-            </div>
-            <div>
-              <Label>Message (optional)</Label>
-              <Textarea
-                rows={3}
-                value={sendMessage}
-                onChange={(e) => setSendMessage(e.target.value)}
-                placeholder="Appears above the order."
-              />
-            </div>
-            <label className="flex items-center gap-2 text-sm text-secondary-600">
-              <input
-                type="checkbox"
-                className="h-4 w-4"
-                checked={sendCopySelf}
-                onChange={(e) => setSendCopySelf(e.target.checked)}
-              />
-              Blind-copy this location&rsquo;s own email address
-            </label>
-            {sendFor && sendFor.email_send_count > 0 && (
-              <p className="text-xs text-secondary-500">
-                Already emailed {sendFor.email_send_count} time
-                {sendFor.email_send_count === 1 ? "" : "s"}
-                {sendFor.sent_to_email && ` to ${sendFor.sent_to_email}`}.
-              </p>
-            )}
-          </div>
+          {/* F39: this dialog used to collect a To address, a message and a
+              BCC, and email the purchase order. The mail service it used runs
+              on ANOTHER tenant's account and sending domain, so this client's
+              paperwork would have gone out under someone else's identity.
+              Emailing is removed; the status transition is kept. */}
 
           <DialogFooter className="flex-col gap-2 sm:flex-row">
             <Button
               variant="outline"
               disabled={saving}
-              onClick={() => void submitSend(true)}
+              onClick={() => setSendFor(null)}
             >
-              Mark sent without emailing
+              Cancel
             </Button>
-            <Button disabled={saving} onClick={() => void submitSend(false)}>
+            <Button disabled={saving} onClick={() => void submitSend()}>
               {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               <Send className="mr-2 h-4 w-4" />
-              Send by email
+              Mark as sent
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1148,9 +1103,9 @@ function PurchaseOrdersPage() {
               <thead className="text-left text-xs uppercase tracking-wide text-secondary-500">
                 <tr>
                   <th className="py-1">Item</th>
-                  <th className="py-1 text-right">Still owed</th>
-                  <th className="py-1 text-right">Received now</th>
-                  <th className="py-1 text-right">Price paid</th>
+                  <th className="w-20 py-1 pr-3 text-right">Still owed</th>
+                  <th className="w-28 py-1 pr-3 text-right">Received now</th>
+                  <th className="w-28 py-1 text-right">Price paid</th>
                 </tr>
               </thead>
               <tbody>
@@ -1179,12 +1134,12 @@ function PurchaseOrdersPage() {
                         </div>
                       )}
                     </td>
-                    <td className="py-2 text-right">
+                    <td className="py-2 pr-3 text-right tabular-nums">
                       {qty(item.quantity_outstanding)}
                     </td>
-                    <td className="py-2 text-right">
+                    <td className="py-2 pr-3 text-right">
                       <Input
-                        className="w-24 text-right"
+                        className="w-full text-right tabular-nums"
                         type="number"
                         step="0.001"
                         min={0}
@@ -1199,7 +1154,7 @@ function PurchaseOrdersPage() {
                     </td>
                     <td className="py-2 text-right">
                       <Input
-                        className="w-28 text-right"
+                        className="w-full text-right tabular-nums"
                         type="number"
                         step="0.01"
                         min={0}

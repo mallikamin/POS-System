@@ -96,6 +96,20 @@ const EMPTY_FORM: SupplierForm = {
   notes: "",
 };
 
+/** F37: the supplier "Code" is an internal short handle the client never asked
+ *  for, and it was a REQUIRED field, so the form looked complete and then
+ *  refused to save. Derive it from the name instead. It stays visible and
+ *  editable for anyone with their own coding scheme. */
+function deriveCode(name: string): string {
+  // Word boundaries matter: without them "CO" matches inside "COFFEE",
+  // so "Coffee Co" would derive as "FFEE" instead of "COFFEE".
+  const cleaned = name
+    .toUpperCase()
+    .replace(/\b(LLC|L\.L\.C|FZE|FZCO|TRADING|COMPANY|CO|LTD|LIMITED|INC)\b/g, " ")
+    .replace(/[^A-Z0-9]/g, "");
+  return cleaned.slice(0, 12) || name.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12);
+}
+
 function SuppliersPage() {
   const { toast } = useToast();
   const config = useConfigStore((s) => s.config);
@@ -110,6 +124,8 @@ function SuppliersPage() {
   // Supplier create/edit
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Supplier | null>(null);
+  // Once the user types their own code, stop overwriting it from the name.
+  const [codeTouched, setCodeTouched] = useState(false);
   const [form, setForm] = useState<SupplierForm>(EMPTY_FORM);
 
   // Catalogue
@@ -161,11 +177,13 @@ function SuppliersPage() {
   function openCreate() {
     setEditing(null);
     setForm(EMPTY_FORM);
+    setCodeTouched(false);
     setShowForm(true);
   }
 
   function openEdit(supplier: Supplier) {
     setEditing(supplier);
+    setCodeTouched(true);
     setForm({
       name: supplier.name,
       code: supplier.code,
@@ -184,14 +202,16 @@ function SuppliersPage() {
   }
 
   async function saveSupplier() {
-    if (!form.name.trim() || !form.code.trim()) {
+    if (!form.name.trim()) {
       toast({
-        title: "Name and code are required",
-        description: "The code is the short handle used on purchase orders.",
+        title: "A supplier name is required",
         variant: "destructive",
       });
       return;
     }
+    // F37: never block the save on the internal code. If the field is empty,
+    // derive one from the name.
+    const code = form.code.trim() || deriveCode(form.name);
     setSaving(true);
     try {
       const body = {
@@ -210,7 +230,7 @@ function SuppliersPage() {
       if (editing) {
         await updateSupplier(editing.id, body);
       } else {
-        await createSupplier({ ...body, code: form.code.trim() });
+        await createSupplier({ ...body, code });
       }
       toast({ title: editing ? "Supplier updated" : "Supplier added" });
       setShowForm(false);
@@ -485,7 +505,16 @@ function SuppliersPage() {
               <Label>Name</Label>
               <Input
                 value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    name: e.target.value,
+                    code:
+                      editing || codeTouched
+                        ? form.code
+                        : deriveCode(e.target.value),
+                  })
+                }
                 placeholder="Al Maya Trading LLC"
               />
             </div>
@@ -494,9 +523,17 @@ function SuppliersPage() {
               <Input
                 value={form.code}
                 disabled={!!editing}
-                onChange={(e) => setForm({ ...form, code: e.target.value })}
+                onChange={(e) => {
+                  setCodeTouched(true);
+                  setForm({ ...form, code: e.target.value });
+                }}
                 placeholder="ALMAYA"
               />
+              {!editing && (
+                <p className="mt-1 text-xs text-secondary-500">
+                  Filled in from the name. Change it if you use your own codes.
+                </p>
+              )}
               {editing && (
                 <p className="mt-1 text-xs text-secondary-500">
                   The code cannot change; it appears on orders already placed.
@@ -632,7 +669,13 @@ function SuppliersPage() {
                   <thead className="sticky top-0 border-b border-secondary-200 bg-secondary-50 text-left text-xs uppercase tracking-wide text-secondary-500">
                     <tr>
                       <th className="px-3 py-2">Ingredient</th>
-                      <th className="px-3 py-2">SKU</th>
+                      {/* F38: the supplier SKU column is hidden. The field and
+                          the purchase-order document logic are intact -- see
+                          purchase_order_document.py, which prints "Flour [SKU]"
+                          when one is set. It was built speculatively, before
+                          the client had shared a single real supplier invoice,
+                          so it is not shown until his paperwork proves his
+                          suppliers actually quote codes. */}
                       <th className="px-3 py-2 text-right">Last price</th>
                       <th className="px-3 py-2 text-right">Pack</th>
                       <th className="px-3 py-2" />
@@ -642,7 +685,7 @@ function SuppliersPage() {
                     {catalogue.length === 0 && (
                       <tr>
                         <td
-                          colSpan={5}
+                          colSpan={4}
                           className="px-3 py-6 text-center text-secondary-500"
                         >
                           Nothing listed for this supplier yet.
@@ -664,9 +707,6 @@ function SuppliersPage() {
                           <span className="ml-1 text-xs text-secondary-500">
                             per {item.unit}
                           </span>
-                        </td>
-                        <td className="px-3 py-2 text-xs text-secondary-500">
-                          {item.supplier_sku || "-"}
                         </td>
                         <td className="px-3 py-2 text-right">
                           {formatMoney(minor(item.last_price_minor), currency)}
@@ -696,7 +736,7 @@ function SuppliersPage() {
                 <p className="mb-3 text-sm font-medium text-secondary-900">
                   Add or update an item
                 </p>
-                <div className="grid gap-3 md:grid-cols-5">
+                <div className="grid gap-3 md:grid-cols-4">
                   <div className="md:col-span-2">
                     <Label>Ingredient</Label>
                     <Select
@@ -710,13 +750,6 @@ function SuppliersPage() {
                         </option>
                       ))}
                     </Select>
-                  </div>
-                  <div>
-                    <Label>SKU</Label>
-                    <Input
-                      value={newItemSku}
-                      onChange={(e) => setNewItemSku(e.target.value)}
-                    />
                   </div>
                   <div>
                     <Label>Price per unit ({currency})</Label>
