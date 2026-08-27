@@ -110,7 +110,10 @@ export interface Recipe {
   produces_ingredient_id: string | null;
   produces_ingredient_name: string | null;
   menu_item_name: string | null; // Denormalized for display
-  menu_item_price: number | null; // paisa (denormalized)
+  menu_item_price: number | null; // minor units, as on the menu board
+  // Menu price with the tenant's tax backed out when prices are tax-inclusive
+  // (F13). This is the divisor of food_cost_percentage.
+  menu_item_net_price: number | null;
   yield_servings: number;
   prep_time_minutes: number | null;
   cook_time_minutes: number | null;
@@ -119,7 +122,7 @@ export interface Recipe {
   version: number; // Recipe versioning (1, 2, 3...)
   total_ingredient_cost: number; // paisa (sum of all recipe_items.total_cost)
   cost_per_serving: number; // paisa (total_cost / yield_servings)
-  food_cost_percentage: number | null; // 0-100 (cost_per_serving / menu_price * 100)
+  food_cost_percentage: number | null; // 0-100 (cost_per_serving / menu_item_net_price * 100)
   is_active: boolean; // Only one active recipe per menu item
   effective_date: string; // ISO date when this version became active
   created_by: string | null; // User ID

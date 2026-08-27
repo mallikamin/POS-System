@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, Navigate } from "react-router-dom";
+import { useLocation, useNavigate, Navigate } from "react-router-dom";
 import { AxiosError } from "axios";
 import { useAuthStore } from "@/stores/authStore";
 import { useConfigStore } from "@/stores/configStore";
@@ -33,14 +33,27 @@ function LoginPage() {
    * Which restaurant (OI-69). One backend serves several, and a PIN is only
    * unique inside one of them, so the login routes have to be told.
    *
-   * Collapsed by default and prefilled with whatever this device already
+   * Hidden by default and prefilled with whatever this device already
    * remembers: shop staff signing back in on their own tablet should never
-   * have to think about it, and it is normally already correct. It is here for
-   * the person arriving from `/switch`, who has just cleared the slug
-   * precisely because they want a different shop.
+   * have to think about it, and it is normally already correct.
+   *
+   * F12: it used to open automatically on any device with no remembered slug,
+   * which is every client's first screen on a new tablet, and it asked them for
+   * an internal code with another client's name as the example. A client is
+   * sent a `/login?shop=<slug>` link, so in the intended flow nobody types it.
+   * Without a slug the server still signs in anyone whose PIN or email is
+   * unique across the restaurants it hosts, and refuses only a genuine PIN
+   * collision, naming `?shop=` in the message; that message reveals the field.
+   * It also opens for the person arriving from `/switch`, who has just cleared
+   * the slug precisely because they want a different shop, and for anyone who
+   * taps the "restaurant code" link under the form.
    */
+  const location = useLocation();
+  const arrivedToChoose = Boolean(
+    (location.state as { chooseShop?: boolean } | null)?.chooseShop
+  );
   const [shop, setShop] = useState(getTenantSlug() ?? "");
-  const [showShop, setShowShop] = useState(!getTenantSlug());
+  const [showShop, setShowShop] = useState(arrivedToChoose);
 
   /*
    * If the user is already authenticated, redirect straight to the dashboard --
@@ -87,6 +100,14 @@ function LoginPage() {
     if (showShop) setTenantSlug(shop);
   };
 
+  const failLogin = (err: unknown, fallback: string) => {
+    const message = getErrorMessage(err, fallback);
+    setError(message);
+    // The server mentions `?shop=` only when the PIN exists at more than one
+    // restaurant. The field is the on-screen way to say which one.
+    if (message.includes("?shop=")) setShowShop(true);
+  };
+
   const handlePinSubmit = async (pin: string) => {
     setError(null);
     rememberShop();
@@ -94,7 +115,7 @@ function LoginPage() {
       await loginWithPin(pin);
       navigate("/");
     } catch (err) {
-      setError(getErrorMessage(err, "Invalid PIN. Please try again."));
+      failLogin(err, "Invalid PIN. Please try again.");
     }
   };
 
@@ -106,9 +127,7 @@ function LoginPage() {
       await loginWithPassword(email, password);
       navigate("/");
     } catch (err) {
-      setError(
-        getErrorMessage(err, "Invalid email or password. Please try again.")
-      );
+      failLogin(err, "Invalid email or password. Please try again.");
     }
   };
 
@@ -118,7 +137,7 @@ function LoginPage() {
         htmlFor="shop"
         className="mb-1 block text-pos-sm font-medium text-secondary-300"
       >
-        Restaurant
+        Restaurant code
       </label>
       <input
         id="shop"
@@ -126,13 +145,13 @@ function LoginPage() {
         value={shop}
         onChange={(e) => setShop(e.target.value)}
         className="w-full rounded-lg border border-secondary-600 bg-secondary-700 px-4 py-3 text-pos-base text-white placeholder-secondary-500 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-        placeholder="e.g. chick-shack"
+        placeholder="Restaurant code"
         autoCapitalize="none"
         autoCorrect="off"
         spellCheck={false}
       />
       <p className="mt-1 text-pos-xs text-secondary-500">
-        Leave blank if this server only hosts one restaurant.
+        Only needed if your restaurant gave you one.
       </p>
     </div>
   ) : (
@@ -142,8 +161,14 @@ function LoginPage() {
         onClick={() => setShowShop(true)}
         className="text-pos-xs text-secondary-400 underline-offset-4 hover:text-secondary-300 hover:underline"
       >
-        Signing in to <span className="font-semibold">{shop}</span> — change
-        restaurant
+        {shop ? (
+          <>
+            Signing in to <span className="font-semibold">{shop}</span>. Change
+            restaurant
+          </>
+        ) : (
+          "Have a restaurant code?"
+        )}
       </button>
     </div>
   );

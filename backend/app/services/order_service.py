@@ -196,6 +196,21 @@ def compute_tax(subtotal: int, rate_bps: int, prices_include_tax: bool) -> tuple
     return tax_amount, subtotal + tax_amount
 
 
+def net_of_tax(amount: int, rate_bps: int, prices_include_tax: bool) -> int:
+    """The part of `amount` that is the business's own revenue, in minor units.
+
+    UAT finding F13. Food Cost % was `cost / menu_price`, and for a tax-inclusive
+    tenant the menu price contains VAT that is collected for the tax authority,
+    not earned. Dividing by it understates food cost on every costed item (AED
+    1.22 on a 9.00 croissant read 13.58% instead of 14.26% at 5%), and the error
+    grows with the rate. Derived from `compute_tax` so there is exactly one place
+    that knows how a price and its tax relate; when prices exclude tax the price
+    already is the net figure and comes back unchanged.
+    """
+    tax_amount, _ = compute_tax(amount, rate_bps, prices_include_tax)
+    return amount - tax_amount if prices_include_tax else amount
+
+
 # ---------------------------------------------------------------------------
 # Create Order
 # ---------------------------------------------------------------------------

@@ -60,3 +60,19 @@ export function payableTotal(
 ): number {
   return splitTax(base, rateBps, pricesIncludeTax).total;
 }
+
+/**
+ * The part of an amount that is the business's own revenue.
+ *
+ * F13: Food Cost % divided by the menu price, which for a tax-inclusive tenant
+ * contains VAT collected for the tax authority. Mirrors `order_service.net_of_tax`.
+ * When prices exclude tax the amount already is net and comes back unchanged.
+ */
+export function netOfTax(
+  amount: number,
+  rateBps: number,
+  pricesIncludeTax: boolean
+): number {
+  if (!pricesIncludeTax) return amount;
+  return amount - splitTax(amount, rateBps, true).tax;
+}

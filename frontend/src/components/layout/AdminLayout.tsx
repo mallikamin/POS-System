@@ -24,6 +24,8 @@ import {
   ClipboardList,
   Sparkles,
   FileSignature,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { useUIStore } from "@/stores/uiStore";
@@ -65,7 +67,12 @@ function AdminLayout() {
   const { isAuthenticated, user, logout } = useAuthStore();
   const config = useConfigStore((s) => s.config);
   const fetchConfig = useConfigStore((s) => s.fetchConfig);
-  const { sidebarOpen, setSidebarOpen } = useUIStore();
+  const {
+    sidebarOpen,
+    setSidebarOpen,
+    adminSidebarCollapsed: collapsed,
+    setAdminSidebarCollapsed,
+  } = useUIStore();
   const navigate = useNavigate();
   const [qbConnectionType, setQbConnectionType] = useState<string | null>(null);
   const [qbLoaded, setQbLoaded] = useState(false);
@@ -154,22 +161,51 @@ function AdminLayout() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-secondary-50 print:block print:h-auto print:overflow-visible print:bg-white">
-      {/* Sidebar */}
+      {/* Sidebar.
+          F10: on a desktop or landscape tablet it collapses to an icon rail so a
+          three-column screen like the Recipe Builder gets the width back. The
+          collapse applies at `lg` and up only; below that the sidebar is the
+          existing slide-in drawer, where a 4rem rail would be unusable. */}
       <aside
         className={cn(
-          "flex w-64 shrink-0 flex-col border-r border-secondary-200 bg-white transition-all duration-200 print:hidden",
+          "flex shrink-0 flex-col border-r border-secondary-200 bg-white transition-all duration-200 print:hidden",
+          collapsed ? "w-64 lg:w-16" : "w-64",
           !sidebarOpen && "max-lg:-ml-64"
         )}
       >
         {/* Sidebar header */}
-        <div className="flex h-14 items-center justify-between border-b border-secondary-200 px-4">
-          <h2 className="text-pos-base font-bold text-secondary-800">Admin Panel</h2>
+        <div
+          className={cn(
+            "flex h-14 items-center justify-between border-b border-secondary-200 px-4",
+            collapsed && "lg:justify-center lg:px-0"
+          )}
+        >
+          <h2
+            className={cn(
+              "text-pos-base font-bold text-secondary-800",
+              collapsed && "lg:hidden"
+            )}
+          >
+            Admin Panel
+          </h2>
           <button
             onClick={() => setSidebarOpen(false)}
             className="rounded p-1 text-secondary-400 hover:text-secondary-600 lg:hidden"
             aria-label="Close sidebar"
           >
             <ArrowLeft className="h-5 w-5" />
+          </button>
+          <button
+            onClick={() => setAdminSidebarCollapsed(!collapsed)}
+            className="hidden rounded p-1 text-secondary-400 hover:text-secondary-600 lg:inline-flex"
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            {collapsed ? (
+              <PanelLeftOpen className="h-5 w-5" />
+            ) : (
+              <PanelLeftClose className="h-5 w-5" />
+            )}
           </button>
         </div>
 
@@ -188,9 +224,11 @@ function AdminLayout() {
               key={item.to}
               to={item.to}
               end={item.end}
+              title={item.label}
               className={({ isActive }) =>
                 cn(
                   "flex items-center gap-3 rounded-lg px-3 py-2.5 text-pos-sm font-medium transition-colors",
+                  collapsed && "lg:justify-center lg:px-0",
                   isActive
                     ? "bg-primary-50 text-primary-700"
                     : "text-secondary-600 hover:bg-secondary-100 hover:text-secondary-900"
@@ -198,7 +236,7 @@ function AdminLayout() {
               }
             >
               <item.icon className="h-5 w-5 shrink-0" />
-              {item.label}
+              <span className={cn(collapsed && "lg:hidden")}>{item.label}</span>
             </NavLink>
           ))}
         </nav>
@@ -207,11 +245,15 @@ function AdminLayout() {
         <div className="border-t border-secondary-200 p-3">
           <Button
             variant="ghost"
-            className="w-full justify-start gap-3 text-secondary-600 hover:text-danger-600"
+            className={cn(
+              "w-full justify-start gap-3 text-secondary-600 hover:text-danger-600",
+              collapsed && "lg:justify-center lg:px-0"
+            )}
             onClick={handleLogout}
+            title="Logout"
           >
             <LogOut className="h-5 w-5" />
-            Logout
+            <span className={cn(collapsed && "lg:hidden")}>Logout</span>
           </Button>
         </div>
       </aside>

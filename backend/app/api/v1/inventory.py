@@ -19,12 +19,13 @@ from app.schemas.inventory import (
     RecipeResponse,
     RecipeUpdate,
 )
-from app.services import recipe_service
+from app.services import order_service, recipe_service
+from app.services.order_service import net_of_tax
 
 router = APIRouter(prefix="/inventory", tags=["inventory"])
 
 
-def _enrich_recipe(recipe) -> RecipeResponse:
+def _enrich_recipe(recipe, tax_settings: tuple[int, bool]) -> RecipeResponse:
     """Label a recipe by whatever it produces, and cost it against its price.
 
     A recipe has no name column of its own: it is identified by its target. A
@@ -33,18 +34,24 @@ def _enrich_recipe(recipe) -> RecipeResponse:
     did none of this, so sub-recipes and menu-item recipes alike arrived at the
     UI with nothing to display.
 
+    `tax_settings` is the tenant's `(rate_bps, prices_include_tax)` from
+    `order_service._get_tax_settings`. Food cost is a share of what the business
+    keeps, so the divisor is the menu price NET of any tax it contains (F13);
+    the same helper the order path uses backs it out, so the two cannot drift.
+
     Requires `menu_item` and `produces_ingredient` to be eager-loaded.
     """
     response = RecipeResponse.model_validate(recipe)
 
     if recipe.menu_item is not None:
+        rate_bps, prices_include_tax = tax_settings
         response.menu_item_name = recipe.menu_item.name
         response.menu_item_price = recipe.menu_item.price
-        if recipe.menu_item.price > 0:
-            # Menu price and recipe cost are both in minor units.
-            response.food_cost_percentage = (
-                recipe.cost_per_serving / recipe.menu_item.price * 100
-            )
+        net_price = net_of_tax(recipe.menu_item.price, rate_bps, prices_include_tax)
+        response.menu_item_net_price = net_price
+        if net_price > 0:
+            # Net price and recipe cost are both in minor units.
+            response.food_cost_percentage = recipe.cost_per_serving / net_price * 100
     elif recipe.produces_ingredient is not None:
         response.produces_ingredient_name = recipe.produces_ingredient.name
 
@@ -196,7 +203,8 @@ async def create_recipe(
         await db.refresh(
             recipe, ["recipe_items", "menu_item", "produces_ingredient"]
         )
-        return _enrich_recipe(recipe)
+        tax_settings = await order_service._get_tax_settings(db, current_user.tenant_id)
+        return _enrich_recipe(recipe, tax_settings)
 
     except ValueError as e:
         raise HTTPException(
@@ -222,7 +230,8 @@ async def list_recipes(
         limit=limit,
     )
 
-    return [_enrich_recipe(r) for r in recipes]
+    tax_settings = await order_service._get_tax_settings(db, current_user.tenant_id)
+    return [_enrich_recipe(r, tax_settings) for r in recipes]
 
 
 @router.get("/recipes/{recipe_id}", response_model=RecipeResponse)
@@ -242,7 +251,8 @@ async def get_recipe(
         )
 
     await db.refresh(recipe, ["menu_item", "produces_ingredient"])
-    return _enrich_recipe(recipe)
+    tax_settings = await order_service._get_tax_settings(db, current_user.tenant_id)
+    return _enrich_recipe(recipe, tax_settings)
 
 
 @router.get(
@@ -265,7 +275,8 @@ async def get_recipe_by_menu_item(
         )
 
     await db.refresh(recipe, ["menu_item", "produces_ingredient"])
-    return _enrich_recipe(recipe)
+    tax_settings = await order_service._get_tax_settings(db, current_user.tenant_id)
+    return _enrich_recipe(recipe, tax_settings)
 
 
 @router.patch(
@@ -301,7 +312,8 @@ async def update_recipe(
         await db.refresh(
             updated, ["recipe_items", "menu_item", "produces_ingredient"]
         )
-        return _enrich_recipe(updated)
+        tax_settings = await order_service._get_tax_settings(db, current_user.tenant_id)
+        return _enrich_recipe(updated, tax_settings)
 
     except ValueError as e:
         raise HTTPException(

@@ -1,18 +1,96 @@
 # STATE — Restaurant POS System
 
-**Last refreshed:** 2026-08-27 21:25 UTC (`/refresh` from a fresh HANDOFF session). 🟢 **HEAD
-`c99c24e` = `origin/main` = server (checked on the box over SSH). 0 unpushed, nothing staged,
-154 dirty (long-standing scratch plus the two other-session items called out in
-`PAUSE_CHECKPOINT_2026-08-28.md`).** One header drift corrected: the previous header still named
-`c6cba33` as HEAD while the body below and git both said `c99c24e`. Shop is CLOSED (closed 21:00
-UTC); the window runs until 15:00 UTC Friday. Server read-only snapshot at refresh: nginx up 37 min
-(same container as the `c99c24e` proof), backend up 15 min healthy, **backend RSS 618 MiB of its
-768 MiB limit with 4 uvicorn workers; box `free 98 MB / available 515 MB / swap 573 MB used`.**
-That number decides OI-92 item 3, see below. Next: **OI-92 item 2** (frontend out of Docker, with
-gzip, OI-94).
+**Last refreshed:** 2026-08-28 (`/refresh` from a fresh HANDOFF session). Verified current, no drift:
+HEAD `aa8f10c` = `origin/main`, 0 unpushed, matches `PAUSE_CHECKPOINT_2026-08-28-C.md`. Working on
+Malik's ordered plan, item 1 (F13 first, then F10, F11, F12).
+
+**Previous header:** 2026-08-27 23:20 UTC (04:20 PKT Fri), end of session.
+
+## 🟡 2026-08-27 23:30-00:00 UTC. MALIK'S PLAN ITEM 1: F13, F10, F11, F12 BUILT AND TESTED LOCALLY. DEPLOYING NEXT, INSIDE THE CLOSED-SHOP WINDOW.
+
+**What changes for Martin, in his terms:** the Recipe Builder's Food Cost % is now a share of what
+he keeps. Butter Croissant reads **"Menu Item Price (incl. 5% VAT): AED 9.00 / Net of VAT: AED
+8.57 / Food Cost % (of net revenue): 14.27%"** where it read 13.58% against the VAT-inclusive
+price. The rate and the convention are his own Settings values, already editable there; nothing is
+hardcoded, so an FTA rate change is a settings change. The admin nav collapses to an icon rail
+(remembered per device). The Recipe Builder's ingredient and menu-item lists have a name search
+("Cro" narrows to Croissant Dough). The login screen no longer shows the "Restaurant" field on a
+first-time device, and `e.g. chick-shack` is gone; the field opens from a "Have a restaurant code?"
+link, from `/switch`, or when the server reports a PIN in use at more than one restaurant.
+
+**F13 was on both sides, fixed with one rule.** The API's `food_cost_percentage` (`_enrich_recipe`)
+divided by the gross price too. `order_service.net_of_tax()` derives the net from `compute_tax`
+(F19's single owner of the price/tax relationship); the API and the screen (`utils/tax.ts
+netOfTax`, mirroring it) both divide by it, and the response now states the divisor as
+`menu_item_net_price`. **Proved:** 28 new tests in `backend/tests/test_food_cost_net_of_tax.py`
+(122.28 / 857 through the real HTTP route; exclusive tenant unchanged; **rate-0 tenant unchanged,
+i.e. Chick Shack**; list and detail agree). Full suite **876 passed / 12 failed / 2 errors** against
+the documented 848 / 12 / 2: +28, same failures (8 QB Desktop, `test_pay_first`, `TestVoidHardening`
+401, two online-order date-scoping tests). `tsc` clean, `vite build` clean, ruff clean; ESLint shows
+only the 7 pre-existing errors in `RecipeBuilderPage.tsx`. Frontend helper run at runtime: 857 and
+14.27% where the old division gave 13.59%.
+
+**F12 is safe to hide because the server does not need the slug**: `auth.py` signs in anyone whose
+PIN or email is unique across hosted restaurants and refuses only a genuine PIN collision, naming
+`?shop=` in the message (checked, lines 198-232). Chick Shack's tablet has a remembered slug, so it
+sees "Signing in to chick-shack. Change restaurant", as before minus the dash.
+
+**Not touched:** `scripts/deploy-remote.sh` (other session's 9 lines), `backend/Dockerfile`,
+`backend/scripts/start.sh`, `.gitignore`, `storefront/`. Verification on production follows below
+once deployed; until then this block is LOCAL ONLY. 🟢 **HEAD `aa8f10c` =
+`origin/main` = server (checked on the box). 0 unpushed.** STATE.md and HANDOFF.md carry this
+session's closing notes uncommitted; they ride the next deploy. Tonight, in order: OI-92 item 2 +
+OI-94 shipped and measured (frontend out of Docker, gzip, nginx untouched by app deploys); UAT
+exercises 14 and 15 walked by eye with Malik driving, seven findings F44-F50 fixed, deployed and
+re-checked on screen. **The playbook is complete, 1-15.** Open decision: OI-92 item 3 worker count
+(2 workers so blue/green fits in RAM, or keep 4 and accept 30-50 s of `/api/` per deploy). Next for
+Martin: the two-tier written quote (due Monday 2026-08-31), F43 valuation basis, F30, F21, demo video.
+
+**Previous header:** 2026-08-27 21:25 UTC (`/refresh` from a fresh HANDOFF session). HEAD
+`c99c24e` = `origin/main` = server. Shop CLOSED; window until 15:00 UTC Friday. Backend RSS 618 MiB
+of 768 MiB with 4 uvicorn workers; box `free 98 MB / available 515 MB / swap 573 MB used`.
 
 **Previous header:** 2026-08-27 21:05 UTC. 🟢 **BOTH PENDING COMMITS ARE DEPLOYED AND VERIFIED.
 HEAD `c6cba33` = `origin/main` = server. 0 unpushed.**
+
+## 🟢 2026-08-27 22:00-23:15 UTC. UAT EXERCISES 14 AND 15 RUN BY EYE ON PRODUCTION, MALIK DRIVING. BOTH PASS. SEVEN FINDINGS, F44-F50, ALL FIXED, DEPLOYED (`aa8f10c`, run `33124941508`) AND RE-CHECKED ON SCREEN.
+
+**Re-checked by Malik after the deploy:** PO-002 prints **28 Aug 2026** with no stray "1" (F47,
+F48); the planner's AI review has no `—` and no "check the bins", and instead reads the covered
+lines correctly ("57.6 kg required against 60.6 kg on hand, about 3 kg of slack") (F44, F49).
+Deploy left nginx untouched (same container `fff487cf5ddb`, PID `1502598`); Chick Shack
+`244 / 20:22:03 / 173 / 230 / 714335 / 87 / 3` before and after; 0 backend errors. Suite before
+shipping: 848 passed / 12 failed, identical to the documented baseline. **The playbook is fully
+walked: exercises 1-15 all seen by eye.** Cosmetic leftover: the AI quotes quantities as `57.600`
+because the digest formats a 3-place Decimal with `:g`; normalise before formatting, not urgent.
+
+**Exercise 14 (Order Planner), every number reconciled on screen:** 200 croissants = 24 kg dough,
+nothing to buy (stock covers it); 2000 = 240 kg dough, butter 57.6 needed / 30.6 on hand -> 30 kg
+in 5 kg packs, flour 122.4 / 106.45 -> 25 kg pack, AED 693.75, milk 10 L flagged unsourced. Draft ->
+`PO-260827-002` -> Sent -> Received -> Stock shows **60.6 kg and 131.45 kg**, exactly 30.6+30 and
+106.45+25. Re-running the plan afterwards lists only the milk. **Exercise 15 (Quotation):**
+`QUO-260827-002` (400 croissants + 150 chicken & cheese, AED 6,000 incl. 285.72 VAT at line-level
+rounding) -> Sent -> Won -> **converted to order `260827-001` at the quoted 9.00 and 16.00**. The
+non-menu-line refusal is implemented (`convert_to_order`) and covered by `test_quotations.py`.
+
+| # | Finding | State |
+|---|---|---|
+| F44 | Planner AI review rendered a literal `—`; only OCR notes were cleaned | fixed |
+| F45 | Planner total 693.75 vs PO 728.44 with no "ex VAT" anywhere | fixed (label) |
+| F46 | "55 still owed" = 30 kg + 25 kg added, no unit | fixed (counts lines) |
+| F47 | Supplier SKU "1" printed under Flour on the PO | data, cleared on tenant after pg_dump (`/root/backups/pre-f47-20260827-223907.sql.gz`) |
+| F48 | PO / invoice / quotation dated in UTC; Dubai was already the 28th | fixed, tenant `timezone` (already `Asia/Dubai`) |
+| F49 | AI review speculated "check the bins" because it never saw what stock covers | fixed (digest) |
+| F50 | Quotation Send/Resend by email = the F39 hazard again (another tenant's mail identity) | fixed, UI + API |
+
+📌 **During the UAT Malik hit a real Bad Gateway** on "Mark sent": the OTHER session deployed
+`3748076` at 22:49 UTC (Google Ads click-id migration + docs), its backend came up at 22:51:40, and
+his click at 22:52:17 landed in the boot gap. First-hand proof of the item-3 exposure, and a note
+that **two sessions deploying into one UAT window needs coordinating**. Nothing broke; retry worked.
+
+**Not done, by decision:** UAE `dd/mm/yyyy` on list screens (browser locale today), the "Something
+else" line in the quotation form confused the driver twice (worth a wording pass before Martin sees
+it), and PO/QUO numbers still stamp the UTC date (`PO-260827-…` raised on the 28th Dubai time).
 
 ## 🟢 2026-08-27 21:44 UTC. OI-92 ITEM 2 + OI-94 DEPLOYED (`8264139`, `4ecd5b3`). THE FRONTEND IS OUT OF DOCKER. CHICK SHACK BYTE-IDENTICAL, EVERY CHECK OBSERVED, NOT ASSUMED.
 

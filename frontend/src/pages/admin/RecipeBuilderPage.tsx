@@ -21,6 +21,7 @@ import {
   AlertCircle,
   AlertTriangle,
   X,
+  Search,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -49,7 +50,9 @@ import type {
 } from "@/types/inventory";
 import * as menuApi from "@/services/menuApi";
 import * as inventoryApi from "@/services/inventoryApi";
-import { formatPKR } from "@/utils/currency";
+import { formatPKR, taxName } from "@/utils/currency";
+import { netOfTax } from "@/utils/tax";
+import { useConfigStore } from "@/stores/configStore";
 
 type TargetMode = "menu_item" | "sub_recipe";
 
@@ -96,6 +99,9 @@ export default function RecipeBuilderPage() {
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [ingredientsLoading, setIngredientsLoading] = useState(true);
   const [ingredientFilter, setIngredientFilter] = useState("");
+  // F11: a name search over whichever target list is showing. A category
+  // dropdown alone does not scale to a real bakery's ingredient count.
+  const [targetSearch, setTargetSearch] = useState("");
 
   // Active recipes: labels which targets already have one, and is how a
   // sub-recipe is looked up (there is no by-ingredient endpoint)
@@ -130,6 +136,14 @@ export default function RecipeBuilderPage() {
 
   // Saving state
   const [saving, setSaving] = useState(false);
+
+  // F13: food cost is a share of what the business keeps, so the divisor is
+  // the menu price net of any tax inside it. Both values are the tenant's own
+  // settings (Admin > Settings), not constants, so a rate change is a settings
+  // change. Defaults match the config column defaults until the config loads.
+  const taxRateBps = useConfigStore((s) => s.config?.default_tax_rate) ?? 0;
+  const pricesIncludeTax =
+    useConfigStore((s) => s.config?.tax_inclusive) ?? true;
 
   // Fetch menu items + categories
   const fetchMenuData = useCallback(async () => {
@@ -305,15 +319,23 @@ export default function RecipeBuilderPage() {
     });
 
     const costPerServing = yieldServings > 0 ? totalCost / yieldServings : 0;
-    const foodCostPct =
-      selectedMenuItem && selectedMenuItem.price > 0
-        ? (costPerServing / selectedMenuItem.price) * 100
-        : 0;
+    const netPrice = selectedMenuItem
+      ? netOfTax(selectedMenuItem.price, taxRateBps, pricesIncludeTax)
+      : 0;
+    const foodCostPct = netPrice > 0 ? (costPerServing / netPrice) * 100 : 0;
 
-    return { totalCost, costPerServing, foodCostPct };
-  }, [recipeItems, ingredients, yieldServings, selectedMenuItem]);
+    return { totalCost, costPerServing, netPrice, foodCostPct };
+  }, [
+    recipeItems,
+    ingredients,
+    yieldServings,
+    selectedMenuItem,
+    taxRateBps,
+    pricesIncludeTax,
+  ]);
 
-  const { totalCost, costPerServing, foodCostPct } = calculateCosts();
+  const { totalCost, costPerServing, netPrice, foodCostPct } = calculateCosts();
+  const taxInsidePrice = pricesIncludeTax && taxRateBps > 0;
 
   const hasTarget = selectedMenuItem !== null || selectedIngredientTarget !== null;
 
@@ -336,8 +358,13 @@ export default function RecipeBuilderPage() {
   // Produced ingredients first, because they are the usual sub-recipe target,
   // but any ingredient stays pickable: creating its recipe is exactly what
   // marks it as produced.
+  const searchNeedle = targetSearch.trim().toLowerCase();
+  const matchesSearch = (name: string) =>
+    !searchNeedle || name.toLowerCase().includes(searchNeedle);
+
   const ingredientTargets = ingredients
     .filter((ing) => !ingredientFilter || ing.category === ingredientFilter)
+    .filter((ing) => matchesSearch(ing.name))
     .sort((a, b) => {
       const aRank = isProducedIngredient(a) ? 0 : 1;
       const bRank = isProducedIngredient(b) ? 0 : 1;
@@ -345,12 +372,15 @@ export default function RecipeBuilderPage() {
       return a.name.localeCompare(b.name);
     });
 
+  const visibleMenuItems = menuItems.filter((item) => matchesSearch(item.name));
+
   // Switch between the two recipe targets
   function handleModeChange(mode: TargetMode) {
     if (mode === targetMode) return;
 
     // The modes select from different lists, so no selection can carry over
     setTargetMode(mode);
+    setTargetSearch("");
     setSelectedMenuItem(null);
     setSelectedIngredientTarget(null);
     resetEditor();
@@ -651,6 +681,23 @@ export default function RecipeBuilderPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Name search (F11) */}
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-secondary-400" />
+              <Input
+                type="search"
+                value={targetSearch}
+                onChange={(e) => setTargetSearch(e.target.value)}
+                placeholder={
+                  isSubRecipe ? "Search ingredients" : "Search menu items"
+                }
+                aria-label={
+                  isSubRecipe ? "Search ingredients" : "Search menu items"
+                }
+                className="min-h-[48px] pl-9"
+              />
+            </div>
+
             {/* Category filter */}
             {isSubRecipe ? (
               <Select
@@ -688,7 +735,9 @@ export default function RecipeBuilderPage() {
                 </div>
               ) : ingredientTargets.length === 0 ? (
                 <div className="py-8 text-center text-pos-sm text-secondary-500">
-                  No ingredients found.
+                  {searchNeedle
+                    ? `No ingredients match "${targetSearch.trim()}".`
+                    : "No ingredients found."}
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -736,13 +785,15 @@ export default function RecipeBuilderPage() {
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-6 w-6 animate-spin text-primary-600" />
               </div>
-            ) : menuItems.length === 0 ? (
+            ) : visibleMenuItems.length === 0 ? (
               <div className="py-8 text-center text-pos-sm text-secondary-500">
-                No menu items found.
+                {searchNeedle
+                  ? `No menu items match "${targetSearch.trim()}".`
+                  : "No menu items found."}
               </div>
             ) : (
               <div className="space-y-2">
-                {menuItems.map((item) => {
+                {visibleMenuItems.map((item) => {
                   const isSelected = selectedMenuItem?.id === item.id;
 
                   return (
@@ -1062,16 +1113,30 @@ export default function RecipeBuilderPage() {
                           <>
                             <div className="flex items-center justify-between text-pos-sm">
                               <span className="text-secondary-700">
-                                Menu Item Price:
+                                Menu Item Price
+                                {taxInsidePrice
+                                  ? ` (incl. ${taxRateBps / 100}% ${taxName()})`
+                                  : ""}
+                                :
                               </span>
                               <span className="font-semibold text-secondary-900">
                                 {formatPKR(selectedMenuItem.price)}
                               </span>
                             </div>
+                            {taxInsidePrice && (
+                              <div className="flex items-center justify-between text-pos-sm">
+                                <span className="text-secondary-700">
+                                  Net of {taxName()}:
+                                </span>
+                                <span className="font-semibold text-secondary-900">
+                                  {formatPKR(netPrice)}
+                                </span>
+                              </div>
+                            )}
                             <div className="border-t border-primary-200 pt-3">
                               <div className="flex items-center justify-between">
                                 <span className="text-pos-base font-semibold text-secondary-900">
-                                  Food Cost %:
+                                  Food Cost % (of net revenue):
                                 </span>
                                 <Badge
                                   className={`text-pos-base font-bold ${getFoodCostColorClass(

@@ -183,11 +183,15 @@ class RecipeResponse(RecipeBase):
 
     # Calculated fields
     menu_item_name: str | None = None
-    menu_item_price: int | None = None  # paisa
+    menu_item_price: int | None = None  # minor units, as on the menu board
+    # The menu price with the tenant's tax backed out when prices are
+    # tax-inclusive; equal to `menu_item_price` otherwise. This is the divisor
+    # of `food_cost_percentage`, stated so the basis is never ambiguous.
+    menu_item_net_price: int | None = None
     # Set instead of menu_item_name when this is a sub-recipe. Without it the
     # UI has an id and no way to label a dough or sauce recipe.
     produces_ingredient_name: str | None = None
-    food_cost_percentage: Num | None = None  # calculated
+    food_cost_percentage: Num | None = None  # cost_per_serving / menu_item_net_price
 
     model_config = {"from_attributes": True}
 

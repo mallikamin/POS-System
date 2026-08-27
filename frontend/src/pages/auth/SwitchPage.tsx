@@ -66,7 +66,9 @@ export default function SwitchPage() {
     // afterwards means the login form opens with no restaurant assumed.
     logout();
     clearTenantSlug();
-    navigate("/login", { replace: true });
+    // F12: the login form hides the restaurant-code field by default; a
+    // deliberate switch is the one arrival that wants it open.
+    navigate("/login", { replace: true, state: { chooseShop: true } });
   }
 
   return (

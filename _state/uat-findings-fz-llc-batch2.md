@@ -17,7 +17,10 @@ editor) and the editor is the one that needs the room.
 **Wanted:** a collapse/minimise toggle that shrinks the nav to an icon rail, with the
 choice remembered per device.
 **Nature:** UX / screen real estate. Not a correctness bug.
-**Status:** OPEN
+**Status:** FIXED LOCALLY 2026-08-28. A collapse button in the sidebar header (desktop and
+landscape tablet, `lg` and up) shrinks the nav to a 4rem icon rail; every entry keeps a `title`
+tooltip; the choice is remembered per device in localStorage (`pos.admin.sidebarCollapsed`) and
+survives logout. Below `lg` the existing slide-in drawer is unchanged. Not yet deployed.
 
 ## F11 — Recipe Builder ingredient list has no search
 **Where:** `/admin/recipes`, the **Ingredients** column.
@@ -27,7 +30,10 @@ bakery's ingredient count this does not scale.
 **Wanted:** a search box above the list. Typing `Cro` should narrow it to
 **Croissant Dough**. Substring match, case-insensitive, matching on ingredient name.
 **Nature:** UX / missing control on a screen the client will use daily.
-**Status:** OPEN
+**Status:** FIXED LOCALLY 2026-08-28. A search box sits above the category dropdown in both
+modes (ingredients and menu items): case-insensitive substring match on the name, combined
+with the category filter, cleared when switching mode. An empty result says what was searched
+("No ingredients match "Cro"."). Not yet deployed.
 
 ## F12 — "Restaurant" slug field is visible on a first-time device
 **Where:** `/login` in a clean browser profile (incognito), no `?shop=` on the URL.
@@ -45,7 +51,15 @@ another client's name. Better: hide the field entirely unless the URL or a `?swi
 route asks for it.
 **Nature:** UX / client-facing polish, plus a small cross-client information leak in the
 placeholder text.
-**Status:** OPEN
+**Status:** FIXED LOCALLY 2026-08-28, the "better" option. The field is hidden on a cold device.
+It opens in exactly three cases: the reader taps "Have a restaurant code?" under the form; they
+arrived from `/switch` (which now passes `state.chooseShop`); or the server refuses a PIN that
+exists at more than one restaurant, whose message names `?shop=`. Safe to hide because the PIN
+and password routes already sign in anyone unique across the hosted restaurants without a slug
+(`auth.py` lines 198-232, checked). The `e.g. chick-shack` placeholder and the "only hosts one
+restaurant" helper are gone; the field is now "Restaurant code / Only needed if your restaurant
+gave you one." The remembered-slug state reads "Signing in to martin-fz. Change restaurant".
+Not yet deployed.
 
 ---
 
@@ -89,7 +103,17 @@ is small at 5% and would be large for a UK tenant at 20%.
 config the page already loads. Label the line "Food Cost % (of net revenue)" so the basis
 is stated rather than assumed.
 **Nature:** 🔴 correctness. Wrong number presented confidently to a client.
-**Status:** OPEN
+**Status:** FIXED LOCALLY 2026-08-28 (both sides, one rule). `order_service.net_of_tax()` derives
+the net price from `compute_tax`, so the price/tax relationship has one owner; `_enrich_recipe`
+(the API's `food_cost_percentage`, which divided by the gross price too) and the Recipe Builder
+screen both divide by it. The response now carries `menu_item_net_price` so the divisor is
+stated. Screen: "Menu Item Price (incl. 5% VAT): AED 9.00 / Net of VAT: AED 8.57 / Food Cost %
+(of net revenue): 14.27%"; the net line only appears when the tenant is tax-inclusive with a
+non-zero rate. Rate and convention come from the tenant's own Settings (already editable there),
+nothing hardcoded (the amendment below). Proved: 28 new tests in
+`backend/tests/test_food_cost_net_of_tax.py` (arithmetic, the 122.28/857 API figure, exclusive
+tenant unchanged, rate-0 tenant unchanged = Chick Shack, list and detail agree); frontend helper
+run at runtime gives 857 and 14.27% where the old division gave 13.59%. Not yet deployed.
 
 ## F14 — 🔴 `/admin/ingredients` crashes to a white error screen
 **Where:** `/admin/ingredients` as Martin (admin) on production.
