@@ -1,6 +1,465 @@
 # STATE — Restaurant POS System
 
-**Last refreshed:** 2026-08-27 (UAT batch 2 + comprehensive sweep).
+**Last refreshed:** 2026-08-27 21:25 UTC (`/refresh` from a fresh HANDOFF session). 🟢 **HEAD
+`c99c24e` = `origin/main` = server (checked on the box over SSH). 0 unpushed, nothing staged,
+154 dirty (long-standing scratch plus the two other-session items called out in
+`PAUSE_CHECKPOINT_2026-08-28.md`).** One header drift corrected: the previous header still named
+`c6cba33` as HEAD while the body below and git both said `c99c24e`. Shop is CLOSED (closed 21:00
+UTC); the window runs until 15:00 UTC Friday. Server read-only snapshot at refresh: nginx up 37 min
+(same container as the `c99c24e` proof), backend up 15 min healthy, **backend RSS 618 MiB of its
+768 MiB limit with 4 uvicorn workers; box `free 98 MB / available 515 MB / swap 573 MB used`.**
+That number decides OI-92 item 3, see below. Next: **OI-92 item 2** (frontend out of Docker, with
+gzip, OI-94).
+
+**Previous header:** 2026-08-27 21:05 UTC. 🟢 **BOTH PENDING COMMITS ARE DEPLOYED AND VERIFIED.
+HEAD `c6cba33` = `origin/main` = server. 0 unpushed.**
+
+## 🟢 2026-08-27 21:44 UTC. OI-92 ITEM 2 + OI-94 DEPLOYED (`8264139`, `4ecd5b3`). THE FRONTEND IS OUT OF DOCKER. CHICK SHACK BYTE-IDENTICAL, EVERY CHECK OBSERVED, NOT ASSUMED.
+
+**What changed for Chick Shack, in their terms: nothing they can see, and one thing they can feel.**
+Same URL, same app, same data, same tablet. The page files now come straight from nginx instead of
+through a second container, and they arrive compressed: entry bundle **232,412 -> 76,489 bytes**,
+the storefront's menu call **126,362 -> 9,205 bytes**. During a future deploy the frontend swap is a
+single `rename(2)`; no request can land in a half-state.
+
+**Two runs.** `33118968287` failed **safely at the new gate**: the pre-recreate `nginx -t` ran off the
+compose network, so Orbit's bare `orbit_api` name in `voice.conf` did not resolve. Nothing was
+touched; the poller shows `front=200 orbit=200` throughout. `4ecd5b3` gives the throwaway container
+the live nginx's network; `33119330616` green on every step, including two NEW verify checks (the
+live `index.html` references this build's chunk; the chunk is gzipped).
+
+**Verified on the box after:** HEAD `4ecd5b3`; nginx recreated ONCE, deliberately, to gain its fifth
+mount (`fff487cf5ddb`, started 21:44:55 UTC, shop closed); **all five mounts present**; `nginx -t`
+passes in the live container; live config md5 == disk; `www/current -> releases/4ecd5b3…` and the
+container resolves it; `pos-system-frontend-1` gone; alembic at head `c5d6e7f8a9b0`; **0 backend
+errors, 0 nginx errors** in the logs. Chick Shack tenant-scoped, same query before and after:
+`244 / 2026-08-27 20:22:03 / 173 / 230 / 714335 / 87 / 3`, identical.
+
+**Verified from outside (browser UA):** all four hostnames 200 with their own certificates;
+`/` carries CSP, HSTS, nosniff, `Cache-Control: no-cache`; `/admin/menu` serves the SPA (200 html);
+`/assets/missing.js` 404 (not index.html); `/.git` dropped; `/api/v1/health` healthy (db + redis);
+auth route answers 401 JSON to a bad body (route + DB reachable); unsigned Stripe-UA POST to the
+webhook path gets **400 from the backend, not 444**; `/ws` upgrade **101**; storefront public menu
+200 with `access-control-allow-origin: https://chickshackg84.com`; CORS preflight 200 with the full
+allow set; `chickshackg84.com` itself 200.
+
+🔴 **Measured directly for the first time: replacing the backend costs Chick Shack 47 seconds of
+`/api/` 502s** (21:39:10.6 to 21:39:57.5, 75 consecutive half-second polls through the live nginx).
+`/` and Orbit were 200 the whole time. That is the entire remaining exposure and it is OI-92 item 3.
+**Item 3 is blocked on RAM as designed**: backend RSS 618 MiB of 768 MiB (4 uvicorn workers), box
+~100 MB free. Two backends do not fit. Realistic path: 2 workers per backend, then blue/green.
+Malik's call, not made.
+
+**Backups:** `/root/backups/preflight-oi92-item2-20260827-213548/` (pg_dump 404 KB `gzip -t` OK,
+env file, all configs) plus the script's own `backups/pre_migrate_2026-08-27_214001.sql` (1.99 MB).
+
+**New open item OI-95:** Orbit's `voice.conf` still has a bare upstream name, so the SHARED nginx
+cannot START if `orbit_api` is down. Not our file. Flag to Orbit's owner.
+
+⚠️ `INFRASTRUCTURE_CREDENTIALS_REFERENCE.md` line 142 still says `Dockerfile.prebuilt`; that file is
+guarded from edits here. Replace the line by hand with: *Frontend: static files, no container; CI
+rsyncs `dist/` to `/root/pos-system/www/releases/<sha>/`, `www/current` is an atomic symlink swap,
+nginx serves it directly (OI-92 item 2).*
+
+## 🟢 2026-08-27 20:47-20:51 UTC. DEPLOYED `869478b` + `c6cba33`. CHICK SHACK BYTE-IDENTICAL BEFORE AND AFTER.
+
+**Run `33114799751`, "Deploy to Production", 3m25s, every step green** including `Deploy on server`
+and `Verify deployment`.
+
+⚠️ **Deployed 13 minutes before the shop actually shut, on Malik's explicit instruction.** The clock
+was checked and the gap was raised (20:47 UTC, close is 21:00 UTC); he said go twice. Online
+ordering had already closed at 21:30 UK, so the exposure was the in-house tail only. Recorded
+because the standing rule is closed-shop windows, and this was a deliberate exception, not a miss.
+
+**Chick Shack, tenant-scoped, measured the same way before and after:**
+`244 orders / newest 2026-08-27 20:22:03 / 173 customers / 230 payments / 714335 total /
+87 menu items / 3 users` - **identical on both readings.** (Note this supersedes the older
+`233 / 166 / 219 / 642087` baseline; they traded all day.)
+
+**Verified after the deploy, not assumed:**
+- Server HEAD `c6cba33`. All 5 POS containers plus `orbit_api` / `orbit_db` / `orbit_web` up.
+- The running nginx has the NEW config: 14 variable `proxy_pass`, **0 active bare ones**, 3
+  `resolver 127.0.0.11` blocks. `nginx -t` passes inside the live container.
+- `voice.conf` still loaded, and **all four mounts** still present.
+- `backend`, `frontend`, `orbit_api`, `orbit_web` all resolve from inside nginx.
+- **Four hostnames, browser UA, all HTTP 200 with valid TLS:** `eats.sitaratech.info`,
+  `parkcity.sitaratech.info` (Orbit CRM), `orbit-voice.duckdns.org`, `pos-demo.duckdns.org`. The
+  deploy workflow checks none of the last three.
+- **The frontend really shipped**, checked the correct way: resolved the chunk the LIVE entry
+  references (`TaxInvoicesPage-C-Vq-ex2.js` via `index-CvjbBnQ3.js`) and confirmed F35's removed
+  banner text is absent from it. Never grepped the assets directory.
+
+**Pre-deploy preflight, backups at `/root/backups/preflight-20260827-204422/`:** `pg_dump`
+(`pos-pre-oi92-20260827-204305.sql.gz`, 404 KB, `gzip -t` OK, never decompressed), plus copies of
+the env file and all three nginx configs as they stood.
+
+🔴 **A blocker was found and cleared BEFORE the window, not inside it.** The box had an uncommitted
+local edit to `docker/nginx/nginx.conf`, the exact file `c6cba33` changes, so `git pull` would have
+been refused and `deploy-remote.sh` would have exited 1. Proved the file is **not mounted** into the
+running nginx, saved the diff to `nginx.conf.local.patch`, and stashed that one path. **It is
+`stash@{0}` on the box.** The edit was an 8-line gzip block that has never taken effect: see OI-94.
+
+⚠️ **CI and "Deploy to Staging" are RED, and both were already red before this.** Staging has failed
+on every commit for days. CI fails on **17 repo-wide ESLint errors** in files neither commit
+touched; the four files `869478b` changed lint **0 errors, 4 pre-existing hook warnings**. So this
+is not a regression, but "CI is green" must not be claimed for this deploy, because it is not.
+
+## 🟢 2026-08-27 21:11 UTC. `c99c24e` DEPLOYED. A PRODUCTION DEPLOY NO LONGER TOUCHES THE SHARED nginx. PROVEN, NOT CLAIMED.
+
+**OI-92 item 1 is now COMPLETE.** `deploy-remote.sh` no longer runs
+`up -d --no-deps --force-recreate nginx`. It runs `nginx -t` and, only if that passes,
+`nginx -s reload`. A bad config now leaves the last good one serving instead of restarting into
+the breakage.
+
+🔴 **The proof, measured across a real deploy that replaced both app containers:**
+
+| | before deploy | after deploy |
+|---|---|---|
+| nginx container id | `54ef323535f1` | **`54ef323535f1`** |
+| nginx start time | `20:47:45` | **`20:47:45`** |
+| nginx master PID | **`1465335`** | **`1465335`** |
+| backend start time | `20:46:56` | `21:09:59` (replaced) |
+| frontend start time | - | `21:09:55` (replaced) |
+
+Same container, same process. Both app containers swapped underneath it and nginx never noticed.
+All four hostnames 200 afterwards; Chick Shack byte-identical again
+(`244 / 20:22:03 / 173 / 230 / 714335 / 87 / 3`).
+
+🟢 **So Orbit CRM and orbit-voice are now fully insulated from POS deploys.** That cross-business
+risk, the one that caused the 2026-03-26 outage, is gone.
+
+🔴 **But a deploy is NOT yet invisible to Chick Shack, and this must not be rounded up to "safe".**
+Their own backend container is still replaced. From this deploy's log: `Rebuilding backend`
+**21:09:56** to `backend reports healthy` **21:11:02**, so the deploy waited **62 seconds**. The
+true API gap is somewhere between a few seconds and that 66s and **has not been measured directly**
+- the app may serve before the healthcheck flips. During it, their tablet gets 502s on `/api/`.
+**Measure it properly on the next deploy by polling `/api/v1/health` throughout.**
+
+**What closes that gap is OI-92 items 2 and 3**, neither built: take the frontend out of Docker
+(atomic symlink swap, no container op) and start the new backend before stopping the old one with
+`proxy_next_upstream`. Item 3 only became possible because item 1 landed.
+
+📌 **Previously (superseded by the block above): OI-92 item 1 was HALF shipped.**
+nginx no longer caches upstream IPs, so it is resilient and Orbit CRM can no longer stop it
+starting. **But `scripts/deploy-remote.sh` line 122 ON THE BOX still force-recreates nginx on every
+deploy**, so every deploy still drops the shared container for a moment and every hostname with it.
+The config change removed the NEED to recreate; it did not remove the ACT. Until that line becomes
+a graceful `nginx -t` + `nginx -s reload`, the closed-shop window still applies.
+
+⚠️ **Drift found 2026-08-27 21:05 UTC while checking that line: the LOCAL `scripts/deploy-remote.sh`
+has 9 uncommitted lines that are NOT in git and NOT on the box** (a log-directory `mkdir` + `chown
+1000:1000` + a logrotate `cp`, sitting just after the frontend recreate). The box is clean at HEAD.
+So local line numbers for this file do not match production, and **that logging setup has never been
+deployed.** Not staged, not mine, left alone. Whoever owns it should land it deliberately.
+
+**Previously:** 2026-08-27 18:51 UTC (`/refresh` from a fresh HANDOFF session), no drift; at that
+point `869478b` was unpushed and held because 18:51 UTC was inside the service window.
+
+**Last refreshed (previous):** 2026-08-27 evening (FZ LLC UAT session). 🔴 **HEAD `869478b` is COMMITTED
+AND NOT PUSHED.** Verified locally and deliberately held: at commit time it was 19:25 UK and
+**Chick Shack was mid-service** (16:00-22:00). `git push` recreates the shared nginx serving
+their live tablet, so Malik chose to wait for close. **Push after 21:00 UTC**, with the usual
+pg_dump, a tenant-scoped Chick Shack measurement before and after, and hostname verification.
+
+⚠️ **Two sessions are editing this repo today.** This entry covers the FZ LLC / Martin work
+only. The Chick Shack Google Ads work (`gclid`, `click_type` in `models/order.py`,
+`schemas/public_order.py`, `services/public_order_service.py`) is **another session's, still
+uncommitted, and was left untouched.** It declares columns with no migration, so local queries
+against `orders` will fail until one exists.
+
+**`869478b` — nine findings from running the client's own UAT playbook by hand, F35-F43.**
+None is a crash; every one is on a screen he is about to be shown.
+
+| # | What was wrong |
+|---|---|
+| F35 | Tax Invoices warned that a thermal-ticket site issues invoices with no legal name or TRN. **Untrue** — `invoice_format` only picks the default document and has never gated the legal fields. It told the reader seven of his nine invoices lacked fields they do not lack. Removed; the genuine "no TRN" banner stays. |
+| F36 | "Tax Invoice" rendered below the fold with no visible change. **Nearly reported as a dead button**, found only by scrolling on a hunch. |
+| F37 | Supplier "Code" was REQUIRED for an internal handle nobody asked for; the form looked complete then refused to save. Now derived from the name. |
+| F38 | Supplier SKU hidden (plumbing intact). Built speculatively before a single real supplier invoice had been seen. |
+| F39 | 🔴 **Emailing removed from the PO flow.** It reused a mail service running on **another tenant's account and sending domain** — this client's purchase orders would have gone out under Chick Shack's identity. **Nothing had been sent.** Saved as memory `tenant-scoped-integrations.md`. |
+| F40 | Receive dialog columns did not line up with their headers. |
+| F41/F42 | A literal em-dash escape rendered as `invoice "u2014 it is a slide`, and the internal sentinel was quoted at the client as `is returned as -1`. Both in OCR `notes`, shown word for word. Fixed at source **and** in `_clean_prose`. |
+| F43 | Movement history now shows unit price and value — the data was always stored and never displayed. |
+
+🔴 **F43's second half is deliberately NOT done.** Last-price costing revalues the whole
+holding: one 4 kg delivery at 3.75 revalued 106.45 kg and **overstated that ingredient by AED
+25.61**. Weighted average vs FIFO is a question for Martin's accountant, not ours.
+
+🟢 **Earlier the same day, `c074bc6` (deployed, verified): F31 and F33.** F31 — a POS sale
+could be attributed to no location and no channel, so its A4 tax invoice went out with **no
+TRN**. F33 — invoice numbers came from a live COUNT, so **twelve orders produced three
+numbers** (`FZD-00007` seven times) and every number moved as the shop sold more. Now reserved
+at first issue and stored. **F29 was closed as NOT A BUG**: the profitability report was never
+empty, the sweep harness asked the response for a `"rows"` key that has never existed.
+
+**Suite: 839 passed, 10 failed, 2 errors** — identical to baseline; the 10 are the documented
+pre-existing set. Frontend builds clean, ESLint 0 errors, ruff clean.
+
+⚠️ **A hazard created and fixed in this session:** a bash heredoc silently turned the `\b` word
+boundaries in a new regex into literal **BACKSPACE characters (0x08)** — invisible in an
+editor, and it stopped the pattern matching anything. All 550 tracked text files were swept;
+that was the only hit. **Do not write non-trivial code through bash heredocs on Windows.**
+
+**UAT reached exercise 14 of 15 and stopped there** so this batch could be fixed and shipped.
+Exercises 9-13 are now confirmed BY EYE, not just by script.
+
+**Last refreshed (previous):** 2026-08-27 17:10 UK (`/refresh`, Google Ads + live order check). **HEAD
+`c074bc6` = origin = server, 0 unpushed, 143 dirty. No code, storefront or server change on this
+pass; the only production contact was a read-only `SELECT`.** One drift corrected: the Search
+campaign listed as "next" on 08-25 is live and spending.
+
+**Previously:** 2026-08-27 (fresh session via HANDOFF.md). **HEAD `c074bc6` = origin =
+server, 0 unpushed. Six green production deploys today.**
+
+## 🟢 2026-08-27 17:10 UK. GOOGLE ADS IS LIVE AND SPENDING. FIRST CLICK, FIRST-TIME CUSTOMER, ATTRIBUTION NOT YET PROVEN.
+
+**Drift corrected on this pass.** The 2026-08-25 Google block below still says *"NEXT on Google:
+build the Search campaign"*. It has been built and is running. **Who built it and when is not
+recorded anywhere** in the repo; Malik reports it went live today (verbal, screenshots).
+
+**What the Google Ads screenshots show (Malik's own account view, 2026-08-27):**
+- Keyword **`"chick shack helensburgh"`** (phrase match), **5 impressions, 1 click, CTR 50%**
+- **Cost £2.28, Avg CPC £2.28** across the Aug 24 to Aug 27 window, with **all of it today**
+- **No Conversions column was visible in either screenshot.** That is the number that answers
+  the attribution question and it was not shown.
+
+**What production actually shows (read-only query, verified, not assumed).** Chick Shack has
+taken **exactly one online order today** as of 17:10 UK, 70 minutes after the 16:00 open:
+
+| Order | Type | Status | Paid | Total | Customer | Placed (UK) |
+|---|---|---|---|---|---|---|
+| `260827-D001` | online / delivery | in_kitchen | paid | **£30.25** | Zoe Robinson Frood | **16:51:50** |
+
+🔴 **The customer is BRAND NEW.** A search of the entire order history on name and on phone
+`07826854506` returns **that one row and nothing else**. Not a repeat buyer.
+
+⚠️ **So: one ad click today, one order today, and the buyer has never ordered before. That is
+suggestive, it is NOT proof.** Stated plainly:
+- The orders table stores **no `gclid`, no referrer, no UTM**, so the database physically cannot
+  attribute this sale. Do not let anyone claim it does.
+- **Only the Conversions column in Google Ads can attribute it**, and Google takes up to ~3 hours
+  to report a conversion. Check it after ~20:00 UK today, not before.
+- 🔴 **And a null there would be ambiguous**, because of the open item from 08-25: the conversion
+  event has only ever been fired **by hand from the browser console**. The app firing it, on a
+  real order, with the right value, has still never been observed. 6 real orders ran on 08-26
+  and proved nothing either way, because Google Ads only reports conversions it can tie to an ad
+  click and none of those came from one. **This order is the first genuine test of the tag.**
+
+### 🔴 2026-08-28. RETRACTED IN FULL: THE "ONE CLICK, ONE ORDER" CASE FOR 2026-08-27 IS DEAD.
+
+**Everything in the block below this one was read off Google's SAME-DAY figures, which were still
+settling. All three legs of the inference have since collapsed. Nothing in it should be repeated
+to Imran.**
+
+| Claim made 08-27 evening | Actual, once the day closed |
+|---|---|
+| 1 click | **3 clicks**, 15 impressions |
+| £2.28 spend | **£9.68**, avg CPC **£3.23** |
+| 1 order all evening | **10 orders**, £262.60 |
+| buyer never seen before | **7 of the 10** had zero prior orders |
+
+**So "one click, one order, from a customer we have never seen" is wrong on every count.** Zoe was
+the first of ten orders and one of seven first-time buyers. There is **no basis whatsoever** for
+attributing any specific order on 2026-08-27 to the ads, and the 15:00-click / 16:51-order timing
+argument is worthless once there are three clicks and ten orders to pair up.
+
+📌 **Method note, and the actual lesson: Google Ads same-day data is incomplete and revises upward.**
+It was read and reported inside the same trading day, which is the error. Campaign numbers are only
+safe to quote **after the day has closed in the account's time zone**. Same family as
+[[record-the-metric-on-ship-day]]: a partial total is not a result.
+
+📌 **Counting caveat that matters for the 7-of-10 figure.** "Prior orders" counts **only orders in
+our own system**, which holds the online channel from ~2026-08-01 and nothing else. In-house
+EposNow trade is not here. A customer counted as "new" may be a regular of ten years placing their
+first *online* order. **Do not read 7/10 as "70% brand new to the shop."** The match is on the last
+9 digits of the phone, because the data mixes `07…` and `447…` for the same person and exact-string
+matching undercounts returners (it missed two of Kieran Orchard's three).
+
+🟢 **The one thing this strengthens: F34 is no longer a nice-to-have.** £9.68 has now been spent
+against an evening of £262.60 with **no way at all** to connect the two. That is the whole argument
+for storing the click id on the order.
+
+### ⚪ SUPERSEDED, KEPT FOR THE RECORD: the same-day reasoning that the block above retracts.
+
+**`Segment > Day & Hour` on the keyword row, 2026-08-27:** the single click falls in
+**Thursday 15:00-16:00**. The single order, `260827-D001`, was placed at **16:51:50 UK**.
+
+**The sequence that now fits, and it is coherent:** someone searched the shop by name in the
+15:00 hour, **while the shop was still shut** (opens 16:00), landed on the site, and ordered
+**51 to 111 minutes later**, 51 minutes after the doors opened. One click all day, one order all
+day, and the buyer has **no prior row anywhere in the order history**.
+
+✅ **Time zone VERIFIED, so the inference stands.** `Admin > Account settings` reads
+**`(GMT+01:00) United Kingdom Time`**. Reports render in the account's zone, not the viewer's, so
+the 15:00 hour really is the hour before a 16:00 open. Checked, not assumed.
+
+✅ **AUTO-TAGGING IS ON, and this is the prerequisite the whole F34 fix depends on.** Same screen,
+`Auto-tagging: Yes`. Auto-tagging is what appends the **`gclid` to the landing URL** in the first
+place. Had it been off there would be no click id to capture and the entire plan below would have
+been built against nothing. Verified before building, not after.
+
+📌 **Three more things visible on that screen, none of them blocking, all worth knowing:**
+- 🔴 **`Negative keywords: None` at account level.** Campaign-level list unknown and not yet
+  inspected. A live campaign on a £3/day budget with no negatives can lose a whole day to one
+  irrelevant click ("chick shack jobs", "chick shack recipe", a nearby competitor's name).
+- ⚠️ **`Data protection contacts: None`**, flagged by Google with a warning triangle. We are
+  planning to upload order-derived data. Whether this specifically gates an offline conversion
+  upload is **not verified** and must not be asserted; the customer-data terms are a separate
+  acceptance. Flagged so it is not discovered mid-upload.
+- 🟢 `Auto-apply: Turned off`. Correct, and leave it that way. Auto-applied recommendations on a
+  tiny account will happily broaden match types and spend the budget for you.
+
+✅ **AD SCHEDULE IS SET AND IS CORRECT: 15:00 to 21:30.** Malik set it with Imran when the campaign
+was built. **A dayparting warning written here earlier was wrong and has been deleted** - it
+speculated the ad could spend at 03:00 with no evidence either way, which was speculation dressed
+as a risk. It cannot; the schedule prevents it.
+
+📌 **The schedule corroborates itself and is better reasoned than it first looks.** `21:30` is not
+the 22:00 shop close, it is the storefront's own **`deliveryCloseTime`** in
+`storefront/src/data/menu.ts` (Garelochhead alone runs to `21:45`). The end of the ad schedule was
+matched to the last minute an order can actually be placed, not to the door closing. The `15:00`
+start is a deliberate one-hour lead on the 16:00 open.
+
+🟢 **Which sharpens the finding rather than weakening it: 15:00 is the FIRST MINUTE the ad was
+eligible to serve.** First hour live, first click, first order.
+
+🔴 **THE REAL GAP, and it is a documentation gap, not an ads one. THE ENTIRE CAMPAIGN BUILD WAS
+NEVER CAPTURED.** `STATE.md:1279` still reads *"Do not click Finish. Build a Search campaign
+instead"* as a future action, and **nowhere in the repo** is there a record of the keywords, match
+types, ad schedule, radius, budget, ad copy or negative list that were actually set. Everything
+known about that campaign currently lives in Malik's head and in screenshots. That is what caused
+this exchange: the schedule was queried as unknown because, on the written record, it was.
+**Capture it properly on the next pass with Malik reading the settings out.**
+
+### 🔴 F34. THE STRIPE REDIRECT DROPS THE `gclid`. A CARD ORDER ONLY ATTRIBUTES IF THE CUSTOMER TAPPED "ALLOW".
+
+**Found by tracing the code, 2026-08-27. Not a guess, and it supersedes the softer "unverified"
+wording written on 08-25.**
+
+**The tag itself is fine and is genuinely live.** Verified against the deployed artifact, not the
+Action: `https://chickshackg84.com/` returns 200, the tag id appears twice in `index.html`, and the
+live bundle **`/assets/index-DO4dC5CM.js`** (201,548 bytes) contains both the conversion label
+`xy0DCPb1kOccEL3z7slE` and the `cs_conv_fired_v1` double-fire guard. `App.tsx:99` hangs the fire off
+`placed`, so both routes to the confirmation count exactly once. **Nothing is missing or broken in
+the firing path.**
+
+🔴 **The break is the Stripe round trip.** Chain for a card order arriving from an ad:
+1. Customer lands on `chickshackg84.com/?gclid=...`, consent defaults to **denied** on all four
+   signals (`index.html`, correct for PECR).
+2. `Checkout.tsx:172` does `window.location.assign(checkout_url)` and the customer **leaves the
+   domain** for Stripe.
+3. Stripe returns them to `settings.STRIPE_SUCCESS_URL`, a **fixed configured URL**. The original
+   query string, and with it the `gclid`, **is not on it.**
+4. `stripReturnParams()` then deletes only `order` and `paid`, so it is not the culprit. The click
+   id was already gone one hop earlier.
+
+**Consequence, stated exactly:**
+- Customer taps **Allow** → `ad_storage: granted` → gtag writes the `_gcl_aw` cookie **before** the
+  Stripe hop → the click id survives in the cookie → **conversion attributes correctly.** ✅
+- Customer **ignores or declines the bar** → no cookie. `url_passthrough` was the fallback and it
+  cannot help here, because it carries the click id **in the URL** and the URL is replaced by
+  Stripe's fixed success_url. The ping still fires, carrying no click id. **Unattributable.** ❌
+
+📌 **So a null in the Conversions column tonight does NOT mean the ad failed and does NOT mean the
+tag is broken. It most likely means Zoe never tapped Allow.** `260827-D001` is
+`payment_status = paid`, so it went through Stripe and hit exactly this path.
+
+**Fixes, best first. None deployed. Storefront deploys must wait for the 22:00 UK close.**
+1. **Enhanced conversions.** Send the hashed email and phone with the conversion event. Google
+   matches them against the signed-in account that clicked the ad, with **no cookie and no gclid
+   needed**. We already collect both fields at checkout. This is the correct fix for precisely this
+   failure and it fixes it for every past-consent case too.
+2. **Persist the `gclid` on the order row.** Capture it from the landing URL into localStorage,
+   post it with the order, store it in a new `orders.gclid` column. **This is the one that answers
+   "did it come through us" from our own database**, without Google and without waiting 3 hours.
+   Check the PECR position first: a click id kept for ad measurement is still ad measurement.
+3. Thread the gclid through `success_url` so it survives the Stripe hop for the URL fallback.
+
+📌 **Worth pushing back on, separately from whether it converted: £2.28 for a brand-name click.**
+Someone who types `chick shack helensburgh` already knows the shop and is looking for it. A brand
+term should cost pennies. £2.28 is defensible only if an aggregator (Just Eat, Uber Eats) is
+bidding on his name and taking the click otherwise, which in UK takeaway is common enough to be
+worth checking, but it should be checked and not assumed. At this CPC, **£3/day buys roughly one
+click a day.**
+
+🟢 **F29 CLOSED AS NOT A BUG. The Profitability report was never empty.** The harness was
+wrong: `flow_sweep2.py:96` asked the response for a `"rows"` key that has never existed and
+read the resulting `[]` as an empty report. Proved through the real HTTPS route as the
+`martin-fz` admin, on the frontend's own default date range: **HTTP 200, 7 channel rows, 3
+location rows, revenue 162935, net 129096, margin 79.23%**, direct channels (80-87%) visibly
+beating the platforms (66-77%) exactly as Exercise 10 promises. `location_service.py` has not
+changed since `815a21e`, so nothing fixed it in between. **The same `if rows:` guard meant
+Exercise 10's three real assertions never executed** - across both sweep scripts there are 47
+`check()` calls but only 32 were counted, so "32 assertions, 0 failures" is softer evidence
+than it sounded.
+
+🔴 **Two NEW findings, both on the A4 tax invoice, both found by driving the client's own
+playbook rather than waiting for him to click it. Both FIXED and DEPLOYED in `c074bc6`.**
+
+**F31 - a POS sale could be attributed to no location and no channel.** `OrderCreate` accepted
+neither field, `order_service` never wrote `Order.location_id`, no POS screen offered a
+selector. Measured on production: all nine seeded `FZ-000x` orders carried the TRN, **all
+three orders actually rung up on the POS carried `trn: null`** - not a valid UAE tax invoice,
+on the document Exercise 9 tells Martin to check carefully. The sale also landed as
+"Unassigned" in the report he asked for by name. Same shape as F19: `resolve_location` already
+existed and its docstring already said the POS should fall through it; stock movement used it,
+the tax invoice read the raw column. The quotation document had the identical fault and was
+swept in the same pass.
+
+**F33 - tax invoice numbers were neither unique nor stable.** Derived from a live COUNT with
+no "orders before this one" clause, so **twelve orders produced three numbers**:
+`INV-00012` x3, `FZD-00007` x7, `FZW-00002` x2 - and every number moved upward as the shop
+sold more. Now reserved once at first issue and stored, per document series, behind
+`SELECT ... FOR UPDATE` plus a unique constraint. Migration `c5d6e7f8a9b0`, additive,
+**deliberately NOT backfilled**.
+
+**Verified on production after the deploy, not assumed:** run `33067094795` success; server
+HEAD `c074bc6`; `alembic_version = c5d6e7f8a9b0`; both constraints present; **0 of 266 orders
+backfilled**; the new code confirmed inside the RUNNING container (`func.count` gone from the
+numbering path, `with_for_update` present, both schema fields present). Pre-migration backup
+`/root/backups/pos_pre_invnum_20260827T112146Z.sql.gz`, 381K, `gzip -t` verified.
+🟢 **Chick Shack byte-identical before AND after: 233 / `2026-08-26 19:40:58` / 166 / 219 /
+642087 / 87 / 3.** All four hostnames 200; `chickshackg84.com` 200 **checked from the server**,
+because this workstation's DNS resolver could not resolve it (local fault, not an outage).
+
+**Test suite: 839 passed, 10 failed, 2 errors.** +15 tests, all driving the real
+`create_order` write path. The 10 are the unchanged pre-existing set (8 QuickBooks Desktop, 1
+stale message string, 1 HTTP 401). **A test that asserted F31 as correct behaviour**
+(`test_falls_back_to_the_tenant_name_without_a_location`) was corrected, not deleted - same
+family as `test_p1a_features` in the F19 post-mortem.
+
+🔴 **Still open before recording:** the twelve `martin-fz` demo orders hold **no invoice
+numbers yet** (no backfill by design) and will be numbered in whatever order they are first
+opened; the three UAT test orders including the self-contradicting `260827-001` still need
+clearing; **F30** (no kitchen stations); the **TRN decision**; and the walkthrough PDF
+re-render (**F21**). **Online orders still carry no channel** - the storefront builds its own
+`Order()` and was deliberately not touched, because that is Chick Shack's live order path.
+
+**UAT: exercises 1-8 done by hand, 9-15 still not seen in a browser.**
+
+**Last refreshed (previous):** 2026-08-27 (fresh session via HANDOFF.md, `/refresh` run). **Two drifts
+corrected, no contradiction on substance.** Git re-verified against the real remote, not the
+tracking ref: HEAD **`cda55ec`**, `git ls-remote origin main` = **`cda55ec`**, **0 unpushed**,
+141 dirty. **No code, storefront or server change on this refresh pass.**
+
+⚠️ **Drifts corrected on this pass:**
+1. **HANDOFF.md and `PAUSE_CHECKPOINT_2026-08-27-B.md` both name HEAD as `af962c0`. It is
+   `cda55ec`** — the docs commit that created those two files, made and pushed after the
+   checkpoint text was written. `0 unpushed` still holds, so substance is unchanged.
+2. 🔴 **That push fired a FIFTH production deploy today** (`Deploy to Production` run
+   `33063039726`, 10:26 UTC) which neither file records and which was **still in progress**
+   at the moment of this refresh. So "four green deploys" is now five, and **server HEAD is
+   NOT confirmed** at `af962c0` or at `cda55ec` until that run is checked. Docs-only diff, so
+   no behaviour change is expected, but the deploy still recreates the shared nginx serving
+   Chick Shack and Orbit CRM. Timing was safe: Chick Shack trades 16:00-22:00 UK and it was
+   ~11:30 UK.
+
+📌 Not a drift, but worth knowing where to look: the three 2026-08-27 lessons named in
+HANDOFF.md are real but sit at the **bottom** of `ERROR_LOG.md` (lines ~1070-1140) under `##`
+headings, not in the newest-first `###` block at the top. Grepping `^### 2026-08-27` finds
+only two entries and misses them.
+
+**Last refreshed (previous):** 2026-08-27 (UAT batch 2 + comprehensive sweep).
 🔴 **21 findings F10-F30. Fifteen fixed. Three production deploys, all green, Chick Shack
 measured identical at every one (233/166/219/642087/87).**
 

@@ -1,6 +1,14 @@
 # Open items register
 
-**OI-94 🟡 OPENED 2026-08-27, DIAGNOSED NOT BUILT. Production serves everything uncompressed.
+**OI-94 🟢 CLOSED 2026-08-27 21:48 UTC, MEASURED ON THE LIVE SITE (`8264139` + `4ecd5b3`).**
+gzip now lives in `nginx.demo.conf`, the file production reads, shipped with OI-92 item 2. Closed by
+the curl, not the file: entry bundle `index-CvjbBnQ3.js` **232,412 -> 76,489 bytes** with
+`Content-Encoding: gzip`; the storefront's `/api/v1/public/chick-shack/menu` **126,362 -> 9,205
+bytes**. The deploy workflow now fails if the entry chunk ever comes back without `Content-Encoding`.
+The dead 8-line edit is still `stash@{0}` on the box (harmless, drop it whenever). Original text kept
+below for the record.
+
+**OI-94 (as opened) 🟡 2026-08-27, DIAGNOSED NOT BUILT. Production serves everything uncompressed.
 Somebody turned gzip on in a file nginx does not read.**
 
 > **Found while checking whether tonight's OI-92 change would pull cleanly, not by looking for it.**
@@ -15,6 +23,22 @@ Somebody turned gzip on in a file nginx does not read.**
 > ⚠️ **The lesson is bigger than the bytes: an edit that was never loaded looked exactly like a
 > shipped feature for months.** Nothing verified that the file being edited was the file being
 > served. Same family as "never grep the assets directory to check a frontend deploy".
+>
+> 🔴 **MEASURED ON THE LIVE SITE 2026-08-27 21:2x UTC, so this is no longer an inference.** Asking
+> `eats.sitaratech.info` for the main bundle with `Accept-Encoding: gzip, br` returns
+> **`Content-Length: 232412` and NO `Content-Encoding` header at all.** 227 KB of JavaScript,
+> uncompressed, on every cold load, on the client's tablet. `index.html` and the API responses come
+> back uncompressed too.
+>
+> ⚠️ **Note the trap for whoever fixes this.** `frontend/nginx/default.conf` (inside the frontend
+> CONTAINER) already has `gzip on` with a full `gzip_types` list, which makes it look solved on a
+> code read. It is not reaching the client. Do not close this item by reading that file; close it by
+> re-running the curl above and seeing `Content-Encoding: gzip`.
+>
+> 🔗 **This is coupled to OI-92 item 2.** If the frontend moves out of Docker and the outer nginx
+> serves the static files directly, the frontend container's gzip block disappears with it. So
+> whoever builds item 2 MUST add gzip to `nginx.demo.conf` in the same change or compression can
+> only get worse.
 >
 > **Shape of the fix:** add the gzip directives to `nginx.demo.conf`, the file production actually
 > reads, and delete the dead edit from the box. Measure a real payload before and after rather than
@@ -65,9 +89,45 @@ per-tenant module entitlement. Every tenant's admin can reach every module we ha
 >
 > **Deferred: after the FZ LLC / Martin work is complete**, same as OI-92. It blocks nothing today.
 
-**OI-92 🟡 OPENED 2026-08-26, DESIGNED NOT BUILT, DEFERRED BY MALIK UNTIL THE FZ LLC / MARTIN WORK
-IS COMPLETE. Deployment hygiene: a production deploy currently needs a closed-shop window, and that
-does not survive a fifth tenant.**
+**OI-92 🟡 ITEMS 1 AND 2 SHIPPED AND MEASURED 2026-08-27. ITEM 3 (backend) NOT BUILT, BLOCKED ON
+RAM. Deployment hygiene: a production deploy needed a closed-shop window, and that does not survive
+a fifth tenant.**
+
+> 🟢 **ITEM 2 SHIPPED 2026-08-27 21:44 UTC (`8264139`, fix `4ecd5b3`), runs `33118968287` (failed
+> safely at the gate) and `33119330616` (green).** The frontend is static files: CI rsyncs `dist/` to
+> `www/releases/<sha>/`, `deploy-remote.sh` swaps `www/current` with `mv -T` of a fresh symlink, nginx
+> serves it from a read-only bind mount (its fifth mount). **No frontend container exists any more.**
+> nginx was recreated ONCE on this deploy to gain the mount (new id `fff487cf5ddb`, 21:44:55 UTC, shop
+> closed); from here on an app deploy does not touch nginx at all. Chick Shack byte-identical before
+> and after (`244 / 20:22:03 / 173 / 230 / 714335 / 87 / 3`). Full external verification in
+> STATE.md.
+>
+> 🔴 **What the first run measured, directly, for the first time: replacing the backend gives Chick
+> Shack 47 seconds of `/api/` 502s** (21:39:10.6 to 21:39:57.5, 75 consecutive half-second polls
+> through the live nginx; `/` and Orbit stayed 200 throughout). That is the whole remaining exposure,
+> and it is item 3's job.
+>
+> ⚠️ **Two things learned building it, both in ERROR_LOG:** (1) the nginx config is a single-FILE bind
+> mount, and `git pull` replaces the inode, so a running container keeps the old content and
+> `nginx -s reload` cannot see a pulled config change (measured on the box: host `v1`, container `v2`).
+> The script now compares the md5 the container sees with the file on disk and recreates only then,
+> after `nginx -t` in a throwaway container ON THE LIVE NGINX'S NETWORK. (2) That throwaway test failed
+> on its first run because Orbit's `/root/orbit-crm/voice.conf` still carries a bare
+> `proxy_pass http://orbit_api:8000` (see OI-95).
+>
+> 🔴 **ITEM 3 IS BLOCKED ON RAM AS DESIGNED.** Read at refresh: the backend RSS is **618 MiB of its
+> 768 MiB limit** (4 uvicorn workers, `backend/Dockerfile` `CMD ["--workers", "4"]`); box `free ~100 MB
+> / available ~450 MB / swap 573 MB in use`. Two backends side by side is ~1.2 GB and does not fit;
+> retiring the frontend container freed ~5 MiB, not 128. The realistic path is **2 workers per
+> backend** (roughly half the RSS, and this box has 1 vCPU-ish of headroom anyway), then blue/green
+> fits. That is a decision for Malik, not made.
+
+> 📌 **OI-95 🟡 OPENED 2026-08-27, NOT OURS TO FIX, FLAG TO ORBIT'S OWNER.** `/root/orbit-crm/voice.conf`
+> line 9 is `proxy_pass http://orbit_api:8000` with a bare name. nginx resolves that at parse time, so
+> **if `orbit_api` is down, the SHARED nginx refuses to start** and takes `eats` (Chick Shack's tablet)
+> down with it. This is the 2026-03-26 / 2026-08-15 incident class, and it is the one thing on the box
+> that can still stop nginx starting. Same fix as OI-92 item 1: `resolver 127.0.0.11` + a variable.
+> Not edited: another project's file.
 
 > **Opened by Malik's question, not from a failure.** Asked while `c23b574` was held back because
 > Chick Shack was mid-service: *"lets say we have 5 tenants. so everytime we have to deploy changes

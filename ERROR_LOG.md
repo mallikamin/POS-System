@@ -1129,3 +1129,231 @@ genuine defect with no human clicking anything.
 3. **A backup script exiting 255 does not mean the backup failed.** The box has ~120MB free
    RAM; `gzip -dc | grep -c` over the dump was OOM-killed *after* a perfectly good file was
    written. Verify with `gzip -t`, not by decompressing the whole thing.
+
+## 2026-08-27 (evening) - A heredoc turned \b into a backspace, and the regex stopped matching
+
+- **Error**: no error message at all. A newly written `deriveCode()` regex simply never
+  matched anything, and the file looked correct in every editor and in `Read`.
+- **Context**: patching `SuppliersPage.tsx` through `python - <<'PY' ... PY` on the Bash
+  tool. The intended source was `/\b(LLC|CO|LTD)\b/g`.
+- **Root Cause**: the bash heredoc interpreted `\b` and wrote a literal **BACKSPACE
+  character (0x08)** into the file. The regex became `/\x08(LLC|...)\x08/g`, which requires
+  literal backspace characters either side of the word and therefore matches nothing, ever.
+  Two `Edit` calls then failed with "String to replace not found" because the text on disk
+  did not contain what the screen was showing.
+- **Fix**: found it by dumping `repr()` of the surrounding bytes rather than looking at the
+  file again. Replaced the 0x08 characters with real `\b` escapes, then swept **all 550
+  tracked text files** for stray control characters (0x07, 0x08, 0x0b, 0x0c) - that file
+  was the only hit.
+- **Rule**: **never write non-trivial code through a bash heredoc on Windows.** Write a real
+  `.py` file with the Write tool and run it. And when two consecutive exact-match edits fail
+  on text you can plainly see, stop editing and inspect the actual bytes - the screen is
+  lying to you, and an invisible character is the most likely reason.
+
+## 2026-08-27 (evening) - Reusing another tenant's integration nearly sent a client's paperwork under someone else's identity
+
+- **Error**: none raised. Found by reading the code behind a button during UAT.
+- **Context**: the Purchase Order "Send by email" button on the FZ LLC demo tenant. It
+  reuses the shared `email_service`, which is configured with **Chick Shack's** Brevo
+  account and from-address.
+- **Root Cause**: the mail service looked like generic plumbing to reuse. It is not
+  plumbing, it is a client's property: their domain, their sending reputation, their
+  identity on every message. A second tenant's purchase orders would have gone out as if
+  they came from the first tenant. Malik: *"who authorized to use chickshack email. thats
+  his personal domain and email."*
+- **Fix**: emailing removed from the purchase-order flow entirely (F39). The endpoint is
+  unchanged and still called, always with `skip_email`, so the status transition and audit
+  trail are intact. **Nothing had actually been sent** - it was caught on the "mark sent
+  without emailing" path.
+- **Rule**: **an integration configured for one tenant is scoped to that tenant.** Before
+  wiring any existing integration (email, payments, storage, AI, OAuth) into a new tenant's
+  flow, ask whose account it runs on. If it belongs to another client, it is out of scope
+  until that tenant has their own. Saved as `memory/tenant-scoped-integrations.md`.
+
+## 2026-08-27 (evening) - Three client-facing surfaces that nobody had asked for
+
+- **Error**: no failure. All three were working exactly as written, and all three were wrong
+  to exist.
+- **Context**: running the client's own UAT playbook by hand, screen by screen.
+- **Root Cause**: earlier sessions added client-facing surface speculatively.
+  **F35** - a banner telling the reader that a thermal-ticket site issues invoices without a
+  legal name or TRN. Untrue: `invoice_format` only picks the default document and has never
+  gated the legal fields, and all seven of that site's invoices carry the TRN. It told the
+  client seven of his nine tax invoices were invalid.
+  **F38** - a supplier SKU column and input, built before a single real supplier invoice had
+  been seen, so nobody knew whether his suppliers quote codes at all.
+  **F37** - a required "Code" field for an internal handle the client never asked for, which
+  made the form look complete and then refuse to save.
+- **Fix**: banner deleted, SKU hidden (field and document logic intact), code derived from
+  the name and never a blocker.
+- **Rule**: **build what the discovery notes ask for; park the rest behind evidence.**
+  Inventing helpful copy is not neutral - a confident sentence that is wrong costs more
+  credibility than a missing feature. And a warning that fires on the wrong condition is
+  worse than no warning, because the reader believes it.
+
+## 2026-08-27 (evening) - A harness that extracted nothing reported the product as broken
+
+- **Error**: `profitability rows: 0`, recorded as finding F29 and escalated as the single
+  thing blocking the demo video.
+- **Context**: `flow_sweep2.py` driving UAT exercises 9-15 through the API.
+- **Root Cause**: `rows = rows if isinstance(rows, list) else rows.get("rows", [])`. The
+  endpoint returns `{totals, by_channel, by_location}`. It is not a list, so the script
+  asked for a `"rows"` key that has never existed, got `[]`, and printed zero. The report
+  had been returning seven channels and a 79.23% margin the whole time. Worse, the
+  `if rows:` guard meant that exercise's three real assertions never executed and were
+  counted as neither pass nor fail - **47 `check()` calls across the two scripts, 32
+  counted.**
+- **Fix**: verified through the real HTTPS route as the real tenant before changing any
+  product code. Closed F29 as not a defect. The three skipped assertions were then run
+  directly and pass.
+- **Rule**: **an assertion that can be skipped silently must count as a FAILURE, not as
+  silence.** And before believing a harness that says the product is broken, reproduce it
+  the way the user would. This is the mirror of "a passing assertion over an empty set is
+  not evidence" from 2026-08-26: the same blindness, pointed the other way.
+
+## 2026-08-27 (night) - I shipped the component and called it the fix, and the user found out from me only because he asked twice
+
+- **Error**: no technical failure. `c6cba33` was correct, tested and deployed. It just did
+  not do what the user asked for.
+- **Context**: OI-92 item 1, *"ensure 1 tenant deployment doesnt affect other"*. The written
+  plan described item 1 as a ten-line nginx config change, so I built the config change,
+  deployed it, reported it accurately as "half shipped", and then **asked permission to do
+  the other half** - a one-line change to `deploy-remote.sh` that was the entire point.
+- **Root Cause**: I scoped to the artefact named in the plan (a config file) instead of to
+  the capability the user asked for (deploys that do not disturb another tenant). The config
+  removed the NEED to recreate nginx; the deploy script still recreated it, so nothing
+  observable changed for Chick Shack. Then, having already been told to ship it, I asked
+  again. Malik, verbatim: *"BUDDY I TOLD U TO FREAKIN DEPLOY 30 MINUTES AGO"* and
+  *"stop hallucinating out of ur back adn follow my instructions at first instance"*.
+- **Fix**: shipped `c99c24e` immediately, replacing the force-recreate with `nginx -t` plus
+  a graceful `nginx -s reload`, and proved it across a real deploy: nginx kept the same
+  container id, start time and master PID while both app containers were replaced.
+- **Rule**: **ship the capability, not the component.** Before calling a task done, state
+  what observably changed for the user, in their terms. If the honest answer is "nothing
+  yet", it is not done. And **authorisation given once does not need asking twice** - a
+  second permission request for work already ordered reads as stalling, not as diligence.
+
+## 2026-08-27 (night) - A trailing slash in proxy_pass becomes a URL-eating bug the moment the target is a variable
+
+- **Error**: none raised, and nothing in a code read would show it. Caught only by testing.
+- **Context**: converting `proxy_pass http://orbit_web:80/;` to the variable form so nginx
+  would stop caching container IPs. This is Orbit CRM's route, another business on the same
+  nginx.
+- **Root Cause**: a trailing slash in `proxy_pass` means "replace the matched location
+  prefix with this URI". Without a variable, nginx computes that replacement. **With a
+  variable, the URI is taken literally and replaces the request URI entirely.** So
+  `set $orbit_web http://orbit_web:80/;` sends **every** request to `/`.
+- **Fix**: measured it in an isolated container with an upstream that echoes `$request_uri`,
+  running all three forms side by side: current (`/customers/123/edit?tab=notes`), variable
+  without slash (identical), variable with slash (**`/`**). Dropped the slash, with a comment
+  in the file saying not to add it back.
+- **Rule**: **when converting `proxy_pass` to a variable, the trailing slash must go.** More
+  generally: when a change alters HOW a directive is evaluated rather than what it points
+  at, do not reason about the semantics - stand up the three variants and read the bytes the
+  upstream actually receives. This would have served Orbit's homepage for every URL, and
+  every page would have looked "up".
+
+## 2026-08-27 (night) - A stale upstream IP is not dead, it gets REASSIGNED to somebody else
+
+- **Error**: the familiar post-deploy `502`, which everyone here already knew about. The
+  unfamiliar part is what happens when it is *not* a 502.
+- **Context**: proving why nginx needed recreating after every deploy.
+- **Root Cause**: an `upstream` block resolves its server name once at config load and
+  caches the address. Recreating `backend`/`frontend` gives them new IPs. **Docker then
+  hands the old IP to the next container that asks for one**, so nginx cheerfully proxies to
+  an unrelated container and returns a plausible **wrong** answer. Reproduced deliberately:
+  the old config served an unrelated container's page with HTTP 200 after the address was
+  inherited.
+- **Fix**: variable `proxy_pass` + `resolver 127.0.0.11 valid=10s`, which re-resolves per
+  request. Two further properties measured: URI passthrough is byte-identical, and a bare
+  name makes **nginx refuse to start at all** if it cannot resolve (`host not found in
+  upstream`), which on a shared nginx means one project being down takes every hostname
+  with it.
+- **Rule**: **"it returned 200" is not proof you reached the right service.** When
+  diagnosing stale-address problems, assert on the response BODY, not the status code. And
+  `resolver` must be `127.0.0.11` alone - nginx round-robins a resolver list, so leaving a
+  public resolver in it sends half the container-name lookups to the internet.
+
+## 2026-08-27 (night) - An edit that was never loaded looked exactly like a shipped feature
+
+- **Error**: production serves the main JS bundle at **232,412 bytes with no
+  `Content-Encoding` header**. Compression has never been on.
+- **Context**: found incidentally, while checking whether an unrelated change would `git
+  pull` cleanly.
+- **Root Cause**: someone hand-edited an 8-line `gzip` block into
+  `docker/nginx/nginx.conf` **on the server**. `docker inspect` shows nginx mounts only
+  `nginx.demo.conf` and `voice.conf`. **`nginx.conf` is not read by production at all.** The
+  edit has sat there for months looking like a completed task. Separately,
+  `frontend/nginx/default.conf` inside the frontend container also says `gzip on`, so a code
+  read finds compression "configured" in two places while the client receives none.
+- **Fix**: not fixed. Opened as OI-94, deliberately kept out of the nginx deploy so that
+  change stayed one thing.
+- **Rule**: **verify that the file you edited is the file being served.** `docker inspect`
+  the mounts before believing a config change did anything. And close a
+  performance item with the observation (`curl -I` and look for `Content-Encoding`), never
+  with the configuration. Same family as "never grep the assets directory to check a
+  frontend deploy".
+
+## 2026-08-27 (night) - PowerShell's Out-File wrote a BOM and nginx refused to start
+
+- **Error**: `nginx: [emerg] unknown directive "﻿#" in /etc/nginx/conf.d/default.conf:8`
+- **Context**: `git show HEAD:docker/nginx/nginx.demo.conf | Out-File -Encoding utf8 <path>`
+  to get a pristine copy for an A/B test.
+- **Root Cause**: **Windows PowerShell 5.1's `-Encoding utf8` means UTF-8 WITH BOM.** The
+  three bytes `EF BB BF` landed at the top of the file and nginx parsed them as part of the
+  first directive. `utf8NoBOM` does not exist in 5.1.
+- **Fix**: regenerated the file through the Bash tool, which writes no BOM. Confirmed with
+  `head -c 8 | od -c`.
+- **Rule**: **never use PowerShell redirection or `Out-File` to produce a file another tool
+  will parse.** This is the second BOM incident here in one day (the first made
+  `docker compose` print an API key in full). When a config is rejected on line 1 or 2 for
+  no visible reason, dump the first bytes before re-reading the text.
+
+## 2026-08-27 (late night) - A single-file bind mount goes stale on `git pull`, so `nginx -s reload` reloads the config it already had
+
+- **Error**: none raised. That is the problem: a reload after a pulled config change would report
+  success and change nothing.
+- **Context**: OI-92 item 2. `c99c24e` had just replaced nginx's force-recreate with
+  `nginx -t` + `nginx -s reload`, on the reasoning that a reload picks up config changes.
+- **Root Cause**: `nginx.demo.conf` is mounted as a single FILE. Docker binds the inode. `git
+  checkout` unlinks and recreates the file, so the host has a new inode and the container keeps
+  the old one. Measured on the box in `/tmp`: after a git checkout the host read `v1`, the
+  running container read `v2`. The reload path shipped in `c99c24e` was never exercised with a
+  config change, so nothing caught it.
+- **Fix**: `deploy-remote.sh` compares the md5 the container sees with the file on disk and
+  recreates nginx only when they differ, after proving the new config with `nginx -t` in a
+  throwaway container. App-only deploys, the common case, do not touch nginx at all now.
+- **Rule**: **a single-file bind mount is a snapshot of an inode, not a live view of a path.**
+  If a file under one is replaced by rename (git, editors, `mv`), the container will not see it.
+  Either mount the directory, or detect the mismatch and recreate. And a code path that was
+  reasoned about but never run with the input it exists for is untested, whatever the commit
+  message says.
+
+## 2026-08-27 (late night) - The pre-recreate `nginx -t` failed on a fine config because it ran off the network
+
+- **Error**: `nginx: [emerg] host not found in upstream "orbit_api:8000" in /etc/nginx/conf.d/voice.conf:9`,
+  first production run of the new `deploy-remote.sh`, run `33118968287`.
+- **Context**: the script tests the new config in a throwaway `nginx:1.27-alpine` with
+  `--volumes-from` the live nginx before daring to recreate it.
+- **Root Cause**: Orbit's `voice.conf` still has a bare `proxy_pass` name, which nginx resolves
+  at parse time. The throwaway container was not on `pos-system_default`, so the name did not
+  exist there. The live nginx, which IS on that network, would have loaded the same config fine.
+- **Fix**: `--network` derived from the live container at run time (`4ecd5b3`). The gate itself
+  behaved exactly as designed: nothing was touched, every hostname stayed 200 through the failed
+  run (poller evidence). Opened OI-95 for the bare name, which is the real hazard.
+- **Rule**: **a config test must run in the same environment the config will run in**: same
+  mounts AND same network. A bare upstream name makes network membership part of "valid".
+
+## 2026-08-27 (late night) - `pkill -f` matched my own ssh session, and a wrong "alive" check hid it
+
+- **Error**: `ssh ... 'pkill -f oi92-poll.sh; ...'` exited 255. A later `pgrep` reported the
+  poller alive; it was dead from that moment. The second deploy's gap therefore went unmeasured
+  and had to be measured on a third.
+- **Root Cause**: `pkill -f` matches the full command line, and the remote shell running my
+  command had `oi92-poll.sh` in ITS command line, so it killed the session that issued it. The
+  follow-up `pgrep -f "oi92-po[l]l.sh"` then matched the wrong process.
+- **Fix**: restarted the poller before the next deploy, with `pgrep -fc "bash /tmp/oi92-poll[.]sh"`
+  (returned 1) as the check.
+- **Rule**: **never `pkill -f <pattern>` through a shell whose own command line contains
+  `<pattern>`.** Use a pid file, or a bracketed pattern that cannot match itself, and read the
+  process count, not a boolean.
