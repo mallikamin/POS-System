@@ -1,5 +1,26 @@
 # Open items register
 
+**OI-94 🟡 OPENED 2026-08-27, DIAGNOSED NOT BUILT. Production serves everything uncompressed.
+Somebody turned gzip on in a file nginx does not read.**
+
+> **Found while checking whether tonight's OI-92 change would pull cleanly, not by looking for it.**
+> The server has an uncommitted 8-line gzip block prepended to `docker/nginx/nginx.conf`.
+>
+> **It has never taken effect.** Verified on the box, not assumed:
+> `docker inspect pos-system-nginx-1` mounts exactly two config files,
+> `docker/nginx/nginx.demo.conf` and `/root/orbit-crm/voice.conf`. **`nginx.conf` is not mounted.**
+> `nginx.demo.conf` contains zero `gzip` directives, and the stock image ships `#gzip  on;`
+> commented out. So HTML, CSS, JS and JSON all go over the wire uncompressed to every tenant.
+>
+> ⚠️ **The lesson is bigger than the bytes: an edit that was never loaded looked exactly like a
+> shipped feature for months.** Nothing verified that the file being edited was the file being
+> served. Same family as "never grep the assets directory to check a frontend deploy".
+>
+> **Shape of the fix:** add the gzip directives to `nginx.demo.conf`, the file production actually
+> reads, and delete the dead edit from the box. Measure a real payload before and after rather than
+> assuming a win. ⚠️ Do NOT gzip anything already compressed, and leave the Stripe webhook path
+> alone. **Deliberately not folded into the OI-92 deploy** so that change stays one thing.
+
 **OI-93 🟡 OPENED 2026-08-27, DIAGNOSED NOT BUILT, DEFERRED UNTIL AFTER MARTIN. There is no
 per-tenant module entitlement. Every tenant's admin can reach every module we have ever built.**
 
@@ -74,6 +95,58 @@ does not survive a fifth tenant.**
 > = UAE 01:00 = Pakistan 02:00. At five tenants there is no shared window at all.
 >
 > **The fix, ranked by payoff per hour. Not built, none of it.**
+>
+> ---
+>
+> 🟢 **ITEM 1 IS BUILT AND VERIFIED LOCALLY, 2026-08-27 19:35 UTC. NOT DEPLOYED.** Held for the
+> same closed-shop window as `869478b`. Three files: `nginx.demo.conf` (live), `nginx.conf`,
+> `nginx.dev.conf`. Every bare container name is gone; 14 `proxy_pass` now go through a variable
+> and three server blocks carry `resolver 127.0.0.11`.
+>
+> **What was measured, not reasoned about:**
+> - Old config and new config run side by side against the real local stack. The backend's IP was
+>   moved for real (a filler container took the old address). **Old returned 502. New returned 200**
+>   with the real health payload, and nginx was never touched. That 502 is the exact one that forces
+>   every deploy to recreate the shared nginx.
+> - **A stale IP is not merely dead: Docker reassigns it.** In the isolated lab the old config
+>   proxied happily to an unrelated container that had inherited the address, returning a plausible
+>   wrong answer rather than an obvious 502.
+> - URI passthrough is byte-identical, path, query string and the nested static-asset location.
+> - `resolver 127.0.0.11` still forwards external names, so OCSP stapling keeps a working resolver.
+>   Confirmed with a control lookup.
+> - `nginx -t` passes on the real file with the production image `nginx:1.27-alpine`.
+>
+> 🔴 **ORBIT CRM WAS THE BIGGER HALF, AND IT WAS NOT IN THE ORIGINAL PLAN.** `orbit_api` and
+> `orbit_web` were still bare names. With a bare name **nginx REFUSES TO START if it cannot be
+> resolved**, so Orbit CRM's containers being down would have stopped the SHARED nginx from
+> starting and taken `pos-demo`, `eats` (Chick Shack's tablet) and `parkcity` down with it. That is
+> the 2026-03-26 incident class, still live until tonight. Proof: `nginx -t` on the real file
+> **failed outright** with `host not found in upstream "orbit_api"`; after the change the same test
+> **passes with nothing resolvable at all**. Malik approved including it.
+>
+> ⚠️ **The trap in that hunk, caught by testing rather than by reading.** `orbit_web` was written
+> `proxy_pass http://orbit_web:80/;` **with a trailing slash**. A trailing slash means "replace the
+> matched location prefix", and under a variable that is applied literally. Measured: keeping the
+> slash sends `/customers/123/edit?tab=notes` to the upstream as **`/`**, so every Orbit URL would
+> have served the homepage. The slash is deliberately dropped. **Do not add it back.**
+>
+> 🔴 **TWO BLOCKERS FOUND ON THE BOX, READ-ONLY, BEFORE THE WINDOW RATHER THAN INSIDE IT:**
+> 1. **`docker/nginx/nginx.conf` is locally modified on the server**, and item 1 changes that file,
+>    so **`git pull` will be refused and `deploy-remote.sh` will exit 1** (correctly, and loudly).
+>    Must be resolved before the push. The local edit is an 8-line gzip block prepended to the file.
+> 2. **That gzip block has never done anything.** `docker inspect pos-system-nginx-1` shows only
+>    `nginx.demo.conf` and `voice.conf` are mounted. `nginx.conf` is not read by production at all,
+>    and the stock image ships `#gzip on;` commented out. **So production serves everything
+>    uncompressed.** Whoever added it edited a file nginx never loads. Recorded as OI-94; it is a
+>    performance item, deliberately NOT folded into tonight's change.
+>
+> ⚠️ **ITEM 1 IS NOT FINISHED BY THE CONFIG ALONE.** `scripts/deploy-remote.sh:131` still runs
+> `dc up -d --no-deps --force-recreate nginx` on every deploy. Until that line goes, deploys keep
+> touching the shared nginx even though they no longer need to. The config change makes nginx
+> resilient; removing that line is what actually ends the closed-shop window. Sequence it as a
+> SECOND deploy so each half is verifiable on its own.
+>
+> ---
 >
 > **1. Stop nginx caching upstream IPs. ~30 minutes, highest value on the list.** About 10 lines in
 > `docker/nginx/nginx.demo.conf`: Docker's embedded DNS plus a variable in `proxy_pass`, which
