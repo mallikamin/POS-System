@@ -26,6 +26,8 @@ import type {
   SplitPaymentAllocation,
 } from "@/types/payment";
 import type { OrderResponse } from "@/types/order";
+import { ReceiptModal } from "@/components/pos/ReceiptModal";
+import { payableTotal, taxPortion } from "@/utils/tax";
 import { useCurrencyCode } from "@/hooks/useCurrencyCode";
 import { useConfigStore } from "@/stores/configStore";
 
@@ -36,26 +38,6 @@ function parseRupees(value: string): number {
   return Number.isFinite(numeric) && numeric > 0 ? rupeesToPaisa(numeric) : 0;
 }
 
-/**
- * The amount actually payable on `basePaisa` at `rateBps`.
- *
- * ⚠️ Renamed from `taxInclusive`, which is what it was called while doing the
- * exact opposite: it ADDED the tax, i.e. it implemented tax-EXCLUSIVE pricing.
- * A helper whose name asserts the convention it violates is how F19 survived
- * review.
- *
- * When the tenant's prices already include tax (`tax_inclusive`, the column
- * default), the tax is already inside the price and the payable amount is the
- * base itself. Mirrors `order_service.compute_tax` on the server.
- */
-function payableTotal(
-  basePaisa: number,
-  rateBps: number,
-  pricesIncludeTax: boolean
-): number {
-  if (pricesIncludeTax || rateBps <= 0) return basePaisa;
-  return basePaisa + Math.round((basePaisa * rateBps) / 10_000);
-}
 
 function getErrorMessage(err: unknown, fallback: string): string {
   if (isAxiosError(err)) {
@@ -66,6 +48,7 @@ function getErrorMessage(err: unknown, fallback: string): string {
 }
 
 function PaymentPage() {
+  const [showReceipt, setShowReceipt] = useState(false);
   const currency = useCurrencyCode();
   // F19: whether the tenant's menu prices already contain the tax.
   // Defaults to true, matching the backend column default.
@@ -357,9 +340,17 @@ function PaymentPage() {
     }
   }
 
+  /*
+   * F23: this was `window.print()` on the whole page, with no print stylesheet,
+   * so "Print Bill" printed a screenshot of the application -- sidebar, buttons,
+   * discount form and all -- instead of a receipt. `SessionPaymentPage` has used
+   * the proper 80mm `ReceiptModal` all along; this screen was simply never
+   * moved over. The modal renders the tenant's own receipt header and footer,
+   * so the bill carries the client's branding rather than ours.
+   */
   function handlePrintBill() {
     if (!summary) return;
-    window.print();
+    setShowReceipt(true);
   }
 
   if (!orderId) {
@@ -857,7 +848,9 @@ function PaymentPage() {
                   const isCash = methodName.toLowerCase().includes("cash");
                   const taxRateBps = preview ? (isCash ? preview.cash_tax_rate_bps : preview.card_tax_rate_bps) : 0;
                   const taxPct = taxRateBps / 100;
-                  const paymentTax = Math.round(payment.amount * taxRateBps / 10000);
+                  // F22: was `payment.amount * rate`, the exclusive formula, which put
+                  // "Tax @ 5% AED 1.35" directly under an order total of AED 1.29.
+                  const paymentTax = taxPortion(payment.amount, taxRateBps, pricesIncludeTax);
                   const refundableAmount = refundableAmounts[payment.id] ?? 0;
                   const isRefund = payment.kind === "refund";
                   return (
@@ -941,6 +934,15 @@ function PaymentPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Receipt modal -- the actual printable bill (F23). */}
+      {orderId && (
+        <ReceiptModal
+          orderId={orderId}
+          open={showReceipt}
+          onClose={() => setShowReceipt(false)}
+        />
+      )}
     </div>
   );
 }

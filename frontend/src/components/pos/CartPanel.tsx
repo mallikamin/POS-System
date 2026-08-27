@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { formatPKR, taxName } from "@/utils/currency";
 import { useCurrencyCode } from "@/hooks/useCurrencyCode";
+import { splitTax } from "@/utils/tax";
 import { useCartStore, type CartLine, type Cart, EMPTY_CART } from "@/stores/cartStore";
 import { useOrderStore } from "@/stores/orderStore";
 import { useUIStore } from "@/stores/uiStore";
@@ -114,13 +115,7 @@ export function CartPanel({ waiterId, onOrderCreated }: CartPanelProps = {}) {
    * Tax-inclusive: the tax is already inside `subtotal`, so it is derived by
    * subtraction (never as `net * rate`) and the total IS the subtotal.
    */
-  const tax =
-    TAX_BPS <= 0
-      ? 0
-      : pricesIncludeTax
-        ? subtotal - Math.round((subtotal * 10000) / (10000 + TAX_BPS))
-        : Math.round((subtotal * TAX_BPS) / 10000);
-  const total = pricesIncludeTax ? subtotal : subtotal + tax;
+  const { tax, total } = splitTax(subtotal, TAX_BPS, pricesIncludeTax);
 
   async function handleSendToKitchen() {
     if (cart.lines.length === 0 || isSending) return;

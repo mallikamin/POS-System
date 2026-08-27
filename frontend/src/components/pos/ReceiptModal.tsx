@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from "react";
+import { formatMoney } from "@/utils/currency";
 import { Printer, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -54,14 +55,22 @@ interface ReceiptData {
   currency: string;
 }
 
-function formatAmount(paisa: number): string {
-  return `Rs. ${(paisa / 100).toLocaleString("en-PK", { minimumFractionDigits: 0 })}`;
+/*
+ * F24: this hardcoded `Rs.` with an `en-PK` locale and ZERO decimal places,
+ * on the printed customer bill, even though the receipt payload has carried a
+ * `currency` field all along (see ReceiptData above). A UAE client's tax
+ * receipt printed "Rs. 27" for AED 27.00 -- wrong symbol, wrong locale, and the
+ * fils silently dropped. `formatMoney` is currency-aware and knows AED has two
+ * decimals; the code now comes from the receipt itself rather than a constant.
+ */
+function formatAmount(minor: number, code: string): string {
+  return formatMoney(minor, code);
 }
 
-function formatSignedAmount(paisa: number): string {
-  const abs = Math.abs(paisa);
-  const sign = paisa >= 0 ? "+" : "-";
-  return `${sign}${formatAmount(abs)}`;
+function formatSignedAmount(minor: number, code: string): string {
+  const abs = Math.abs(minor);
+  const sign = minor >= 0 ? "+" : "-";
+  return `${sign}${formatAmount(abs, code)}`;
 }
 
 interface Props {
@@ -241,18 +250,18 @@ export function ReceiptModal({ orderId, sessionId, open, onClose }: Props) {
                           <span>
                             {item.quantity}x {item.name}
                           </span>
-                          <span>{formatAmount(basePriceTotal)}</span>
+                          <span>{formatAmount(basePriceTotal, receipt.currency)}</span>
                         </div>
                         {groupedMods.map((mod, j) => (
                           <div key={j} className="modifier pl-2 text-[10px] text-secondary-500">
                             + {mod.qty > 1 ? `${mod.qty}x ` : ""}{mod.name}
-                            {mod.price_adjustment !== 0 ? ` (${formatSignedAmount(mod.price_adjustment * mod.qty)})` : ""}
+                            {mod.price_adjustment !== 0 ? ` (${formatSignedAmount(mod.price_adjustment * mod.qty, receipt.currency)})` : ""}
                           </div>
                         ))}
                         {hasModifiers && modTotal !== 0 && (
                           <div className="row flex justify-between pl-2 text-[10px] font-medium text-secondary-700">
                             <span>Line Total</span>
-                            <span>{formatAmount(item.total)}</span>
+                            <span>{formatAmount(item.total, receipt.currency)}</span>
                           </div>
                         )}
                       </div>
@@ -267,7 +276,7 @@ export function ReceiptModal({ orderId, sessionId, open, onClose }: Props) {
             {/* Totals */}
             <div className="row flex justify-between">
               <span>Subtotal</span>
-              <span>{formatAmount(receipt.subtotal)}</span>
+              <span>{formatAmount(receipt.subtotal, receipt.currency)}</span>
             </div>
             {(() => {
               const cashRate = receipt.cash_tax_rate_bps || 0;
@@ -292,12 +301,12 @@ export function ReceiptModal({ orderId, sessionId, open, onClose }: Props) {
                     {lines.map((ln, idx) => (
                       <div key={idx} className="row flex justify-between">
                         <span>{ln.method} Tax ({ln.ratePct}%)</span>
-                        <span>{formatAmount(ln.tax)}</span>
+                        <span>{formatAmount(ln.tax, receipt.currency)}</span>
                       </div>
                     ))}
                     <div className="row flex justify-between font-medium">
                       <span>Total Tax</span>
-                      <span>{formatAmount(totalTax)}</span>
+                      <span>{formatAmount(totalTax, receipt.currency)}</span>
                     </div>
                   </>
                 );
@@ -312,7 +321,7 @@ export function ReceiptModal({ orderId, sessionId, open, onClose }: Props) {
                 return (
                   <div className="row flex justify-between">
                     <span>{p.method} Tax ({ratePct}%)</span>
-                    <span>{formatAmount(receipt.tax_amount)}</span>
+                    <span>{formatAmount(receipt.tax_amount, receipt.currency)}</span>
                   </div>
                 );
               }
@@ -320,14 +329,14 @@ export function ReceiptModal({ orderId, sessionId, open, onClose }: Props) {
               return (
                 <div className="row flex justify-between">
                   <span>{receipt.tax_label} ({receipt.tax_rate_display})</span>
-                  <span>{formatAmount(receipt.tax_amount)}</span>
+                  <span>{formatAmount(receipt.tax_amount, receipt.currency)}</span>
                 </div>
               );
             })()}
             {receipt.discount_amount > 0 && (
               <div className="row flex justify-between">
                 <span>Discount</span>
-                <span>-{formatAmount(receipt.discount_amount)}</span>
+                <span>-{formatAmount(receipt.discount_amount, receipt.currency)}</span>
               </div>
             )}
 
@@ -335,7 +344,7 @@ export function ReceiptModal({ orderId, sessionId, open, onClose }: Props) {
 
             <div className="total-row row flex justify-between text-sm font-bold">
               <span>TOTAL</span>
-              <span>{formatAmount(receipt.total)}</span>
+              <span>{formatAmount(receipt.total, receipt.currency)}</span>
             </div>
 
             {/* Payments */}
@@ -358,17 +367,17 @@ export function ReceiptModal({ orderId, sessionId, open, onClose }: Props) {
                       <div key={i} className="mb-1">
                         <div className="row flex justify-between font-medium">
                           <span>{p.method}</span>
-                          <span>{formatAmount(p.amount)}</span>
+                          <span>{formatAmount(p.amount, receipt.currency)}</span>
                         </div>
                         {hasDiffRates && (
                           <>
                             <div className="row flex justify-between text-[10px] text-secondary-500">
                               <span>Pre-tax</span>
-                              <span>{formatAmount(base)}</span>
+                              <span>{formatAmount(base, receipt.currency)}</span>
                             </div>
                             <div className="row flex justify-between text-[10px] text-secondary-500">
                               <span>Tax @ {ratePct}%</span>
-                              <span>{formatAmount(tax)}</span>
+                              <span>{formatAmount(tax, receipt.currency)}</span>
                             </div>
                           </>
                         )}
@@ -376,11 +385,11 @@ export function ReceiptModal({ orderId, sessionId, open, onClose }: Props) {
                           <>
                             <div className="row flex justify-between text-[10px]">
                               <span>Tendered</span>
-                              <span>{formatAmount(p.tendered)}</span>
+                              <span>{formatAmount(p.tendered, receipt.currency)}</span>
                             </div>
                             <div className="row flex justify-between text-[10px]">
                               <span>Change</span>
-                              <span>{formatAmount(p.change ?? 0)}</span>
+                              <span>{formatAmount(p.change ?? 0, receipt.currency)}</span>
                             </div>
                           </>
                         )}

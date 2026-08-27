@@ -18,6 +18,7 @@ import {
   type SessionDiscountBreakdown,
 } from "@/services/discountsApi";
 import { verifyPassword } from "@/services/ordersApi";
+import { payableTotal } from "@/utils/tax";
 import { useCurrencyCode } from "@/hooks/useCurrencyCode";
 import { useConfigStore } from "@/stores/configStore";
 import type {
@@ -34,26 +35,6 @@ function parseRupees(value: string): number {
   return Number.isFinite(numeric) && numeric > 0 ? rupeesToPaisa(numeric) : 0;
 }
 
-/**
- * The amount actually payable on `basePaisa` at `rateBps`.
- *
- * ⚠️ Renamed from `taxInclusive`, which is what it was called while doing the
- * exact opposite: it ADDED the tax, i.e. it implemented tax-EXCLUSIVE pricing.
- * A helper whose name asserts the convention it violates is how F19 survived
- * review.
- *
- * When the tenant's prices already include tax (`tax_inclusive`, the column
- * default), the tax is already inside the price and the payable amount is the
- * base itself. Mirrors `order_service.compute_tax` on the server.
- */
-function payableTotal(
-  basePaisa: number,
-  rateBps: number,
-  pricesIncludeTax: boolean
-): number {
-  if (pricesIncludeTax || rateBps <= 0) return basePaisa;
-  return basePaisa + Math.round((basePaisa * rateBps) / 10_000);
-}
 
 function getErrorMessage(err: unknown, fallback: string): string {
   if (isAxiosError(err)) {

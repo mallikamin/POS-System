@@ -280,3 +280,129 @@ assertions weakened - the Pakistan differential-tax fixtures are now explicitly
 top), and the online-storefront fixtures are explicitly `default_tax_rate=0` (like the real
 GBP tenant), which makes their tip/service-fee arithmetic independent of tax convention
 entirely - which is what they always meant to test.
+
+---
+
+# DEPLOY — 2026-08-27 08:27-08:31 UK, commit `e4a3d2e`
+
+Run `33054102173`, **success, 3m22s**, every step green. Deployed at **08:27 UK**, well
+outside Chick Shack's 16:00-22:00 trading window (7.5 hours of clear air).
+
+**Verified on the box, not from the green Action:**
+- Server HEAD = **`e4a3d2e`**.
+- 🟢 **Chick Shack byte-identical**, measured the same tenant-scoped way before and after:
+  **233 orders / newest `2026-08-26 19:40:58` / 166 customers / 219 payments / 642087 total
+  / 87 menu items** - unchanged at both measurements.
+- 🟢 **`compute_tax` executed INSIDE the running production backend**, not merely deployed:
+  ```
+  martin-fz    3 x AED 9.00 @5% incl -> (129, 2700)   was (135, 2835)
+  chick-shack  rate 0, inclusive     -> (0, 642087)
+  chick-shack  rate 0, exclusive     -> (0, 642087)   identical, as required
+  playbook     AED 100.00 @5% incl   -> (476, 10000)  the promised 4.76
+  exclusive    AED 27.00 @5%         -> (135, 2835)   other convention intact
+  ```
+- All hostnames 200 (`pos-demo`, `eats`, `parkcity`), `/api/v1/health` 200.
+- Orbit CRM untouched and healthy.
+- **Pre-deploy backup:** `/root/backups/pos_pre_taxfix_20260827T082602Z.sql.gz`, 380K,
+  56 table data blocks.
+
+⚠️ **A grep for the old label found `Tendered (PKR)` in 50 bundle files and it was a false
+alarm** - worth recording because it would fool anyone. Only ONE bundle of each page is
+reachable from the entry chunk, and both are clean:
+`PaymentPage-D6brofwI.js` and `SessionPaymentPage-DhaWx52G.js`. The other 50 are orphans.
+**Verify the bundle the entry chunk actually references, never the directory.**
+
+## F20 — the deploy never prunes old hashed assets
+**What:** `/usr/share/nginx/html/assets` holds **52 payment-page bundles** where 2 are live.
+Every deploy uploads new content-hashed files and removes nothing, so the directory
+accumulates one orphan set per deploy, forever.
+**Why it matters, in order:**
+1. It makes post-deploy verification actively misleading - a grep for old code "finds" it and
+   suggests the deploy failed when it did not. That cost time on this very deploy.
+2. Disk on a **2GB** box that also hosts Orbit CRM.
+**Not urgent** - orphans are unreachable and harmless to users.
+**Fix (later):** the deploy already uploads a complete `dist`; it should sync with deletion
+scoped to `assets/` only. ⚠️ **Never `rsync --delete` at the site root here** - that rule
+exists for a reason. Scope it to the assets directory and nothing above it.
+**Status:** OPEN, deferred - logged as a follow-up, not a blocker for Martin.
+
+## F21 — Exercise 8 of the playbook tells Martin to look for stock that has not moved yet
+**Where:** `UAT_PLAYBOOK_FZ_LLC.md`, Exercise 8 ("Take an order, and watch stock move").
+**What it says:** ring up 3 x Butter Croissant, take payment as cash, "go back to **Stock**...
+**What you should see:** Croissant Dough has gone down."
+**What actually happens:** nothing moves. Stock is deducted **only when the order reaches
+`completed`** (`order_service.py:556` -> `_apply_inventory_and_commission`). An order that
+has been sent to the kitchen and not yet closed has consumed nothing.
+**Proved in UAT, not reasoned about:** order `#260827-001` was completed and its consumption
+is in the ledger (`-0.36 kg`, "Sold 3 x Butter Croissant", 12:56:34, performer *System*).
+Order `#260827-002` was rung up and left In Kitchen - **no consumption row exists for it**,
+and the dough balance still reads 34.64 kg rather than 34.28 kg.
+⚠️ We chased this as a possible regression from the same-day deploy, because #001 was
+pre-deploy and #002 post-deploy. It was coincidence. Recording that so nobody re-chases it.
+**The design is right and should NOT change.** Deducting at ring-up would consume stock for
+orders that are later voided, and `_apply_inventory_and_commission` is deliberately written
+so a stock problem can never block a sale from closing. **The document is what is wrong.**
+**Fix:** Exercise 8 must tell the reader to complete the order first, and say plainly that
+stock moves on completion, not on ring-up. Same class of error as the Exercise 4 movement
+-history problem in batch 1: **the walkthrough describes behaviour nobody walked through.**
+**Status:** OPEN - must be fixed in the PDF re-render, which is already on the list.
+
+---
+
+# Second round, same session — three more found while verifying the first deploy
+
+## F22 — the same screen contradicted itself about VAT
+**Where:** Payment screen, Transactions list, after paying order `#260827-002`.
+**What:** "Order Total ... Tax (5%) **AED 1.29**" sat directly above
+"Cash (payment) ... Tax @ 5% **AED 1.35**". Two different VAT figures for one sale, on one
+screen, four lines apart.
+**Root cause:** `PaymentPage.tsx:860` computed `payment.amount * rate / 10000` - a **fourth**
+copy of the tax rule, in the frontend, still using the exclusive formula. F19 fixed the cart
+and both previews and missed this one.
+**The real lesson:** the rule had been written out by hand at four call sites, so fixing
+three of them produced a document that disagreed with itself - arguably worse than the
+original bug, because it looks like a system that cannot add up.
+**Fix applied:** a single `frontend/src/utils/tax.ts` (`splitTax` / `taxPortion` /
+`payableTotal`) mirroring `order_service.compute_tax`. `CartPanel`, `PaymentPage` and
+`SessionPaymentPage` all now call it; the local duplicates are deleted, so there is no
+fourth copy left to drift.
+**Status:** FIXED LOCALLY, typecheck clean.
+
+## F23 — "Print Bill" printed a screenshot of the application
+**Found by:** Malik. **What:** the print preview showed the whole payment page in landscape -
+nav bar, discount form, cash-drawer panel, buttons - instead of a bill.
+**Root cause:** `PaymentPage.handlePrintBill()` was `window.print()` on the document, with no
+print stylesheet.
+**The annoying part:** a correct 80mm thermal `ReceiptModal` already existed and
+**`SessionPaymentPage` has used it all along.** The single-order payment screen was simply
+never moved over. Malik's read was right - it *was* fixed elsewhere.
+**Fix applied:** `PaymentPage` now opens `ReceiptModal`, which clones only the receipt node
+into a print window under `@media print { body { width: 80mm } }`, and renders the tenant's
+own `receipt_header` / `receipt_footer` - so the bill carries the client's branding.
+**Status:** FIXED LOCALLY, typecheck clean.
+
+## F24 — 🔴 the printed customer bill was hardcoded to rupees
+**Where:** `ReceiptModal.tsx:57`, found while wiring F23.
+**What:** ``formatAmount`` was
+``return `Rs. ${(paisa / 100).toLocaleString("en-PK", { minimumFractionDigits: 0 })}` `` -
+hardcoded symbol, hardcoded Pakistani locale, and **zero decimal places** - on the printed
+tax receipt, the one document a customer keeps.
+**The receipt payload has carried a `currency` field all along** (`ReceiptData.currency`,
+`schemas/receipt.py:62`). It was simply never used.
+**What Martin's bill would have printed:** `Rs. 27` for AED 27.00. Wrong symbol, wrong
+locale, and the fils dropped.
+**Fix applied:** both helpers now take the code and defer to currency-aware `formatMoney`;
+all **15** call sites thread `receipt.currency` through.
+**Status:** FIXED LOCALLY, typecheck clean.
+
+## F25 — there is no frontend test suite at all
+**What:** `frontend/package.json` has no `test` script, and there are no test files anywhere
+under `frontend/src`. No vitest, no jest.
+**Why it matters here:** F14, F15, F17, F18, F22, F23 and F24 were **all** frontend defects,
+and every one reached production. The backend has 824 tests; the half of the system the
+client actually looks at has none. `utils/tax.ts` is now a pure, trivially testable module
+holding money math with zero tests on it.
+**Deliberately NOT fixed now:** adding a test runner changes the build pipeline, and the
+deploy pipeline is what puts Chick Shack's live tablet at risk. Not something to introduce
+hours before a client demo.
+**Status:** OPEN - should become a formal open item (OI) after Martin.
