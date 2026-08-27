@@ -29,6 +29,43 @@ Each entry follows:
 
 ---
 
+### 2026-08-27 (late) - A campaign result quoted from the same day, and retracted the next morning
+
+**What happened.** Chick Shack's first Google Search campaign went live. Reading the account
+mid-evening it showed **1 click, GBP 2.28, 5 impressions**, and production held exactly **one**
+online order that evening, from a customer with **no prior row anywhere in the order history**.
+That was reported to Malik as a strong circumstantial case that the ad produced the sale, with the
+click's hour (15:00-16:00, against a 16:00 open) offered as corroboration.
+
+**Every leg of it was wrong by morning.** Once the day closed the same screen read **3 clicks, 15
+impressions, GBP 9.68, avg CPC GBP 3.23**, and the shop had taken **10 orders worth GBP 262.60**, of
+which **7** were from customers with no prior order. One-click-one-order became three-clicks-ten-
+orders, "never seen before" became unremarkable, and the timing argument became meaningless with
+three clicks and ten orders to pair up.
+
+**Root cause: Google Ads same-day figures are incomplete and revise upward.** They were read and
+quoted *inside* the trading day. Nothing was miscounted; the source was simply not final. Malik had
+already relayed the story toward the client before the correction landed.
+
+**Rules taken from it.**
+1. **Never quote a campaign number before the day has closed in the account's own time zone.** Check
+   `Admin > Account settings > Time zone` first - it governs what "today" even means in the report.
+2. **A "brand new customer" claim needs a base rate.** 1 new customer is a story; 7 of 10 new is the
+   shop's ordinary Thursday. Always compute the denominator before calling a single case notable.
+3. **Match phone numbers normalised.** The order table mixes `07…` and `447…` for one person;
+   exact-string matching undercounted a returning customer's history 1 vs 3. Compare the last 9
+   digits.
+4. **"Prior orders" here means prior orders IN OUR SYSTEM** - online only, from ~2026-08-01. In-house
+   EposNow trade is invisible to it, so "new customer" can mean a ten-year regular ordering online
+   for the first time.
+
+**Also found while fixing it (F34), and the reason the fix exists.** The browser conversion tag can
+only attribute a card order when the customer accepted cookies: `Checkout.tsx` sends them to Stripe
+via `window.location.assign`, Stripe returns them to a **fixed** `STRIPE_SUCCESS_URL`, and the
+`gclid` is gone from the URL by the time the conversion fires. `url_passthrough` cannot survive that
+hop. Consent defaults to denied for UK PECR, so the common case was a sale that converted and could
+not be shown to have converted. Fixed by storing the click id on the order itself (`c4cf3eb`).
+
 ### 2026-08-27 - A BOM in an env file made docker compose print the API key in full
 - **Error**: `failed to read /root/pos-system/.env.demo: line 45: unexpected character "﻿" in
   variable name "﻿ANTHROPIC_API_KEY=sk-ant-..."` - **with the entire key value in the message.**

@@ -53,6 +53,17 @@ Malik's call, not made.
 **Backups:** `/root/backups/preflight-oi92-item2-20260827-213548/` (pg_dump 404 KB `gzip -t` OK,
 env file, all configs) plus the script's own `backups/pre_migrate_2026-08-27_214001.sql` (1.99 MB).
 
+🟢 **Run 3 (`2d8785b`, docs only, run `33119969409`, 21:52-21:54 UTC) is the steady-state proof,
+measured with the poller running the whole time:**
+- nginx: **same container `fff487cf5ddb`, same start time, same PID `1502598`** across a full deploy.
+  The script printed `nginx config unchanged. nginx NOT touched.`
+- Frontend swap (`current -> releases/2d8785b…` at 21:53:29.8): **zero non-200 polls on `/`**, not one,
+  across the entire run. Orbit `parkcity` likewise 200 throughout.
+- Backend replace: **~32 s of `/api/` unavailability** (3 connection errors then 49 × 502, 21:52:51 to
+  21:53:23), versus 47 s on run 1. So the remaining exposure is 30-50 s of API per deploy, frontend
+  and other tenants' hostnames zero. HEAD `2d8785b` = origin = server, 0 unpushed.
+- Chick Shack identical again: `244 / 20:22:03 / 173 / 230 / 714335 / 87 / 3`. 0 backend errors.
+
 **New open item OI-95:** Orbit's `voice.conf` still has a bare upstream name, so the SHARED nginx
 cannot START if `orbit_api` is down. Not our file. Flag to Orbit's owner.
 
@@ -244,6 +255,62 @@ suggestive, it is NOT proof.** Stated plainly:
   real order, with the right value, has still never been observed. 6 real orders ran on 08-26
   and proved nothing either way, because Google Ads only reports conversions it can tie to an ad
   click and none of those came from one. **This order is the first genuine test of the tag.**
+
+### 🟢 F34 SHIPPED. `c4cf3eb`, deployed and verified on production 2026-08-27 ~23:50 UK (shop shut).
+
+**Every order placed from a Google ad click from now on carries the click id in our own database.**
+`orders.gclid` + `orders.click_type`, captured from the landing URL before first render and posted
+with the basket.
+
+**Verified, in this order, none of it assumed:**
+- `Deploy to Production` run `33123131021` **success**. (`Deploy to Staging` failed, as it has on
+  every commit today including before this one. Pre-existing, unrelated.)
+- Server HEAD **`c4cf3eb`**, `alembic_version = **d6e7f8a9b0c1**`, both columns and `ix_orders_gclid`
+  present, and `drop_unusable_gclid` confirmed **inside the RUNNING container**.
+- 🟢 **nginx never restarted** (`Up 54 minutes` across the whole deploy) and Orbit's three containers
+  untouched. The new deploy script's promise held.
+- Storefront deployed separately via Cloudflare (version `8b7d666d-fe56-4566-9f1e-6e65341dfe35`).
+  **Checked on the LIVE domain, not the Action**, per [[chick-shack-two-deploy-pipelines]]: bundle
+  `/assets/index-CAgFhDWT.js`, 202,258 bytes, containing the capture key, `gbraid`, the existing
+  conversion label and the untouched `checkout-session` path.
+- Chick Shack intact: **244 orders**, last `21:22:03`, **0 backend errors**, all three hostnames 200.
+- Pre-migration backup `/root/backups/pos_pre_gclid_20260827T223421Z.sql.gz`, 396K, `gzip -t` OK,
+  plus the deploy script's own `pre_migrate` dump.
+
+**Test evidence:** 15 hostile click-id inputs against the real schema, **0 orders rejected**; and
+end to end through the real endpoint - valid id stored with its type, malformed id **201** with
+NULL, absent **201** with NULL. Suite 848 passed / 12 failed; 8 are the known QuickBooks Desktop
+set, 2 the known pre-existing pair, and 2 are **clock-dependent test bugs, not regressions**:
+`test_public_tenant_routing` filters by an order's **UTC** date while the endpoint resolves `date=`
+against the shop's **local** day (`RestaurantConfig.timezone` defaults to `Asia/Karachi`), so they
+fail after 19:00 UTC and pass earlier. **The product is right and the tests are wrong.** Worth
+fixing so the suite is reproducible across times of day.
+
+✅ **BROWSER CAPTURE PROVEN ON THE LIVE DOMAIN, by Malik, 2026-08-27 ~23:50 UK.**
+`https://chickshackg84.com/?gclid=F34TESTabc123def` then
+`localStorage.getItem('cs_click_id_v1')` returned
+`{"id":"F34TESTabc123def","type":"gclid","at":1787870606205}`. The `at` decodes to
+2026-08-27 23:50 UTC, so the stored clock is real and the 30-day expiry will evaluate correctly.
+
+📌 **State the chain honestly. Three segments, two observed on production, one inferred:**
+1. ✅ URL -> localStorage, **observed in the live browser** (above). This was the genuinely uncertain
+   segment: first-render timing, StrictMode double-invoke, and surviving the Stripe hop.
+2. ⚪ localStorage -> POST body. **Inferred, not watched on the live site.** The live bundle is
+   grep-confirmed to contain the code, and the identical code was driven end to end locally, but
+   nobody has observed the live POST carrying the field. Proving it costs a real order in Imran's
+   queue, which is not worth the debris.
+3. ✅ POST body -> stored row, **observed** (production columns, running-container code, and the
+   local end-to-end run: valid stored, malformed 201/NULL, absent 201/NULL).
+
+**Segment 2 self-proves on the first real ad order.** Check it with:
+`SELECT order_number, gclid, click_type, created_at FROM orders WHERE tenant_id='8b2b6223-7db9-443b-8ace-34dd115a9275' AND gclid IS NOT NULL ORDER BY created_at;`
+**If clicks arrive tomorrow and that stays empty, segment 2 is the fault.** Do not conclude the ads
+failed until that query has been run.
+
+📌 **Still to do, in order:** (1) that browser check; (2) create the import-type conversion action -
+`Uploads` is now empty and Google has moved this into **Data Manager**, so the old path in the
+08-25 block is stale; (3) the offline upload itself, modelled on `bilal-app/gads_oci_export.py`,
+set **Secondary/observation** so it never steers bidding.
 
 ### 🔴 2026-08-28. RETRACTED IN FULL: THE "ONE CLICK, ONE ORDER" CASE FOR 2026-08-27 IS DEAD.
 

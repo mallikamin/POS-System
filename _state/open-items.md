@@ -2617,6 +2617,37 @@ UAT failure of 99.
 **Imran R**; a third party "Rizwan" is referenced on the call. Confirm before any named document goes
 out.
 
+**OI-96 · Google Ads attribution: finish the loop back to Google.** `c4cf3eb` stores the click id
+on the order, so "did the ad produce this sale?" is now answerable from our own database. Two steps
+remain, neither urgent, both needing Malik's clicks in the Google Ads UI:
+1. **Create the import-type conversion action.** `Goals > Conversions > Uploads` is now EMPTY - Google
+   has moved offline imports into **Data Manager**, so the path written in STATE.md's 2026-08-25
+   block is stale. Set it **Secondary/observation**, never Primary, so it cannot steer bidding until
+   there is volume to justify it.
+2. **Build the upload**, modelled on `C:\FBAIilal-app\gads_oci_export.py` - it already solves this
+   exact problem (join sold rows to captured click ids, emit the CSV). Send the **actual order
+   amount**, not a list-price guess; that file carries a comment about getting it wrong three times.
+
+⚠️ **Segment 2 of the chain is inferred, not observed.** URL -> localStorage is proven in the live
+browser, and POST -> row is proven on production, but nobody has watched the live POST carry the
+field. It self-proves on the first real ad order. Before concluding the ads failed, run:
+`SELECT order_number, gclid, click_type, created_at FROM orders WHERE tenant_id='8b2b6223-7db9-443b-8ace-34dd115a9275' AND gclid IS NOT NULL ORDER BY created_at;`
+
+**OI-97 · Two clock-dependent test failures, product is correct.**
+`test_public_tenant_routing::test_explicit_date_reaches_a_past_days_pending_orders` and
+`::test_date_range_scopes_the_all_tab` build their filter from an order's **UTC** date, while the
+endpoint resolves `date=` against the shop's **local** calendar day (`RestaurantConfig.timezone`
+defaults to `Asia/Karachi`, UTC+5). They therefore **fail after 19:00 UTC and pass earlier**. The
+endpoint is right and the tests are wrong. Fix the tests to derive the date in the tenant's own
+timezone, so the suite is reproducible at any hour. Not a regression, and not caused by `c4cf3eb`.
+
+**OI-98 · Where do the Google Business Profile order buttons point?** Still unverified, and
+potentially worth more than the whole ad budget. The knowledge panel carries `Order pickup` and
+`Order delivery` above the fold. If they route to an aggregator, every brand searcher who taps them
+pays commission on traffic Imran already owns for free; repointing them at `chickshackg84.com` is a
+pure margin win needing **zero ad spend**. Controlled by the `Food ordering` tool in the GBP manager
+toolbar.
+
 ---
 
 ## Recently closed
