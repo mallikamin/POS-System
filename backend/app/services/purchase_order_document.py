@@ -38,13 +38,15 @@ from app.models.procurement import PurchaseOrder
 from app.models.restaurant_config import RestaurantConfig
 from app.models.tenant import Tenant
 
-_CURRENCY_SYMBOLS = {"GBP": "£", "PKR": "Rs.", "USD": "$", "EUR": "€"}
+# F26: this table was missing AED and fell back to an EMPTY symbol, so a
+# UAE supplier's purchase order rendered bare numbers. Shared table now.
+from app.utils.money import currency_symbol
 
 
 def _money_str(value_minor, currency: str) -> str:
     """Minor units to a display string. The only division by 100 in the module."""
     amount = Decimal(str(value_minor)) / Decimal(100)
-    symbol = _CURRENCY_SYMBOLS.get(currency, "")
+    symbol = currency_symbol(currency)
     formatted = f"{amount:,.2f}"
     return f"{symbol}{formatted}" if symbol else f"{formatted} {currency}"
 

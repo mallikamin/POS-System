@@ -94,6 +94,23 @@ export function getCurrencyDef(code: string = activeCode): CurrencyDef {
 }
 
 /**
+ * The locale to format DATES and TIMES in for this tenant.
+ *
+ * F27: seven screens hardcoded a locale — `en-PK` on the printed receipt, the
+ * Z-report and the staff list, `en-GB` on the order lists. So a UAE client's
+ * own tax receipt carried a Pakistani date format, and the same build showed
+ * two different date conventions on adjacent screens.
+ *
+ * Derived from the currency because that is the only jurisdiction signal the
+ * tenant config carries, and it is already paired with a locale in the table
+ * above. If a tenant ever needs a locale independent of its currency, that
+ * becomes a config field rather than a second hardcoded constant.
+ */
+export function currencyLocale(code: string = activeCode): string {
+  return getCurrencyDef(code).locale;
+}
+
+/**
  * Format an integer minor-unit amount for display.
  * @param minor Integer amount in minor units (paisa / pence / fils).
  */

@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { currencyLocale } from "@/utils/currency";
 import { isAxiosError } from "axios";
 import { Users, Plus, Pencil, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -63,6 +64,8 @@ function StaffManagementPage() {
   const [eName, setEName] = useState("");
   const [eEmail, setEEmail] = useState("");
   const [eRole, setERole] = useState("");
+  const [eNewPin, setENewPin] = useState("");
+  const [resettingPin, setResettingPin] = useState(false);
 
   const fetchStaff = useCallback(async (q?: string) => {
     try {
@@ -112,6 +115,7 @@ function StaffManagementPage() {
     setEName(member.full_name);
     setEEmail(member.email);
     setERole(member.role.id);
+    setENewPin("");
     setEditOpen(true);
   }
 
@@ -160,6 +164,21 @@ function StaffManagementPage() {
     }
   }
 
+  async function handleResetPin() {
+    if (!editTarget || eNewPin.length < 4) return;
+    try {
+      setResettingPin(true);
+      await api.patch(`/staff/${editTarget.id}/reset-pin`, { new_pin: eNewPin });
+      toast({ title: `PIN updated for ${editTarget.full_name}`, variant: "success" });
+      setENewPin("");
+    } catch (err: unknown) {
+      const msg = isAxiosError(err) ? (err.response?.data?.detail ?? "Failed to reset PIN") : "Failed to reset PIN";
+      toast({ title: msg, variant: "destructive" });
+    } finally {
+      setResettingPin(false);
+    }
+  }
+
   async function toggleActive(member: StaffMember) {
     try {
       await api.patch(`/staff/${member.id}`, {
@@ -177,7 +196,7 @@ function StaffManagementPage() {
 
   function formatDate(iso: string | null): string {
     if (!iso) return "Never";
-    return new Intl.DateTimeFormat("en-PK", {
+    return new Intl.DateTimeFormat(currencyLocale(), {
       dateStyle: "medium",
       timeStyle: "short",
     }).format(new Date(iso));
@@ -395,6 +414,29 @@ function StaffManagementPage() {
                   </option>
                 ))}
               </select>
+            </div>
+            <div className="space-y-2 border-t pt-4">
+              <Label>Reset PIN (4-6 digits)</Label>
+              <div className="flex gap-2">
+                <Input
+                  value={eNewPin}
+                  onChange={(e) => setENewPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  placeholder="e.g. 1234"
+                  className="min-h-[48px]"
+                />
+                <Button
+                  variant="outline"
+                  onClick={handleResetPin}
+                  disabled={resettingPin || eNewPin.length < 4}
+                  className="min-h-[48px] gap-2 shrink-0"
+                >
+                  {resettingPin && <Loader2 className="h-4 w-4 animate-spin" />}
+                  Set PIN
+                </Button>
+              </div>
+              <p className="text-pos-xs text-secondary-500">
+                Sets a new PIN immediately — separate from Update below, no need to also save.
+              </p>
             </div>
           </div>
           <DialogFooter>

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { currencyLocale } from "@/utils/currency";
 import { Link } from "react-router-dom";
 import { ArrowLeft, Download } from "lucide-react";
 import { useConfigStore } from "@/stores/configStore";
@@ -295,7 +296,7 @@ export default function OnlineReportsPage() {
                           {o.customer_name ?? "—"}
                         </td>
                         <td className="px-3 py-2 text-secondary-300">
-                          {new Date(o.rejected_at).toLocaleString("en-GB", {
+                          {new Date(o.rejected_at).toLocaleString(currencyLocale(), {
                             day: "2-digit",
                             month: "short",
                             hour: "2-digit",

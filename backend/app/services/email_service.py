@@ -41,6 +41,7 @@ from email.message import EmailMessage
 from email.utils import formataddr
 from html import escape as html_escape
 
+from app.utils.money import currency_symbol
 import httpx
 
 from app.config import settings
@@ -79,7 +80,7 @@ _FONT_STACK = "'Helvetica Neue', Helvetica, Arial, sans-serif"
 
 def _money(amount: int, currency: str) -> str:
     """Integer minor units to a display string. 1499 GBP -> "£14.99"."""
-    symbol = {"GBP": "£", "PKR": "Rs.", "USD": "$", "EUR": "€"}.get(currency, "")
+    symbol = currency_symbol(currency)  # F26: was missing AED -> empty symbol
     return f"{symbol}{amount / 100:,.2f}"
 
 

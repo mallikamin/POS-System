@@ -1,3 +1,4 @@
+import { currencyLocale } from "@/utils/currency";
 /**
  * Pure display helpers for the online-order queue card.
  *
@@ -40,7 +41,7 @@ export function shopTime(iso: string, tz?: string): string {
 /** "23:14, 28 Jul" — for a pre-order, the date matters as much as the time. */
 export function placedAt(iso: string, tz?: string): string {
   try {
-    return new Date(iso).toLocaleString("en-GB", {
+    return new Date(iso).toLocaleString(currencyLocale(), {
       hour: "2-digit",
       minute: "2-digit",
       day: "2-digit",
@@ -48,7 +49,7 @@ export function placedAt(iso: string, tz?: string): string {
       ...(tz ? { timeZone: tz } : {}),
     });
   } catch {
-    return new Date(iso).toLocaleString("en-GB", {
+    return new Date(iso).toLocaleString(currencyLocale(), {
       hour: "2-digit",
       minute: "2-digit",
       day: "2-digit",

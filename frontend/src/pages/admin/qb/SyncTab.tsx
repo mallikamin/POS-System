@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { formatMoney } from "@/utils/currency";
 import {
   Loader2,
   RefreshCw,
@@ -135,7 +136,8 @@ export function SyncTab({ isConnected }: SyncTabProps) {
   }
 
   function formatPKR(paisa: number) {
-    return `Rs.${(paisa / 100).toLocaleString("en-PK", { minimumFractionDigits: 2 })}`;
+    // F27: hardcoded Rs. and en-PK on a screen that shows money.
+  return formatMoney(paisa);
   }
 
   if (!isConnected) {

@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from "react";
+import { currencyLocale } from "@/utils/currency";
 import { formatMoney } from "@/utils/currency";
 import { Printer, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -197,7 +198,7 @@ export function ReceiptModal({ orderId, sessionId, open, onClose }: Props) {
               <span>{orderTypeLabel[receipt.order_type] ?? receipt.order_type}</span>
             </div>
             <div>
-              {new Date(receipt.date).toLocaleString("en-PK", {
+              {new Date(receipt.date).toLocaleString(currencyLocale(receipt.currency), {
                 dateStyle: "short",
                 timeStyle: "short",
               })}

@@ -39,13 +39,9 @@ from app.services.escpos import Ticket
 
 # Symbols for the currencies this product actually ships in. Anything else
 # falls back to the ISO code plus a space, which is ugly but never wrong.
-_CURRENCY_SYMBOLS = {
-    "GBP": "£",
-    "PKR": "Rs.",
-    "USD": "$",
-    "EUR": "EUR ",
-    "AED": "AED ",
-}
+# The canonical table lives in app.utils.money; this module's copy was the
+# only correct one and became the shared implementation (F26).
+from app.utils.money import CURRENCY_SYMBOLS as _CURRENCY_SYMBOLS
 
 DIP_TUB_SUFFIX = " (Dip Tub)"
 

@@ -29,7 +29,9 @@ from app.models.restaurant_config import RestaurantConfig
 from app.models.tenant import Tenant
 from app.services.quotation_service import display_status
 
-_CURRENCY_SYMBOLS = {"GBP": "£", "PKR": "Rs.", "USD": "$", "EUR": "€"}
+# F26: was missing AED and fell back to an empty symbol, on a document
+# that goes to the customer. Shared table now.
+from app.utils.money import currency_symbol
 
 _C_INK = "#111827"
 _C_MUTED = "#6b7280"
@@ -40,7 +42,7 @@ _FONT = "'Helvetica Neue', Helvetica, Arial, sans-serif"
 
 def _money_str(minor: int, currency: str) -> str:
     amount = int(minor) / 100
-    symbol = _CURRENCY_SYMBOLS.get(currency, "")
+    symbol = currency_symbol(currency)
     return f"{symbol}{amount:,.2f}" if symbol else f"{amount:,.2f} {currency}"
 
 

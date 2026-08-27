@@ -20,6 +20,23 @@ from app.schemas.receipt import (
 )
 
 
+def _tax_label(currency: str | None, rate_bps: int) -> str:
+    """What this jurisdiction calls its consumption tax, for the printed receipt.
+
+    F18: this was hardcoded to "GST", which is correct for Pakistan and wrong
+    for the UAE -- the Emirates levy VAT -- and wrong for the UK. It printed on
+    the customer's tax receipt, which is the one document they keep.
+
+    Keyed on the tenant's configured currency, which is the only jurisdiction
+    signal the config carries. Mirrors `taxName()` in the frontend.
+    """
+    if rate_bps <= 0:
+        return "Tax"
+    return {"PKR": "GST", "AED": "VAT", "GBP": "VAT"}.get(
+        (currency or "").upper(), "Tax"
+    )
+
+
 async def get_receipt_data(
     db: AsyncSession,
     tenant_id: uuid.UUID,
@@ -145,7 +162,7 @@ async def get_receipt_data(
         waiter_name=order.waiter.full_name if order.waiter else None,
         items=receipt_items,
         subtotal=order.subtotal,
-        tax_label="GST" if tax_rate_bps > 0 else "Tax",
+        tax_label=_tax_label(config.currency if config else None, tax_rate_bps),
         tax_rate_display=f"{tax_pct:.0f}%"
         if tax_pct == int(tax_pct)
         else f"{tax_pct:.2f}%",
@@ -336,7 +353,7 @@ async def get_session_receipt_data(
         waiter_name=next((o.waiter.full_name for o in orders if o.waiter), None),
         items=receipt_items,
         subtotal=subtotal,
-        tax_label="GST" if tax_rate_bps > 0 else "Tax",
+        tax_label=_tax_label(config.currency if config else None, tax_rate_bps),
         tax_rate_display=f"{tax_pct:.0f}%"
         if tax_pct == int(tax_pct)
         else f"{tax_pct:.2f}%",

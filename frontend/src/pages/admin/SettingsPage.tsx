@@ -324,7 +324,7 @@ function SettingsPage() {
                 />
                 <p className="text-pos-sm text-secondary-500">
                   {discountThresholdFixed > 0
-                    ? `Discounts > Rs ${discountThresholdFixed} need approval`
+                    ? `Discounts > ${currency} ${discountThresholdFixed} need approval`
                     : "Disabled"}
                 </p>
               </div>
