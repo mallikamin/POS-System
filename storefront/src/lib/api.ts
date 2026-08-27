@@ -20,6 +20,7 @@
  */
 
 import type { Pence, ServiceType } from "../types";
+import { storedClickId, type ClickType } from "./clickId";
 
 const DEFAULT_API_BASE = "https://eats.sitaratech.info/api/v1";
 const DEFAULT_TENANT_SLUG = "chick-shack";
@@ -110,6 +111,16 @@ export interface ApiOrderRequest {
    * The server re-validates (0..2000) and adds it to its own total.
    */
   tip?: Pence;
+  /**
+   * F34: the Google Ads click this order should be credited to, if any.
+   *
+   * Attached by `placeOrder` itself rather than by the checkout form, so no
+   * caller has to remember it and nothing about the basket UI needs to know
+   * that advertising exists. Absent for the overwhelming majority of orders.
+   * The server drops anything malformed rather than rejecting the order.
+   */
+  gclid?: string;
+  click_type?: ClickType;
 }
 
 export interface ApiOrderLine {
@@ -255,9 +266,16 @@ export function fetchMenu(): Promise<ApiMenuResponse> {
 }
 
 export function placeOrder(order: ApiOrderRequest): Promise<ApiOrderResponse> {
+  // F34. Attached here, at the single choke point every order passes through,
+  // rather than in the checkout form. The form has no business knowing about
+  // advertising, and a second call site added later cannot forget this.
+  //
+  // `storedClickId` never throws and returns null on any doubt, so the spread
+  // is a no-op for the ordinary visitor who never saw an ad.
+  const click = storedClickId();
   return request<ApiOrderResponse>(`/public/${TENANT_SLUG}/orders`, {
     method: "POST",
-    body: JSON.stringify(order),
+    body: JSON.stringify(click ? { ...order, ...click } : order),
   });
 }
 

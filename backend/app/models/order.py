@@ -126,6 +126,35 @@ class Order(BaseMixin, Base):
         comment="Immutable tax invoice number, assigned at first issue",
     )
 
+    # F34. The Google Ads click that led to this order, captured from the
+    # landing URL by the storefront and posted back with the basket.
+    #
+    # This exists because NOTHING ELSE can answer "did the ad produce this
+    # sale?" from our own data. The browser tag can only answer it when the
+    # customer accepted cookies: a card order leaves the domain for Stripe and
+    # returns to a fixed success_url, so the click id is gone from the URL by
+    # the time the conversion fires, and `url_passthrough` cannot survive that
+    # hop. Stored here, the question is a SELECT.
+    #
+    # Nullable forever, and deliberately so. Most orders are not from an ad,
+    # ad blockers exist, and a missing click id must never be able to affect
+    # whether food gets cooked.
+    gclid: Mapped[str | None] = mapped_column(
+        String(150),
+        nullable=True,
+        index=True,
+        comment="Google Ads click id from the landing URL, if the order came from an ad",
+    )
+    # Which of the three Google click parameters this is. `gclid` is the
+    # ordinary one; `gbraid` and `wbraid` are the iOS/privacy-safe variants and
+    # are NOT interchangeable with it on upload, so the kind is recorded rather
+    # than inferred.
+    click_type: Mapped[str | None] = mapped_column(
+        String(10),
+        nullable=True,
+        comment="One of gclid, gbraid, wbraid",
+    )
+
     customer_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     customer_phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
     # Where confirmations for THIS order go. Held on the order rather than only

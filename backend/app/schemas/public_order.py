@@ -14,6 +14,7 @@ by the server from its own menu rows.
 If you ever find yourself adding a price to a request schema here, stop.
 """
 
+import re
 import uuid
 from datetime import datetime
 from typing import Literal
@@ -24,6 +25,18 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 # ---------------------------------------------------------------------------
 # Public menu (response only)
 # ---------------------------------------------------------------------------
+
+
+# F34. Google's own click-id shape, borrowed from the proven implementation in
+# bilal-app (`src/worker.js`, the /api/gads-click beacon). A whitelist, not a
+# sanity check: the value is written to our database and later uploaded to
+# Google, so it is bounded at the edge rather than trusted.
+_CLICK_ID_RE = re.compile(r"^[A-Za-z0-9_.-]{8,150}$")
+
+# The three parameters auto-tagging can put on a landing URL. `gbraid` and
+# `wbraid` are the iOS/privacy-safe variants; they are NOT interchangeable with
+# `gclid` when uploading a conversion, which is why the kind is stored.
+_CLICK_TYPES = frozenset({"gclid", "gbraid", "wbraid"})
 
 
 class PublicModifier(BaseModel):
@@ -145,6 +158,57 @@ class PublicOrderCreate(BaseModel):
     # only thing that can be trusted to derive a fee from.
     delivery_area_id: str | None = Field(None, max_length=60)
     delivery_address: str | None = Field(None, max_length=500)
+
+    # F34. Google Ads click id, captured from the landing URL by the storefront.
+    # Optional in every sense: absent for the overwhelming majority of orders,
+    # absent when an ad blocker ate the query string, and absent whenever the
+    # customer simply typed the address in. It is measurement data riding along
+    # with the basket and it must never be able to fail an order -- hence no
+    # `model_validator` touches it, and a malformed value is dropped below
+    # rather than raised.
+    #
+    # The pattern is Google's own click-id shape, borrowed from the proven
+    # implementation in bilal-app (`src/worker.js`, /api/gads-click beacon).
+    # It is a whitelist, not a sanity check: this value is written to our
+    # database and later uploaded to Google, so it is bounded here at the edge.
+    gclid: str | None = None
+    click_type: str | None = None
+
+    @field_validator("gclid", mode="before")
+    @classmethod
+    def drop_unusable_gclid(cls, v: object) -> str | None:
+        """Anything that is not a well-formed click id becomes absent.
+
+        Deliberately NOT expressed as `pattern=` on the field. A `pattern`
+        rejects, and a rejection here is a 422 on `POST /orders` -- which is a
+        customer losing their basket at the checkout button because a query
+        parameter was malformed. An ad blocker rewriting the URL, a truncated
+        share link, or a bot appending junk would each do it.
+
+        The order is the thing that matters; the measurement is not. A value
+        that does not match is discarded silently and the sale proceeds
+        unattributed, which is exactly the pre-F34 behaviour and therefore
+        cannot be a regression.
+        """
+        if not isinstance(v, str):
+            return None
+        v = v.strip()
+        return v if _CLICK_ID_RE.fullmatch(v) else None
+
+    @field_validator("click_type", mode="before")
+    @classmethod
+    def drop_unknown_click_type(cls, v: object) -> str | None:
+        """Same reasoning as `gclid`: an unknown kind is dropped, never raised.
+
+        Not a `Literal`, for exactly the 422 reason above. `gbraid` and
+        `wbraid` are the iOS/privacy-safe variants and Google does not treat
+        them as interchangeable with `gclid` on upload, so the kind is recorded
+        rather than guessed at from the value's shape.
+        """
+        if not isinstance(v, str):
+            return None
+        v = v.strip().lower()
+        return v if v in _CLICK_TYPES else None
 
     @model_validator(mode="after")
     def delivery_requires_area_and_address(self) -> "PublicOrderCreate":

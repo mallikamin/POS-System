@@ -596,6 +596,13 @@ async def create_public_order(
         delivery_fee=delivery_fee,
         service_fee=service_fee,
         tip=data.tip,
+        # F34. Written in the same INSERT as the order, so "did the ad produce
+        # this sale?" is answerable from the instant the row exists and does
+        # not depend on the customer having accepted cookies, on the click id
+        # surviving the Stripe redirect, or on Google reporting back. Already
+        # validated and coerced to None by the schema if unusable.
+        gclid=data.gclid,
+        click_type=data.click_type if data.gclid else None,
         created_by=system_user.id,
         items=order_items,
     )
