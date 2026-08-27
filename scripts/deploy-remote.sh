@@ -101,26 +101,50 @@ echo "    backup OK: $BACKUP ($(wc -c < "$BACKUP") bytes)"
 echo "==> Running migrations"
 dc exec -T backend alembic upgrade head < /dev/null
 
-# --- nginx: LAST, and only after proving its mounts -------------------------
-# Recreating frontend and backend above gave them new container IPs. nginx
-# resolved the old ones at startup and caches them, so skipping this leaves a
-# 502 for someone to fix by hand. `restart` does NOT clear that cache.
+# --- nginx: RELOAD, never recreate (OI-92 item 1, second half) --------------
+# This step used to be `up -d --no-deps --force-recreate nginx`, and it was the
+# single reason a deploy needed a closed-shop window. nginx is SHARED: it serves
+# Chick Shack's tablet, Orbit CRM and orbit-voice. Dropping the container drops
+# all of them, so a POS deploy could take down two other businesses.
 #
-# nginx is SHARED INFRASTRUCTURE -- it serves Orbit CRM too, and on 2026-03-26
-# recreating it without its voice.conf mount took orbit-voice down for ~20
-# minutes. Compose recreation is safe because all four mounts are declared in
-# the compose file, but a missing voice.conf on the HOST would make Docker
-# create a DIRECTORY at that path and nginx would refuse to start, taking BOTH
-# sites down. So prove it is a file first.
+# It was only ever done because nginx resolved `backend` and `frontend` to
+# container IPs at config load and cached them, so recreating those two left
+# nginx pointing at dead addresses. That is fixed: every proxy_pass now goes
+# through a variable and re-resolves per request via Docker's embedded DNS.
+# nginx therefore does NOT need replacing when backend or frontend move.
+#
+# What it still needs is to pick up CONFIG changes. `nginx -s reload` does that
+# gracefully: the master process starts new workers on the new config and lets
+# the old ones finish their in-flight requests. No container operation, no
+# dropped connections, no mounts at risk, and nothing for Orbit CRM to notice.
+#
+# The order below matters. `nginx -t` runs FIRST and the reload only happens if
+# it passes, so a broken config leaves the site serving the last good one
+# instead of taking it down.
 if [ ! -f /root/orbit-crm/voice.conf ]; then
-  echo "REFUSING to recreate nginx: /root/orbit-crm/voice.conf is missing."
-  echo "Recreating now would drop Orbit CRM's config and 502 both sites."
+  echo "REFUSING to touch nginx: /root/orbit-crm/voice.conf is missing."
+  echo "Its mount would have become a DIRECTORY and nginx would refuse to load."
   exit 1
 fi
 
-echo "==> Recreating nginx"
-dc up -d --no-deps --force-recreate nginx
-docker exec pos-system-nginx-1 nginx -t
+if [ -z "$(docker ps -q -f name='^pos-system-nginx-1$')" ]; then
+  # Only case that still needs a container operation: nginx is not running at
+  # all, so there is nothing to reload and nothing to interrupt.
+  echo "==> nginx is not running. Starting it."
+  dc up -d --no-deps nginx
+else
+  echo "==> Testing nginx config before applying it"
+  if ! docker exec pos-system-nginx-1 nginx -t; then
+    echo
+    echo "FAILED: the new nginx config is invalid. NOTHING was applied and the"
+    echo "running config is untouched, so all sites are still up. Fix the"
+    echo "config and deploy again."
+    exit 1
+  fi
+
+  echo "==> Reloading nginx gracefully (no container replaced)"
+  docker exec pos-system-nginx-1 nginx -s reload
+fi
 
 dc ps
 echo "==> Deployment complete"
