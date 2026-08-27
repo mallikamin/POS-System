@@ -5,9 +5,9 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 from decimal import Decimal
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, PlainSerializer, model_validator
 
 LocationType = Literal["production", "delivery", "retail"]
 InvoiceFormat = Literal["a4_tax_invoice", "thermal_ticket"]
@@ -17,6 +17,28 @@ TransferStatus = Literal["draft", "in_transit", "received", "cancelled"]
 # ---------------------------------------------------------------------------
 # LOCATIONS
 # ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# Decimal on the wire
+# ---------------------------------------------------------------------------
+# Pydantic v2 serialises `Decimal` to a JSON **string**, not a number, while the
+# frontend types every one of these fields as `number` and does arithmetic on
+# them. That mismatch took `/admin/ingredients` down completely in UAT
+# (`current_stock.toFixed is not a function`, F14); the schemas here carry the
+# same latent fault on the stock, supplier, purchase-order, receiving and
+# order-planner screens, several of which only survive because JS coerces
+# strings in `*`, `/` and `>`.
+#
+# `Num` serialises as a JSON number and leaves VALIDATION untouched -- inbound
+# parsing still goes through `Decimal`, so request precision and every
+# `ge`/`gt` constraint are unchanged, and no money is computed in float on the
+# server. Only the outbound representation moves, and it moves to what the
+# client already assumed.
+Num = Annotated[
+    Decimal,
+    PlainSerializer(float, return_type=float, when_used="json"),
+]
 
 
 class LocationBase(BaseModel):
@@ -146,10 +168,10 @@ class LocationStockRow(BaseModel):
     ingredient_id: uuid.UUID
     ingredient_name: str
     unit: str
-    quantity: Decimal
-    reorder_point: Decimal
-    reorder_quantity: Decimal
-    cost_per_unit: Decimal
+    quantity: Num
+    reorder_point: Num
+    reorder_quantity: Num
+    cost_per_unit: Num
     is_produced: bool
     is_low: bool
 
@@ -169,11 +191,11 @@ class StockMovementRow(BaseModel):
     location_id: uuid.UUID | None
     location_name: str | None
     transaction_type: str
-    quantity: Decimal
+    quantity: Num
     unit: str
-    balance_after: Decimal
-    unit_cost: Decimal
-    total_cost: Decimal
+    balance_after: Num
+    unit_cost: Num
+    total_cost: Num
     transaction_date: datetime
     performed_by_name: str | None
     notes: str | None
@@ -184,7 +206,7 @@ class StockMovementRow(BaseModel):
 class StockAdjustRequest(BaseModel):
     ingredient_id: uuid.UUID
     location_id: uuid.UUID | None = None
-    quantity_delta: Decimal = Field(
+    quantity_delta: Num = Field(
         ..., description="Signed. Positive adds, negative removes."
     )
     reason: str = Field(..., max_length=500, description="Why -- required, not optional")
@@ -199,8 +221,8 @@ class StockAdjustRequest(BaseModel):
 class ReorderLevelRequest(BaseModel):
     ingredient_id: uuid.UUID
     location_id: uuid.UUID
-    reorder_point: Decimal = Field(..., ge=0)
-    reorder_quantity: Decimal = Field(default=0, ge=0)
+    reorder_point: Num = Field(..., ge=0)
+    reorder_quantity: Num = Field(default=0, ge=0)
 
 
 # ---------------------------------------------------------------------------
@@ -210,7 +232,7 @@ class ReorderLevelRequest(BaseModel):
 
 class ProductionRunRequest(BaseModel):
     recipe_id: uuid.UUID
-    batches: Decimal = Field(..., gt=0, description="How many times to run the recipe")
+    batches: Num = Field(..., gt=0, description="How many times to run the recipe")
     location_id: uuid.UUID | None = None
     reference_number: str | None = Field(None, max_length=100)
 
@@ -221,10 +243,10 @@ class ProductionRunResponse(BaseModel):
     recipe_name: str
     location_id: uuid.UUID
     location_name: str
-    batches: Decimal
+    batches: Num
     produced_ingredient_id: uuid.UUID
-    produced_quantity: Decimal
-    unit_cost: Decimal
+    produced_quantity: Num
+    unit_cost: Num
     consumed: list[dict]
 
 
@@ -235,7 +257,7 @@ class ProductionRunResponse(BaseModel):
 
 class TransferLineCreate(BaseModel):
     ingredient_id: uuid.UUID
-    quantity: Decimal = Field(..., gt=0)
+    quantity: Num = Field(..., gt=0)
 
 
 class TransferCreate(BaseModel):
@@ -253,7 +275,7 @@ class TransferCreate(BaseModel):
 
 class TransferReceiveLine(BaseModel):
     item_id: uuid.UUID
-    quantity_received: Decimal = Field(..., ge=0)
+    quantity_received: Num = Field(..., ge=0)
 
 
 class TransferReceiveRequest(BaseModel):
@@ -269,10 +291,10 @@ class TransferItemResponse(BaseModel):
     id: uuid.UUID
     ingredient_id: uuid.UUID
     ingredient_name: str
-    quantity_sent: Decimal
-    quantity_received: Decimal | None
+    quantity_sent: Num
+    quantity_received: Num | None
     unit: str
-    unit_cost: Decimal
+    unit_cost: Num
 
 
 class TransferResponse(BaseModel):

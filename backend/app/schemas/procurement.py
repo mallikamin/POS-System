@@ -10,9 +10,9 @@ from __future__ import annotations
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, PlainSerializer, model_validator
 
 PurchaseOrderStatus = Literal[
     "draft", "sent", "partially_received", "received", "cancelled"
@@ -23,6 +23,28 @@ ReceiptSource = Literal["manual", "ocr"]
 # ---------------------------------------------------------------------------
 # SUPPLIERS
 # ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# Decimal on the wire
+# ---------------------------------------------------------------------------
+# Pydantic v2 serialises `Decimal` to a JSON **string**, not a number, while the
+# frontend types every one of these fields as `number` and does arithmetic on
+# them. That mismatch took `/admin/ingredients` down completely in UAT
+# (`current_stock.toFixed is not a function`, F14); the schemas here carry the
+# same latent fault on the stock, supplier, purchase-order, receiving and
+# order-planner screens, several of which only survive because JS coerces
+# strings in `*`, `/` and `>`.
+#
+# `Num` serialises as a JSON number and leaves VALIDATION untouched -- inbound
+# parsing still goes through `Decimal`, so request precision and every
+# `ge`/`gt` constraint are unchanged, and no money is computed in float on the
+# server. Only the outbound representation moves, and it moves to what the
+# client already assumed.
+Num = Annotated[
+    Decimal,
+    PlainSerializer(float, return_type=float, when_used="json"),
+]
 
 
 class SupplierBase(BaseModel):
@@ -70,7 +92,7 @@ class SupplierResponse(SupplierBase):
     created_at: datetime
     # Filled by the list endpoint from one grouped query, not per-row.
     order_count: int = 0
-    total_spend_minor: Decimal = Decimal("0")
+    total_spend_minor: Num = Decimal("0")
 
 
 # ---------------------------------------------------------------------------
@@ -82,9 +104,9 @@ class SupplierItemUpsert(BaseModel):
     ingredient_id: uuid.UUID
     supplier_sku: str | None = Field(None, max_length=100)
     supplier_item_name: str | None = Field(None, max_length=300)
-    last_price_minor: Decimal = Field(default=Decimal("0"), ge=0)
-    pack_size: Decimal = Field(default=Decimal("0"), ge=0)
-    minimum_order_quantity: Decimal = Field(default=Decimal("0"), ge=0)
+    last_price_minor: Num = Field(default=Decimal("0"), ge=0)
+    pack_size: Num = Field(default=Decimal("0"), ge=0)
+    minimum_order_quantity: Num = Field(default=Decimal("0"), ge=0)
     lead_time_days: int | None = Field(None, ge=0, le=365)
     is_preferred: bool = False
     is_active: bool = True
@@ -100,10 +122,10 @@ class SupplierItemRow(BaseModel):
     unit: str
     supplier_sku: str | None
     supplier_item_name: str | None
-    last_price_minor: Decimal
+    last_price_minor: Num
     last_purchased_at: datetime | None
-    pack_size: Decimal
-    minimum_order_quantity: Decimal
+    pack_size: Num
+    minimum_order_quantity: Num
     lead_time_days: int | None
     is_preferred: bool
     is_active: bool
@@ -119,7 +141,7 @@ class SupplierPurchaseRow(BaseModel):
     location_id: uuid.UUID
     location_name: str
     expected_date: date | None
-    total_minor: Decimal
+    total_minor: Num
     sent_at: datetime | None
     fully_received_at: datetime | None
     created_at: datetime
@@ -132,10 +154,10 @@ class SupplierPurchaseRow(BaseModel):
 
 class PurchaseOrderLineCreate(BaseModel):
     ingredient_id: uuid.UUID
-    quantity_ordered: Decimal = Field(..., gt=0)
+    quantity_ordered: Num = Field(..., gt=0)
     # Omitted means "use what we last paid this supplier, else the ingredient's
     # own cost". MINOR UNITS when supplied.
-    unit_price_minor: Decimal | None = Field(None, ge=0)
+    unit_price_minor: Num | None = Field(None, ge=0)
     supplier_sku: str | None = Field(None, max_length=100)
     notes: str | None = None
 
@@ -166,12 +188,12 @@ class PurchaseOrderItemResponse(BaseModel):
     id: uuid.UUID
     ingredient_id: uuid.UUID
     ingredient_name: str
-    quantity_ordered: Decimal
-    quantity_received: Decimal
-    quantity_outstanding: Decimal
+    quantity_ordered: Num
+    quantity_received: Num
+    quantity_outstanding: Num
     unit: str
-    unit_price_minor: Decimal
-    line_total_minor: Decimal
+    unit_price_minor: Num
+    line_total_minor: Num
     supplier_sku: str | None
     notes: str | None
 
@@ -182,9 +204,9 @@ class GoodsReceiptLineResponse(BaseModel):
     id: uuid.UUID
     purchase_order_item_id: uuid.UUID
     ingredient_id: uuid.UUID
-    quantity_received: Decimal
+    quantity_received: Num
     unit: str
-    unit_price_minor: Decimal
+    unit_price_minor: Num
 
 
 class GoodsReceiptResponse(BaseModel):
@@ -213,9 +235,9 @@ class PurchaseOrderResponse(BaseModel):
     status: PurchaseOrderStatus
     expected_date: date | None
     tax_bps: int
-    subtotal_minor: Decimal
-    tax_minor: Decimal
-    total_minor: Decimal
+    subtotal_minor: Num
+    tax_minor: Num
+    total_minor: Num
     notes: str | None
     delivery_instructions: str | None
     sent_at: datetime | None
@@ -262,9 +284,9 @@ class PurchaseOrderSendResponse(BaseModel):
 
 class GoodsReceiptLineRequest(BaseModel):
     purchase_order_item_id: uuid.UUID
-    quantity_received: Decimal = Field(..., gt=0)
+    quantity_received: Num = Field(..., gt=0)
     # What was actually charged, when it differs from the order. MINOR UNITS.
-    unit_price_minor: Decimal | None = Field(None, ge=0)
+    unit_price_minor: Num | None = Field(None, ge=0)
 
 
 class GoodsReceiptRequest(BaseModel):
@@ -302,7 +324,7 @@ class GoodsReceiptResult(BaseModel):
 
 class ProductionTarget(BaseModel):
     recipe_id: uuid.UUID
-    batches: Decimal = Field(
+    batches: Num = Field(
         ..., gt=0, description="How many times to run this recipe over the period"
     )
 
@@ -325,8 +347,8 @@ class SuggestionRequest(BaseModel):
 class SuggestionTargetRow(BaseModel):
     recipe_id: uuid.UUID
     recipe_name: str
-    batches: Decimal
-    yield_servings: Decimal
+    batches: Num
+    yield_servings: Num
     produces: str
 
 
@@ -336,24 +358,24 @@ class ProductionPlanRow(BaseModel):
     ingredient_id: uuid.UUID
     ingredient_name: str
     unit: str
-    quantity_to_make: Decimal
+    quantity_to_make: Num
 
 
 class SuggestionLine(BaseModel):
     ingredient_id: uuid.UUID
     ingredient_name: str
     unit: str
-    required: Decimal
-    on_hand: Decimal
-    on_order: Decimal
-    shortfall: Decimal
-    suggested_quantity: Decimal
-    unit_price_minor: Decimal
-    estimated_cost_minor: Decimal
+    required: Num
+    on_hand: Num
+    on_order: Num
+    shortfall: Num
+    suggested_quantity: Num
+    unit_price_minor: Num
+    estimated_cost_minor: Num
     supplier_id: uuid.UUID | None
     supplier_name: str | None
     lead_time_days: int | None
-    pack_size: Decimal
+    pack_size: Num
     has_supplier: bool
 
 
@@ -364,7 +386,7 @@ class SuggestionBasket(BaseModel):
     supplier_name: str
     lead_time_days: int | None
     lines: list[SuggestionLine]
-    estimated_total_minor: Decimal
+    estimated_total_minor: Num
 
 
 class PlanAdviceOut(BaseModel):
@@ -381,7 +403,7 @@ class SuggestionResponse(BaseModel):
     lines: list[SuggestionLine]
     baskets: list[SuggestionBasket]
     unsourced: list[SuggestionLine]
-    estimated_total_minor: Decimal
+    estimated_total_minor: Num
     advice: PlanAdviceOut | None = None
     # Populated when advice was asked for and could not be produced. The plan
     # is still complete and correct; only the commentary is missing.
@@ -399,10 +421,10 @@ class ScannedLine(BaseModel):
     purchase_order_item_id: uuid.UUID
     ingredient_name: str
     unit: str
-    quantity_received: Decimal
-    unit_price_minor: Decimal | None
-    ordered_quantity: Decimal
-    outstanding_quantity: Decimal
+    quantity_received: Num
+    unit_price_minor: Num | None
+    ordered_quantity: Num
+    outstanding_quantity: Num
     document_text: str
     confidence: str
 
@@ -427,6 +449,23 @@ class ScanResult(BaseModel):
 # ==========================================================================
 
 
+class AIUsageKindRow(BaseModel):
+    """One row of the AI spend breakdown.
+
+    F28: this was `list[dict]` on `AIUsageSummary`, so the `Decimal` cost inside
+    it bypassed the `Num` serializer entirely and went out as a JSON **string**
+    while the sibling `estimated_cost_usd` on the parent went out as a number.
+    An untyped container is a hole in the contract: the schema cannot describe
+    what it does not name.
+    """
+
+    kind: str
+    calls: int
+    tokens: int
+    estimated_cost_usd: Num
+    failures: int
+
+
 class AIUsageSummary(BaseModel):
     """What the AI features have cost this restaurant. Estimated, not invoiced."""
 
@@ -437,16 +476,16 @@ class AIUsageSummary(BaseModel):
     output_tokens: int
     cache_creation_tokens: int
     cache_read_tokens: int
-    estimated_cost_usd: Decimal
-    by_kind: list[dict]
+    estimated_cost_usd: Num
+    by_kind: list[AIUsageKindRow]
     today_calls: int
     today_tokens: int
     # Today's spend and the ceiling it is measured against. This is the pair an
     # owner reads; the call and token caps are engineering backstops.
-    today_cost_usd: Decimal
+    today_cost_usd: Num
     daily_call_cap: int
     daily_token_cap: int
-    daily_cost_cap_usd: Decimal
+    daily_cost_cap_usd: Num
 
 
 class ReceivingHistoryRow(BaseModel):
@@ -458,5 +497,5 @@ class ReceivingHistoryRow(BaseModel):
     document_reference: str | None
     received_at: datetime
     line_count: int
-    total_minor: Decimal
+    total_minor: Num
     notes: str | None

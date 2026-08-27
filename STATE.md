@@ -1,6 +1,51 @@
 # STATE — Restaurant POS System
 
-**Last refreshed:** 2026-08-27 (~23:20 UK / 04:20 PKT). **HEAD `f486642` = origin = server, 0
+**Last refreshed:** 2026-08-27 (UAT batch 2 + comprehensive sweep).
+🔴 **21 findings F10-F30. Fifteen fixed. Three production deploys, all green, Chick Shack
+measured identical at every one (233/166/219/642087/87).**
+
+**The serious one, F19: tax was charged twice on tax-inclusive prices.** 3 x AED 9.00 rang up
+at AED 28.35 instead of 27.00. `tax_inclusive` had existed since Phase 2, defaulted to true,
+and was read by exactly ONE service while the order path ignored it. **Chick Shack was never
+affected** (rate 0 - both formulas identical, pinned by a test) so no live customer was
+overcharged.
+
+🔴 **Why 765 tests missed it, and the lesson that outranks the bug: NO TEST HAD EVER CREATED AN
+ORDER.** Verified by grep - zero hits for `create_order` or `POST /orders`. Every order in the
+suite was a hand-built ORM row with a literal `tax_amount`. Now 824 passing.
+
+**After Malik called out the fix-one-symptom-per-screenshot approach, a class-level sweep was
+run instead:** every currency literal, locale, tax name, tax formula and `Decimal` response
+field across the whole codebase; **all 67 GET routes driven as `martin-fz` (zero 5xx)**; and
+**exercises 9-15 driven end to end via the API (32 assertions, 0 failures)**. That found F26
+(three client-facing document generators could not render AED at all), F27 (seven hardcoded
+locales), F28 (68 more Decimal fields that would have broken the stock/supplier/PO/planner
+screens).
+
+🔴 **Open before the demo video: F29** - the Profitability report returns **0 rows** because no
+completed order carries channel data. Exercise 10 is the report Martin specifically asked for
+and it currently renders blank. **Needs demo data seeded.**
+Full detail: `_state/uat-findings-fz-llc-batch2.md`.
+**UAT reached exercise 8 of 15 with Malik driving; 9-15 verified by script, not yet by eye.**
+
+**Last refreshed (previous):** 2026-08-27 (UAT batch 2 session). **HEAD `8425257` = origin = server.**
+🔴 **Sixteen findings (F10-F25) in one UAT run; ten fixed and DEPLOYED across two green
+production deploys.** The serious one was **F19: tax charged twice on tax-inclusive prices** -
+3 x AED 9.00 rang up at AED 28.35 instead of 27.00, because `tax_inclusive` was read by one
+service and ignored by the order path. Chick Shack was NOT affected (rate 0, proven and
+pinned by a test) and no live customer was overcharged. **Why 765 tests missed it: no test
+had ever created an order** - verified by grep, zero hits for `create_order` or
+`POST /orders`. Now 824 passing, +59. Full detail in `_state/uat-findings-fz-llc-batch2.md`.
+**Still open: F10, F11, F12, F13, F20, F21, F25** - none block the demo; F21 and F13 must be
+fixed in the walkthrough PDF re-render. **UAT reached exercise 8 of 15.**
+
+**Last refreshed (previous):** 2026-08-27 (later pass, `/refresh` run). **HEAD `4eb1d03` = `origin/main`
+(verified via `git ls-remote`), 0 unpushed, 142 dirty.** ⚠️ Drift corrected: the header below read
+HEAD `f486642`; the docs commit `4eb1d03` was made and pushed after that line was written, which
+also fired a production deploy (docs-only). Server HEAD not re-verified on this pass. Substance
+unchanged. **UAT exercises 5-15 still to run; key rotation still pending.**
+
+**Last refreshed (previous):** 2026-08-27 (~23:20 UK / 04:20 PKT). **HEAD `f486642` = origin = server, 0
 unpushed.** Three production deploys today, all green. **AI live for `martin-fz` only, proved by a
 real call.** 🔴 **Next session: ROTATE THE ANTHROPIC KEY FIRST** (it was echoed by a docker compose
 error; see the section immediately below and `ERROR_LOG.md`). Then UAT exercises 5-15, one step at

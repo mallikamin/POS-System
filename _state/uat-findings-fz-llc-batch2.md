@@ -406,3 +406,101 @@ holding money math with zero tests on it.
 deploy pipeline is what puts Chick Shack's live tablet at risk. Not something to introduce
 hours before a client demo.
 **Status:** OPEN - should become a formal open item (OI) after Martin.
+
+---
+
+# Comprehensive sweep — 2026-08-27, after Malik called out the one-at-a-time approach
+
+**Malik's criticism, recorded because it changed how this was run:** *"why do we have to stop
+at every step fix it... you could have literally fixed everything before we initiated the
+UAT... i want a comprehensive sweep. i dont want even martin to find petty issues."*
+
+He was right. F18 was fixed in the cart and reappeared on the receipt; F19 was fixed in three
+places and a fourth kept the old formula. Fixing instances while the class survives is how
+both of those happened. What follows is the class-level sweep that should have come first.
+
+## What was swept, mechanically rather than by eye
+
+| Sweep | Method | Result |
+|---|---|---|
+| Currency symbols in literals | regex over `frontend/src` + `backend/app` | **F26** — 3 of 4 backend symbol tables missing AED |
+| Date/number locales | regex, all `.ts/.tsx/.py` | **F27** — 7 hardcoded locales |
+| Tax NAME (GST vs VAT) | regex + per-jurisdiction review | **F18 completed** — 2 more in `receipt_service` |
+| Tax formula ignoring `tax_inclusive` | regex for `* rate / 10_000` | clean — only the 2 inside `compute_tax` itself |
+| `Decimal` on response schemas | AST-ish scan of all schemas + `response_model` usage | **F28** — 68 more annotations across 2 modules |
+| Every GET route | enumerated from the app, driven as `martin-fz` | **67 routes, 0 server errors** |
+| Exercises 11-15 write flows | driven end to end via the API | **32 assertions, 0 failures** |
+| Exercises 9, 10, 13 | driven end to end via the API | clean (2 false alarms in my own test) |
+
+## F26 — three client-facing document generators could not render AED
+`print_service` had the only correct currency table. `purchase_order_document`,
+`quotation_document` and `email_service` each carried their own copy **without AED**, and each
+fell back to an **empty string** — so a UAE supplier's purchase order, a customer's quotation
+and an order confirmation email would each have rendered `380.00` with no currency on the
+document at all. Now one table in `app/utils/money.py`; the fallback is the ISO code plus a
+space, ugly but never silent. **Verified all four agree:** `AED 380.00 / £380.00 / Rs.380.00 /
+XYZ 380.00`. GBP output is unchanged, so Chick Shack's printing is untouched.
+
+## F27 — seven hardcoded date locales
+`en-PK` on the printed receipt, the Z-report and the staff list; `en-GB` on the order lists and
+online reports. A UAE client's own tax receipt carried a Pakistani date format, and adjacent
+screens in the same build disagreed with each other. New `currencyLocale()` derives it from the
+tenant's currency. Also fixed: `SyncTab` formatted money as `Rs.${…en-PK}`, and Settings told
+every tenant *"Discounts > Rs N need approval"*.
+
+## F28 — 68 more Decimal fields that would have broken a screen
+`inventory.py` was fixed when `/admin/ingredients` crashed (F14). The identical fault sat in
+**`location.py` (20)** and **`procurement.py` (48)** — the stock, supplier, purchase-order,
+receiving and order-planner screens, i.e. exactly where Martin goes next. Several only survived
+because JS coerces strings in `*`, `/` and `>`; each was one `.toFixed()` away from the same
+white screen. Also **`AIUsageSummary.by_kind` was `list[dict]`** — an untyped container the
+serializer could not reach into, so its cost went out as a string while the sibling field on
+the same object went out as a number. Now `AIUsageKindRow`.
+**Proved, not assumed:** 119 Decimal-typed fields across the 3 modules dumped to JSON —
+**all 119 numeric**, none string.
+
+## The runtime sweep — what actually runs
+
+**67 GET routes enumerated from the app and driven as the `martin-fz` admin: zero 5xx.** Two
+flagged for string-numbers; one was the real `AIUsageSummary` bug, the other a false positive
+(my regex matched "rate" inside `tax_registration_number`).
+
+**Exercises 11, 12, 14, 15 driven end to end — 32 assertions, all passing**, including the two
+that are easy to get backwards and that the playbook promises Martin in writing:
+- **VAT ADDED on a purchase order** (a supplier quotes net) — 625,000 + 31,250 = 656,250.
+- **VAT INSIDE a quotation total** (the selling side is inclusive) — 395,000 total, 18,810 of
+  VAT contained in it.
+- blank PO price fills itself from the catalogue; partial receipt raises stock by exactly what
+  arrived, leaves the balance owed, and writes the price actually paid back to the catalogue;
+- the order planner **makes the dough in-house rather than buying it**;
+- a quotation with a non-menu line **refuses to convert, and for the right reason** (verified
+  explicitly — an earlier run passed this for the wrong reason, on a status error);
+- a menu-only quotation converts **at the quoted price, not the current menu price**, and the
+  resulting order's total equals its subtotal, so the F19 fix holds through conversion.
+
+## F29 — the Profitability report is empty for this tenant
+`/locations/reports/profitability` returns **0 rows**. Six channels are configured with
+sensible commissions (Talabat 15%, Careem 15%, noon 12%, Website 2.5%, WhatsApp 0, B2B 0), but
+no completed order carries channel data, so the report Martin specifically asked for — *"the
+one you said nobody had given you"* — renders blank.
+**Not a code fault.** Commission is frozen onto an order at completion (by design, so
+renegotiating a rate later does not move last year's reported profit), and this tenant's demo
+orders predate that. **Needs demo data seeded before the video**, or Exercise 10 shows Martin
+an empty screen.
+**Status:** OPEN — must be fixed before the recording.
+
+## F30 — `martin-fz` has no kitchen stations
+Converting a quotation logged *"No active kitchen stations — skipping ticket creation"*. Benign
+today (no dine-in, no KDS in scope), but if the demo shows an order going "to the kitchen",
+nothing will appear on a kitchen screen because there is no station to route to.
+**Status:** OPEN — decide before the video whether the demo mentions the kitchen at all.
+
+## Not bugs, recorded so they are not re-chased
+- `/api/v1/locations` flagged for a "numeric string": it was `tax_registration_number`, whose
+  value is legitimately a digit string. My regex matched "rate" inside "regist**rat**ion".
+- "Invoice names the tax GST" failed in one run: my assertion was case-sensitive and the
+  payload uses `vat_rate_bps` in lowercase. The real value is `tax_label = 'VAT'`, no GST.
+- OCR (Exercise 13) returns **HTTP 503 with a plain-language message**, which is the documented
+  expected behaviour when it has not been switched on for a client.
+- The newest completed order `FZ-0001` carries **tax = 0** — old seed data written before the
+  F19 fix. New orders are correct; that row is not.
