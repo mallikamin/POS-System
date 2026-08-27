@@ -1063,3 +1063,69 @@ Each entry follows:
 - **Rule**: do not report a scan result that contradicts observed reality. Orders and logins work,
   so "31 broken datetime columns" was evidence the scanner was wrong, not the code. Re-check the
   tool before raising the alarm.
+
+
+---
+
+## 2026-08-27 - Tax charged twice, and a test suite that could never have caught it
+
+**What broke.** `restaurant_configs.tax_inclusive` had existed since Phase 2, defaulted to
+true, and was read by **exactly one service** (`tax_invoice_service`). The order path never
+consulted it and unconditionally did `tax = subtotal * rate; total = subtotal + tax`. For a
+tenant whose menu prices already contain VAT, the VAT was charged a second time: three
+croissants on an AED 9.00 board rang up at **AED 28.35 instead of 27.00**, while the A4 tax
+invoice - which DID back the VAT out - reported a different figure for the same sale.
+
+**Why 765 passing tests said nothing.** Verified by grep before writing the fix:
+**no test had ever created an order.** Zero hits for `order_service.create_order`, zero for
+`POST /api/v1/orders`. Every order in the suite was a hand-built ORM row with a literal
+`tax_amount=800` / `=1379` / `=0`, so the tax calculation had never once executed. Where a
+total *was* asserted, the expectation encoded the bug - `test_p1a_features` set
+`tax_inclusive=True` on its fixture and then asserted the tax was **added**, and passed,
+because the code ignored the flag.
+
+**Rules taken from it.**
+1. **A test written from the code, after the code, asserts whatever the code does.** It
+   protects against regression and cannot find a requirement nobody wrote down.
+2. **If a config flag exists, grep every consumer before trusting it.** One reader and five
+   ignorers is not a feature, it is a latent bug with documentation.
+3. **The most important write path in the system had no test.** Ask "what has never been
+   executed by a test?" - not "what is the coverage percentage?"
+4. When changing shared money logic, find the input where the old and new formulas are
+   **provably identical** and pin it with a test. Here it was `rate_bps == 0`, which is what
+   made it safe to ship to a live trading shop (Chick Shack) the same morning.
+
+## 2026-08-27 - Fixing the instance while the class survives
+
+**What happened.** Ten findings were fixed one at a time as Malik hit them on screen. Twice
+the same defect came straight back from a place that was never checked: the "GST" label was
+fixed in the cart and reappeared on the printed receipt; the tax-inclusive rule was fixed in
+three call sites and a **fourth** kept the old formula, producing a payment screen that showed
+"Order Total tax AED 1.29" four lines above "Tax @ 5% AED 1.35". A document contradicting
+itself reads worse than either figure being wrong alone.
+
+**Malik, verbatim:** *"why do we have to stop at every step fix it... you could have literally
+fixed everything before we initiated the UAT... i want a comprehensive sweep. i dont want even
+martin to find petty issues."*
+
+**Rule.** On finding a defect, **sweep for its class before fixing the instance.** The sweep
+that followed took under an hour and found three more classes nobody had hit yet: three
+document generators that could not render AED at all (empty currency symbol on a supplier's
+purchase order), seven hardcoded date locales, and 68 more `Decimal` response fields that
+would each have white-screened a page the way `/admin/ingredients` already had.
+
+**Corollary.** Do not make the user the bug-finder when you hold the access and the API.
+Enumerating all 67 GET routes and driving them as the real tenant took minutes and found a
+genuine defect with no human clicking anything.
+
+## 2026-08-27 - Three verification traps on this specific server
+
+1. **Never grep the assets directory to check a frontend deploy.** 52 stale
+   `PaymentPage-*.js` bundles from previous deploys sit alongside the live one; a naive grep
+   for the removed string "finds" it and reports a successful deploy as failed. Resolve the
+   bundle the entry chunk actually references, then grep only that.
+2. **`docker cp` into the production backend fails** - read-only rootfs. Pipe instead:
+   `cat f.py | docker exec -i -e PYTHONPATH=/app pos-system-backend-1 python -`.
+3. **A backup script exiting 255 does not mean the backup failed.** The box has ~120MB free
+   RAM; `gzip -dc | grep -c` over the dump was OOM-killed *after* a perfectly good file was
+   written. Verify with `gzip -t`, not by decompressing the whole thing.
