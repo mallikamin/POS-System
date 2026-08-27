@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { formatPKR } from "@/utils/currency";
+import { useCurrencyCode } from "@/hooks/useCurrencyCode";
 import {
   fetchDiscountTypes,
   createDiscountType,
@@ -25,6 +26,7 @@ import {
 } from "@/services/discountsApi";
 
 function DiscountTypesPage() {
+  const currency = useCurrencyCode();
   const { toast } = useToast();
   const [types, setTypes] = useState<DiscountType[]>([]);
   const [loading, setLoading] = useState(true);
@@ -222,7 +224,7 @@ function DiscountTypesPage() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label>{kind === "percent" ? "Percentage (%)" : "Amount (PKR)"}</Label>
+              <Label>{kind === "percent" ? "Percentage (%)" : `Amount (${currency})`}</Label>
               <Input
                 type="number"
                 min={0}

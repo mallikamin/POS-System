@@ -22,7 +22,7 @@ from app.schemas.payment import (
     SessionSplitPaymentCreate,
     SplitPaymentCreate,
 )
-from app.services import customer_service
+from app.services import customer_service, order_service
 
 DEFAULT_PAYMENT_METHODS: list[tuple[str, str, bool, int]] = [
     ("cash", "Cash", False, 1),
@@ -457,24 +457,32 @@ async def get_session_payment_preview(
         select(
             RestaurantConfig.cash_tax_rate_bps,
             RestaurantConfig.card_tax_rate_bps,
+            RestaurantConfig.tax_inclusive,
         ).where(RestaurantConfig.tenant_id == tenant_id)
     )
     row = cfg_result.one_or_none()
     cash_rate = row.cash_tax_rate_bps if row else 1600
     card_rate = row.card_tax_rate_bps if row else 500
+    # F19: same default and same rule as the order path, so a table session and
+    # a single order cannot quote different totals for the same basket.
+    prices_include_tax = True if row is None else bool(row.tax_inclusive)
 
-    cash_tax = round(subtotal * cash_rate / 10_000)
-    card_tax = round(subtotal * card_rate / 10_000)
+    cash_tax, cash_total = order_service.compute_tax(
+        subtotal, cash_rate, prices_include_tax
+    )
+    card_tax, card_total = order_service.compute_tax(
+        subtotal, card_rate, prices_include_tax
+    )
 
     return SessionPaymentPreview(
         session_id=session.id,
         subtotal=subtotal,
         cash_tax_rate_bps=cash_rate,
         cash_tax_amount=cash_tax,
-        cash_total=subtotal + cash_tax,
+        cash_total=cash_total,
         card_tax_rate_bps=card_rate,
         card_tax_amount=card_tax,
-        card_total=subtotal + card_tax,
+        card_total=card_total,
     )
 
 
@@ -600,26 +608,43 @@ async def _retax_unpaid_session_orders_for_method(
         select(
             RestaurantConfig.cash_tax_rate_bps,
             RestaurantConfig.card_tax_rate_bps,
+            RestaurantConfig.tax_inclusive,
         ).where(RestaurantConfig.tenant_id == tenant_id)
     )
     row = cfg_result.one_or_none()
     cash_rate = row.cash_tax_rate_bps if row else 1600
     card_rate = row.card_tax_rate_bps if row else 500
+    prices_include_tax = True if row is None else bool(row.tax_inclusive)
     rate_bps = cash_rate if method_code == "cash" else card_rate
 
     subtotal = sum(o.subtotal for o in billable_orders)
-    target_tax = round(subtotal * rate_bps / 10_000)
+    # F19: the session's tax is whatever `compute_tax` says for the whole basket,
+    # under whichever convention the tenant uses. The per-order loop below only
+    # DISTRIBUTES that figure; it must not re-derive it with a different rule, or
+    # the parts stop summing to the whole.
+    target_tax, _ = order_service.compute_tax(subtotal, rate_bps, prices_include_tax)
     remaining_tax = target_tax
 
     for idx, order in enumerate(billable_orders):
         if idx == len(billable_orders) - 1:
+            # The last order absorbs the rounding remainder, so the per-order
+            # figures always add up to the session figure exactly.
             tax_amount = remaining_tax
         else:
-            tax_amount = round(order.subtotal * rate_bps / 10_000)
+            tax_amount, _ = order_service.compute_tax(
+                order.subtotal, rate_bps, prices_include_tax
+            )
             remaining_tax -= tax_amount
 
         order.tax_amount = tax_amount
-        order.total = order.subtotal + order.tax_amount - order.discount_amount
+        # When prices include tax, the tax already sits inside `subtotal`, so
+        # adding it again would double-charge -- the bug this whole change fixes.
+        goods_total = (
+            order.subtotal
+            if prices_include_tax
+            else order.subtotal + order.tax_amount
+        )
+        order.total = goods_total - order.discount_amount
 
     await db.flush()
 
@@ -744,8 +769,37 @@ async def _retax_unpaid_order_for_split_allocations(
         return
 
     order.tax_amount = inferred_tax
-    order.total = order.subtotal + order.tax_amount - order.discount_amount
+    order.total = _order_total(order, await _prices_include_tax(db, tenant_id))
     await db.flush()
+
+
+async def _prices_include_tax(db: AsyncSession, tenant_id: uuid.UUID) -> bool:
+    """Whether this tenant's menu prices already contain tax.
+
+    Defaults to True, matching the column default, `order_service` and
+    `tax_invoice_service`, so every subsystem treats a missing config row the
+    same way (F19).
+    """
+    from app.models.restaurant_config import RestaurantConfig
+
+    result = await db.execute(
+        select(RestaurantConfig.tax_inclusive).where(
+            RestaurantConfig.tenant_id == tenant_id
+        )
+    )
+    value = result.scalar_one_or_none()
+    return True if value is None else bool(value)
+
+
+def _order_total(order: Order, prices_include_tax: bool) -> int:
+    """Recompute an order's total under the tenant's tax convention.
+
+    F19: this used to be written inline as
+    `subtotal + tax_amount - discount_amount` in several places, which
+    double-charges a tenant whose prices already include the tax.
+    """
+    goods_total = order.subtotal if prices_include_tax else order.subtotal + order.tax_amount
+    return goods_total - order.discount_amount
 
 
 async def _retax_unpaid_session_orders_for_split_allocations(
@@ -772,6 +826,7 @@ async def _retax_unpaid_session_orders_for_split_allocations(
     if abs(inferred_subtotal - subtotal) > max(1, len(billable_orders)):
         return
 
+    prices_include_tax = await _prices_include_tax(db, tenant_id)
     remaining_tax = inferred_tax
     for idx, order in enumerate(billable_orders):
         if idx == len(billable_orders) - 1:
@@ -783,7 +838,7 @@ async def _retax_unpaid_session_orders_for_split_allocations(
             remaining_tax -= tax_amount
 
         order.tax_amount = tax_amount
-        order.total = order.subtotal + order.tax_amount - order.discount_amount
+        order.total = _order_total(order, prices_include_tax)
 
     await db.flush()
 

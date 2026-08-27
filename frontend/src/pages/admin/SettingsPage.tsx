@@ -312,7 +312,7 @@ function SettingsPage() {
                 </p>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="discFixed">Fixed Threshold (PKR)</Label>
+                <Label htmlFor="discFixed">Fixed Threshold ({currency})</Label>
                 <Input
                   id="discFixed"
                   type="number"

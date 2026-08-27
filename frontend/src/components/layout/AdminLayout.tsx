@@ -64,10 +64,38 @@ const baseNavItems = [
 function AdminLayout() {
   const { isAuthenticated, user, logout } = useAuthStore();
   const config = useConfigStore((s) => s.config);
+  const fetchConfig = useConfigStore((s) => s.fetchConfig);
   const { sidebarOpen, setSidebarOpen } = useUIStore();
   const navigate = useNavigate();
   const [qbConnectionType, setQbConnectionType] = useState<string | null>(null);
   const [qbLoaded, setQbLoaded] = useState(false);
+
+  /*
+   * Load the tenant config here, not only in POSLayout.
+   *
+   * 🔴 Found in UAT on 2026-08-28 (F15). `fetchConfig()` was called by
+   * POSLayout alone, so anyone reaching an admin screen WITHOUT passing
+   * through it -- a deep link, a hard refresh, a bookmarked `/admin/stock`,
+   * a second tab -- got `config === null`. That is not a cosmetic gap:
+   * `setActiveCurrency()` is called from inside `fetchConfig`, so the
+   * currency module stayed on its `"PKR"` default and a UAE tenant's Stock
+   * page rendered "Rs. 28" for AED 28.00.
+   *
+   * The module-level `activeCode` is not reactive, so nothing re-renders it
+   * back to the truth later. The only reliable fix is to make sure the fetch
+   * has been issued before an admin page paints a price.
+   *
+   * Three pages had already worked around this one at a time
+   * (OnlineOrdersPage, OnlineReportsPage, ZReportPage), each with a comment
+   * about deep links skipping POSLayout. Those guards stay -- they also cover
+   * non-admin deep links -- but the layout is where it belonged.
+   *
+   * Guarded on `!config` and idempotent in the store (`isLoading` short-
+   * circuits), so navigating between admin pages issues no extra requests.
+   */
+  useEffect(() => {
+    if (isAuthenticated && !config) void fetchConfig();
+  }, [isAuthenticated, config, fetchConfig]);
 
   // Fetch QB connection type for this tenant
   useEffect(() => {

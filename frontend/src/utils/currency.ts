@@ -32,7 +32,37 @@ const CURRENCIES: Record<string, CurrencyDef> = {
   PKR: { symbol: "Rs. ", locale: "en-PK", minorExponent: 2, displayDecimals: 0 },
   // "£8.50" — pence must always show, this is a checkout-facing currency.
   GBP: { symbol: "£", locale: "en-GB", minorExponent: 2, displayDecimals: 2 },
+  // "AED 28.00" — the dirham has 100 fils and UAE retail quotes both decimals.
+  // Added explicitly in UAT (F16): AED was previously reaching `fallbackFor()`,
+  // which happened to produce the right string. That is luck, not a decision —
+  // the fallback exists to stop an unknown code throwing mid-render, and a
+  // live tenant's currency should never depend on it.
+  AED: { symbol: "AED ", locale: "en-AE", minorExponent: 2, displayDecimals: 2 },
 };
+
+/**
+ * What this jurisdiction calls its consumption tax.
+ *
+ * UAT F18: the cart said "Tax (5% GST)" to a UAE client. The Emirates levy
+ * **VAT**; GST is India, Australia, Singapore, New Zealand and Canada. Pakistan
+ * is the one place in this system's history where "GST" was right, which is why
+ * it was hardcoded. Getting the name wrong on a screen a customer is paying
+ * against is not a typo — it is the wrong tax named on a financial document.
+ *
+ * Keyed by currency because that is what the tenant config actually carries; if
+ * a tenant ever needs to override the label independently it becomes a config
+ * field, not a longer switch here.
+ */
+const TAX_NAMES: Record<string, string> = {
+  PKR: "GST",
+  GBP: "VAT",
+  AED: "VAT",
+};
+
+/** e.g. "VAT" for AED, "GST" for PKR, plain "Tax" for anything unmapped. */
+export function taxName(code: string = activeCode): string {
+  return TAX_NAMES[code.toUpperCase()] ?? "Tax";
+}
 
 /** Unknown codes fall back to this rather than throwing mid-render. */
 function fallbackFor(code: string): CurrencyDef {

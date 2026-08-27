@@ -18,6 +18,8 @@ import {
   type SessionDiscountBreakdown,
 } from "@/services/discountsApi";
 import { verifyPassword } from "@/services/ordersApi";
+import { useCurrencyCode } from "@/hooks/useCurrencyCode";
+import { useConfigStore } from "@/stores/configStore";
 import type {
   PaymentMethodCode,
   SessionPaymentPreview,
@@ -32,8 +34,25 @@ function parseRupees(value: string): number {
   return Number.isFinite(numeric) && numeric > 0 ? rupeesToPaisa(numeric) : 0;
 }
 
-function taxInclusive(basePaisa: number, rateBps: number): number {
-  return basePaisa + Math.round(basePaisa * rateBps / 10_000);
+/**
+ * The amount actually payable on `basePaisa` at `rateBps`.
+ *
+ * ⚠️ Renamed from `taxInclusive`, which is what it was called while doing the
+ * exact opposite: it ADDED the tax, i.e. it implemented tax-EXCLUSIVE pricing.
+ * A helper whose name asserts the convention it violates is how F19 survived
+ * review.
+ *
+ * When the tenant's prices already include tax (`tax_inclusive`, the column
+ * default), the tax is already inside the price and the payable amount is the
+ * base itself. Mirrors `order_service.compute_tax` on the server.
+ */
+function payableTotal(
+  basePaisa: number,
+  rateBps: number,
+  pricesIncludeTax: boolean
+): number {
+  if (pricesIncludeTax || rateBps <= 0) return basePaisa;
+  return basePaisa + Math.round((basePaisa * rateBps) / 10_000);
 }
 
 function getErrorMessage(err: unknown, fallback: string): string {
@@ -45,6 +64,11 @@ function getErrorMessage(err: unknown, fallback: string): string {
 }
 
 function SessionPaymentPage() {
+  const currency = useCurrencyCode();
+  // F19: whether the tenant's menu prices already contain the tax.
+  // Defaults to true, matching the backend column default.
+  const pricesIncludeTax =
+    useConfigStore((s) => s.config?.tax_inclusive) ?? true;
   const { sessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
   const [mode, setMode] = useState<Mode>("cash");
@@ -103,11 +127,11 @@ function SessionPaymentPage() {
   }, [splitCalcEnabled, splitSubtotal, splitCashBasePaisa]);
   const splitCashPayable = useMemo(() => {
     if (!splitCalcEnabled || !preview) return 0;
-    return taxInclusive(splitCashBasePaisa, preview.cash_tax_rate_bps);
+    return payableTotal(splitCashBasePaisa, preview.cash_tax_rate_bps, pricesIncludeTax);
   }, [splitCalcEnabled, preview, splitCashBasePaisa]);
   const splitCardPayable = useMemo(() => {
     if (!splitCalcEnabled || !preview) return 0;
-    return taxInclusive(splitCardBasePaisa, preview.card_tax_rate_bps);
+    return payableTotal(splitCardBasePaisa, preview.card_tax_rate_bps, pricesIncludeTax);
   }, [splitCalcEnabled, preview, splitCardBasePaisa]);
   const splitTotalPayable = useMemo(
     () => splitCashPayable + splitCardPayable,
@@ -449,7 +473,7 @@ function SessionPaymentPage() {
               </div>
               {!selectedDiscountTypeId && (
                 <div>
-                  <Label className="text-xs">Amount (PKR)</Label>
+                  <Label className="text-xs">Amount ({currency})</Label>
                   <Input
                     value={manualDiscountAmount}
                     onChange={(e) => setManualDiscountAmount(e.target.value)}
@@ -634,11 +658,11 @@ function SessionPaymentPage() {
             {mode === "cash" && (
               <div className="grid gap-3 md:grid-cols-2">
                 <div>
-                  <Label>Amount (PKR)</Label>
+                  <Label>Amount ({currency})</Label>
                   <Input value={cashAmount} onChange={(e) => setCashAmount(e.target.value)} placeholder="0" type="number" min="0" />
                 </div>
                 <div>
-                  <Label>Tendered (PKR)</Label>
+                  <Label>Tendered ({currency})</Label>
                   <Input value={cashTendered} onChange={(e) => setCashTendered(e.target.value)} placeholder="0" type="number" min="0" />
                 </div>
                 <div className="md:col-span-2">
@@ -650,7 +674,7 @@ function SessionPaymentPage() {
             {mode === "card" && (
               <div className="grid gap-3 md:grid-cols-2">
                 <div>
-                  <Label>Amount (PKR)</Label>
+                  <Label>Amount ({currency})</Label>
                   <Input value={cardAmount} onChange={(e) => setCardAmount(e.target.value)} placeholder="0" type="number" min="0" />
                 </div>
                 <div>
@@ -727,7 +751,7 @@ function SessionPaymentPage() {
                         <Input
                           value={row.amount}
                           onChange={(e) => setSplitRows((prev) => prev.map((item, i) => (i === idx ? { ...item, amount: e.target.value } : item)))}
-                          placeholder="Amount (PKR)"
+                          placeholder={`Amount (${currency})`}
                           type="number"
                           min="0"
                         />

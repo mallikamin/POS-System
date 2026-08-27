@@ -11,7 +11,8 @@ import {
   DialogFooter,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { formatPKR } from "@/utils/currency";
+import { formatPKR, taxName } from "@/utils/currency";
+import { useCurrencyCode } from "@/hooks/useCurrencyCode";
 import { useCartStore, type CartLine, type Cart, EMPTY_CART } from "@/stores/cartStore";
 import { useOrderStore } from "@/stores/orderStore";
 import { useUIStore } from "@/stores/uiStore";
@@ -41,6 +42,11 @@ export function CartPanel({ waiterId, onOrderCreated }: CartPanelProps = {}) {
   const paymentFlow = useConfigStore((s) => s.config?.payment_flow);
   const configTaxRate = useConfigStore((s) => s.config?.default_tax_rate);
   const TAX_BPS = configTaxRate ?? DEFAULT_TAX_BPS;
+  // F19: `tax_inclusive` decides whether the tax is inside the shelf price or
+  // added to it. Defaults to true, matching the backend column default, so the
+  // cart cannot quote a total the server will not charge.
+  const pricesIncludeTax = useConfigStore((s) => s.config?.tax_inclusive) ?? true;
+  const currency = useCurrencyCode();
   const selectedCustomer = useCustomerStore((s) => s.selectedCustomer);
   const isPayFirst = paymentFlow === "pay_first";
 
@@ -100,8 +106,21 @@ export function CartPanel({ waiterId, onOrderCreated }: CartPanelProps = {}) {
 
   const subtotal = cart.lines.reduce((sum, l) => sum + l.unitPrice * l.quantity, 0);
   const itemCount = cart.lines.reduce((sum, l) => sum + l.quantity, 0);
-  const tax = Math.round(subtotal * TAX_BPS / 10000); // integer math
-  const total = subtotal + tax;
+  /*
+   * Integer math throughout, and it must mirror `order_service.compute_tax`
+   * exactly -- this is the number the customer is quoted before the server
+   * charges them, and the two disagreeing is worse than either being wrong.
+   *
+   * Tax-inclusive: the tax is already inside `subtotal`, so it is derived by
+   * subtraction (never as `net * rate`) and the total IS the subtotal.
+   */
+  const tax =
+    TAX_BPS <= 0
+      ? 0
+      : pricesIncludeTax
+        ? subtotal - Math.round((subtotal * 10000) / (10000 + TAX_BPS))
+        : Math.round((subtotal * TAX_BPS) / 10000);
+  const total = pricesIncludeTax ? subtotal : subtotal + tax;
 
   async function handleSendToKitchen() {
     if (cart.lines.length === 0 || isSending) return;
@@ -284,7 +303,10 @@ export function CartPanel({ waiterId, onOrderCreated }: CartPanelProps = {}) {
               <span>{formatPKR(subtotal)}</span>
             </div>
             <div className="flex justify-between text-secondary-600">
-              <span>Tax ({TAX_BPS / 100}% GST)</span>
+              <span>
+                {taxName(currency)} ({TAX_BPS / 100}%
+                {pricesIncludeTax ? ", included" : ""})
+              </span>
               <span>{formatPKR(tax)}</span>
             </div>
             <div className="flex justify-between font-bold text-secondary-900 text-base pt-1 border-t border-secondary-100">

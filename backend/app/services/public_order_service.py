@@ -517,12 +517,25 @@ async def create_public_order(
     delivery_fee, area_name = await _resolve_delivery(db, tenant_id, data, subtotal)
     service_fee = await get_service_fee(db, tenant_id)
 
-    tax_rate_bps = await order_service._get_tax_rate(db, tenant_id)
+    tax_rate_bps, prices_include_tax = await order_service._get_tax_settings(
+        db, tenant_id
+    )
     # Tax is charged on goods, not on the delivery fee, the service fee or
     # the tip. The tip is the one client-sent amount on the order (OI-81);
     # the schema has already bounded it to 0..2000.
-    tax_amount = round(subtotal * tax_rate_bps / 10_000)
-    total = subtotal + tax_amount + delivery_fee + service_fee + data.tip
+    #
+    # F19: when menu prices already include tax, the tax is backed OUT of the
+    # goods subtotal rather than added to it, so `goods_total == subtotal` and
+    # the customer pays the price on the board. `compute_tax` owns that rule so
+    # the online channel and the POS cannot drift apart.
+    #
+    # Chick Shack, the only live user of this path, runs `default_tax_rate = 0`,
+    # for which both branches return `(0, subtotal)` -- their totals are
+    # unchanged by this, and `test_tax_inclusive_pricing.py` pins that.
+    tax_amount, goods_total = order_service.compute_tax(
+        subtotal, tax_rate_bps, prices_include_tax
+    )
+    total = goods_total + delivery_fee + service_fee + data.tip
 
     system_user = await _get_or_create_online_user(db, tenant_id)
 

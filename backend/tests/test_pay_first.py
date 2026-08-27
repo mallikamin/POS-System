@@ -43,6 +43,9 @@ async def pay_first_config(db: AsyncSession, tenant) -> RestaurantConfig:
     """Set restaurant to pay_first mode."""
     config = RestaurantConfig(
         tenant_id=tenant.id, payment_flow="pay_first",
+        # Stated, not inherited (F19): differential cash/card rates imply
+        # tax-exclusive pricing.
+        tax_inclusive=False,
         default_tax_rate=1600, cash_tax_rate_bps=1600, card_tax_rate_bps=500,
     )
     db.add(config)
@@ -56,6 +59,8 @@ async def order_first_config(db: AsyncSession, tenant) -> RestaurantConfig:
     """Set restaurant to order_first mode (default)."""
     config = RestaurantConfig(
         tenant_id=tenant.id, payment_flow="order_first",
+        # Stated, not inherited (F19).
+        tax_inclusive=False,
         default_tax_rate=1600, cash_tax_rate_bps=1600, card_tax_rate_bps=500,
     )
     db.add(config)

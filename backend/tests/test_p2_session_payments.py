@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.floor import Floor, Table
 from app.models.order import Order
+from app.models.restaurant_config import RestaurantConfig
 from app.models.table_session import TableSession
 from app.models.payment import PaymentMethod
 from tests.conftest import TENANT_ID, make_token
@@ -303,8 +304,24 @@ class TestSessionSplitPay:
     async def test_split_mixed_tax_base_settles_to_zero_due(
         self, client: AsyncClient, admin_token: str,
         table_session, session_order_a, session_order_b,
-        cash_method, card_method,
+        cash_method, card_method, db: AsyncSession,
     ):
+        # F19: state the tax convention this test depends on. The allocations
+        # below are built from a PRE-TAX base, which only settles to zero when
+        # tax is added on top of the price. Without a config row the tenant's
+        # convention is unknown and defaults to inclusive, under which these
+        # amounts would overpay and be rejected.
+        db.add(
+            RestaurantConfig(
+                tenant_id=session_order_a.tenant_id,
+                tax_inclusive=False,
+                default_tax_rate=1600,
+                cash_tax_rate_bps=1600,
+                card_tax_rate_bps=500,
+            )
+        )
+        await db.commit()
+
         preview = await client.get(
             f"/api/v1/payments/table-sessions/{table_session.id}/payment-preview",
             headers={"Authorization": f"Bearer {admin_token}"},

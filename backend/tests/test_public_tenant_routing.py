@@ -80,14 +80,27 @@ async def uk_menu(db: AsyncSession, tenant: Tenant, admin_role: Role) -> MenuIte
     configured to take online orders". A cross-tenant test asserting 409 would
     then pass whether or not cross-tenant ordering was actually blocked.
     """
-    db.add(RestaurantConfig(tenant_id=tenant.id, currency="GBP"))
+    db.add(
+        RestaurantConfig(
+            tenant_id=tenant.id,
+            currency="GBP",
+            # Rate 0, like the real GBP tenant (F19). These tests assert
+            # tip / service-fee / delivery arithmetic; with no tax in play
+            # they hold under either tax convention.
+            default_tax_rate=0,
+        )
+    )
     await db.flush()
     return await _make_menu(db, tenant.id, "Peri Peri Half Chicken", 850)
 
 
 @pytest_asyncio.fixture
 async def pk_menu(db: AsyncSession, other_tenant: Tenant) -> MenuItem:
-    db.add(RestaurantConfig(tenant_id=other_tenant.id, currency="PKR"))
+    db.add(
+        RestaurantConfig(
+            tenant_id=other_tenant.id, currency="PKR", default_tax_rate=0
+        )
+    )
     await db.flush()
     return await _make_menu(db, other_tenant.id, "Chicken Karahi", 145000)
 

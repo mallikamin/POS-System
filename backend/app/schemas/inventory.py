@@ -5,8 +5,34 @@ from __future__ import annotations
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
+from typing import Annotated
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    Field,
+    PlainSerializer,
+    field_validator,
+    model_validator,
+)
+
+# ---------------------------------------------------------------------------
+# Decimal on the wire
+# ---------------------------------------------------------------------------
+# Pydantic v2 serialises `Decimal` to a JSON **string**, not a number. Every
+# frontend call site in this domain declares these fields as `number` and does
+# arithmetic on them, so the contract and the payload disagreed. It surfaced in
+# UAT (F14): `/admin/ingredients` died outright on
+# `current_stock.toFixed is not a function`, and the same landmine sat under
+# `reorder_point`, `shortage`, every variance figure and every recipe cost.
+#
+# `Num` serialises as a JSON number while leaving VALIDATION untouched -- inbound
+# parsing still goes through Decimal, so request precision is unchanged and no
+# money is ever computed in float on the server. Only the outbound
+# representation moves, and it moves to what the client already assumed.
+Num = Annotated[
+    Decimal,
+    PlainSerializer(float, return_type=float, when_used="json"),
+]
 
 
 # ---------------------------------------------------------------------------
@@ -18,11 +44,11 @@ class IngredientBase(BaseModel):
     name: str = Field(..., max_length=200)
     category: str = Field(default="General", max_length=100)
     unit: str = Field(..., max_length=50, description="kg, L, pieces, etc.")
-    cost_per_unit: Decimal = Field(default=0, ge=0, description="Cost in paisa")
+    cost_per_unit: Num = Field(default=0, ge=0, description="Cost in paisa")
     supplier_name: str | None = Field(None, max_length=200)
     supplier_contact: str | None = Field(None, max_length=100)
-    reorder_point: Decimal = Field(default=0, ge=0)
-    reorder_quantity: Decimal = Field(default=0, ge=0)
+    reorder_point: Num = Field(default=0, ge=0)
+    reorder_quantity: Num = Field(default=0, ge=0)
     is_active: bool = True
     notes: str | None = None
 
@@ -35,11 +61,11 @@ class IngredientUpdate(BaseModel):
     name: str | None = Field(None, max_length=200)
     category: str | None = Field(None, max_length=100)
     unit: str | None = Field(None, max_length=50)
-    cost_per_unit: Decimal | None = Field(None, ge=0)
+    cost_per_unit: Num | None = Field(None, ge=0)
     supplier_name: str | None = Field(None, max_length=200)
     supplier_contact: str | None = Field(None, max_length=100)
-    reorder_point: Decimal | None = Field(None, ge=0)
-    reorder_quantity: Decimal | None = Field(None, ge=0)
+    reorder_point: Num | None = Field(None, ge=0)
+    reorder_quantity: Num | None = Field(None, ge=0)
     is_active: bool | None = None
     notes: str | None = None
 
@@ -47,7 +73,7 @@ class IngredientUpdate(BaseModel):
 class IngredientResponse(IngredientBase):
     id: uuid.UUID
     tenant_id: uuid.UUID
-    current_stock: Decimal
+    current_stock: Num
     is_produced: bool
     created_at: datetime
     updated_at: datetime | None
@@ -62,9 +88,9 @@ class IngredientResponse(IngredientBase):
 
 class RecipeItemBase(BaseModel):
     ingredient_id: uuid.UUID
-    quantity: Decimal = Field(..., gt=0, description="Amount of ingredient")
+    quantity: Num = Field(..., gt=0, description="Amount of ingredient")
     unit: str = Field(..., max_length=50)
-    waste_factor: Decimal = Field(
+    waste_factor: Num = Field(
         default=0, ge=0, le=100, description="Waste percentage (0-100)"
     )
     notes: str | None = None
@@ -75,17 +101,17 @@ class RecipeItemCreate(RecipeItemBase):
 
 
 class RecipeItemUpdate(BaseModel):
-    quantity: Decimal | None = Field(None, gt=0)
+    quantity: Num | None = Field(None, gt=0)
     unit: str | None = Field(None, max_length=50)
-    waste_factor: Decimal | None = Field(None, ge=0, le=100)
+    waste_factor: Num | None = Field(None, ge=0, le=100)
     notes: str | None = None
 
 
 class RecipeItemResponse(RecipeItemBase):
     id: uuid.UUID
     recipe_id: uuid.UUID
-    cost_per_unit_snapshot: Decimal
-    total_cost: Decimal
+    cost_per_unit_snapshot: Num
+    total_cost: Num
     ingredient_name: str | None = None  # Joined from ingredient
 
     model_config = {"from_attributes": True}
@@ -105,7 +131,7 @@ class RecipeBase(BaseModel):
 
     menu_item_id: uuid.UUID | None = None
     produces_ingredient_id: uuid.UUID | None = None
-    yield_servings: Decimal = Field(
+    yield_servings: Num = Field(
         default=1,
         gt=0,
         description="Number of servings (menu item) or yield quantity in "
@@ -134,7 +160,7 @@ class RecipeCreate(RecipeBase):
 
 
 class RecipeUpdate(BaseModel):
-    yield_servings: Decimal | None = Field(None, gt=0)
+    yield_servings: Num | None = Field(None, gt=0)
     prep_time_minutes: int | None = Field(None, ge=0)
     cook_time_minutes: int | None = Field(None, ge=0)
     instructions: str | None = None
@@ -146,8 +172,8 @@ class RecipeResponse(RecipeBase):
     id: uuid.UUID
     tenant_id: uuid.UUID
     version: int
-    total_ingredient_cost: Decimal
-    cost_per_serving: Decimal
+    total_ingredient_cost: Num
+    cost_per_serving: Num
     is_active: bool
     effective_date: datetime
     created_by: uuid.UUID | None
@@ -161,7 +187,7 @@ class RecipeResponse(RecipeBase):
     # Set instead of menu_item_name when this is a sub-recipe. Without it the
     # UI has an id and no way to label a dough or sauce recipe.
     produces_ingredient_name: str | None = None
-    food_cost_percentage: Decimal | None = None  # calculated
+    food_cost_percentage: Num | None = None  # calculated
 
     model_config = {"from_attributes": True}
 
@@ -176,9 +202,9 @@ class InventoryTransactionBase(BaseModel):
     transaction_type: str = Field(
         ..., description="purchase | consumption | waste | adjustment | transfer"
     )
-    quantity: Decimal = Field(..., description="Positive = increase, Negative = decrease")
+    quantity: Num = Field(..., description="Positive = increase, Negative = decrease")
     unit: str = Field(..., max_length=50)
-    unit_cost: Decimal = Field(default=0, ge=0)
+    unit_cost: Num = Field(default=0, ge=0)
     reference_number: str | None = Field(None, max_length=100)
     notes: str | None = None
 
@@ -198,8 +224,8 @@ class InventoryTransactionCreate(InventoryTransactionBase):
 class InventoryTransactionResponse(InventoryTransactionBase):
     id: uuid.UUID
     tenant_id: uuid.UUID
-    total_cost: Decimal
-    balance_after: Decimal
+    total_cost: Num
+    balance_after: Num
     transaction_date: datetime
     order_id: uuid.UUID | None
     performed_by: uuid.UUID | None
@@ -217,11 +243,11 @@ class InventoryTransactionResponse(InventoryTransactionBase):
 class StockCountItemData(BaseModel):
     """Individual ingredient count data within a stock count."""
 
-    expected: Decimal
-    actual: Decimal
-    variance: Decimal
-    variance_percentage: Decimal
-    cost_impact: Decimal  # paisa
+    expected: Num
+    actual: Num
+    variance: Num
+    variance_percentage: Num
+    cost_impact: Num  # paisa
 
 
 class StockCountBase(BaseModel):
@@ -258,7 +284,7 @@ class StockCountResponse(StockCountBase):
     counted_by: uuid.UUID | None
     reviewed_by: uuid.UUID | None
     reviewed_at: datetime | None
-    total_variance_cost: Decimal
+    total_variance_cost: Num
     total_items_counted: int
     items_with_variance: int
     count_data: dict
@@ -277,18 +303,18 @@ class RecipeCostSimulation(BaseModel):
     """Simulate recipe cost with ingredient price changes."""
 
     recipe_id: uuid.UUID
-    ingredient_price_changes: dict[str, Decimal] = Field(
+    ingredient_price_changes: dict[str, Num] = Field(
         ..., description="Map of ingredient_id -> new cost_per_unit"
     )
 
 
 class RecipeCostSimulationResult(BaseModel):
-    original_total_cost: Decimal
-    new_total_cost: Decimal
-    cost_difference: Decimal
-    percentage_change: Decimal
-    original_cost_per_serving: Decimal
-    new_cost_per_serving: Decimal
+    original_total_cost: Num
+    new_total_cost: Num
+    cost_difference: Num
+    percentage_change: Num
+    original_cost_per_serving: Num
+    new_cost_per_serving: Num
     affected_ingredients: list[dict]
 
 
@@ -297,10 +323,10 @@ class StockAlertResponse(BaseModel):
 
     ingredient_id: uuid.UUID
     ingredient_name: str
-    current_stock: Decimal
-    reorder_point: Decimal
-    reorder_quantity: Decimal
-    shortage: Decimal
+    current_stock: Num
+    reorder_point: Num
+    reorder_quantity: Num
+    shortage: Num
     unit: str
     supplier_name: str | None
     supplier_contact: str | None

@@ -25,8 +25,10 @@ import { useToast } from "@/hooks/use-toast";
 import type { Ingredient, IngredientCreate, IngredientUpdate } from "@/types/inventory";
 import * as inventoryApi from "@/services/inventoryApi";
 import { formatPKR, paisaToRupees, rupeesToPaisa } from "@/utils/currency";
+import { useCurrencyCode } from "@/hooks/useCurrencyCode";
 
 export default function IngredientManagementPage() {
+  const currency = useCurrencyCode();
   const { toast } = useToast();
 
   // Data state
@@ -472,7 +474,7 @@ export default function IngredientManagementPage() {
 
             {/* Cost per Unit */}
             <div className="space-y-2">
-              <Label htmlFor="create-cost">Cost per Unit (PKR)</Label>
+              <Label htmlFor="create-cost">Cost per Unit ({currency})</Label>
               <Input
                 id="create-cost"
                 type="number"
@@ -632,7 +634,7 @@ export default function IngredientManagementPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="edit-cost">Cost per Unit (PKR)</Label>
+              <Label htmlFor="edit-cost">Cost per Unit ({currency})</Label>
               <Input
                 id="edit-cost"
                 type="number"

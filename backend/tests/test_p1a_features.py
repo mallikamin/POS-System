@@ -60,7 +60,14 @@ class TestPaymentPreview:
             payment_flow="order_first",
             currency="PKR",
             timezone="Asia/Karachi",
-            tax_inclusive=True,
+            # ⚠️ This said `tax_inclusive=True` while the assertions below
+            # expected the tax to be ADDED to the subtotal (F19). The two
+            # contradicted each other and the test passed anyway, because the
+            # payment-preview code ignored the flag entirely. Now that it is
+            # honoured, the fixture has to mean what it says: the cash/card
+            # differential scheme only yields two different totals when tax
+            # sits on top of the price, so this tenant prices exclusive of tax.
+            tax_inclusive=False,
             default_tax_rate=1600,
             cash_tax_rate_bps=1600,
             card_tax_rate_bps=500,

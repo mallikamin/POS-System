@@ -132,6 +132,70 @@ async def _get_tax_rate(db: AsyncSession, tenant_id: uuid.UUID) -> int:
     return rate if rate is not None else 1600  # Default 16%
 
 
+async def _get_tax_settings(
+    db: AsyncSession, tenant_id: uuid.UUID
+) -> tuple[int, bool]:
+    """Return `(rate_bps, prices_include_tax)` for the tenant.
+
+    `tax_inclusive` defaults to True, matching the column default and
+    `tax_invoice_service`, so a tenant with no config row is treated the same
+    way in both places rather than two subsystems disagreeing by default.
+    """
+    result = await db.execute(
+        select(
+            RestaurantConfig.default_tax_rate,
+            RestaurantConfig.tax_inclusive,
+        ).where(RestaurantConfig.tenant_id == tenant_id)
+    )
+    row = result.one_or_none()
+    if row is None:
+        return 1600, True
+    return (
+        row.default_tax_rate if row.default_tax_rate is not None else 1600,
+        True if row.tax_inclusive is None else bool(row.tax_inclusive),
+    )
+
+
+def compute_tax(subtotal: int, rate_bps: int, prices_include_tax: bool) -> tuple[int, int]:
+    """Split a subtotal into `(tax_amount, total)`, both integer minor units.
+
+    🔴 UAT finding F19, 2026-08-28. This used to be two unconditional lines:
+
+        tax_amount = round(subtotal * rate_bps / 10_000)
+        total = subtotal + tax_amount
+
+    which is only correct when prices EXCLUDE tax. `restaurant_configs.tax_inclusive`
+    existed, defaulted to True, and was read by exactly one service
+    (`tax_invoice_service`) -- the order path never consulted it. So a tenant whose
+    menu prices already contain VAT had that VAT charged a second time: three
+    croissants on a AED 9.00 board came to AED 28.35 instead of AED 27.00, and the
+    A4 tax invoice (which DID back the VAT out) disagreed with the amount actually
+    taken.
+
+    When prices include tax, the tax is the part already inside the price:
+
+        net = round(subtotal / (1 + rate))      total  = subtotal
+        tax = subtotal - net                    invoice shows `tax` within `total`
+
+    Derived by subtraction, never as `net * rate`, so `net + tax == subtotal`
+    exactly and no rounding remainder can appear or vanish.
+
+    ⚠️ At `rate_bps == 0` both branches return `(0, subtotal)`. That is not a
+    coincidence to rely on silently, it is the reason this change is safe to ship
+    to a live tenant: Chick Shack runs `default_tax_rate = 0`, so their totals are
+    provably byte-identical before and after. There is a test pinning it.
+    """
+    if rate_bps <= 0:
+        return 0, subtotal
+
+    if prices_include_tax:
+        net = round(subtotal * 10_000 / (10_000 + rate_bps))
+        return subtotal - net, subtotal
+
+    tax_amount = round(subtotal * rate_bps / 10_000)
+    return tax_amount, subtotal + tax_amount
+
+
 # ---------------------------------------------------------------------------
 # Create Order
 # ---------------------------------------------------------------------------
@@ -149,7 +213,7 @@ async def create_order(
     Creates the order with status 'confirmed' and auto-transitions
     to 'in_kitchen'. For dine-in orders, marks the table as occupied.
     """
-    tax_rate_bps = await _get_tax_rate(db, tenant_id)
+    tax_rate_bps, prices_include_tax = await _get_tax_settings(db, tenant_id)
 
     # Normalize customer_phone to digits-only
     customer_phone = data.customer_phone
@@ -182,8 +246,7 @@ async def create_order(
         }
         order_items_data.append(item_dict)
 
-    tax_amount = round(subtotal * tax_rate_bps / 10_000)
-    total = subtotal + tax_amount
+    tax_amount, total = compute_tax(subtotal, tax_rate_bps, prices_include_tax)
 
     # Retry loop to handle order number race condition under concurrency.
     # The uq_order_tenant_number constraint catches collisions; we regenerate
@@ -702,23 +765,27 @@ async def get_payment_preview(
         select(
             RestaurantConfig.cash_tax_rate_bps,
             RestaurantConfig.card_tax_rate_bps,
+            RestaurantConfig.tax_inclusive,
         ).where(RestaurantConfig.tenant_id == tenant_id)
     )
     row = result.one_or_none()
     cash_rate = row.cash_tax_rate_bps if row else 1600
     card_rate = row.card_tax_rate_bps if row else 500
+    # Same default as `_get_tax_settings` and `tax_invoice_service`, so a tenant
+    # with no config row is treated identically everywhere (F19).
+    prices_include_tax = True if row is None else bool(row.tax_inclusive)
 
     subtotal = order.subtotal
-    cash_tax = round(subtotal * cash_rate / 10_000)
-    card_tax = round(subtotal * card_rate / 10_000)
+    cash_tax, cash_total = compute_tax(subtotal, cash_rate, prices_include_tax)
+    card_tax, card_total = compute_tax(subtotal, card_rate, prices_include_tax)
 
     return PaymentPreviewResponse(
         order_id=order.id,
         subtotal=subtotal,
         cash_tax_rate_bps=cash_rate,
         cash_tax_amount=cash_tax,
-        cash_total=subtotal + cash_tax,
+        cash_total=cash_total,
         card_tax_rate_bps=card_rate,
         card_tax_amount=card_tax,
-        card_total=subtotal + card_tax,
+        card_total=card_total,
     )

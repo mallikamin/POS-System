@@ -28,6 +28,7 @@ import {
 import { formatPKR, rupeesToPaisa, paisaToRupees } from "@/utils/currency";
 import { useMenuStore } from "@/stores/menuStore";
 import * as menuApi from "@/services/menuApi";
+import { useCurrencyCode } from "@/hooks/useCurrencyCode";
 import type {
   Category,
   MenuItem,
@@ -374,6 +375,7 @@ function CategoriesTab() {
    ========================================================================== */
 
 function ItemsTab() {
+  const currency = useCurrencyCode();
   const clearMenu = useMenuStore((s) => s.clearMenu);
   const [categories, setCategories] = useState<Category[]>([]);
   const [items, setItems] = useState<MenuItem[]>([]);
@@ -666,7 +668,7 @@ function ItemsTab() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="item-price">Price (PKR) *</Label>
+                <Label htmlFor="item-price">Price ({currency}) *</Label>
                 <Input
                   id="item-price"
                   type="number"
@@ -817,6 +819,7 @@ function ItemsTab() {
    ========================================================================== */
 
 function ModifierGroupsTab() {
+  const currency = useCurrencyCode();
   const clearMenu = useMenuStore((s) => s.clearMenu);
   const [groups, setGroups] = useState<ModifierGroup[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1279,7 +1282,7 @@ function ModifierGroupsTab() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="mod-price">Price Adjustment (PKR)</Label>
+                <Label htmlFor="mod-price">Price Adjustment ({currency})</Label>
                 <Input
                   id="mod-price"
                   type="number"
