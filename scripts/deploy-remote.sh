@@ -202,8 +202,14 @@ else
     # throwaway container that borrows the live one's mounts (certs, voice.conf)
     # plus the releases tree. A bad config then fails here, with every site
     # still up, instead of leaving nginx in a restart loop.
-    echo "==> Testing the new nginx config in a throwaway container"
-    if ! docker run --rm --volumes-from pos-system-nginx-1 \
+    #
+    # It must run on the live nginx's Docker NETWORK. Orbit's voice.conf still
+    # uses a bare `proxy_pass http://orbit_api:8000`, which nginx resolves at
+    # config-parse time; off the network that name does not exist and `nginx -t`
+    # fails on a config that is fine (first run of this script, 2026-08-27).
+    nginx_net=$(docker inspect -f '{{range $k, $_ := .NetworkSettings.Networks}}{{$k}}{{"\n"}}{{end}}' pos-system-nginx-1 | head -1)
+    echo "==> Testing the new nginx config in a throwaway container (network: $nginx_net)"
+    if ! docker run --rm --network "$nginx_net" --volumes-from pos-system-nginx-1 \
          -v /root/pos-system/www:/var/www/pos:ro \
          nginx:1.27-alpine nginx -t; then
       echo
