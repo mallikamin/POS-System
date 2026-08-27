@@ -201,6 +201,76 @@ def compute_tax(subtotal: int, rate_bps: int, prices_include_tax: bool) -> tuple
 # ---------------------------------------------------------------------------
 
 
+async def _resolve_sale_attribution(
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    location_id: uuid.UUID | None,
+    sales_channel_id: uuid.UUID | None,
+) -> tuple[uuid.UUID | None, uuid.UUID | None]:
+    """Which site made this sale, and which channel it came through.
+
+    Both are OPTIONAL capabilities, on exactly the contract
+    `_apply_inventory_and_commission` already uses at the other end of the
+    lifecycle: a tenant that has never configured locations -- which is every
+    tenant except martin-fz, chick-shack included -- must create orders exactly
+    as it always has. So a tenant with no locations gets NULL and no error.
+
+    The two failure modes are deliberately NOT symmetric:
+
+    * An id the caller **passed explicitly** that does not belong to this
+      tenant is a client error and raises. Silently substituting the default
+      site would attribute a sale, and its VAT, to the wrong registered entity.
+    * An id **omitted** falls back to the tenant's default location, because
+      the alternative is the tax invoice this system already shipped: no TRN
+      at all on a legal document (F31).
+    """
+    from app.models.location import Location, SalesChannel
+    from app.services.stock_service import StockError, resolve_location
+
+    resolved_location: uuid.UUID | None = None
+    if location_id is not None:
+        try:
+            resolved_location = (
+                await resolve_location(db, tenant_id, location_id)
+            ).id
+        except StockError as exc:
+            raise ValueError(str(exc)) from exc
+    else:
+        has_locations = (
+            await db.execute(
+                select(Location.id).where(Location.tenant_id == tenant_id).limit(1)
+            )
+        ).scalar_one_or_none()
+        if has_locations is not None:
+            try:
+                resolved_location = (await resolve_location(db, tenant_id, None)).id
+            except StockError as exc:
+                # Several sites and none flagged default: refusing to guess is
+                # correct, but it must not refuse the sale.
+                logger.warning(
+                    "Sale not attributed to a location for tenant %s: %s",
+                    tenant_id,
+                    exc,
+                )
+
+    resolved_channel: uuid.UUID | None = None
+    if sales_channel_id is not None:
+        channel = (
+            await db.execute(
+                select(SalesChannel.id).where(
+                    SalesChannel.id == sales_channel_id,
+                    SalesChannel.tenant_id == tenant_id,
+                    SalesChannel.is_active == True,  # noqa: E712
+                )
+            )
+        ).scalar_one_or_none()
+        if channel is None:
+            raise ValueError("No such sales channel for this restaurant.")
+        resolved_channel = channel
+
+    return resolved_location, resolved_channel
+
+
 async def create_order(
     db: AsyncSession,
     tenant_id: uuid.UUID,
@@ -214,6 +284,12 @@ async def create_order(
     to 'in_kitchen'. For dine-in orders, marks the table as occupied.
     """
     tax_rate_bps, prices_include_tax = await _get_tax_settings(db, tenant_id)
+
+    # Attribute the sale before anything is written, so an unknown location or
+    # channel is rejected before an order number is burned.
+    sale_location_id, sale_channel_id = await _resolve_sale_attribution(
+        db, tenant_id, data.location_id, data.sales_channel_id
+    )
 
     # Normalize customer_phone to digits-only
     customer_phone = data.customer_phone
@@ -334,6 +410,8 @@ async def create_order(
             customer_phone=customer_phone,
             customer_id=customer_id,
             waiter_id=waiter_id,
+            location_id=sale_location_id,
+            sales_channel_id=sale_channel_id,
             subtotal=subtotal,
             tax_amount=tax_amount,
             discount_amount=0,

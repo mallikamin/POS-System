@@ -39,6 +39,13 @@ class OrderCreate(BaseModel):
     customer_phone: str | None = Field(None, max_length=20)
     items: list[OrderItemCreate] = Field(..., min_length=1)
     notes: str | None = None
+    # Which site made this sale, and which channel it came through. Both are
+    # optional: a tenant that has never configured locations or channels sends
+    # neither and keeps its pre-locations behaviour exactly. When omitted, the
+    # location falls back to the tenant's default site so the sale still
+    # carries a TRN on its tax invoice.
+    location_id: uuid.UUID | None = None
+    sales_channel_id: uuid.UUID | None = None
 
     @model_validator(mode="after")
     def call_center_requires_phone(self) -> "OrderCreate":

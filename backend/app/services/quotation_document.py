@@ -59,7 +59,19 @@ async def build_context(
         )
     ).scalar_one_or_none()
 
+    # Same rule as the tax invoice (F31): a document that carries a legal
+    # identity must fall back to the tenant's default site rather than issue
+    # with no TRN at all. `Quotation.location_id` is nullable, so a quotation
+    # raised without naming a site would otherwise go out unidentified.
     location = quotation.location
+    if location is None:
+        from app.services.stock_service import StockError, resolve_location
+
+        try:
+            location = await resolve_location(db, tenant_id, None)
+        except StockError:
+            location = None
+
     issuer_lines = []
     if location is not None:
         for value in (

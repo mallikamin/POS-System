@@ -41,6 +41,12 @@ class Order(BaseMixin, Base):
     __tablename__ = "orders"
     __table_args__ = (
         UniqueConstraint("tenant_id", "order_number", name="uq_order_tenant_number"),
+        # The database, not the application, is what guarantees no two invoices
+        # in a tenant ever share a number. NULLs are distinct in Postgres, so
+        # unissued orders are unaffected by this.
+        UniqueConstraint(
+            "tenant_id", "tax_invoice_number", name="uq_order_tenant_tax_invoice_number"
+        ),
         Index("ix_orders_tenant_status", "tenant_id", "status"),
         Index("ix_orders_tenant_created", "tenant_id", "created_at"),
         Index("ix_orders_created_by", "created_by"),
@@ -106,6 +112,18 @@ class Order(BaseMixin, Base):
         default=0,
         nullable=False,
         comment="Channel commission charged on this order, in minor units",
+    )
+
+    # Reserved once, on first issue, and never recomputed. Previously the
+    # number was derived from a live COUNT of the tenant's orders, so seven
+    # different sales all read FZD-00007 and every number moved as new orders
+    # arrived (F33). A tax invoice number has to identify one document
+    # permanently, so it is stored the moment the document is first produced.
+    # NULL means this order has never been issued as a tax invoice.
+    tax_invoice_number: Mapped[str | None] = mapped_column(
+        String(40),
+        nullable=True,
+        comment="Immutable tax invoice number, assigned at first issue",
     )
 
     customer_name: Mapped[str | None] = mapped_column(String(255), nullable=True)

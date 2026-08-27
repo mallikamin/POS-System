@@ -19,6 +19,7 @@ import { useOrderStore } from "@/stores/orderStore";
 import { useUIStore } from "@/stores/uiStore";
 import { useCustomerStore } from "@/stores/customerStore";
 import { useConfigStore } from "@/stores/configStore";
+import { SaleAttributionPicker } from "@/components/pos/SaleAttributionPicker";
 import { searchCustomers } from "@/services/customerApi";
 import type { CustomerResponse } from "@/types/customer";
 
@@ -291,6 +292,10 @@ export function CartPanel({ waiterId, onOrderCreated }: CartPanelProps = {}) {
       {/* Totals + Actions */}
       {cart.lines.length > 0 && (
         <div className="border-t border-secondary-200 p-4 space-y-3">
+          {/* Which site made this sale, and through which channel. Renders
+              nothing for a tenant with no locations configured. */}
+          <SaleAttributionPicker />
+
           {/* Totals */}
           <div className="space-y-1 text-sm">
             <div className="flex justify-between text-secondary-600">

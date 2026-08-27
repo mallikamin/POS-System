@@ -28,12 +28,13 @@ from __future__ import annotations
 import uuid
 from datetime import timezone
 
-from sqlalchemy import func, select
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.customer import Customer
-from app.models.location import Location
+from app.models.location import Location, TaxInvoiceSequence
 from app.models.order import Order, OrderItem
 from app.models.restaurant_config import RestaurantConfig
 from app.models.tenant import Tenant
@@ -70,23 +71,71 @@ def add_vat_exclusive(net_minor: int, rate_bps: int) -> tuple[int, int]:
 
 
 async def _next_invoice_number(
-    db: AsyncSession, tenant_id: uuid.UUID, location: Location | None
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    order: Order,
+    location: Location | None,
 ) -> str:
-    """Sequential per location, because the prefix is a per-location setting.
+    """Reserve this order's tax invoice number, once, and remember it.
 
-    Derived from a count rather than stored, which is fine for a document that
-    is regenerated on demand from an immutable order. If invoice numbers ever
-    need to be permanently reserved, this becomes a real sequence column.
+    The number this returns must never change for a given order, and no two
+    orders in a tenant may ever share one. The previous implementation derived
+    it from a live COUNT of the tenant's orders, which satisfied neither: seven
+    separate sales all read `FZD-00007`, and every number shifted upward as new
+    orders arrived (F33). A UAE tax invoice has to carry a sequential number
+    that uniquely identifies the document.
+
+    Already issued, so return what was issued. Regenerating the same invoice
+    tomorrow, after fifty more sales, must reproduce the identical document.
     """
+    if order.tax_invoice_number:
+        return order.tax_invoice_number
+
     prefix = (location.invoice_prefix if location else "INV") or "INV"
-    stmt = select(func.count(Order.id)).where(
-        Order.tenant_id == tenant_id,
-        Order.status.notin_(["draft", "voided"]),
-    )
-    if location is not None:
-        stmt = stmt.where(Order.location_id == location.id)
-    count = (await db.execute(stmt)).scalar_one()
-    return f"{prefix}-{count:05d}"
+
+    # SELECT ... FOR UPDATE serialises two tills issuing at the same instant.
+    # Without the lock both read the same next_value and the unique constraint
+    # on (tenant_id, tax_invoice_number) turns a duplicate into a 500 at the
+    # counter, which is a worse failure than waiting a few milliseconds.
+    seq = (
+        await db.execute(
+            select(TaxInvoiceSequence)
+            .where(
+                TaxInvoiceSequence.tenant_id == tenant_id,
+                TaxInvoiceSequence.prefix == prefix,
+            )
+            .with_for_update()
+        )
+    ).scalar_one_or_none()
+
+    if seq is None:
+        # First ever invoice on this series. Two concurrent first-issues race
+        # here, so the loser catches the unique violation and re-reads the row
+        # the winner committed, inside a SAVEPOINT to keep the outer
+        # transaction alive. Same shape as the order-number retry.
+        seq = TaxInvoiceSequence(tenant_id=tenant_id, prefix=prefix, next_value=1)
+        try:
+            async with db.begin_nested():
+                db.add(seq)
+                await db.flush()
+        except IntegrityError:
+            seq = (
+                await db.execute(
+                    select(TaxInvoiceSequence)
+                    .where(
+                        TaxInvoiceSequence.tenant_id == tenant_id,
+                        TaxInvoiceSequence.prefix == prefix,
+                    )
+                    .with_for_update()
+                )
+            ).scalar_one()
+
+    number = seq.next_value
+    seq.next_value = number + 1
+    issued = f"{prefix}-{number:05d}"
+    order.tax_invoice_number = issued
+    await db.flush()
+    return issued
 
 
 async def get_tax_invoice(
@@ -115,13 +164,31 @@ async def get_tax_invoice(
         )
     ).scalar_one_or_none()
 
+    # Resolve through the SHARED resolver, not the raw column. Reading
+    # order.location_id directly is what produced a UAE tax invoice with no TRN
+    # on every sale the POS had ever taken (F31): stock movement went through
+    # resolve_location and picked up the default site, this document did not.
+    # One reader and several ignorers of the same idea is how F19 happened too.
     location = None
     if order.location_id is not None:
         location = (
             await db.execute(
-                select(Location).where(Location.id == order.location_id)
+                select(Location).where(
+                    Location.id == order.location_id,
+                    Location.tenant_id == tenant_id,
+                )
             )
         ).scalar_one_or_none()
+    if location is None:
+        from app.services.stock_service import StockError, resolve_location
+
+        try:
+            location = await resolve_location(db, tenant_id, None)
+        except StockError:
+            # No locations configured, or several with no default flagged.
+            # Fall back to the tenant identity, which is the pre-locations
+            # behaviour every existing single-site tenant relies on.
+            location = None
 
     rate_bps = (config.default_tax_rate if config else 0) or 0
     prices_include_vat = bool(config.tax_inclusive) if config else True
@@ -194,7 +261,7 @@ async def get_tax_invoice(
     total_gross = subtotal_net + vat_total - order.discount_amount
 
     return TaxInvoiceData(
-        invoice_number=await _next_invoice_number(db, tenant_id, location),
+        invoice_number=await _next_invoice_number(db, tenant_id, order, location),
         order_number=order.order_number,
         issue_date=order.created_at.date(),
         issued_at=order.created_at.astimezone(timezone.utc),

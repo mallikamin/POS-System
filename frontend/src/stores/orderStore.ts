@@ -4,6 +4,7 @@ import { createOrder, fetchOrders, transitionOrder, voidOrder } from "@/services
 import { useCartStore } from "@/stores/cartStore";
 import { useUIStore } from "@/stores/uiStore";
 import { useFloorStore } from "@/stores/floorStore";
+import { useSaleAttributionStore } from "@/stores/saleAttributionStore";
 import type { OrderCreateRequest, OrderItemCreate, OrderItemModifierCreate } from "@/types/order";
 
 interface OrderState {
@@ -104,6 +105,11 @@ export const useOrderStore = create<OrderStore>()((set, get) => ({
         notes: line.notes || undefined,
       }));
 
+      // Which site made the sale and which channel it came through. Undefined
+      // for every tenant without locations configured, which is what keeps the
+      // pre-locations behaviour byte-identical for them.
+      const attribution = useSaleAttributionStore.getState();
+
       const payload: OrderCreateRequest = {
         order_type: channel as OrderCreateRequest["order_type"],
         table_id: tableId || undefined,
@@ -111,6 +117,8 @@ export const useOrderStore = create<OrderStore>()((set, get) => ({
         customer_name: customerName || undefined,
         customer_phone: customerPhone || undefined,
         items,
+        location_id: attribution.locationId || undefined,
+        sales_channel_id: attribution.channelId || undefined,
       };
 
       const order = await createOrder(payload);

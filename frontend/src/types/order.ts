@@ -23,6 +23,12 @@ export interface OrderCreateRequest {
   customer_phone?: string;
   items: OrderItemCreate[];
   notes?: string;
+  /** Which site made this sale. Omitted by tenants with no locations, in
+   *  which case the server leaves it unset rather than guessing. */
+  location_id?: string;
+  /** Which channel it arrived through, so the profitability report can
+   *  charge the right commission against it. */
+  sales_channel_id?: string;
 }
 
 export interface OrderItemModifierResponse {

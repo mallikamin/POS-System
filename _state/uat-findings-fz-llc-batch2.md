@@ -504,3 +504,153 @@ nothing will appear on a kitchen screen because there is no station to route to.
   expected behaviour when it has not been switched on for a client.
 - The newest completed order `FZ-0001` carries **tax = 0** — old seed data written before the
   F19 fix. New orders are correct; that row is not.
+
+---
+
+## F29 — REOPENED AND CLOSED AS NOT A BUG (2026-08-27, fresh session)
+
+**The Profitability report was never empty. The harness that measured it was wrong.**
+
+`flow_sweep2.py:96`:
+```python
+rows = r.json()
+rows = rows if isinstance(rows, list) else rows.get("rows", [])
+```
+The endpoint returns `{totals, by_channel, by_location}`. It is not a list, so the script
+asked for a `"rows"` key that has never existed, got `[]`, and printed
+`profitability rows: 0`. That zero was read as an empty report.
+
+**Proved on production, through the real HTTP route, as the `martin-fz` admin:**
+```
+GET /locations/reports/profitability?date_from=2026-08-01&date_to=2026-08-27
+HTTP 200   by_channel rows = 7   by_location rows = 3
+totals: orders=12 revenue=162935 cost=29996 commission=3843 net=129096 margin=79.23%
+  B2B Wholesale       2  rev 112000  net 91082  81.32%
+  WhatsApp / Direct   2  rev  14300  net 11468  80.20%
+  Talabat             2  rev  12200  net  8083  66.25%
+  Careem Now          1  rev   7600  net  5025  66.12%
+  Direct / unassigned 3  rev   6435  net  5581  86.73%
+  noon Food           1  rev   5400  net  4019  74.43%
+  Website (card)      1  rev   5000  net  3838  76.76%
+string-typed numeric fields: none
+```
+The playbook's promise for Exercise 10 holds: direct channels (80-87%) visibly beat the
+platforms (66-77%). `location_service.py` has not changed since `815a21e`, so nothing was
+fixed in between - it always worked.
+
+**The second half of the same defect.** The `if rows:` guard meant Exercise 10's three real
+assertions never executed and were reported as neither pass nor fail. Across
+`flow_sweep.py` + `flow_sweep2.py` there are **47 `check()` calls but only 32 were counted**,
+so "32 assertions, 0 failures" is softer evidence than it sounded. Those three have now been
+run directly and pass.
+
+**Rule.** Same family as the green magnitude check of 2026-08-26: an assertion that can be
+skipped silently must count as a FAILURE, not as silence. A harness that extracts nothing
+reports the product as broken just as confidently as one that asserts nothing reports it as
+working.
+
+**Status:** CLOSED - not a defect. No product change made.
+
+## F31 — a sale taken on the POS can be attributed to no location and no channel 🔴
+
+**Found while verifying F29, without anyone clicking anything.**
+
+`OrderCreate` (`backend/app/schemas/order.py`) accepts **neither `location_id` nor
+`sales_channel_id`**, `order_service.py` contains **zero references to `location_id`**, and no
+POS page has a location or channel selector. So every order the POS creates is written with
+both columns NULL. The nine `FZ-000x` orders only carry them because `seed_fz_llc.py` wrote
+them directly.
+
+**Measured on production, all twelve completed `martin-fz` orders:**
+
+| order | has location | TRN on its A4 tax invoice |
+|---|---|---|
+| `FZ-0001`..`FZ-0009` (seeded) | yes | `100123456700003` |
+| `260827-001/002/003` (taken on the POS) | **NO** | **`null`** |
+
+**Three consequences, all on the demo path:**
+1. 🔴 **The A4 tax invoice carries no TRN.** `tax_invoice_service.py:135` is
+   `trn=location.tax_registration_number if location else None`, with no fallback. A UAE tax
+   invoice without a TRN is not a valid tax invoice. This is the document Exercise 9 asks
+   Martin to check.
+2. The sale lands as **"Unassigned"** by location and **"Direct / unassigned"** by channel in
+   the Profitability report, which is the report he specifically asked for.
+3. Per-channel profitability therefore works only on seeded rows, never on a sale the
+   business actually takes.
+
+**This is the F19 shape again: one call site uses the shared resolver, another reads the raw
+column.** `stock_service.resolve_location()` already exists and its own docstring says
+*"Callers that predate locations (the existing POS, the storefront) pass nothing, and must
+keep working. Those tenants get their default location."* Stock movement goes through it;
+the tax invoice does not. `martin-fz` has `Production & Wholesale` flagged `is_default` with
+a TRN, so routing the invoice through the same resolver would fix consequence (1) alone.
+
+**Status:** OPEN - decision required on how far to fix before the recording.
+
+## F32 — `260827-001` contradicts itself on screen
+
+Stale pre-F19 data sitting in the demo tenant. Its A4 invoice reads net 2571 + VAT 129 =
+**2700**, while the order row itself says `total = 2835`. The same sale, two documents, two
+answers. `260827-002` and `-003`, created after the fix, are correct
+(2571+129=2700, 857+43=900).
+
+Also: all nine `FZ-000x` orders carry `tax_amount = 0` in the `orders` table while their tax
+invoices correctly show VAT backed out (`FZ-0008`: 34285 + 1715 = 36000). The invoice
+computes from the total, so the document is right, but an order row reading VAT 0.00 next to
+an invoice reading VAT 17.15 is the same self-contradiction F22 was about.
+
+**Status:** OPEN - covered by "clean the demo order list" in the checkpoint, but the
+`tax_amount = 0` on the seeded rows is a separate cleanup.
+
+## F33 — tax invoice numbers are neither unique nor stable 🔴🔴
+
+**Found while checking a side effect of the F31 fix. This is the most serious defect of the
+session, and it is on the document Exercise 9 tells Martin to "check carefully".**
+
+`tax_invoice_service._next_invoice_number()` derives the number from a **live COUNT** of the
+tenant's orders, with no clause restricting it to orders placed before this one:
+
+```python
+prefix = (location.invoice_prefix if location else "INV") or "INV"
+stmt = select(func.count(Order.id)).where(
+    Order.tenant_id == tenant_id,
+    Order.status.notin_(["draft", "voided"]),
+)
+if location is not None:
+    stmt = stmt.where(Order.location_id == location.id)
+count = (await db.execute(stmt)).scalar_one()
+return f"{prefix}-{count:05d}"
+```
+
+So every order at a site receives **the same number**, and that number **moves** as more
+orders are taken.
+
+**Measured on production, all twelve completed `martin-fz` orders:**
+```
+260827-001 -> INV-00012      FZ-0001..FZ-0007 -> FZD-00007      FZ-0008 -> FZW-00002
+260827-002 -> INV-00012                                          FZ-0009 -> FZW-00002
+260827-003 -> INV-00012
+distinct invoice numbers: 3 for 12 orders
+DUPLICATES: {'INV-00012': 3, 'FZD-00007': 7, 'FZW-00002': 2}
+```
+
+Seven separate sales all issue as `FZD-00007`. Re-open any of them tomorrow and the number
+will have changed, because the count it is derived from will have grown.
+
+**Why it matters beyond tidiness.** A UAE tax invoice must carry a sequential number that
+uniquely identifies the document. A number that is shared by seven invoices and mutates over
+time does not identify anything. Martin's accountant would reject it, and it is exactly the
+kind of thing that is cheap to fix now and expensive after a hundred invoices have been
+issued - which is the argument the playbook itself makes to him in Exercise 9.
+
+**The code anticipated this.** The docstring reads: *"Derived from a count rather than
+stored, which is fine for a document that is regenerated on demand from an immutable order.
+If invoice numbers ever need to be permanently reserved, this becomes a real sequence
+column."* They need to be.
+
+**Not caught by tests** because `test_tax_invoice.py` asserts `invoice_number.startswith("INV-")`
+and never asserts that two different orders get two different numbers. Same family as F29's
+harness: an assertion that cannot fail on the thing that is actually broken.
+
+**Status:** OPEN - needs a stored, reserved number assigned once at first issue. Requires a
+migration.

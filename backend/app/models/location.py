@@ -339,3 +339,37 @@ class StockTransferItem(BaseMixin, Base):
         "StockTransfer", back_populates="items"
     )
     ingredient: Mapped["Ingredient"] = relationship("Ingredient")
+
+
+# ---------------------------------------------------------------------------
+# TAX INVOICE NUMBERING
+# ---------------------------------------------------------------------------
+
+
+class TaxInvoiceSequence(BaseMixin, Base):
+    """The next tax invoice number to hand out, per document series.
+
+    Exists because the previous scheme derived the number from a live COUNT of
+    the tenant's orders (F33): seven different sales all read `FZD-00007`, and
+    every number moved as new orders arrived. A tax invoice number must
+    identify one document permanently, so it has to be reserved, not computed.
+
+    Keyed on the PREFIX rather than the location id, because the prefix is what
+    a reader sees and what an accountant reconciles. Two sites deliberately
+    sharing a prefix are declaring one document series and should share one
+    run of numbers; a site with its own prefix gets its own run. Keying on
+    location_id instead would silently issue two documents numbered `FZW-00007`
+    the day someone gave a second site the same prefix.
+
+    Numbers are consumed on issue and never returned. A gap therefore means a
+    document was produced and then the order was voided, which is a normal and
+    auditable thing for an invoice sequence to show.
+    """
+
+    __tablename__ = "tax_invoice_sequences"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "prefix", name="uq_tax_invoice_seq_tenant_prefix"),
+    )
+
+    prefix: Mapped[str] = mapped_column(String(10), nullable=False)
+    next_value: Mapped[int] = mapped_column(Integer, nullable=False, default=1)

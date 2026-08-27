@@ -215,12 +215,33 @@ class TestTaxInvoiceDocument:
         self, db: AsyncSession, tenant: Tenant, admin_user: User,
         wholesale_site: Location, vat_config: RestaurantConfig,
     ):
-        """A single-site tenant still gets a usable document."""
+        """CORRECTED 2026-08-27. This test used to assert the F31 defect.
+
+        It asserted that a tenant which HAS a registered site with a TRN
+        (`wholesale_site`, `is_default=True`) issues a tax invoice carrying
+        neither the site's legal name nor its TRN, merely because the order row
+        had no `location_id`. That is not a fallback, it is an invalid UAE tax
+        invoice, and it was the state of every sale the POS had ever taken.
+
+        Same shape as `test_p1a_features` in the F19 post-mortem: a test written
+        from the code, after the code, asserting whatever the code happened to
+        do.
+
+        The genuine "nothing configured at all" case -- no locations, so no TRN
+        exists anywhere to put on the document -- is a different scenario and is
+        covered by `test_tenant_with_no_locations_gets_the_pre_locations_invoice`
+        in `test_sale_attribution.py`.
+        """
         order = await _make_order(db, tenant, admin_user, wholesale_site)
         order.location_id = None
         await db.flush()
 
         invoice = await tax_invoice_service.get_tax_invoice(db, tenant.id, order.id)
-        assert invoice.supplier.name == tenant.name
-        assert invoice.supplier.trn is None
-        assert invoice.invoice_number.startswith("INV-")
+        assert invoice.supplier.name == "FZ LLC", (
+            "the registered legal name of the default site, not the tenant's "
+            "display name"
+        )
+        assert invoice.supplier.trn == "100123456700003", (
+            "a business that holds a TRN must show it on its tax invoices"
+        )
+        assert invoice.invoice_number.startswith("FZW-")
