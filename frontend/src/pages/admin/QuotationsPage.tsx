@@ -11,7 +11,6 @@ import {
   CheckCircle2,
   FileText,
   Loader2,
-  Mail,
   Plus,
   Printer,
   Send,
@@ -145,8 +144,6 @@ function QuotationsPage() {
 
   // Send / decline
   const [sendFor, setSendFor] = useState<Quotation | null>(null);
-  const [sendTo, setSendTo] = useState("");
-  const [sendMessage, setSendMessage] = useState("");
   const [declineFor, setDeclineFor] = useState<Quotation | null>(null);
   const [declineReason, setDeclineReason] = useState("");
 
@@ -292,29 +289,18 @@ function QuotationsPage() {
     }
   }
 
-  async function submitSend(skipEmail: boolean) {
+  async function submitSend() {
     if (!sendFor) return;
     setSaving(true);
     try {
-      const result = await sendQuotation(sendFor.id, {
-        to: skipEmail ? null : sendTo.trim() || null,
-        message: skipEmail ? null : sendMessage.trim() || null,
-        skip_email: skipEmail,
+      // F50 (same hazard as F39 on purchase orders): the email path runs on a
+      // mail service configured for ANOTHER tenant, so a quotation would go
+      // out under someone else's identity. Sending is the status change only.
+      const result = await sendQuotation(sendFor.id, { skip_email: true });
+      toast({
+        title: `${result.quotation.quote_number} marked as sent`,
+        description: "No email was sent.",
       });
-      if (skipEmail) {
-        toast({ title: `${result.quotation.quote_number} marked as sent` });
-      } else if (result.email_sent) {
-        toast({
-          title: "Quotation emailed",
-          description: `Sent to ${result.sent_to}.`,
-        });
-      } else {
-        toast({
-          title: "Recorded as sent, but the email did NOT go out",
-          description: result.error ?? "Print it and send it another way.",
-          variant: "destructive",
-        });
-      }
       setSendFor(null);
       await load();
     } catch (error) {
@@ -489,23 +475,12 @@ function QuotationsPage() {
                         <Printer className="mr-1 h-4 w-4" />
                         Print
                       </Button>
-                      {(quote.status === "draft" ||
-                        quote.status === "sent") && (
-                        <Button
-                          size="sm"
-                          variant={quote.status === "draft" ? "default" : "outline"}
-                          onClick={() => {
-                            setSendFor(quote);
-                            setSendTo(quote.customer_email ?? "");
-                            setSendMessage("");
-                          }}
-                        >
-                          {quote.status === "draft" ? (
-                            <Send className="mr-1 h-4 w-4" />
-                          ) : (
-                            <Mail className="mr-1 h-4 w-4" />
-                          )}
-                          {quote.status === "draft" ? "Send" : "Resend"}
+                      {/* F50: no "Resend" on a sent quotation. Resend only
+                          ever meant "email it again", and emailing is off. */}
+                      {quote.status === "draft" && (
+                        <Button size="sm" onClick={() => setSendFor(quote)}>
+                          <Send className="mr-1 h-4 w-4" />
+                          Send
                         </Button>
                       )}
                       {quote.status === "sent" && (
@@ -860,39 +835,28 @@ function QuotationsPage() {
           <DialogHeader>
             <DialogTitle>Send {sendFor?.quote_number}</DialogTitle>
             <DialogDescription>
-              The customer receives the full quotation as an email.
+              Marks the quotation as sent so it can be won or declined. Print
+              it and pass it to the customer however you normally do.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3">
-            <div>
-              <Label>To</Label>
-              <Input
-                type="email"
-                value={sendTo}
-                onChange={(e) => setSendTo(e.target.value)}
-              />
-            </div>
-            <div>
-              <Label>Message (optional)</Label>
-              <Textarea
-                rows={3}
-                value={sendMessage}
-                onChange={(e) => setSendMessage(e.target.value)}
-              />
-            </div>
-          </div>
+
+          {/* F50: this dialog used to collect a To address and a message and
+              email the quotation. Same problem as F39 on purchase orders: the
+              mail service runs on ANOTHER tenant's account and sending domain.
+              Emailing is removed; the status transition is kept. */}
+
           <DialogFooter className="flex-col gap-2 sm:flex-row">
             <Button
               variant="outline"
               disabled={saving}
-              onClick={() => void submitSend(true)}
+              onClick={() => setSendFor(null)}
             >
-              Mark sent without emailing
+              Cancel
             </Button>
-            <Button disabled={saving} onClick={() => void submitSend(false)}>
+            <Button disabled={saving} onClick={() => void submitSend()}>
               {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               <Send className="mr-2 h-4 w-4" />
-              Send by email
+              Mark as sent
             </Button>
           </DialogFooter>
         </DialogContent>

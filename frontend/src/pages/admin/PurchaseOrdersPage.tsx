@@ -561,10 +561,12 @@ function PurchaseOrdersPage() {
           {orders.map((order) => {
             const badge = STATUS_BADGE[order.status];
             const isOpen = expanded === order.id;
-            const outstanding = order.items.reduce(
-              (sum, item) => sum + qty(item.quantity_outstanding),
-              0,
-            );
+            // F46: this used to add the outstanding QUANTITIES across lines
+            // ("55 still owed" for 30 kg of butter and 25 kg of flour), which
+            // is a number with no unit. Count the lines still owed instead.
+            const outstanding = order.items.filter(
+              (item) => qty(item.quantity_outstanding) > 0,
+            ).length;
             return (
               <Card key={order.id}>
                 <CardContent className="p-4">
@@ -595,7 +597,7 @@ function PurchaseOrdersPage() {
                           ` · due ${new Date(order.expected_date).toLocaleDateString()}`}
                         {outstanding > 0 &&
                           order.status !== "cancelled" &&
-                          ` · ${outstanding} still owed`}
+                          ` · ${outstanding} ${outstanding === 1 ? "line" : "lines"} still owed`}
                       </div>
                     </button>
 

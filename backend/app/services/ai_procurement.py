@@ -395,7 +395,10 @@ quantity orders of magnitude away from the others, an item with no supplier).
 Be brief and concrete. A buyer reads this in ten seconds between two other jobs. \
 Name suppliers and items; do not give general advice about procurement. If the \
 plan is unremarkable, say so in one sentence and return no risks -- an empty \
-list is a valid and useful answer."""
+list is a valid and useful answer.
+
+Everything you write is shown to the buyer word for word. Plain ASCII \
+punctuation only, and never an escape sequence such as \\u2014."""
 
 
 def _plan_digest(plan: dict, days_until_production: int | None) -> str:
@@ -428,11 +431,32 @@ def _plan_digest(plan: dict, days_until_production: int | None) -> str:
             )
 
     if plan["unsourced"]:
-        rows.append("\nNEEDED BUT NO SUPPLIER ON FILE")
+        rows.append(
+            "\nNEEDED BUT NO SUPPLIER ON FILE (priced at last known cost; "
+            "included in the estimated spend above, cannot be ordered here)"
+        )
         for line in plan["unsourced"]:
             rows.append(
                 f"- {line['ingredient_name']} | "
                 f"{Decimal(str(line['suggested_quantity'])):g} {line['unit']}"
+            )
+
+    # F49. Without this section the model, shown a short or empty order list
+    # for a big run, concluded the recipe data must be wrong ("no flour or
+    # butter appears... check the bins") and told the buyer so. Stock covering
+    # a requirement is the normal case, not a data error, and it is one line
+    # per ingredient to say so.
+    covered = [
+        line for line in plan.get("lines", []) if Decimal(str(line["suggested_quantity"])) <= 0
+    ]
+    if covered:
+        rows.append("\nALREADY COVERED, NOTHING TO BUY (item | required | on hand | on order)")
+        for line in covered:
+            rows.append(
+                f"- {line['ingredient_name']} | "
+                f"{Decimal(str(line['required'])):g} {line['unit']} | "
+                f"{Decimal(str(line['on_hand'])):g} | "
+                f"{Decimal(str(line['on_order'])):g}"
             )
 
     return "\n".join(rows)
@@ -458,4 +482,11 @@ async def advise_on_plan(
         # A buyer's briefing note, not an essay.
         max_tokens=1200,
     )
-    return advice.model_dump()
+    # Same scrub as the OCR notes. F44: a literal `—` reached the planner
+    # screen inside `summary` because only `notes` was being cleaned. Every
+    # string the model writes here is shown verbatim, so every one is cleaned.
+    return {
+        "summary": _clean_prose(advice.summary) or "",
+        "risks": [r for r in (_clean_prose(x) for x in advice.risks) if r],
+        "order_first": [s for s in (_clean_prose(x) for x in advice.order_first) if s],
+    }

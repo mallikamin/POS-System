@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import timezone
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -193,6 +194,12 @@ async def get_tax_invoice(
     rate_bps = (config.default_tax_rate if config else 0) or 0
     prices_include_vat = bool(config.tax_inclusive) if config else True
     currency = (config.currency if config else "AED") or "AED"
+    # F48: the invoice date is the sale's calendar day in the TENANT'S zone,
+    # not UTC. Same fix as the purchase order document. Unknown zone -> UTC.
+    try:
+        zone: ZoneInfo | timezone = ZoneInfo((config.timezone if config else None) or "UTC")
+    except (ZoneInfoNotFoundError, ValueError):
+        zone = timezone.utc
 
     # Supplier identity comes from the LOCATION when it has one, because a
     # tenant may bill under a different registered entity per site. Falling
@@ -263,7 +270,7 @@ async def get_tax_invoice(
     return TaxInvoiceData(
         invoice_number=await _next_invoice_number(db, tenant_id, order, location),
         order_number=order.order_number,
-        issue_date=order.created_at.date(),
+        issue_date=order.created_at.astimezone(zone).date(),
         issued_at=order.created_at.astimezone(timezone.utc),
         supplier=supplier,
         recipient=recipient,

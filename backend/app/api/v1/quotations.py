@@ -215,7 +215,19 @@ async def send_quotation(
             quotation=_out(quotation), email_sent=False, sent_to=None
         )
 
-    to = (data.to or quotation.customer_email or "").strip()
+    # F50 (the F39 hazard, on quotations): the mail service on this server is
+    # configured for ONE tenant's account and sending domain, so any other
+    # tenant's quotation would go out under that identity. The UI no longer
+    # offers email; refuse it here too so the API cannot do what the screen
+    # cannot. Re-enable per tenant once tenant-scoped mail exists (OI-93 family).
+    raise _bad_request(
+        QuotationError(
+            "Emailing quotations is not enabled. Mark it sent and pass the "
+            "printed quotation to the customer."
+        )
+    )
+
+    to = (data.to or quotation.customer_email or "").strip()  # pragma: no cover
     if not to:
         raise _bad_request(
             QuotationError(

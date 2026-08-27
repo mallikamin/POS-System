@@ -27,6 +27,7 @@ from __future__ import annotations
 import logging
 import uuid
 from datetime import date, datetime, timedelta, timezone
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -215,7 +216,13 @@ async def create_quotation(
         )
     ).scalar_one_or_none()
 
-    today = datetime.now(timezone.utc).date()
+    # F48: "today" is the tenant's calendar day, not UTC's. A quotation raised
+    # at 22:40 UTC was dated the 27th while the buyer in Dubai was on the 28th.
+    try:
+        zone: ZoneInfo | timezone = ZoneInfo((config.timezone if config else None) or "UTC")
+    except (ZoneInfoNotFoundError, ValueError):
+        zone = timezone.utc
+    today = datetime.now(timezone.utc).astimezone(zone).date()
     valid_until = data.get("valid_until") or (
         today + timedelta(days=DEFAULT_VALIDITY_DAYS)
     )

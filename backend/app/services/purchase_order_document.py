@@ -26,9 +26,10 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from html import escape as html_escape
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -122,6 +123,17 @@ async def build_document(
     ).scalar_one_or_none()
     currency = (config.currency if config else "AED") or "AED"
 
+    # F48: the document date is the day the order was raised IN THE TENANT'S
+    # TIME ZONE, not UTC. A PO sent at 21:50 UTC on the 27th was printing
+    # "27 Aug" while the buyer in Dubai had raised it on the 28th and the list
+    # screen (browser clock) said so. Timestamps are stored tz-aware, so this
+    # is a conversion, not a guess; an unknown zone name falls back to UTC.
+    try:
+        zone: ZoneInfo | timezone = ZoneInfo((config.timezone if config else None) or "UTC")
+    except (ZoneInfoNotFoundError, ValueError):
+        zone = timezone.utc
+    raised_at = po.sent_at or po.created_at or datetime.now(timezone.utc)
+
     location: Location = po.location
 
     buyer = DocumentParty(
@@ -161,7 +173,7 @@ async def build_document(
 
     return PurchaseOrderDocument(
         po_number=po.po_number,
-        issue_date=(po.sent_at or po.created_at or datetime.now()).date(),
+        issue_date=raised_at.astimezone(zone).date(),
         expected_date=po.expected_date,
         currency=currency,
         buyer=buyer,
