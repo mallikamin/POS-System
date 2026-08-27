@@ -47,15 +47,19 @@ has, twice.
 
 ## The three rules that have actually bitten us
 
-**1. nginx caches upstream IPs at startup.**
-Recreating `frontend`/`backend` gives them new IPs. nginx keeps using the old ones and
-returns **502**. `restart` does *not* fix it — only a new container does. This is why
-every past deploy ended with a hand-fixed 502.
-→ The workflow now recreates nginx **last**, automatically.
+**1. nginx used to cache upstream IPs at startup.** (Fixed 2026-08-27, OI-92 item 1.)
+Every `proxy_pass` now goes through a variable with `resolver 127.0.0.11`, so a replaced
+`backend` is picked up per request. **An app deploy does not touch nginx at all any more.**
+The one thing a reload still cannot do is pick up a *pulled* `nginx.demo.conf`: the config
+is a single-file bind mount and `git pull` replaces the inode, so the running container
+keeps the old content (measured on the box). `deploy-remote.sh` compares the md5 the
+container sees with the file on disk and recreates nginx **only** when they differ.
 
 **2. nginx must never be recreated without its mounts.**
-All four are declared in `docker-compose.demo.yml`, so compose recreation is safe:
-`nginx.demo.conf`, `voice.conf` (Orbit's), `certbot_certs`, `certbot_webroot`.
+All **five** are declared in `docker-compose.demo.yml`, so compose recreation is safe:
+`nginx.demo.conf`, `voice.conf` (Orbit's), `certbot_certs`, `certbot_webroot`, and
+`/root/pos-system/www` (the frontend releases). The script re-checks all five after any
+recreate and aborts if one is missing.
 ⚠️ If `/root/orbit-crm/voice.conf` is missing from the **host**, Docker creates a
 *directory* there and nginx refuses to start — taking **both** sites down.
 → The workflow asserts that file exists and **aborts** rather than risking it.
@@ -77,17 +81,27 @@ git push origin main        # this IS the deploy
 `deploy-production.yml` then, in order:
 
 1. Builds the frontend **on the GitHub runner** — never on the box (2GB RAM will OOM).
-2. `rsync`s `dist/` (never `--delete`; it wiped the server once).
-3. `git pull` on the server, builds frontend via `Dockerfile.prebuilt`, recreates it.
-4. Rebuilds and recreates `backend`.
+2. `rsync`s `dist/` to `www/releases/<commit sha>/` (never `--delete`; it wiped the
+   server once). Nothing serves it yet.
+3. `git pull` on the server, and refuses if HEAD is not the commit the build is for.
+4. Rebuilds and recreates `backend`, waits for healthy. **This is the only step a user
+   can notice** — a few seconds of `/api/` 502s. OI-92 item 3 is the fix.
 5. **`pg_dump` backup, and aborts if the dump is empty** — an unusable backup is worse
    than a missing one, because it gets trusted.
 6. `alembic upgrade head`.
-7. Asserts `voice.conf` exists → recreates **nginx** → `nginx -t`.
-8. Verifies **every hostname**: HTTP status *and* that each serves **its own certificate**.
+7. Points `www/current` at the new release with an **atomic symlink swap** (`mv -T`,
+   never `ln -sfn`). nginx serves it directly; no container is involved. Keeps the 5
+   newest releases, so a rollback is `ln -s releases/<old> .tmp && mv -T .tmp current`.
+8. Asserts `voice.conf` exists. nginx is **left alone** unless `nginx.demo.conf` changed,
+   in which case the new config is `nginx -t`'d in a throwaway container first, then
+   nginx is recreated (every hostname blips for a few seconds; time it accordingly).
+9. Verifies **every hostname**: HTTP status, that each serves **its own certificate**,
+   that the live `index.html` references a chunk from **this** build, and that the
+   bundle arrives **gzipped**.
 
-Step 8's certificate check exists because `eats.sitaratech.info` served the wrong cert
-for two weeks and nothing noticed until a human opened a browser.
+Step 9's certificate check exists because `eats.sitaratech.info` served the wrong cert
+for two weeks and nothing noticed until a human opened a browser. The build check exists
+because an edit to a file nginx never loaded looked like a shipped feature for months.
 
 ⚠️ Pushing to `main` also triggers `deploy-staging.yml`, which targets **AWS ECS**
 (`me-south-1`) and is expected to fail on credentials. It cannot touch this droplet.

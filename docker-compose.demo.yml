@@ -11,11 +11,19 @@ services:
       - /root/orbit-crm/voice.conf:/etc/nginx/conf.d/voice.conf:ro
       - certbot_webroot:/var/www/certbot:ro
       - certbot_certs:/etc/letsencrypt:ro
+      # The frontend (OI-92 item 2). CI drops each build in
+      # www/releases/<git sha>/ and deploy-remote.sh points www/current at it
+      # with an atomic symlink swap. nginx.demo.conf serves
+      # /var/www/pos/current directly. There is no frontend container any more.
+      #
+      # ⚠️ This is the FIFTH mount nginx must never be recreated without. The
+      # other four are listed above; losing any of them has taken a site down
+      # before (voice.conf, 2026-03-26). deploy-remote.sh checks for this one
+      # and recreates nginx exactly once, on the deploy that introduces it.
+      - /root/pos-system/www:/var/www/pos:ro
     depends_on:
       backend:
         condition: service_healthy
-      frontend:
-        condition: service_started
     restart: always
     deploy:
       resources:
@@ -37,35 +45,10 @@ services:
         max-size: "5m"
         max-file: "3"
 
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-      args:
-        VITE_API_URL: /api
-        VITE_WS_URL: /ws
-    expose:
-      - "80"
-    restart: always
-    deploy:
-      resources:
-        limits:
-          memory: 128M
-          cpus: "0.25"
-        reservations:
-          memory: 32M
-    security_opt:
-      - no-new-privileges:true
-    read_only: true
-    tmpfs:
-      - /var/cache/nginx:size=32M
-      - /var/run:size=1M
-      - /tmp:size=16M
-    logging:
-      driver: json-file
-      options:
-        max-size: "5m"
-        max-file: "3"
+  # No `frontend` service. It was a second nginx wrapping the Vite build, and
+  # replacing it on every deploy was one of the two stop-the-world steps a
+  # deploy had (OI-92). The build is now static files on the host, served by
+  # the nginx above; see its volumes.
 
   backend:
     build:

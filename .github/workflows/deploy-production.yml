@@ -11,6 +11,13 @@ env:
   SERVER_USER: root
   DEPLOY_PATH: /root/pos-system
 
+# One deploy on the box at a time. Two pushes in quick succession used to race
+# each other through deploy-remote.sh; now the second waits for the first.
+# Never cancel an in-progress deploy: it may be mid-migration.
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
 jobs:
   deploy:
     name: Build & Deploy to DigitalOcean
@@ -47,10 +54,18 @@ jobs:
 
       - name: Upload built frontend to server
         run: |
+          # Each build lands in its OWN directory, named by the commit it was
+          # built from (OI-92 item 2). Nothing serves it yet: deploy-remote.sh
+          # repoints www/current at it atomically once the backend for the
+          # same commit is up. Never `--delete`: it wiped the server once.
+          ssh -n -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+            ${{ env.SERVER_USER }}@${{ env.SERVER_HOST }} \
+            'mkdir -p ${{ env.DEPLOY_PATH }}/www/releases'
+
           rsync -avz \
             -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
             frontend/dist/ \
-            ${{ env.SERVER_USER }}@${{ env.SERVER_HOST }}:${{ env.DEPLOY_PATH }}/frontend-dist/
+            ${{ env.SERVER_USER }}@${{ env.SERVER_HOST }}:${{ env.DEPLOY_PATH }}/www/releases/${{ github.sha }}/
 
       - name: Deploy on server
         run: |
@@ -58,9 +73,13 @@ jobs:
           # to ssh on stdin: `docker compose exec` reads stdin too, and would
           # swallow the rest of the script -- which is exactly how the migration
           # and nginx steps silently stopped running. `ssh -n` keeps stdin shut.
+          #
+          # The commit sha is passed explicitly so the script serves the build
+          # THIS run uploaded, and refuses if `git pull` landed on a different
+          # commit (a later push). The later push's own run will deploy itself.
           scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no             scripts/deploy-remote.sh             ${{ env.SERVER_USER }}@${{ env.SERVER_HOST }}:/tmp/deploy-remote.sh
 
-          ssh -n -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no             ${{ env.SERVER_USER }}@${{ env.SERVER_HOST }}             'bash /tmp/deploy-remote.sh'
+          ssh -n -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no             ${{ env.SERVER_USER }}@${{ env.SERVER_HOST }}             'bash /tmp/deploy-remote.sh ${{ github.sha }}'
 
       - name: Verify deployment
         run: |
@@ -105,8 +124,30 @@ jobs:
           done
 
           curl -fsS -A "$UA" --max-time 20 \
-            https://pos-demo.duckdns.org/api/v1/health > /dev/null || exit 1
-          echo "All hosts healthy, all certificates correct."
+            https://eats.sitaratech.info/api/v1/health > /dev/null || exit 1
+
+          # Did the frontend THIS run built actually ship? Read the live
+          # index.html, find the entry chunk it references, and check that
+          # exact file exists in the dist/ this runner just built. A green
+          # rsync proves nothing on its own: for months the wrong file was
+          # edited and nothing noticed (ERROR_LOG, 2026-08-27 night).
+          live_entry=$(curl -fsS -A "$UA" --max-time 20 https://eats.sitaratech.info/ \
+            | grep -o 'src="/assets/index-[^"]*\.js"' | head -1 | sed 's/src="\/\(.*\)"/\1/')
+          echo "live entry chunk: ${live_entry:-NONE}"
+          if [ -z "$live_entry" ] || [ ! -f "frontend/dist/$live_entry" ]; then
+            echo "FAILED: the live site is not serving the build from this commit."
+            exit 1
+          fi
+
+          # Compression (OI-94). The bundle is served by THIS nginx now, so if
+          # this header is missing the fix has silently stopped working.
+          enc=$(curl -sSI -A "$UA" -H 'Accept-Encoding: gzip' --max-time 20 \
+            "https://eats.sitaratech.info/$live_entry" | tr -d '\r' \
+            | awk 'tolower($1)=="content-encoding:"{print $2}')
+          echo "content-encoding on the entry chunk: ${enc:-NONE}"
+          [ "$enc" = "gzip" ] || { echo "FAILED: entry chunk is not gzipped."; exit 1; }
+
+          echo "All hosts healthy, all certificates correct, this build is live and compressed."
 
       - name: Cleanup
         if: always()

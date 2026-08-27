@@ -125,7 +125,12 @@ instruction: *"Only work on domain: Chickshackg84.com"*. Password rotated and 2F
 ## Deployment mechanics (POS)
 
 - Compose: `docker-compose.demo.yml --env-file .env.demo`
-- CI/CD: GitHub Actions builds the frontend on a 7 GB runner, deploys via SSH + `Dockerfile.prebuilt`
+- CI/CD: GitHub Actions builds the frontend on a 7 GB runner and rsyncs `dist/` to
+  `/root/pos-system/www/releases/<git sha>/`; `deploy-remote.sh` swaps the `www/current` symlink
+  atomically and nginx serves it straight from a read-only bind mount. **There is no frontend
+  container** (OI-92 item 2, 2026-08-27). nginx is not touched by an app deploy at all; it is
+  recreated only when `nginx.demo.conf` itself changes (single-file bind mounts go stale on
+  `git pull`, so a reload cannot see a pulled config).
 - **Always back up `.env.demo` before any server change.** Deleting it caused a 2-hour outage on
   2026-03-25.
 - **Never `docker compose down -v`** in production — destroys data and certs.
