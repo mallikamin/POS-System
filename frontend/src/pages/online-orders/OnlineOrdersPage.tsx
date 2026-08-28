@@ -982,6 +982,11 @@ export default function OnlineOrdersPage() {
             const isPending = !order.accepted_at && !order.rejected_at;
             const closed = CLOSED.includes(order.status);
             const made = MADE.includes(order.status);
+            /* A voided order is dead: no food, no money, nothing to collect.
+               Kept separate from `closed`, which also covers COMPLETED -- a
+               completed order can still legitimately owe cash (the driver who
+               comes back with it later), and must keep its Mark paid button. */
+            const voided = order.status === "voided";
             const isPreOrder = isPending && waited >= PRE_ORDER_AFTER_MINUTES;
 
             return (
@@ -1028,7 +1033,17 @@ export default function OnlineOrdersPage() {
                   </span>
                 </div>
 
-                {cashOwed ? (
+                {/* Voided wins over every payment state, because on a dead
+                    order the payment state is not a thing anyone should act
+                    on. The banner keeps the loud red bar rather than going
+                    quiet: it occupies the exact spot where "COLLECT £45.74"
+                    used to sit, so the eye that has learned to read that strip
+                    reads the correction instead of missing it. */}
+                {voided ? (
+                  <p className="mt-3 rounded-lg bg-red-600 px-3 py-2 text-center text-base font-bold text-white">
+                    ORDER VOIDED
+                  </p>
+                ) : cashOwed ? (
                   <p className="mt-3 rounded-lg bg-red-600 px-3 py-2 text-center text-base font-bold text-white">
                     NOT PAID — COLLECT {formatMoney(order.total, order.currency)}
                   </p>
@@ -1144,10 +1159,16 @@ export default function OnlineOrdersPage() {
                       >
                         {stageLabel(order)}
                       </span>
-                      {/* Synchronous on purpose: the URL is already in hand,
+                      {/* Not on a voided order: the ticket is the instruction
+                          to cook, and this food is not being cooked.
+                          Reprinting on a COMPLETED order stays available, that
+                          is a legitimate reprint.
+
+                          Synchronous on purpose: the URL is already in hand,
                           so the tap navigates straight to RawBT. Awaiting a
                           fetch here is what silently killed the first live
                           ticket. */}
+                      {voided ? null : (
                       <button
                         onClick={() => {
                           const url = ticketUrls.current.get(order.id);
@@ -1171,6 +1192,7 @@ export default function OnlineOrdersPage() {
                       >
                         🖨 Print ticket
                       </button>
+                      )}
                     </div>
 
                     {closed ? null : made ? (
@@ -1196,7 +1218,7 @@ export default function OnlineOrdersPage() {
                       </button>
                     )}
 
-                    {notPaidYet ? (
+                    {notPaidYet && !voided ? (
                       <button
                         disabled={busyId === order.id}
                         onClick={() => void onMarkPaid(order)}

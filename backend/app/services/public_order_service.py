@@ -971,8 +971,11 @@ async def advance_order(
         raise PublicOrderError("Order not found.")
     if order.accepted_at is None:
         raise PublicOrderError("Accept the order before moving it along.")
-    if order.rejected_at is not None:
-        raise PublicOrderError("This order was rejected.")
+    # Status, not the reject flag -- see the note in `mark_order_paid`. The
+    # `path` lookup below already refused a voided order, but with a message
+    # about state machines rather than one the shop can act on.
+    if order.status == "voided":
+        raise PublicOrderError("This order was cancelled.")
     if order.status == to_status:
         raise PublicOrderError(f"Order is already {to_status}.")
 
@@ -1025,8 +1028,14 @@ async def mark_order_paid(
         raise PublicOrderError("Order not found.")
     if order.payment_status == "paid":
         raise PublicOrderError("Order is already paid.")
-    if order.rejected_at is not None:
-        raise PublicOrderError("This order was rejected.")
+    # Guard the STATUS, not the reject flag. `rejected_at` is set only by
+    # `reject_order`; an order voided any other way (a manager void, the
+    # cancel-after-accept flow) leaves it null, and the old check waved that
+    # order straight through and wrote a real Payment row against it. Money
+    # that never existed, landing in the Z-report. Observed on Chick Shack
+    # order 260828-C001, 2026-08-28.
+    if order.status == "voided":
+        raise PublicOrderError("This order was cancelled. There is nothing to collect.")
 
     from app.schemas.payment import PaymentCreate
     from app.services import payment_service
