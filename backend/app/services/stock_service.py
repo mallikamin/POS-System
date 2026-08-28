@@ -331,6 +331,7 @@ async def get_location_stock(
             "location_name": location.name,
             "ingredient_id": stock.ingredient_id,
             "ingredient_name": ingredient.name,
+            "ingredient_image_url": ingredient.image_url,
             "unit": ingredient.unit,
             "quantity": stock.quantity,
             "reorder_point": stock.reorder_point,

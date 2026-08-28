@@ -75,6 +75,7 @@ export interface SupplierItemRow {
   supplier_name: string;
   ingredient_id: string;
   ingredient_name: string;
+  ingredient_image_url: string | null;
   unit: string;
   supplier_sku: string | null;
   supplier_item_name: string | null;
@@ -122,6 +123,7 @@ export interface PurchaseOrderItem {
   id: string;
   ingredient_id: string;
   ingredient_name: string;
+  ingredient_image_url: string | null;
   quantity_ordered: string;
   quantity_received: string;
   quantity_outstanding: string;

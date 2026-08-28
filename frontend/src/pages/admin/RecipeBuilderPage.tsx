@@ -40,6 +40,7 @@ import {
 } from "@/components/ui/dialog";
 import { Select } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { Thumb } from "@/components/admin/Thumb";
 
 import type { MenuItem, Category } from "@/types/menu";
 import type {
@@ -1004,7 +1005,14 @@ export default function RecipeBuilderPage() {
                                 className="border-t border-secondary-200"
                               >
                                 <td className="p-3 font-medium text-secondary-900">
-                                  {ingredient.name}
+                                  <div className="flex items-center gap-2">
+                                    <Thumb
+                                      src={ingredient.image_url}
+                                      alt={ingredient.name}
+                                      size="sm"
+                                    />
+                                    {ingredient.name}
+                                  </div>
                                 </td>
                                 <td className="p-3">
                                   <Input

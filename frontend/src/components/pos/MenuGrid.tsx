@@ -105,14 +105,20 @@ export function MenuGrid({ onAddToCart }: MenuGridProps) {
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+          /*
+            Auto-fill columns of ~150-200 px with a 4:3 photograph on each card,
+            the layout from the approved storefront mockup. The previous fixed
+            2/3/4-column grid gave a 370 px wide card a 96 px photo strip, which
+            showed only a band through the middle of a square image.
+          */
+          <div className="grid gap-2 grid-cols-[repeat(auto-fill,minmax(150px,1fr))]">
             {availableItems.map((item) => (
               <button
                 key={item.id}
                 onClick={() => handleItemClick(item)}
                 className="flex flex-col rounded-xl border border-secondary-200 bg-white overflow-hidden text-center transition-all hover:border-primary-300 hover:shadow-md active:scale-[0.97]"
               >
-                <div className="relative w-full h-24 bg-secondary-100">
+                <div className="relative w-full aspect-[4/3] bg-secondary-100">
                   {item.image_url ? (
                     <img
                       src={item.image_url}

@@ -17,6 +17,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { Thumb } from "@/components/admin/Thumb";
 import { formatMoney, getActiveCurrency } from "@/utils/currency";
 import {
   adjustStock,
@@ -427,6 +428,10 @@ function StockPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
+                        <Thumb
+                          src={row.ingredient_image_url}
+                          alt={row.ingredient_name}
+                        />
                         <span className="font-medium text-secondary-900">
                           {row.ingredient_name}
                         </span>

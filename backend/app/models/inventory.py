@@ -83,6 +83,11 @@ class Ingredient(BaseMixin, Base):
     # Metadata
     is_active: Mapped[bool] = mapped_column(default=True)
     notes: Mapped[str | None] = mapped_column(Text)
+    # Same shape as MenuItem.image_url. Set from the admin form via an upload
+    # to /media/images; read by every screen that names an ingredient (recipes,
+    # stock on hand, purchase orders, supplier catalogue) so one photograph
+    # follows the ingredient everywhere.
+    image_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     # Production
     is_produced: Mapped[bool] = mapped_column(

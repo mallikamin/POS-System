@@ -21,6 +21,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { ImageField } from "@/components/admin/ImageField";
+import { Thumb } from "@/components/admin/Thumb";
 
 import type { Ingredient, IngredientCreate, IngredientUpdate } from "@/types/inventory";
 import * as inventoryApi from "@/services/inventoryApi";
@@ -58,6 +60,7 @@ export default function IngredientManagementPage() {
   const [reorderQuantity, setReorderQuantity] = useState("");
   const [isActive, setIsActive] = useState(true);
   const [notes, setNotes] = useState("");
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
 
   // Fetch ingredients with filters
   const fetchIngredients = useCallback(async () => {
@@ -110,6 +113,7 @@ export default function IngredientManagementPage() {
     setReorderQuantity("");
     setIsActive(true);
     setNotes("");
+    setImageUrl(null);
   }
 
   // Open create dialog
@@ -131,6 +135,7 @@ export default function IngredientManagementPage() {
     setReorderQuantity(String(ingredient.reorder_quantity || ""));
     setIsActive(ingredient.is_active);
     setNotes(ingredient.notes || "");
+    setImageUrl(ingredient.image_url ?? null);
     setEditOpen(true);
   }
 
@@ -159,6 +164,7 @@ export default function IngredientManagementPage() {
         reorder_quantity: reorderQuantity ? parseFloat(reorderQuantity) : 0,
         is_active: isActive,
         notes: notes.trim() || null,
+        image_url: imageUrl,
       };
 
       await inventoryApi.createIngredient(payload);
@@ -209,6 +215,7 @@ export default function IngredientManagementPage() {
         reorder_quantity: reorderQuantity ? parseFloat(reorderQuantity) : 0,
         is_active: isActive,
         notes: notes.trim() || null,
+        image_url: imageUrl,
       };
 
       await inventoryApi.updateIngredient(editTarget.id, payload);
@@ -353,10 +360,15 @@ export default function IngredientManagementPage() {
                         className="border-b last:border-0 hover:bg-secondary-50"
                       >
                         <td className="py-3 font-medium text-secondary-900">
-                          {ingredient.name}
-                          {isLowStock && (
-                            <AlertTriangle className="ml-2 inline h-4 w-4 text-red-500" />
-                          )}
+                          <div className="flex items-center gap-3">
+                            <Thumb src={ingredient.image_url} alt={ingredient.name} />
+                            <span>
+                              {ingredient.name}
+                              {isLowStock && (
+                                <AlertTriangle className="ml-2 inline h-4 w-4 text-red-500" />
+                              )}
+                            </span>
+                          </div>
                         </td>
                         <td className="py-3 text-secondary-600">
                           {ingredient.category}
@@ -447,6 +459,12 @@ export default function IngredientManagementPage() {
                 className="min-h-[48px]"
               />
             </div>
+
+            <ImageField
+              value={imageUrl}
+              onChange={setImageUrl}
+              idPrefix="create-image"
+            />
 
             {/* Category */}
             <div className="space-y-2">
@@ -612,6 +630,12 @@ export default function IngredientManagementPage() {
                 className="min-h-[48px]"
               />
             </div>
+
+            <ImageField
+              value={imageUrl}
+              onChange={setImageUrl}
+              idPrefix="edit-image"
+            />
 
             <div className="space-y-2">
               <Label htmlFor="edit-category">Category</Label>

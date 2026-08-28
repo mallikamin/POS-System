@@ -119,6 +119,7 @@ class SupplierItemRow(BaseModel):
     supplier_name: str
     ingredient_id: uuid.UUID
     ingredient_name: str
+    ingredient_image_url: str | None = None
     unit: str
     supplier_sku: str | None
     supplier_item_name: str | None
@@ -188,6 +189,7 @@ class PurchaseOrderItemResponse(BaseModel):
     id: uuid.UUID
     ingredient_id: uuid.UUID
     ingredient_name: str
+    ingredient_image_url: str | None = None
     quantity_ordered: Num
     quantity_received: Num
     quantity_outstanding: Num

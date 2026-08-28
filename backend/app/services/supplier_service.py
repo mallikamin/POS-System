@@ -144,6 +144,7 @@ async def list_supplier_items(
             "supplier_name": supplier.name,
             "ingredient_id": item.ingredient_id,
             "ingredient_name": ingredient.name,
+            "ingredient_image_url": ingredient.image_url,
             "unit": ingredient.unit,
             "supplier_sku": item.supplier_sku,
             "supplier_item_name": item.supplier_item_name,

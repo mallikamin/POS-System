@@ -174,6 +174,10 @@ class LocationStockRow(BaseModel):
     cost_per_unit: Num
     is_produced: bool
     is_low: bool
+    # The ingredient's own photograph, so the stock table shows it without a
+    # second request per row. Optional with a default so every other builder of
+    # this row shape (the low-stock report, the AI suggester) is unaffected.
+    ingredient_image_url: str | None = None
 
 
 class StockMovementRow(BaseModel):

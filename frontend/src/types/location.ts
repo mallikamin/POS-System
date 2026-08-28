@@ -98,6 +98,7 @@ export interface LocationStockRow {
   cost_per_unit: number;
   is_produced: boolean;
   is_low: boolean;
+  ingredient_image_url: string | null;
 }
 
 /**

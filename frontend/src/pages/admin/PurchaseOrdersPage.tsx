@@ -37,6 +37,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { Thumb } from "@/components/admin/Thumb";
 import { useConfigStore } from "@/stores/configStore";
 import { formatMoney } from "@/utils/currency";
 import {
@@ -670,12 +671,21 @@ function PurchaseOrdersPage() {
                               className="border-t border-secondary-100"
                             >
                               <td className="py-2">
-                                {item.ingredient_name}
-                                {item.supplier_sku && (
-                                  <span className="ml-2 text-xs text-secondary-500">
-                                    {item.supplier_sku}
+                                <div className="flex items-center gap-2">
+                                  <Thumb
+                                    src={item.ingredient_image_url}
+                                    alt={item.ingredient_name}
+                                    size="sm"
+                                  />
+                                  <span>
+                                    {item.ingredient_name}
+                                    {item.supplier_sku && (
+                                      <span className="ml-2 text-xs text-secondary-500">
+                                        {item.supplier_sku}
+                                      </span>
+                                    )}
                                   </span>
-                                )}
+                                </div>
                               </td>
                               <td className="py-2 text-right">
                                 {qty(item.quantity_ordered)} {item.unit}
@@ -1118,10 +1128,19 @@ function PurchaseOrdersPage() {
                   return (
                   <tr key={item.id} className="border-t border-secondary-100">
                     <td className="py-2">
-                      {item.ingredient_name}
-                      <span className="ml-1 text-xs text-secondary-500">
-                        ({item.unit})
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <Thumb
+                          src={item.ingredient_image_url}
+                          alt={item.ingredient_name}
+                          size="sm"
+                        />
+                        <span>
+                          {item.ingredient_name}
+                          <span className="ml-1 text-xs text-secondary-500">
+                            ({item.unit})
+                          </span>
+                        </span>
+                      </div>
                       {read && (
                         <div
                           className={

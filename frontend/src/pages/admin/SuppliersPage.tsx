@@ -35,6 +35,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { Thumb } from "@/components/admin/Thumb";
 import { useConfigStore } from "@/stores/configStore";
 import { formatMoney } from "@/utils/currency";
 import {
@@ -698,6 +699,12 @@ function SuppliersPage() {
                         className="border-b border-secondary-100 last:border-0"
                       >
                         <td className="px-3 py-2">
+                          <Thumb
+                            src={item.ingredient_image_url}
+                            alt={item.ingredient_name}
+                            size="sm"
+                            className="mr-2 align-middle"
+                          />
                           <span className="font-medium text-secondary-900">
                             {item.ingredient_name}
                           </span>

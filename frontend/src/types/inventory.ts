@@ -31,6 +31,8 @@ export interface Ingredient {
    * anybody pays.
    */
   is_produced: boolean;
+  /** Photograph, uploaded via /media/images. Follows the ingredient onto every screen that names it. */
+  image_url: string | null;
   created_at: string;
   updated_at: string | null;
 }
@@ -46,6 +48,7 @@ export interface IngredientCreate {
   reorder_quantity?: number;
   is_active?: boolean;
   notes?: string | null;
+  image_url?: string | null;
 }
 
 export interface IngredientUpdate {
@@ -59,6 +62,7 @@ export interface IngredientUpdate {
   reorder_quantity?: number;
   is_active?: boolean;
   notes?: string | null;
+  image_url?: string | null;
 }
 
 // ==========================================================================

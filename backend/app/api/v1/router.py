@@ -23,6 +23,7 @@ from app.api.v1.locations import router as locations_router
 from app.api.v1.procurement import router as procurement_router
 from app.api.v1.quotations import router as quotations_router
 from app.api.v1.public import router as public_router  # storefront, unauthenticated
+from app.api.v1.media import router as media_router  # image upload + delivery
 
 api_v1_router = APIRouter()
 
@@ -49,3 +50,4 @@ api_v1_router.include_router(locations_router)
 api_v1_router.include_router(procurement_router)
 api_v1_router.include_router(quotations_router)
 api_v1_router.include_router(public_router)
+api_v1_router.include_router(media_router)

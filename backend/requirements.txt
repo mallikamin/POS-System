@@ -21,3 +21,7 @@ stripe==15.3.1  # Card payments for online orders (authorise, capture on accept)
 # so it must be installed for them to be available at all. 1.x is built on
 # httpx2, which coexists with the httpx pin above rather than conflicting.
 anthropic==1.0.0
+# Menu item and ingredient photographs: every upload is decoded and re-encoded
+# (EXIF-rotated, capped at 1200 px, JPEG) before it is stored, see
+# services/media_service.py. Nothing an uploader authored is ever served.
+Pillow==11.3.0

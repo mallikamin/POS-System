@@ -25,6 +25,8 @@ import {
   DialogFooter,
   DialogDescription,
 } from "@/components/ui/dialog";
+import { ImageField } from "@/components/admin/ImageField";
+import { Thumb } from "@/components/admin/Thumb";
 import { formatPKR, rupeesToPaisa, paisaToRupees } from "@/utils/currency";
 import { useMenuStore } from "@/stores/menuStore";
 import * as menuApi from "@/services/menuApi";
@@ -395,6 +397,7 @@ function ItemsTab() {
   const [isAvailable, setIsAvailable] = useState(true);
   const [displayOrder, setDisplayOrder] = useState(0);
   const [prepTime, setPrepTime] = useState("");
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [selectedModifierGroupIds, setSelectedModifierGroupIds] = useState<
     string[]
   >([]);
@@ -432,6 +435,7 @@ function ItemsTab() {
     setIsAvailable(true);
     setDisplayOrder(items.length);
     setPrepTime("");
+    setImageUrl(null);
     setSelectedModifierGroupIds([]);
     setDialogOpen(true);
   }
@@ -449,6 +453,7 @@ function ItemsTab() {
         ? String(item.preparation_time_minutes)
         : ""
     );
+    setImageUrl(item.image_url ?? null);
     setSelectedModifierGroupIds(
       item.modifier_groups?.map((mg) => mg.id) || []
     );
@@ -469,6 +474,7 @@ function ItemsTab() {
         is_available: isAvailable,
         display_order: displayOrder,
         preparation_time_minutes: prepTime ? Number(prepTime) : null,
+        image_url: imageUrl,
         modifier_group_ids: selectedModifierGroupIds,
       };
 
@@ -568,7 +574,8 @@ function ItemsTab() {
           {items.map((item) => (
             <Card key={item.id}>
               <CardContent className="space-y-3 p-4">
-                <div className="flex items-start justify-between">
+                <div className="flex items-start gap-3">
+                  <Thumb src={item.image_url} alt={item.name} size="lg" />
                   <div className="min-w-0 flex-1">
                     <p className="font-medium text-secondary-900 truncate">
                       {item.name}
@@ -577,7 +584,7 @@ function ItemsTab() {
                       {categoryName(item.category_id)}
                     </p>
                   </div>
-                  <p className="text-lg font-bold text-primary-600 ml-2 whitespace-nowrap">
+                  <p className="text-lg font-bold text-primary-600 whitespace-nowrap">
                     {formatPKR(item.price)}
                   </p>
                 </div>
@@ -666,6 +673,11 @@ function ItemsTab() {
                 placeholder="Optional description"
               />
             </div>
+            <ImageField
+              value={imageUrl}
+              onChange={setImageUrl}
+              idPrefix="item-image"
+            />
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="item-price">Price ({currency}) *</Label>

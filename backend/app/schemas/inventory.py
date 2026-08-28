@@ -51,6 +51,7 @@ class IngredientBase(BaseModel):
     reorder_quantity: Num = Field(default=0, ge=0)
     is_active: bool = True
     notes: str | None = None
+    image_url: str | None = Field(None, max_length=500)
 
 
 class IngredientCreate(IngredientBase):
@@ -68,6 +69,7 @@ class IngredientUpdate(BaseModel):
     reorder_quantity: Num | None = Field(None, ge=0)
     is_active: bool | None = None
     notes: str | None = None
+    image_url: str | None = Field(None, max_length=500)
 
 
 class IngredientResponse(IngredientBase):

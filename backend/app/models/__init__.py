@@ -40,6 +40,7 @@ from app.models.location import (
     StockTransferItem,
 )
 from app.models.ai_usage import AIUsageLog
+from app.models.media import MediaFile
 from app.models.quotation import Quotation, QuotationItem
 from app.models.procurement import (
     GoodsReceipt,
@@ -104,6 +105,7 @@ __all__ = [
     "GoodsReceipt",
     "GoodsReceiptLine",
     "AIUsageLog",
+    "MediaFile",
     "Quotation",
     "QuotationItem",
 ]

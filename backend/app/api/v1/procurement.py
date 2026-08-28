@@ -141,6 +141,7 @@ def _po_out(po: PurchaseOrder) -> PurchaseOrderResponse:
                 id=item.id,
                 ingredient_id=item.ingredient_id,
                 ingredient_name=item.ingredient.name,
+                ingredient_image_url=item.ingredient.image_url,
                 quantity_ordered=item.quantity_ordered,
                 quantity_received=item.quantity_received,
                 quantity_outstanding=max(
