@@ -69,6 +69,15 @@ export interface RestaurantConfig extends BaseEntity {
   tenant_slug: string | null;
   payment_flow: "order_first" | "pay_first";
   currency: string;
+  /**
+   * Optional visual identity for this tenant, e.g. `desert-salt`.
+   *
+   * Null for every existing tenant, which is what keeps them looking exactly as
+   * they do today: `setActiveTheme` stamps nothing and the `:root` defaults in
+   * `index.css` apply. Declared here because a response field with no TS type
+   * is silent in both directions (see the `restaurant_name` note above).
+   */
+  theme: string | null;
   timezone: string;
   tax_inclusive: boolean;
   default_tax_rate: number;

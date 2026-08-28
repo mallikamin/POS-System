@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import api from "@/lib/axios";
 import { setActiveCurrency } from "@/utils/currency";
+import { setActiveTheme } from "@/utils/theme";
 import type { RestaurantConfig } from "@/types";
 
 interface ConfigState {
@@ -26,6 +27,9 @@ export const useConfigStore = create<ConfigState>()((set, get) => ({
       // Drive display formatting from the tenant's configured currency before
       // any component renders a price.
       setActiveCurrency(data.currency);
+      // Same idea for the look: a tenant may carry its own palette. Tenants
+      // without one get no attribute and render exactly as before.
+      setActiveTheme(data.theme);
       set({ config: data, isLoading: false });
     } catch (err) {
       const message =
@@ -34,5 +38,8 @@ export const useConfigStore = create<ConfigState>()((set, get) => ({
     }
   },
 
-  clearConfig: () => set({ config: null, error: null }),
+  clearConfig: () => {
+    setActiveTheme(null);
+    set({ config: null, error: null });
+  },
 }));

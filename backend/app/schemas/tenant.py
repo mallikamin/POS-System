@@ -43,5 +43,7 @@ class RestaurantConfigResponse(BaseModel):
     # Comma-separated UI module slugs to hide from this tenant. Presentation
     # only, never an entitlement -- see the model docstring and OI-93.
     hidden_ui_modules: str = ""
+    # Optional per-tenant palette name. None means the standard look.
+    theme: str | None = None
 
     model_config = {"from_attributes": True}

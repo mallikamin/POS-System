@@ -2,8 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
+/* === THEME TOKENS (generated) === */
+/* Defaults are the exact values Tailwind used as literals before
+   theming existed. Changing one changes every tenant. */
 :root {
-  /* Primary - Blue */
+  /* primary */
   --color-primary-50: 239 246 255;
   --color-primary-100: 219 234 254;
   --color-primary-200: 191 219 254;
@@ -14,30 +17,142 @@
   --color-primary-700: 29 78 216;
   --color-primary-800: 30 64 175;
   --color-primary-900: 30 58 138;
-
-  /* Success - Green */
-  --color-success-500: 34 197 94;
-  --color-success-600: 22 163 74;
-
-  /* Warning - Amber */
-  --color-warning-500: 245 158 11;
-  --color-warning-600: 217 119 6;
-
-  /* Danger - Red */
-  --color-danger-500: 239 68 68;
-  --color-danger-600: 220 38 38;
-
-  /* Accent - Purple */
+  --color-primary-950: 23 37 84;
+  /* secondary */
+  --color-secondary-50: 248 250 252;
+  --color-secondary-100: 241 245 249;
+  --color-secondary-200: 226 232 240;
+  --color-secondary-300: 203 213 225;
+  --color-secondary-400: 148 163 184;
+  --color-secondary-500: 100 116 139;
+  --color-secondary-600: 71 85 105;
+  --color-secondary-700: 51 65 85;
+  --color-secondary-800: 30 41 59;
+  --color-secondary-900: 15 23 42;
+  --color-secondary-950: 2 6 23;
+  /* accent */
+  --color-accent-50: 250 245 255;
+  --color-accent-100: 243 232 255;
+  --color-accent-200: 233 213 255;
+  --color-accent-300: 216 180 254;
+  --color-accent-400: 192 132 252;
   --color-accent-500: 168 85 247;
   --color-accent-600: 147 51 234;
+  --color-accent-700: 126 34 206;
+  --color-accent-800: 107 33 168;
+  --color-accent-900: 88 28 135;
+  --color-accent-950: 59 7 100;
+  /* success */
+  --color-success-50: 240 253 244;
+  --color-success-100: 220 252 231;
+  --color-success-200: 187 247 208;
+  --color-success-300: 134 239 172;
+  --color-success-400: 74 222 128;
+  --color-success-500: 34 197 94;
+  --color-success-600: 22 163 74;
+  --color-success-700: 21 128 61;
+  --color-success-800: 22 101 52;
+  --color-success-900: 20 83 45;
+  --color-success-950: 5 46 22;
+  /* warning */
+  --color-warning-50: 255 251 235;
+  --color-warning-100: 254 243 199;
+  --color-warning-200: 253 230 138;
+  --color-warning-300: 252 211 77;
+  --color-warning-400: 251 191 36;
+  --color-warning-500: 245 158 11;
+  --color-warning-600: 217 119 6;
+  --color-warning-700: 180 83 9;
+  --color-warning-800: 146 64 14;
+  --color-warning-900: 120 53 15;
+  --color-warning-950: 69 26 3;
+  /* danger */
+  --color-danger-50: 254 242 242;
+  --color-danger-100: 254 226 226;
+  --color-danger-200: 254 202 202;
+  --color-danger-300: 252 165 165;
+  --color-danger-400: 248 113 113;
+  --color-danger-500: 239 68 68;
+  --color-danger-600: 220 38 38;
+  --color-danger-700: 185 28 28;
+  --color-danger-800: 153 27 27;
+  --color-danger-900: 127 29 29;
+  --color-danger-950: 69 10 10;
+  --font-sans: "Inter", system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-display: var(--font-sans);
+}
+/* === END THEME TOKENS === */
 
-  /* Surfaces */
-  --color-surface: 255 255 255;
-  --color-surface-elevated: 248 250 252;
+/* === TENANT THEME: desert-salt ===============================================
+   Applied ONLY when the tenant's own config asks for it, via
+   `document.documentElement.dataset.tenantTheme` (see utils/theme.ts).
+   Nothing here exists in :root, so a tenant without a theme -- Chick Shack
+   included -- resolves the defaults above and renders exactly as before.
 
-  /* Font */
-  --font-sans: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-    Roboto, "Helvetica Neue", Arial, sans-serif;
+   Semantic colours (success / warning / danger) are deliberately NOT themed.
+   They carry meaning rather than identity, and a "low stock" warning has to
+   read as a warning in every tenant.
+   ========================================================================== */
+:root[data-tenant-theme="desert-salt"] {
+  /* Burnt amber, the single accent */
+  --color-primary-50:  251 243 240;
+  --color-primary-100: 246 228 221;
+  --color-primary-200: 237 200 187;
+  --color-primary-300: 224 164 142;
+  --color-primary-400: 207 124  95;
+  --color-primary-500: 180  89  58;
+  --color-primary-600: 156  74  47;
+  --color-primary-700: 126  59  37;
+  --color-primary-800: 100  48  31;
+  --color-primary-900:  78  39  26;
+  --color-primary-950:  44  20  13;
+
+  /* Warm limestone, replacing the cool slate greys */
+  --color-secondary-50:  251 250 248;
+  --color-secondary-100: 244 241 236;
+  --color-secondary-200: 232 227 218;
+  --color-secondary-300: 214 206 193;
+  --color-secondary-400: 179 167 151;
+  --color-secondary-500: 138 127 115;
+  --color-secondary-600: 110 100  90;
+  --color-secondary-700:  86  78  70;
+  --color-secondary-800:  61  56  50;
+  --color-secondary-900:  43  38  34;
+  --color-secondary-950:  26  22  19;
+
+  /* Accent follows the amber rather than the stock purple, so the themed
+     tenant never shows a colour from outside its own palette. */
+  --color-accent-50:  251 243 240;
+  --color-accent-100: 246 228 221;
+  --color-accent-200: 237 200 187;
+  --color-accent-300: 224 164 142;
+  --color-accent-400: 207 124  95;
+  --color-accent-500: 156  74  47;
+  --color-accent-600: 126  59  37;
+  --color-accent-700: 100  48  31;
+  --color-accent-800:  78  39  26;
+  --color-accent-900:  59  29  20;
+  --color-accent-950:  33  16  11;
+
+  --font-sans: "Public Sans", system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  --font-display: "Fraunces", Georgia, "Times New Roman", serif;
+}
+
+/* Desert Salt is an architectural look: square corners, quiet rules. Scoped the
+   same way, so no other tenant's geometry moves. */
+:root[data-tenant-theme="desert-salt"] .rounded-lg,
+:root[data-tenant-theme="desert-salt"] .rounded-xl,
+:root[data-tenant-theme="desert-salt"] .rounded-2xl {
+  border-radius: 3px;
+}
+:root[data-tenant-theme="desert-salt"] h1,
+:root[data-tenant-theme="desert-salt"] h2,
+:root[data-tenant-theme="desert-salt"] h3 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: -0.01em;
 }
 
 @layer base {

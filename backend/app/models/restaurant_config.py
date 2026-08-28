@@ -134,6 +134,21 @@ class RestaurantConfig(BaseMixin, Base):
         String(500), nullable=False, default="", server_default=""
     )
 
+    # Optional visual identity for this tenant, e.g. "desert-salt".
+    #
+    # NULL for every existing tenant, and NULL is the whole safety argument: the
+    # frontend stamps no attribute, the `:root` defaults in index.css apply, and
+    # the screens render exactly as they did before theming existed. A tenant is
+    # restyled only by writing a name into this column, so Chick Shack cannot be
+    # affected by the feature's existence -- only by someone deliberately
+    # setting its theme, which nothing does.
+    #
+    # Presentation only. It must never gate behaviour or entitlements; an
+    # unrecognised value falls back to the standard look rather than erroring.
+    theme: Mapped[str | None] = mapped_column(
+        String(40), nullable=True, default=None
+    )
+
     tenant: Mapped["Tenant"] = relationship("Tenant", back_populates="config")
 
 
