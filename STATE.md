@@ -65,6 +65,34 @@ sales report read, so a tap would have put £45.74 of phantom takings into the d
   `pg_dump` was taken before this deploy: the pre-void dump was an hour old and the change carries no
   migration.
 
+## 🟢 2026-08-28 15:45 UTC. F34 ATTRIBUTION PROVEN END TO END ON THE LIVE SITE. TODAY'S ORDERS ARE ORGANIC.
+
+**Segment 2 (browser storage -> order POST), the one link never observed, is now observed.** Headless
+Chromium (Playwright, local) drove `https://chickshackg84.com/?gclid=F34PROBE_1787930321039` through
+the real menu, basket and checkout, and the order POST was captured and **aborted inside the browser
+before it left**, so no order reached Imran's queue (confirmed: 0 rows matching `probe`/`F34PROBE`).
+```
+CAPTURED POST BODY: {"service_type":"collection", ..., "payment_method":"card",
+                     "gclid":"F34PROBE_1787930321039","click_type":"gclid"}
+RESULT gclid = F34PROBE_1787930321039  click_type = gclid  MATCH = true
+```
+All three links now observed on production: URL -> storage (Malik 08-27, and again here), storage
+-> POST (here), POST -> row (08-27). Script: session scratchpad `probe_gclid.js`.
+
+**Therefore today's two orders, `260828-C001` (voided) and `260828-C002`, with `gclid` NULL, were
+NOT from a Google ad.** They are organic. This is now a reading of the data, not a guess.
+
+📌 **How to answer "was this order from the ad?" from now on:** `orders.gclid IS NOT NULL` means Google
+Ads, NULL means organic. Same model as bilal-app (`C:\FBAI\bilal-app\gads_oci_export.py`: captured
+click ids joined to sales). ⚠️ One known hole stands, F34's own caveat: a **card** payer who never
+tapped "Allow" on the cookie bar still attributes, because the id rides in localStorage, not the
+cookie, and localStorage survives the Stripe round trip on the same device. A customer who switches
+device between click and order does not attribute; nothing can fix that.
+
+**Not built:** nothing in the admin UI shows the source per order yet. bilal-app shows it on the
+lead; here it is a column only. Next steps unchanged from 08-27: import-type conversion action in
+Data Manager, then the OCI upload modelled on the bilal-app script.
+
 **Previous header:** 2026-08-28 07:10 UTC (12:10 PKT), `/refresh` from a fresh HANDOFF session.
 **Verified current, no drift:** HEAD `619a481` = `origin/main`, 0 unpushed, matching
 `PAUSE_CHECKPOINT_2026-08-28-D.md`. Uncommitted set unchanged (docs only). Resumed at the
