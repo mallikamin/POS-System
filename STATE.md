@@ -1,12 +1,224 @@
 # STATE — Restaurant POS System
 
-**Last refreshed:** 2026-08-28 (`/refresh` from a fresh HANDOFF session). Verified current, no drift:
-HEAD `aa8f10c` = `origin/main`, 0 unpushed, matches `PAUSE_CHECKPOINT_2026-08-28-C.md`. Working on
-Malik's ordered plan, item 1 (F13 first, then F10, F11, F12).
+**Last refreshed:** 2026-08-28 15:10 UTC (20:10 PKT). Chick Shack live incident: an order Imran
+asked to cancel, and a money bug found on the voided card. HEAD `e681495` = `origin/main` = server.
+
+## 🟢 2026-08-28 14:45-15:10 UTC. CHICK SHACK ORDER 260828-C001 CANCELLED ON REQUEST. A VOIDED ORDER WOULD HAVE TAKEN £45.74 THAT NEVER EXISTED. FIXED AND DEPLOYED (`e681495`) DURING SERVICE, VERIFIED ON PRODUCTION AND BY EYE ON THE TABLET.
+
+**What Imran asked.** "This order needs cancelled. How can we cancel it from our end without having
+to bother you." Order `260828-C001`, Sean Taylor, collection, £45.74, cash on collection, placed
+10:54 UTC and accepted 14:21 UTC.
+
+**The answer was no, and that has not changed.** There is no cancel path after Accept: `reject_order`
+refuses a non-pending order (`public_order_service.py`, `_get_pending_online_order`), the tablet's
+accepted card offers only Print / Ready / Mark paid, and the admin Orders card sets
+`canVoid = !isOnline` (`OrderCard.tsx:209`) on purpose. **Imran has since said to leave the cancel
+build alone** — he will ask us to void from the backend rather than risk staff mistapping a cancel
+button mid-service. No cancel feature is being built. 🔴 Every such void is manual and lands in the
+state described below, so the server-side guard is now the thing protecting the takings.
+
+**The void itself.** `pg_dump` first
+(`/root/backups/pos-pre-void-260828C001-20260828-145150.sql.gz`, 410 KB, 57 COPY blocks, verified),
+then `order_service.void_order` run through the app's own service layer inside the backend container,
+never raw SQL, so the status log and the audit row are written exactly as the route writes them.
+Trail: `confirmed → in_kitchen → voided`, note "Cancelled at the shop's request (Imran, WhatsApp
+2026-08-28)". No money moved: no Stripe intent existed, so nothing to refund and no hold to release.
+🔴 **No message was sent to the customer.** He had been promised 45 minutes. Imran was told to ring him.
+
+🔴 **F52, found by Malik looking at the card afterwards: the voided order still showed the red
+`NOT PAID — COLLECT £45.74` bar and a live `Mark paid` button, and the server would have honoured
+the tap.** Proved on the live row inside a rolled-back transaction, not inferred:
+`RESULT ACCEPTED. payment_status now paid, 1 payment row(s) staged, amounts=[4574]` /
+`ROLLED BACK.` / `persisted_payment_rows=0`. A real `Payment` row is what the Z-report and every
+sales report read, so a tap would have put £45.74 of phantom takings into the day.
+- **Cause: both layers asked a FLAG whether the order was live instead of asking its STATUS.**
+  `isCashOwed()` is `!is_card_order && !isPaid` and knows nothing about closed; the banner and the
+  Mark paid button were unguarded while the Ready/Handover button between them *was* guarded.
+  The backend guarded `order.rejected_at is not None`. Until this incident the only route to
+  `voided` was `reject_order`, which sets that flag, so the wrong question kept returning the right
+  answer by accident. A manual void sets the status and not the flag. **This is
+  [[filter-is-not-an-invariant]] a fourth time (OI-61 → 65 → 66 → 68).**
+- **Fixed.** The red bar now reads `ORDER VOIDED`, same red, same bold, same position, so the eye
+  trained on that strip reads the correction instead of missing it. Malik cut the explanatory
+  sub-line: the two words alone. Mark paid and Print ticket hidden on a voided order, both **kept**
+  on a completed one (a driver can still return with cash; a reprint of a finished order is
+  legitimate). `mark_order_paid` and the ready/complete path now guard on `status == "voided"`;
+  rejections stay covered because `reject_order` sets that status too.
+- **Proved:** 5 new tests in `backend/tests/test_voided_online_order.py` assert what the **endpoint**
+  returns and what the **payments table** holds, never what a component renders — a test written
+  against `rejected_at` would have passed throughout the incident. Vite build clean.
+- **Verified on production, not from the green Action.** Server HEAD `e681495`,
+  `www/current -> releases/e68149…`, backend replaced and healthy, **0 errors**, nginx untouched
+  (same container, up 17 h), Orbit untouched. Live bundle `OnlineOrdersPage-C-IKxi6a.js` carries
+  `ORDER VOIDED` once and none of the cut sub-line. The real requests fired at the deployed backend:
+  ```
+  POST /paid      -> 409  This order was cancelled. There is nothing to collect.
+  POST /ready     -> 409  This order was cancelled.
+  POST /complete  -> 409  This order was cancelled. There is nothing to collect.
+  AFTER  status=voided  payment=unpaid  payment_rows=0
+  ```
+  🟢 **Confirmed by eye on Imran's own tablet** (Malik's screenshot): ORDER VOIDED bar, grey Voided
+  strip, no Mark paid, no Print ticket. Chick Shack after: 246 orders, newest 15:01:04, sum 723274,
+  5 voided, 0 backend errors.
+- ⚠️ **Deployed mid-service, at Malik's explicit instruction** ("do this asap now"), inside the
+  15:00-21:00 UTC trading window. Backend replacement costs Chick Shack ~47 s of downtime. No second
+  `pg_dump` was taken before this deploy: the pre-void dump was an hour old and the change carries no
+  migration.
+
+**Previous header:** 2026-08-28 07:10 UTC (12:10 PKT), `/refresh` from a fresh HANDOFF session.
+**Verified current, no drift:** HEAD `619a481` = `origin/main`, 0 unpushed, matching
+`PAUSE_CHECKPOINT_2026-08-28-D.md`. Uncommitted set unchanged (docs only). Resumed at the
+FZ LLC demo recording, Malik driving, one step per message.
+
+⚠️ **Timestamp correction.** This header first read `00:06 UTC` and flagged the previous header as
+forward-dated. **That flag was wrong and is retracted.** A single early clock reading in this
+session returned 00:06 when the true time was 07:06; the machine is correctly on Pakistan Standard
+Time (UTC+5) and agrees with GitHub's server stamps. The previous session's times (checkpoint D at
+00:05 UTC = 05:05 PKT) were right all along. **Cross-check any UTC claim that gates a deploy
+against a server stamp (`gh run list` createdAt), not against the local clock alone.**
+
+**Previous header:** 2026-08-28 ~00:30 UTC, end of session. 🟢 **HEAD `619a481` = `origin/main` =
+server, 0 unpushed.** Malik's ordered plan: **item 1 shipped and verified** (F13/F10/F11/F12,
+`619a481`, Chick Shack identical), **item 2 answered from the recording** (no KDS, his words), **item 3
+written** (script v2 + lean guide; the recording is Malik's; both PDFs need re-rendering), **item 4
+started out of order and paused** (notes saved, two 08-26 claims now unconfirmed), **item 5 not
+started** (quote due Monday 2026-08-31). STATE.md, ERROR_LOG.md, the findings file and the FZ LLC
+context docs are uncommitted; they ride the next deploy.
+
+**Previous header:** 2026-08-28 (`/refresh` from a fresh HANDOFF session). Verified current, no drift:
+HEAD `aa8f10c` = `origin/main`, 0 unpushed, matches `PAUSE_CHECKPOINT_2026-08-28-C.md`.
 
 **Previous header:** 2026-08-27 23:20 UTC (04:20 PKT Fri), end of session.
 
-## 🟡 2026-08-27 23:30-00:00 UTC. MALIK'S PLAN ITEM 1: F13, F10, F11, F12 BUILT AND TESTED LOCALLY. DEPLOYING NEXT, INSIDE THE CLOSED-SHOP WINDOW.
+## 🟢 2026-08-28 07:00-08:10 UTC. FZ LLC DEMO RECORDING UNDER WAY (MALIK DRIVING). F51 FOUND ON CAMERA, FIXED, DEPLOYED (`092289e`) AND VERIFIED ON PRODUCTION.
+
+🟢 **THE VIDEO IS BUILT AND DELIVERED:**
+`_files/2026-08-28/demo-clips/FZ_LLC_Demo_2026-08-28.mp4`, **12m 53s, 45.9 MB, 1920x1080**, burned-in
+subtitles (`FZ_LLC_Demo.srt`, 108 cues, editable and re-burnable; master without subs kept).
+Seven clips normalised (scale + pad, never stretched) from seven different source resolutions,
+audio lifted from mean -37 dB to **-19.8 dB** with `loudnorm`, intro / expectation / section /
+outro cards. 🔴 **A privacy leak was caught in review and fixed:** the Windows file picker in
+`OCR.mp4` showed another client's filenames, `National Identity Card.pdf` and `Trail Balance.pdf`;
+blurred and captioned, verified frame by frame either side of the window. Two subtitle bugs
+(word-boundary corruption "mAIn", and filler runs) were caught and fixed before delivery.
+**Not done:** Malik has not watched it end to end yet.
+
+**The recording.** Malik records each clip against `DEMO_VIDEO_SCRIPT_2026-08-28.md`, one step per
+message, and gives the path; Claude verifies it with `ffprobe` and gives the next step. Tracker
+(recorded vs pending by section, plus every finding) is
+`_files/2026-08-28/demo-clips/clips.md`. Recorded so far, all ffprobe-verified: `Step1-4.mp4`
+(141.1 s, sections 1-3a), `Step5-6.mp4` (100.5 s, sections 3b-3c), `Step7.mp4` (30.4 s, section 4).
+**4:32 of a 11-13 minute target.** Sections 5-10 pending, then the stitch with intro/outro cards.
+⚠️ The three clips are 1892x926, 1912x926 and 1900x950: **scale and pad to 1920x1080 at the edit,
+never stretch.** Malik also asked for an expectation-setting card, front and outro: this is a
+glimpse of the capability, more depth and context to come, and the layout will be tuned by grouping
+related areas (Recipes/Ingredients; Stock/Suppliers/POs; Reports/Dashboards/Profitability).
+
+**F13 confirmed by eye on production at last** (no browser driver here, so this was Malik's screen):
+Butter Croissant reads Menu Item Price (incl. 5% VAT) AED 9.00, Net of VAT AED 8.57,
+**Food Cost % (of net revenue) 14.26%**. Matches the pre-deploy read through the real HTTP route.
+
+🔴 **F51, found while filming section 4: `/admin/transfers` crashed to the error boundary with
+`n.trim is not a function` on load, on any tenant.** The screen had effectively never been opened
+since `Num` landed; the fifteen UAT exercises never touched it.
+- **Cause, verified against the real serialiser before changing anything.** `Num`
+  (`schemas/location.py`) serialises `Decimal` as a JSON **number** deliberately, because the
+  frontend types these as numbers and does arithmetic on them (the F14 fix).
+  `frontend/src/types/location.ts` still declared the transfer, stock and movement decimals as
+  `string`, and `TransfersPage.tsx` `toNum()` called `.trim()` on one. A number has no `.trim`.
+  Deeper instance: `ProductionRunResponse.consumed` was a bare `list[dict]`, and a `Decimal` in an
+  untyped dict escapes `Num`, so that field came out as the string `"10.000"` while every sibling
+  in the same response was a number.
+- **Fixed** by typing `consumed` as `ProductionConsumedLine` (`quantity: Num`); correcting the
+  frontend types to the wire, which surfaced **14 further errors in `StockPage.tsx`** carrying the
+  same latent fault and surviving only because JS coerces strings in `*`, `/` and `>`; and widening
+  both page helpers to `string | number` (form inputs are still strings). The two helpers were
+  deliberately NOT merged, they differ on empty input (NaN vs 0).
+- **Proved:** 7 new tests in `backend/tests/test_decimal_wire_format.py` assert the **JSON** types,
+  not the Python ones, because an `isinstance` check would have passed through both F14 and F51.
+  Suite **885 passed / 10 failed / 2 errors** against the documented 876 / 12 / 2: +7 new, and the
+  two clock-dependent online-order date-scoping tests now pass. tsc clean, vite build clean, ruff
+  clean on the changed files, ESLint 0 errors.
+- **Verified on production, not from the green Action:** server HEAD `092289e`,
+  `www/current -> releases/092289e…`, backend replaced and healthy, **0 errors**, nginx untouched
+  (same container, up 10 h), Orbit's containers untouched. Through the real route as the `martin-fz`
+  admin: `GET /api/v1/locations/transfers/all` -> **200**, `quantity_sent = 10.0` (float).
+  🟢 **Chick Shack identical after the deploy: 244 / 2026-08-27 20:22:03 / 714335 / 670015.**
+  Deployed 07:59 UTC, well inside the closed-shop window (shop trades 15:00-21:00 UTC).
+
+⚠️ **CI is standing red** and has been on every one of the last six commits (the documented QB
+Desktop failures). A permanently red CI cannot warn about a real regression. Logged as an open item,
+not fixed this session.
+
+## 🟢 2026-08-27 23:30-23:55 UTC. MALIK'S PLAN ITEM 1 DONE: F13, F10, F11, F12 DEPLOYED (`619a481`, run `33127440100`, 3m11s, every step green) AND VERIFIED ON THE BOX. CHICK SHACK IDENTICAL BEFORE AND AFTER.
+
+**Verified after the deploy, on production, not from the green Action:**
+- Server HEAD `619a481`, `www/current -> releases/619a481…`, alembic head `d6e7f8a9b0c1` (no
+  migration in this commit). nginx untouched: same container `fff487cf5ddb`, same master PID
+  `1502598`. Backend replaced (new container `892c6a414f56`, healthy), **0 errors** in its log since
+  the push (23:46:02 UTC). Deployed inside the closed-shop window.
+- 🟢 **Chick Shack tenant-scoped, same query before and after:**
+  `244 / 2026-08-27 20:22:03 / 173 / 230 / 670015 / 87 / 3 / 714335`, identical. (Eight columns now:
+  the previous sessions' fifth figure, 714335, is `sum(orders.total)`; 670015 is `sum(payments.amount)`.
+  Query kept at the session scratchpad `cs_baseline.sql`; both are recorded so the two histories
+  reconcile.) `.env.demo` backed up first to `/root/backups/.env.demo.pre-f13-20260827-234530`, `cmp`
+  identical to live.
+- 🔴 **F13 read through the REAL HTTP route on production as the `martin-fz` admin, before and after**
+  (token minted inside the backend container with the app's own `create_access_token`, no password):
+  ```
+  BEFORE  Butter Croissant  price 900  net none  cost/serving 122.24  food cost 13.58%
+  AFTER   Butter Croissant  price 900  net  857  cost/serving 122.24  food cost 14.26%
+          Chicken & Cheese Croissant 1600 -> 1524   22.68%  (was 21.60%)
+          Chicken Cheese Roll        1800 -> 1714   21.56%  (was 20.53%)
+          Cappuccino                 1400 -> 1333   14.97%  (was 14.25%)
+  detail route agrees with list for Butter Croissant: True
+  ```
+  (Live cost/serving is 122.24, not the 122.28 in the finding; the recipe was re-saved since.)
+- **Frontend checked the correct way**, chunks resolved from the live `index-BORBiyeq.js`, never the
+  directory: `LoginPage-iD5iKJR3.js` has 0 × `e.g. chick-shack`, 1 × "Have a restaurant code";
+  `RecipeBuilderPage-CG2gIGlH.js` has "of net revenue" and "Search ingredients";
+  `AdminLayout-D836iGKX.js` has "Collapse sidebar".
+- Outside, browser UA: `eats.sitaratech.info` `/`, `/api/v1/health`, `/admin/recipes` all 200;
+  `parkcity.sitaratech.info` 200; `chickshackg84.com` 200.
+- **Not seen by eye:** the screens themselves were not opened in a browser this session (no browser
+  driver here). The numbers above are the API the screen renders and the bundle text it renders from;
+  Malik should glance at `/admin/recipes` (Butter Croissant) and an incognito `/login` before Martin.
+
+📌 **Plan item 4 was started OUT OF ORDER and paused on Malik's correction** ("the api research and
+documentation was next post the video and uat guide"). What was verified from the platforms' own
+pages is saved at `_context/clients/fz-llc-uae/integrations/2026-08-28_primary-source-verification-notes.md`
+so it is not redone. Two claims in the 08-26 research are now marked UNCONFIRMED there: Talabat's
+"sign an NDA" step, and Deliverect having a Talabat integration.
+
+🟢 **Plan item 2 DONE: Martin does NOT need a KDS, in his own words.** No transcript existed in the
+repo (`plan-and-todo` claimed an `.mp4` + `.txt`; there was no `.txt`), so the 18-minute recording was
+transcribed with faster-whisper (medium, 160 timestamped lines) to
+`_context/clients/fz-llc-uae/voice-notes/2026-08-26_martin_pos-workflow-walkthrough.transcript.md`.
+Malik at 05:08: *"Then how would you want the kitchen display system?"* Martin at 05:27: **"It's even
+more simple because I don't need a KDS. Okay. And I don't have like tables. So it's delivery only my
+restaurant."** And at 12:08 on the production site: *"I only sell to B2B. I need invoices for that,
+I don't need like a vertical ticket."* So: **F30 closed as not needed** (no kitchen stations for
+`martin-fz`, by design), and the demo must not mention a kitchen screen. ⚠️ One thing the call did
+NOT settle: how the delivery kitchen learns an order is in and is prepared. Malik asked at 09:34-09:47;
+Martin answered the Shopify question instead. Ask Monday, do not assume printer or screen.
+
+🟢 **Plan item 3 DONE as documents; the recording itself is Malik's.** In
+`_context/clients/fz-llc-uae/proposal/`:
+- `DEMO_VIDEO_SCRIPT_2026-08-28.md` (v2, supersedes the 08-26 script): same 12-minute shape,
+  corrected against `619a481`. Section 5 now completes the order (Mark Ready, Mark Served, Complete)
+  before claiming stock moved (F21); section 8 prints and marks sent, never emails (F39/F50); no
+  kitchen screen anywhere, with a ready answer if he asks how the delivery kitchen is told; section 3
+  has the net-of-VAT food cost beat (F13); the profitability numbers are read off the screen, not
+  pre-scripted (they are demo data and have moved). Pre-flight step 1 is the incognito login check
+  (F12) and step 3 the Recipe Builder label check (F13), so an old bundle is caught before recording.
+- `UAT_GUIDE_LEAN_FZ_LLC_2026-08-28.md`: four exercises for Martin's four asks (planner, delivery-note
+  reading, profit by channel, quotation), about 25 minutes, plus the "deliberately does not do" list.
+  Every label quoted was checked against the deployed source (`Work out what to buy`, `Draft this
+  order`, `Upload or photograph`, `Mark as sent`, `Won`, `Make it an order`, `Run Production`).
+- The full `UAT_PLAYBOOK_FZ_LLC.md` source corrected in the same pass (F21 Exercise 8, the emailing
+  wording in 11 and 15, "fourteen" to fifteen). **Both PDFs still need re-rendering** from source.
+- **Not done and cannot be from here:** the recording. Malik records against the pre-flight; the
+  `video` skill is there for the edit.
 
 **What changes for Martin, in his terms:** the Recipe Builder's Food Cost % is now a share of what
 he keeps. Butter Croissant reads **"Menu Item Price (incl. 5% VAT): AED 9.00 / Net of VAT: AED
