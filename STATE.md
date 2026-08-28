@@ -1,6 +1,219 @@
 # STATE — Restaurant POS System
 
-**Last refreshed:** 2026-08-28 15:10 UTC (20:10 PKT). Chick Shack live incident: an order Imran
+**Last refreshed:** 2026-08-28 21:20 UTC (02:20 PKT 08-29), end of the scheduled after-close deploy,
+written by the session that scheduled and ran it.
+🟢 **HEAD `464bee9` = `origin/main` = server** (`www/current -> releases/464bee9…`). Deployed 21:04-21:08
+UTC after Chick Shack closed, `pg_dump` first (`/root/backups/pre-blocked-customer-20260828-210437.sql.gz`,
+1.9 MB now that `media_files` carries 15 photos, 58 COPY blocks, gzip ok). `b4f51a7` (56/36 px
+thumbnails, `HEAD /media/{id}` → 200, confirmed live) rode along. Backend replaced and healthy,
+0 errors, nginx untouched (23 h), Orbit untouched, three hostnames 200. ⚠️ The "Deploy to Staging"
+workflow (AWS, no credentials) fails on every push in 11 s; it is not the deploy path, "Deploy to
+Production" is. Uncommitted set unchanged (docs, `_files/2026-08-28/`, another session's
+`scripts/deploy-remote.sh` / `storefront/` / `backend/Dockerfile` / `backend/scripts/start.sh` /
+`.gitignore` / `.env.example` lines, never stage from here).
+
+⚠️ **Contradiction with the 20:15 UTC refresh by another session, resolved by observation.** That
+header said cron `080fa201` "did NOT fire and cannot" because its session had ended, and marked
+`464bee9` "not reviewed, do not assume verified". Both wrong: the scheduling session was alive, the
+cron fired at 21:04 UTC, and `464bee9` is now verified on the live endpoint (below). A session
+cannot see another session's in-memory cron; **absence from your own session is not evidence that a
+job is dead.** `PAUSE_CHECKPOINT_2026-08-29.md` is that other session's checkpoint and predates this.
+
+## 🟢 2026-08-28 18:50-21:20 UTC. ONE CHICK SHACK CUSTOMER BLOCKED FROM ONLINE ORDERING. GUARD SHIPPED `464bee9`, FLAG SET THROUGH THE REAL ROUTE, REFUSAL PROVEN ON THE LIVE ENDPOINT.
+
+**Done and verified, 21:10-21:15 UTC.** `PATCH /api/v1/customers/a9774f0c-…` `{"risk_flag":"blocked"}`
+as the chick-shack admin (token minted in-process inside the backend container, script
+`block_customer.py` in the session scratchpad): `BEFORE normal → PATCH 200 → AFTER blocked` read back
+from the DB. Then a real POST at the live endpoint with his phone typed `+49 1573 737 8527` and a
+real menu item: **`409 {"detail":"Sorry, we are unable to take online orders for these contact
+details."}`, orders 256 → 256, no customer row created.** Unblock = same PATCH with `normal`.
+📌 **Probe lesson:** `chickshackg84.com` serves static files only; a POST there is 405. The
+storefront's API base is `https://eats.sitaratech.info/api/v1` (`storefront/src/lib/api.ts:25`).
+Probe that host. Also the DB role is `pos_admin` / db `pos_system` (memory `data-integrity.md`), not `pos`.
+
+**Longer-term answer given to Malik (assessment, nothing built):** blocking cannot stop the first
+incident (eat 80%, complain "burnt"). In order: (1) show customer history + `notes` on the tablet's
+pending card at the Accept tap, so Imran rejects by hand (reject already refunds card orders);
+(2) store the Stripe card fingerprint per order and add it to the block check, the only net that
+survives a new phone + email, needs Stripe docs verification first; (3) a written refund policy on
+the site, Imran's words, zero code; (4) our order timeline is the chargeback evidence. Not building:
+IP/device fingerprinting, auto-scoring, name matching. Recommendation: 1 and 3 next week, 2 only if
+he returns.
+
+### Earlier in this item (kept for the record)
+
+**Ask (Malik, screenshot of order `260828-C005`, collection, PAID · CARD, £28.66, collected):**
+"this is the guy. how do we implement that." Customer already has a `customers` row on production
+(id `a9774f0c-…`, linked by phone from checkout, `order_count 1`, `risk_flag normal`, email on file).
+
+**What exists.** `customers.risk_flag` ∈ `normal | high | blocked` (`models/customer.py:94`),
+settable through `PATCH /customers/{id}` (schema allows it), and `refresh_customer_stats` never
+auto-overwrites a manual `blocked`. The call-centre page paints a BLOCKED badge.
+
+**What is missing, verified in code.** `create_public_order` (`public_order_service.py:542-544`)
+links the customer by phone and **never reads `risk_flag`**. Setting it today changes nothing on
+`chickshackg84.com`; the order goes through and Stripe takes the money. No admin UI sets the flag
+either (the call-centre edit dialog does not expose it; Chick Shack does not use call centre).
+
+**Malik's decision (19:00 UTC): backend guard only. NO "block this customer" toggle** ("dont want
+misfiring. we'll do it ourselves"). Build it, deploy after close.
+
+**Built and committed `464bee9` (local, NOT pushed; HEAD is now 2 ahead of origin with `b4f51a7`).**
+`create_public_order` refuses with 409 `"Sorry, we are unable to take online orders for these
+contact details."` before pricing, before the system user, before any row or Stripe session,
+when the digits-only phone OR the lower-cased email matches a `blocked` customer of that tenant
+(`_is_blocked_contact`). Name is not matched. Only `blocked` refuses; `high` stays a warning.
+Per-tenant. The storefront already renders any 409 `detail` verbatim (`storefront/src/lib/api.ts`),
+so no storefront change. **Proved:** 8 endpoint-level tests in `backend/tests/test_blocked_customer.py`
+(phone, phone typed with `+49` and spaces, email with a new phone, different customer still 201,
+same name alone 201, `high` 201, other tenant's block does not reach this shop, unblock works),
+run in the local backend container: 8/8. Full suite 911 / 15 / 2 against 906 / 11 / 2.
+
+⚠️ **The 4 new failures are NOT this change.** `test_public_tenant_routing.py::{test_pending_is_
+oldest_first, test_explicit_date_reaches_a_past_days_pending_orders, test_date_range_scopes_the_all_tab,
+test_sort_toggle_overrides_the_default_for_active_and_all}` insert orders with `datetime.now(utc)`
+under the tenant default `Asia/Karachi`; the suite ran at 19:06 UTC, six minutes after Karachi
+midnight, so "20 minutes ago" and "today" fell on different local days. Midnight-boundary flake,
+open item: pin those fixtures to the tenant's local day, not tonight.
+
+**The one-shot cron `080fa201` fired at 21:04 UTC and ran the deploy above.** Before pushing, the 13
+Chick Shack rows in live statuses were inspected: all abandoned card checkouts (confirmed/unpaid,
+never accepted, never on the tablet) or stale rows from 08-07..08-26; nothing in progress, newest
+order 20:18 completed. 📌 Those 13 stale rows are an open tidy-up item, not tonight.
+
+**Honest limit, told to Malik:** phone + email stops a casual repeat; a new number and a new email
+get through. Stripe card fingerprint would be stronger, separate piece. Unblock = PATCH `normal`.
+
+## 🟢 2026-08-28 15:55-16:12 UTC. THE FOUR MARTIN-FZ MENU ITEMS SHOW PHOTOGRAPHS. SHIPPED `84224d9`, DATA WRITTEN, VERIFIED ON PRODUCTION. CHICK SHACK UNCHANGED.
+
+**Why.** Malik approved the Desert Salt theme **and the picture layout together**; only the theme
+shipped in `95aed9a`, so the themed POS still showed the grey cutlery placeholder on every card.
+`menu_items.image_url` existed and `MenuGrid.tsx` already rendered it, so this was assets plus data.
+
+**Assets.** `frontend/public/menu/{butter-croissant,chicken-cheese-croissant,chicken-cheese-roll,
+cappuccino}.jpg` + `CREDITS.txt`, square 640 px, q78, 222 KB total, from the eye-reviewed picks in
+checkpoint E (`_files/2026-08-28/product-images/`). All CC0 / public domain, Wikimedia Commons.
+⚠️ Two are stand-ins until Martin sends real photography: the chicken & cheese croissant is an
+**apricot danish**, the roll is a **basket of plain rolls**. Cappuccino source was 500x375, upscaled.
+Ingredient picks (7) are recorded in the script but **not generated**: `ingredients` has no image
+column, that is a separate piece to scope with Malik.
+
+**How it ships, verified not assumed.** Vite copies `public/` into `dist/`, CI rsyncs `dist/` to
+`www/releases/<sha>/`, nginx serves `\.jpg` under `/` from `/var/www/pos/current`. Proof before
+the push: `eula.html` / `privacy.html` from `public/` were already in the live release. **No nginx
+change, nginx not recreated** (same container, up 18 h after the deploy).
+
+**Deployed 16:06 UTC inside Chick Shack's window on Malik's explicit go-ahead** (asked, he chose
+"Push now"). `deploy-remote.sh` rebuilds the backend unconditionally, so the push cost ~47 s of
+`/api/`. After: server HEAD `84224d9`, `www/current -> releases/84224d9…`, each JPEG fetched through
+nginx over HTTPS `200 image/jpeg` with byte-exact sizes, `eats` / `chickshackg84.com` / `parkcity`
+all 200, backend healthy, **0 errors**.
+
+**Data write, 16:09 UTC.** `pg_dump` first: `/root/backups/pre-fz-images-20260828-160944.sql.gz`
+(413 KB, 57 COPY blocks, gzip-verified). Then a scoped script through the app's own session
+(select by tenant slug + exact name, refuse unless exactly the 4 expected rows, snapshot every
+tenant before/after, assert nothing outside `martin-fz` changed): `4 martin-fz rows updated, 338
+rows outside it unchanged`. Read back through the real `/api/v1/menu/full` route as each tenant's
+admin: **`martin-fz` 4/4 with image, `chick-shack` 87 items, 0 with image, unchanged.**
+Before: chick-shack 0/87, cosa-nostra 0/208, demo-restaurant 43/43 (its Unsplash URLs, untouched).
+
+## 🟢 2026-08-28 16:15-16:45 UTC. PHOTO UPLOAD FOR MENU ITEMS AND INGREDIENTS, ONE PHOTO ON EVERY SCREEN, POS CARD RE-LAID. SHIPPED `f3beeef`, MIGRATION APPLIED, VERIFIED ON PRODUCTION.
+
+**Malik looked at the cards (16:15 UTC) and scoped this, in his words:** "images are badly cropped
+or formatted"; the menu item dialog "should be able to add images here easily"; ingredients too,
+"give flexibility to Martin"; and "from ingredients take image to recipes automatically ... stock
+on hand ... purchase orders, and catalog in suppliers." Reference for the card layout: the approved
+mockup artifact `23ba230e-0ab7-4e6b-b4bf-27766785c00c` (`.m-card .m-photo { aspect-ratio: 4/3 }`,
+24 px `mini-pic` thumbnail beside the name on admin rows).
+
+**Storage decision, stated so nobody re-derives it.** Photo bytes live in Postgres (`media_files`,
+`bytea`), served by `GET /api/v1/media/{id}`. Not disk, not an nginx mount: the production backend
+container is `read_only`, nginx is shared with Chick Shack and Orbit and a new `location` means a
+recreate, and `pg_dump` is the backup that actually gets taken, so a photo in the DB is in it. Every
+upload is decoded and re-encoded (EXIF-rotated, 1200 px cap, JPEG q82, ~10-150 KB) so nothing an
+uploader authored is ever served; the browser downscales to 1600 px first (`utils/imagePrep.ts`) so
+phone photos never trip nginx's `client_max_body_size 5M`. `POST /media/images` is admin-only;
+`GET /media/{id}` is public (an `<img>` cannot send a bearer header; ids are random UUIDs; the
+storefront shows these to the public anyway), `Cache-Control: immutable` for a year, ETag → 304.
+
+**What shipped.** `ingredients.image_url` (nullable, NULL everywhere). `IngredientResponse` carries
+it; `LocationStockRow`, `PurchaseOrderItemResponse`, `SupplierItemRow` gain `ingredient_image_url`
+from the joins that already existed. Shared `ImageField` (upload / replace / remove) in the menu
+item and ingredient dialogs; shared `Thumb` beside the name on the ingredient list, recipe lines
+(client-side from the full `Ingredient`), stock on hand, PO lines, goods receiving, supplier
+catalogue. `MenuGrid` card: 4:3 photo on `repeat(auto-fill, minmax(150px, 1fr))` instead of a
+96 px strip on a 370 px card. `Pillow==11.3.0` added to the backend. Migration `f8a9b0c1d2e3`.
+
+**Proved before the push.** 13 tests in `backend/tests/test_media_images.py`; suite **906 / 11 / 2**
+against 893 / 11 / 2 (same 11 + 2 as before, none mine). `npm run build` (tsc + vite) clean.
+Migration applied on local Postgres. End to end through local nginx (`localhost:8090`): upload 201
+→ 1200x900 → fetch 200 immutable → 304 → ingredient carries the URL.
+
+**Deployed 16:38 UTC inside Chick Shack's window on Malik's explicit go-ahead** (asked, "Push now").
+`pg_dump` first: `/root/backups/pre-media-migration-20260828-163400.sql.gz` (415 KB, 57 COPY blocks,
+gzip-verified). After: server HEAD `f3beeef`, `www/current` on it, `alembic current` =
+`f8a9b0c1d2e3 (head)`, Pillow 11.3.0 in the image, nginx untouched (19 h), Orbit untouched, backend
+healthy, **0 errors**, all three hostnames 200, `media_files` 0 rows, `ingredients` 0/15 with a photo.
+**Probe inside the container against the deployed app, as the `martin-fz` admin (token minted
+in-process, no password on any command line):** upload 201 → 1200x900 10 KB → fetch 200 immutable →
+304 → `/locations/stock/position` 20 rows all carry `ingredient_image_url` → `/inventory/ingredients`
+15 rows all carry `image_url` → `/procurement/catalogue` 2 rows carry it. Probe row deleted after.
+**Through nginx over HTTPS with a browser UA:** `GET /api/v1/media/{id}` → 200 image/jpeg with
+`etag` and `cache-control: public, max-age=31536000, immutable`; `If-None-Match` → **304**. nginx
+does not gzip `image/jpeg`, so the ETag survives. ⚠️ `HEAD` on that URL is **405**: the route is
+GET-only and FastAPI does not add HEAD for you. Browsers use GET for `<img>`, so it does not
+matter for the screens; a link checker would see 405. One-line fix (`api_route` with
+`["GET", "HEAD"]`) held back rather than spend another backend blip during service. Chick Shack
+after both deploys: 4 orders today, newest 16:24 UTC, 1 voided, 0 backend errors.
+
+🟢 **Malik reviewed the live screens (16:50 UTC, five screenshots): admin menu cards with thumbnails,
+`/takeaway` 4:3 cards, recipes / ingredients / stock with the placeholder thumbs.** His instructions:
+🔴 **"for next deployment we wait for Chick Shack to close. enough deployments for now."** (shop
+closes 21:00 UTC). **"for ingredients just add public image available. this is a demo. make it as
+interactive visually as possible."** Then "we review the UAT guide". Ingredient photos are DATA
+(upload via the live `/media/images`, PATCH `image_url` through the real route), so they need no
+deploy; anything needing a build waits for 21:00 UTC.
+
+## 🟢 2026-08-28 16:50-17:00 UTC. ALL 15 MARTIN-FZ INGREDIENTS HAVE A PHOTOGRAPH. DATA ONLY, NO DEPLOY, VERIFIED ON PRODUCTION.
+
+Three rounds of Wikimedia Commons candidates fetched on the server (this shell has no DNS),
+reviewed by eye on contact sheets, square-cropped, then pushed through the **live API from inside
+the backend container**: token minted in-process, `POST /media/images` per photo, `PATCH
+/inventory/ingredients/{id}` through the real route. `pg_dump` first:
+`/root/backups/pre-ingredient-photos-20260828-165614.sql.gz` (417 KB, 58 COPY blocks). Result:
+`15/15 martin-fz ingredients carry a photo`, `stock position 20/20 rows`, no other tenant has
+ingredient rows so the blast radius was empty by construction. Two fetched through nginx over HTTPS:
+200 image/jpeg. `media_files` now 15 rows, 1.3 MB. 0 backend errors.
+
+Picks and licences (credits in `_files/2026-08-28/product-images/ingredients-upload/CREDITS.txt`;
+candidates in `ingredients-round2/` and `ingredients-round3/`): Flour, Butter, Sugar, Milk,
+Croissant Dough, Mozzarella, Espresso Beans from checkpoint E's round 1 (CC0 / PD); Olive Oil (CC0),
+Garlic (PD), Onion (CC BY-SA), Chicken Breast (CC0) from round 2; Yeast (fresh block, CC BY-SA), Salt
+(coarse crystals, CC BY), Cheese Sauce (**a fondue pot**, CC BY-SA), Chicken Stuffing (**shredded
+chicken on a plate**, CC BY-SA) from round 3. Round 1's fetcher only ever accepted CC0/PD (its regex
+never matched "CC BY 4.0"); rounds 2-3 accept attributed CC BY / BY-SA, fine for a demo tenant's
+admin screens with credits recorded.
+
+**Held back for the after-close deploy (committed locally, NOT pushed, per Malik "we wait for Chick
+Shack to close"):** thumbnails 56 px on Ingredient Management and Stock on Hand, 36 px on recipe
+lines / PO lines / catalogue; `HEAD /media/{id}` answered 200 with headers and no body (was 405),
+with a test. Frontend build clean; media tests pass.
+
+**Still open:** Malik to look at `/admin/ingredients`, `/admin/stock`, `/admin/recipes` now (photos
+are live at the current 36 px), then the UAT guide review he asked for. The four `/menu/*.jpg` static
+files from `84224d9` still back the four menu items; Martin can replace them through the form.
+Menu item photos on the **Chick Shack storefront** are matched by name in `storefront/` (another
+session's area) and are untouched by this.
+
+**Uncommitted, riding the next deploy:** STATE.md, ERROR_LOG.md, HANDOFF.md, checkpoints, the FZ
+LLC context docs, `_files/2026-08-28/`. Not pushed as a docs-only commit on purpose: every push
+rebuilds the backend and the shop is trading.
+
+⚠️ Checkpoint E says it was written "~16:10 UTC (21:10 PKT)"; its file mtime is 20:51 PKT
+(15:51 UTC). Nineteen minutes of PKT-to-UTC arithmetic drift, nothing more. Times in it are
+otherwise consistent with STATE.md.
+
+**Previous header:** 2026-08-28 15:10 UTC (20:10 PKT). Chick Shack live incident: an order Imran
 asked to cancel, and a money bug found on the voided card. HEAD `e681495` = `origin/main` = server.
 
 ## 🟢 2026-08-28 14:45-15:10 UTC. CHICK SHACK ORDER 260828-C001 CANCELLED ON REQUEST. A VOIDED ORDER WOULD HAVE TAKEN £45.74 THAT NEVER EXISTED. FIXED AND DEPLOYED (`e681495`) DURING SERVICE, VERIFIED ON PRODUCTION AND BY EYE ON THE TABLET.
@@ -117,6 +330,45 @@ context docs are uncommitted; they ride the next deploy.
 HEAD `aa8f10c` = `origin/main`, 0 unpushed, matches `PAUSE_CHECKPOINT_2026-08-28-C.md`.
 
 **Previous header:** 2026-08-27 23:20 UTC (04:20 PKT Fri), end of session.
+
+## 🟢 2026-08-28 15:45-15:55 UTC. PER-TENANT THEMING SHIPPED (`95aed9a`). MARTIN-FZ IS ON DESERT SALT. CHICK SHACK UNCHANGED, VERIFIED.
+
+**Deployed DURING Chick Shack's service, on Malik's explicit go-ahead** (15:38 UTC, shop trades
+15:00-21:00). Flagged the window to him first; he said push. Outcome: **0 backend errors**, backend
+replaced and healthy, nginx untouched (up 18 h), Orbit's containers untouched,
+`eats.sitaratech.info`, `chickshackg84.com` and `parkcity.sitaratech.info` all 200. Chick Shack kept
+trading through it: 247 orders and a 15:26 UTC last order against yesterday's 244 baseline, i.e.
+three real orders taken today, not damage.
+
+**What shipped.** A tenant may carry `restaurant_configs.theme`; the frontend stamps
+`data-tenant-theme` on the root element and the palette switches. Desert Salt is the design Malik
+chose from the mockups (`claude.ai/code/artifact/23ba230e-0ab7-4e6b-b4bf-27766785c00c`).
+
+🔴 **The safety argument, and how each half was actually verified:**
+- Tailwind's palette was **hardcoded hex**, and the `--color-*` variables in `index.css` were
+  vestigial (nothing read them). The palette now resolves through those variables, with defaults
+  **generated from the old hex by script, not retyped**, then round-tripped back to hex and compared
+  against `tailwind.config.js` at HEAD: **all 66 shades across 6 palettes match exactly.**
+- The Desert Salt palette exists **only** inside `:root[data-tenant-theme="desert-salt"]`. Checked in
+  the **built** CSS and again in the **live deployed bundle** (`/assets/index-uP6ruhVp.css`,
+  resolved from the live index, never the directory): 7 `data-tenant-theme` references, the amber
+  appears **once**, inside the scoped rule, and `--color-primary-600: 37 99 235` is intact.
+- `theme` is nullable and was NULL on all four tenants after the migration. Same shape and reasoning
+  as `hidden_ui_modules`. Semantic colours (success/warning/danger) are deliberately **not** themed.
+- An unrecognised theme clears the attribute rather than erroring; theme fonts load on demand.
+- Through the real route on production: `martin-fz` -> `theme='desert-salt'` (AED),
+  **`chick-shack` -> `theme=None` (GBP)**. Exactly one tenant themed, asserted by the write script.
+- `pg_dump` taken first: `/root/backups/pre-theme-20260828-154506.sql.gz`, gzip-verified.
+
+**Tests:** 4 in `backend/tests/test_tenant_theme.py`, including cross-tenant isolation as a test
+rather than an intention. Suite **893 passed / 11 failed / 2 errors**. ⚠️ One of the 11,
+`test_cannot_advance_a_rejected_order`, is **not from this work**: proved by stashing only the two
+backend files and re-running (fails identically at HEAD), and **Malik confirmed it comes from a
+parallel agent's changes**. `advance_order` guards on `status == "voided"`, never on `rejected_at`.
+
+**Still open:** nobody has looked at the themed screens in a browser. Malik should open
+`/admin/recipes` as `martin-fz` and confirm Desert Salt reads well at working density, and glance at
+Chick Shack's tablet to confirm it is visually unchanged.
 
 ## 🟢 2026-08-28 07:00-08:10 UTC. FZ LLC DEMO RECORDING UNDER WAY (MALIK DRIVING). F51 FOUND ON CAMERA, FIXED, DEPLOYED (`092289e`) AND VERIFIED ON PRODUCTION.
 
