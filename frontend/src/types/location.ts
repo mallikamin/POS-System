@@ -78,16 +78,24 @@ export interface SalesChannelCreate {
 
 export type SalesChannelUpdate = Partial<Omit<SalesChannelCreate, "code">>;
 
+/**
+ * Decimal fields on these interfaces are JSON **numbers**, not strings.
+ * The backend serialises them through `Num` (`schemas/location.py`), which was
+ * introduced precisely so the wire matches what this client already assumed.
+ * Typing one of them as `string` is what took `/admin/ingredients` down (F14)
+ * and `/admin/transfers` down (F51, `n.trim is not a function`). If you add a
+ * field here, check the backend annotation before you type it.
+ */
 export interface LocationStockRow {
   location_id: string;
   location_name: string;
   ingredient_id: string;
   ingredient_name: string;
   unit: string;
-  quantity: string;
-  reorder_point: string;
-  reorder_quantity: string;
-  cost_per_unit: string;
+  quantity: number;
+  reorder_point: number;
+  reorder_quantity: number;
+  cost_per_unit: number;
   is_produced: boolean;
   is_low: boolean;
 }
@@ -108,11 +116,11 @@ export interface StockMovementRow {
   location_id: string | null;
   location_name: string | null;
   transaction_type: string;
-  quantity: string;
+  quantity: number;
   unit: string;
-  balance_after: string;
-  unit_cost: string;
-  total_cost: string;
+  balance_after: number;
+  unit_cost: number;
+  total_cost: number;
   transaction_date: string;
   performed_by_name: string | null;
   notes: string | null;
@@ -124,10 +132,10 @@ export interface TransferItem {
   id: string;
   ingredient_id: string;
   ingredient_name: string;
-  quantity_sent: string;
-  quantity_received: string | null;
+  quantity_sent: number;
+  quantity_received: number | null;
   unit: string;
-  unit_cost: string;
+  unit_cost: number;
 }
 
 export interface Transfer {
@@ -158,11 +166,11 @@ export interface ProductionRunResult {
   recipe_name: string;
   location_id: string;
   location_name: string;
-  batches: string;
+  batches: number;
   produced_ingredient_id: string;
-  produced_quantity: string;
-  unit_cost: string;
-  consumed: { ingredient_id: string; quantity: string }[];
+  produced_quantity: number;
+  unit_cost: number;
+  consumed: { ingredient_id: string; quantity: number }[];
 }
 
 export interface ProfitBucket {

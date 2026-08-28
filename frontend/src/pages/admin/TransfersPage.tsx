@@ -74,14 +74,25 @@ function newLine(): DraftLine {
   return { uid: `line-${lineCounter}`, ingredient_id: "", quantity: "" };
 }
 
-/** Decimals arrive from the API as strings. NaN means "not a usable number". */
-function toNum(value: string | null | undefined): number {
-  if (value === null || value === undefined || value.trim() === "") return NaN;
+/**
+ * NaN means "not a usable number".
+ *
+ * Decimals arrive from the API as JSON **numbers** (`Num` in
+ * `schemas/location.py`), while the draft-line and receive-quantity inputs on
+ * this page are form strings. Both land here. Calling `.trim()` on the number
+ * case is what crashed this whole page to the error boundary with
+ * `n.trim is not a function` (F51), so the type is narrowed before any string
+ * method is touched.
+ */
+function toNum(value: string | number | null | undefined): number {
+  if (value === null || value === undefined) return NaN;
+  if (typeof value === "number") return Number.isFinite(value) ? value : NaN;
+  if (value.trim() === "") return NaN;
   const n = Number(value);
   return Number.isFinite(n) ? n : NaN;
 }
 
-function formatQty(value: string | null | undefined): string {
+function formatQty(value: string | number | null | undefined): string {
   const n = toNum(value);
   return Number.isNaN(n) ? "-" : String(n);
 }

@@ -237,6 +237,20 @@ class ProductionRunRequest(BaseModel):
     reference_number: str | None = Field(None, max_length=100)
 
 
+class ProductionConsumedLine(BaseModel):
+    """One raw ingredient a production run ate.
+
+    This used to ride inside a bare ``list[dict]``. A ``Decimal`` in an
+    untyped dict escapes the ``Num`` convention above and serialises as a
+    JSON **string**, so this single field disagreed with every other number
+    in the same response. That is exactly the mismatch behind F14 and F51.
+    Typing it puts it back under ``Num``.
+    """
+
+    ingredient_id: uuid.UUID
+    quantity: Num
+
+
 class ProductionRunResponse(BaseModel):
     reference_number: str
     recipe_id: uuid.UUID
@@ -247,7 +261,7 @@ class ProductionRunResponse(BaseModel):
     produced_ingredient_id: uuid.UUID
     produced_quantity: Num
     unit_cost: Num
-    consumed: list[dict]
+    consumed: list[ProductionConsumedLine]
 
 
 # ---------------------------------------------------------------------------

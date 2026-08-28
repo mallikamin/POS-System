@@ -36,12 +36,18 @@ import type {
 import type { Ingredient, Recipe } from "@/types/inventory";
 
 /** Decimals arrive as strings from the API. Anything unparseable reads as 0. */
-function toNumber(value: string | null | undefined): number {
+/**
+ * Decimal fields arrive from the API as JSON **numbers** (`Num` in
+ * `schemas/location.py`). Older endpoints and form inputs still hand over
+ * strings, so this accepts both. `Number()` copes with either; the signature
+ * was the only thing that was wrong, and it hid the mismatch behind F51.
+ */
+function toNumber(value: string | number | null | undefined): number {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function formatQty(value: string | null | undefined): string {
+function formatQty(value: string | number | null | undefined): string {
   return toNumber(value).toLocaleString(undefined, {
     maximumFractionDigits: 3,
   });
