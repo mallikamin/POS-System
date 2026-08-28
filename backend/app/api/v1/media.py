@@ -72,7 +72,10 @@ async def upload_image(
     )
 
 
-@router.get("/{media_id}", include_in_schema=False)
+# HEAD is accepted alongside GET: FastAPI does not add it for you, and a
+# link checker or CDN probing the URL with HEAD got a 405 on the first
+# production deploy. Same headers, no body.
+@router.api_route("/{media_id}", methods=["GET", "HEAD"], include_in_schema=False)
 async def get_image(
     media_id: uuid.UUID,
     request: Request,
@@ -86,4 +89,10 @@ async def get_image(
     headers = {"Cache-Control": _CACHE_FOREVER, "ETag": etag}
     if request.headers.get("if-none-match") == etag:
         return Response(status_code=status.HTTP_304_NOT_MODIFIED, headers=headers)
+    if request.method == "HEAD":
+        return Response(
+            status_code=status.HTTP_200_OK,
+            media_type=media.content_type,
+            headers={**headers, "Content-Length": str(media.size_bytes)},
+        )
     return Response(content=media.data, media_type=media.content_type, headers=headers)

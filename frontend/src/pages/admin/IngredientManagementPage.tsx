@@ -361,7 +361,7 @@ export default function IngredientManagementPage() {
                       >
                         <td className="py-3 font-medium text-secondary-900">
                           <div className="flex items-center gap-3">
-                            <Thumb src={ingredient.image_url} alt={ingredient.name} />
+                            <Thumb src={ingredient.image_url} alt={ingredient.name} size="lg" />
                             <span>
                               {ingredient.name}
                               {isLowStock && (

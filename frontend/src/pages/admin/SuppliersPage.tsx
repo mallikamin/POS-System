@@ -702,7 +702,6 @@ function SuppliersPage() {
                           <Thumb
                             src={item.ingredient_image_url}
                             alt={item.ingredient_name}
-                            size="sm"
                             className="mr-2 align-middle"
                           />
                           <span className="font-medium text-secondary-900">

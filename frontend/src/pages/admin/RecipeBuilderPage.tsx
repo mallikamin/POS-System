@@ -1009,7 +1009,6 @@ export default function RecipeBuilderPage() {
                                     <Thumb
                                       src={ingredient.image_url}
                                       alt={ingredient.name}
-                                      size="sm"
                                     />
                                     {ingredient.name}
                                   </div>

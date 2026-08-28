@@ -431,6 +431,7 @@ function StockPage() {
                         <Thumb
                           src={row.ingredient_image_url}
                           alt={row.ingredient_name}
+                          size="lg"
                         />
                         <span className="font-medium text-secondary-900">
                           {row.ingredient_name}

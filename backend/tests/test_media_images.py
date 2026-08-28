@@ -127,6 +127,19 @@ async def test_fetching_an_unknown_image_is_404(client):
     assert resp.status_code == 404
 
 
+async def test_head_is_answered_with_the_same_headers_and_no_body(client, admin_token: str):
+    """A link checker or CDN probing with HEAD must not get 405."""
+    up = await _upload(client, admin_token, _png(120, 90))
+    url = up.json()["url"]
+    head = await client.head(url)
+    assert head.status_code == 200, head.text
+    assert head.headers["content-type"].startswith("image/jpeg")
+    assert "immutable" in head.headers["cache-control"]
+    assert head.headers.get("etag")
+    assert head.content == b""
+    assert int(head.headers["content-length"]) == up.json()["size_bytes"]
+
+
 async def test_fetching_needs_no_token(client, admin_token: str):
     """The URL goes into an <img src>, which sends no Authorization header."""
     up = await _upload(client, admin_token, _png(120, 90))

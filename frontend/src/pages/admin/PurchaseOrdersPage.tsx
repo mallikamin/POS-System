@@ -675,7 +675,6 @@ function PurchaseOrdersPage() {
                                   <Thumb
                                     src={item.ingredient_image_url}
                                     alt={item.ingredient_name}
-                                    size="sm"
                                   />
                                   <span>
                                     {item.ingredient_name}
