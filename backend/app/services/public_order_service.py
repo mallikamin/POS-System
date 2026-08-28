@@ -23,7 +23,7 @@ from datetime import datetime, time, timedelta, timezone
 from typing import Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from sqlalchemy import func, select, update
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -90,6 +90,25 @@ class OnlineOrderingPaused(PublicOrderError):
     Its own type so the storefront can render the "please phone us" message
     rather than a generic basket error -- this is not a fault, it is the shop
     deliberately closing the channel for a while.
+    """
+
+
+#: Shown to a customer the shop has blocked. Deliberately says nothing about
+#: why, and does not point them at the phone: the shop has decided not to
+#: serve this contact, and the sentence must not read as an invitation.
+CUSTOMER_BLOCKED_MESSAGE = (
+    "Sorry, we are unable to take online orders for these contact details."
+)
+
+
+class CustomerBlocked(PublicOrderError):
+    """The shop has marked this customer `blocked` and will not take the order.
+
+    Set by the shop (via `PATCH /customers/{id}` with `risk_flag: blocked`)
+    when a customer has, for instance, repeatedly not turned up for food that
+    was cooked. Enforced here, on the endpoint, before an order row or a
+    Stripe session exists: the storefront never sees the flag, so nothing a
+    customer does in the browser can route around it.
     """
 
 
@@ -513,6 +532,17 @@ async def create_public_order(
     if await is_online_ordering_paused(db, tenant_id):
         raise OnlineOrderingPaused(ONLINE_ORDERING_PAUSED_MESSAGE)
 
+    # Normalised once, here, and reused for the block check and the customer
+    # link below, so both compare the same string against `customers.phone`.
+    phone = "".join(c for c in data.customer_phone if c.isdigit()) or None
+    email = (data.customer_email or "").strip() or None
+
+    # Before pricing, before the system user, before any row is written: a
+    # blocked customer gets the refusal and leaves nothing behind. Imran's ask
+    # of 2026-08-28 ("block a particular customer from reordering").
+    if await _is_blocked_contact(db, tenant_id, phone, email):
+        raise CustomerBlocked(CUSTOMER_BLOCKED_MESSAGE)
+
     lines, subtotal = await _price_basket(db, tenant_id, data)
     delivery_fee, area_name = await _resolve_delivery(db, tenant_id, data, subtotal)
     service_fee = await get_service_fee(db, tenant_id)
@@ -539,8 +569,6 @@ async def create_public_order(
 
     system_user = await _get_or_create_online_user(db, tenant_id)
 
-    phone = "".join(c for c in data.customer_phone if c.isdigit()) or None
-    email = (data.customer_email or "").strip() or None
     customer_id = await _link_customer(db, tenant_id, data.customer_name, phone, email)
 
     order_items: list[OrderItem] = []
@@ -621,6 +649,45 @@ async def create_public_order(
     await db.flush()
 
     return await order_service.get_order(db, order.id, tenant_id)  # type: ignore[return-value]
+
+
+async def _is_blocked_contact(
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    phone: str | None,
+    email: str | None,
+) -> bool:
+    """True when this tenant has a `blocked` customer with this phone OR email.
+
+    Two nets, not one. `_link_customer` matches on phone alone, so a blocked
+    customer who types a different number would otherwise be linked to a fresh,
+    unflagged record and sail through. Email is compared case-insensitively;
+    phone is the same digits-only string the link uses. Name is deliberately
+    NOT matched: two people can share a name, and a false block costs the shop
+    a real customer.
+
+    Only `blocked` counts. `high` is a warning for call-centre staff, not a
+    refusal, and it is recomputed automatically from order history; a tenant
+    must never lose online customers to a heuristic.
+    """
+    conditions = []
+    if phone:
+        conditions.append(Customer.phone == phone)
+    if email:
+        conditions.append(func.lower(Customer.email) == email.lower())
+    if not conditions:
+        return False
+
+    result = await db.execute(
+        select(Customer.id)
+        .where(
+            Customer.tenant_id == tenant_id,
+            Customer.risk_flag == "blocked",
+            or_(*conditions),
+        )
+        .limit(1)
+    )
+    return result.scalar_one_or_none() is not None
 
 
 async def _link_customer(
