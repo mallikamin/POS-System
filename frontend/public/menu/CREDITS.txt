@@ -1,0 +1,8 @@
+Menu item photographs used in the FZ LLC demo tenant (martin-fz).
+All Creative Commons Zero or public domain, sourced from Wikimedia Commons.
+Placeholders: replace with Martin's own photography when supplied.
+
+butter-croissant.jpg  <-  Croissant-newspaper-and-tea.jpg  by Petr Kratochvil  (CC0)
+chicken-cheese-croissant.jpg  <-  Apricot croissant - Caffè Nero 2024-12-12.jpg  by Andy Li  (CC0)
+chicken-cheese-roll.jpg  <-  Basket of rolls.jpg  by Daniel Sone (Photographer)  (Public domain)
+cappuccino.jpg  <-  Wet Cappuccino with heart latte art.jpg  by Jazzbobrown  (Public domain)
