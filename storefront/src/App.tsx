@@ -10,6 +10,8 @@ import MenuBrowser from "./components/MenuBrowser";
 import CartPanel from "./components/CartPanel";
 import Checkout from "./components/Checkout";
 import OrderConfirmation from "./components/OrderConfirmation";
+import ConsentBar from "./components/ConsentBar";
+import { trackPurchase } from "./lib/analytics";
 import {
   returnFromStripe,
   stripReturnParams,
@@ -82,6 +84,20 @@ export default function App() {
       setView("done");
     }
   }, []);
+
+  // Report the order to Google Ads once it has actually been placed.
+  //
+  // Hung off `placed` rather than called at either call site, because there
+  // are two ways to reach the confirmation screen — a fresh order and a
+  // return from Stripe — and both must count exactly once. `trackPurchase`
+  // keeps its own per-order guard, so a re-render (or StrictMode in dev)
+  // cannot double count.
+  //
+  // Fire-and-forget by design: it cannot throw, and nothing about the order
+  // waits on it.
+  useEffect(() => {
+    if (placed) trackPurchase(placed);
+  }, [placed]);
 
   // Fetch the live menu once on mount. Until it arrives the hardcoded menu is
   // on screen and ordering is off, so there is no window where a customer can
@@ -286,6 +302,9 @@ export default function App() {
           }}
         />
       )}
+
+      {/* Cookie consent. Renders nothing at all once answered on this device. */}
+      <ConsentBar />
 
       {/* Persistent basket bar. Hidden once you're past the menu. */}
       {view === "menu" && count > 0 && (

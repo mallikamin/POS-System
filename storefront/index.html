@@ -15,6 +15,46 @@
       href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
+
+    <!--
+      Google Ads measurement.
+
+      Consent Mode v2, and the order of these two blocks is the whole point:
+      the defaults MUST be pushed before gtag.js loads, otherwise the tag has
+      already written cookies by the time we get to say no. UK PECR needs
+      consent BEFORE an advertising cookie is set, not after.
+
+      Everything starts denied. `ConsentBar` calls `grantConsent()` /
+      `denyConsent()` (src/lib/consent.ts) which issues the `consent update`.
+      A returning customer's stored choice is replayed there on boot.
+
+      `ads_data_redaction` strips ad identifiers from the pings sent while
+      consent is denied, and `url_passthrough` keeps the click id in the URL
+      instead of a cookie so a declined visit can still be modelled.
+    -->
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag() {
+        dataLayer.push(arguments);
+      }
+      gtag("consent", "default", {
+        ad_storage: "denied",
+        ad_user_data: "denied",
+        ad_personalization: "denied",
+        analytics_storage: "denied",
+        wait_for_update: 500,
+      });
+      gtag("set", "ads_data_redaction", true);
+      gtag("set", "url_passthrough", true);
+    </script>
+    <script
+      async
+      src="https://www.googletagmanager.com/gtag/js?id=AW-18408520125"
+    ></script>
+    <script>
+      gtag("js", new Date());
+      gtag("config", "AW-18408520125");
+    </script>
   </head>
   <body>
     <div id="root"></div>
