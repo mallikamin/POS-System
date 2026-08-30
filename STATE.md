@@ -1,6 +1,208 @@
 # STATE — Restaurant POS System
 
-**Last refreshed:** 2026-08-28 21:20 UTC (02:20 PKT 08-29), end of the scheduled after-close deploy,
+**Last refreshed:** 2026-08-29 18:35 UTC (19:35 UK), `/refresh` on Chick Shack Google Ads.
+🟢 **No drift in code or deploy state:** HEAD = `origin/main` = `28a6663`, 0 unpushed, 158 dirty
+(docs and `_files/` only, unchanged set). The only production contact on this pass was a read-only
+`SELECT`. **What changed is a fact, not the code: the first Google-Ads-attributed order exists.**
+
+## 🟢 2026-08-29 18:35 UTC (19:35 UK). FIRST ORDER ATTRIBUTED TO A GOOGLE AD, READ FROM OUR OWN DATABASE. THE CUSTOMER IS A RETURNER, NOT A NEW ONE.
+
+**`260829-D005`, £29.47, delivery, paid, placed 17:20:01 UK today, carries a real `gclid`**
+(`Cj0KCQjwhsrUBhDxARIsAN3AQSc1Szuo…`) with `click_type = gclid`. This is the first non-NULL `gclid`
+on any Chick Shack order since F34 shipped on 08-27. Read from `orders` on production, not inferred
+from Google's own reporting, and not from timing.
+
+⚠️ **The buyer had ordered before.** Phone `447526539001` also placed `260827-C008` (£25.47) on
+08-27 as *Randi Pappalardo*; today's row reads *Miranda Pappalardo*. So the ad **re-bought an
+existing online customer**, it did not acquire a new one. Do not present this as customer
+acquisition to Imran.
+
+**Campaign to date (Malik's screenshot, Aug 24-29 window, account view):** 29 impressions, 5 clicks,
+avg CPC £3.83, **cost £19.14**. Against that, **one attributed order worth £29.47 gross**, of which
+the shop keeps food margin, not £29.47. On these numbers the campaign is not yet profitable and
+5 clicks is far too small a sample to say anything about CPA.
+
+🔴 **Keyword breakdown (screenshot, same window) explains the returner, and it is the real finding:
+100% of the spend went to BRAND terms.**
+
+| Keyword | Cost | Clicks | CTR |
+|---|---|---|---|
+| `[chick shack]` (exact) | £13.08 | 3 | 50% |
+| `"chick shack helensburgh"` (phrase) | £6.06 | 2 | 40% |
+| `"order takeaway online"` | £0.00 | 0 | 0% |
+| `"food delivery near me"` | £0.00 | 0 | 0% |
+| `"takeaway near me"` | £0.00 | 0 | 0% |
+
+- **Every penny bought people who typed the shop's own name.** That is traffic the shop very likely
+  already gets free from organic + the Google Business Profile. ⚠️ Not verified from here that they
+  rank #1 for their own name; that is a 30-second incognito check and it decides whether the brand
+  spend is defensible.
+- Brand CPC is **£4.36** on `[chick shack]`, £3.03 on the phrase. High for a branded click.
+- **The three acquisition keywords took £0 and 0 clicks.** Derived arithmetic (not a shown column):
+  3/0.50 = 6 and 2/0.40 = 5 brand impressions = 11 of the 29, so the generics **did serve ~18
+  impressions and nobody clicked**. So they are being shown and ignored, not starved.
+- 📌 **This fully explains `260829-D005` being a returner.** The ad did not find that customer; the
+  customer searched the brand and the account paid ~£4 for the click. Incrementality is near zero.
+🟢 **Both open checks were then done by Malik and both are now answered (screenshots, 2026-08-29).**
+
+**1. Brand SERP check — they own the entire first screen for their own name.** Incognito
+`chick shack helensburgh`: organic #1 `chick-shack.com`, organic #2 `chickshackg84.com`
+("Order Online"), #3 Facebook, #4 Instagram, plus the full Google Business Profile knowledge panel
+(5.0, 18 reviews) carrying **Order pickup / Order delivery buttons**. **So the brand keywords are
+buying traffic the shop already gets free.**
+⚠️ **What that screenshot does NOT prove: whether a competitor bids on the name.** Malik searched
+from Pakistan (`rlz=…PK1133` in the URL) against a Helensburgh-geo-targeted campaign, so **no ad
+would serve to him at all** — his own didn't either. The competitor question needs **Auction
+Insights**, not a SERP look.
+🔴 **Real leak found, worth more than the ad spend and free to fix:** the #1 organic result is
+`chick-shack.com`, whose snippet pushes a **phone number** ("Call 07719 566 889"), not
+`chickshackg84.com`, which is the site that takes online orders. The top free result routes
+customers to a phone call and bypasses the ordering system. Second, unverified: **where the GBP
+Order pickup / Order delivery buttons point.** Malik is a Manager on that profile and can set them.
+🔴 **And it is worse than a routing leak.** `chick-shack.com` is **Imran's old site by the previous
+developers, and Imran himself said its menu is WRONG** — voice note 2026-07-27, recorded in
+`_context/clients/chick-shack-uk/menu.md`: *"chick-shack.com, the menu is wrong… they should not
+have put the menu on chick-shack.com at all."* So **the #1 free Google result for the brand name
+serves customers an incorrect menu and a phone number**, while the site with the correct menu that
+takes online orders sits at #2. **This outranks the entire ad question in value.**
+⚠️ **It is not ours to fix unilaterally.** `README.md` line 91: `chick-shack.com` is visible on the
+registrar account but **"not authorised — touch only `chickshackg84.com`."** It also already carries
+the standing note that `chick-shack.com` is *"a far better customer-facing URL than
+`chickshackg84.com`"* and is worth raising with Imran. **Same conversation, one ask.**
+
+**2. Search terms report — non-brand demand exists but is negligible.**
+
+| Search term | Match | Clicks | Impr | Cost |
+|---|---|---|---|---|
+| chick shack | exact (added) | 3 | 4 | £13.08 |
+| chick shack helensburgh menu | phrase | 2 | 5 | £6.06 |
+| takeaway helensburgh | exact (added) | 0 | 7 | £0 |
+| takeaway near me | exact (added) | 0 | 4 | £0 |
+| food delivery helensburgh | exact (added) | 0 | 2 | £0 |
+| indian takeaway helensburgh | phrase | 0 | 2 | £0 |
+| the chicken shack | exact close variant | 0 | 2 | £0 |
+| **Total** | | **5** | **29** | **£19.14** |
+
+- **£19.14 of £19.14 went to two brand queries.** Confirmed, not inferred.
+- **13 non-brand impressions in six days, 0 clicks.** ~2/day. That is a **demand ceiling in a town of
+  ~15k (Garelochhead ~1.5k), not a targeting or copy failure** — 13 impressions is far too small a
+  sample to blame the ad copy.
+- **`Conv. rate 0.00%` on every row**, including the two brand rows. Google is blind to the one order
+  we can see in our own DB, so smart bidding has **no conversion signal to learn from**.
+- Two negatives worth adding: `indian takeaway helensburgh` (wrong cuisine, phrase-match drift) and
+  possibly `the chicken shack`.
+
+## 🟢 2026-08-30. CS-Ad1 KEYWORD LIST REVISED BY MALIK, GUIDED STEP BY STEP. 97 KEYWORDS DOWN TO 10, BRAND OFF, AD REWRITTEN.
+
+Export `Search keyword report (9).csv` showed **97 keywords, all phrase match, in ONE ad group** —
+which is why `"takeaway helensburgh"` (11 impr) and `"takeaway near me"` (4 impr) both sat at
+**Limited / low quality** and took 0 clicks. Changes made in the account:
+
+1. **Negatives added to CS-Ad1:** `indian`, `chinese`, `pizza`, `kebab`, `jobs`, `recipe`.
+2. **All six brand keywords paused** — `[chick shack]`, `"chick shack helensburgh"`, `"chick shack"`,
+   `"chick shack menu"`, `"chick shack garelochhead"`, `"chick shack order online"`. The first two had
+   taken **100% of the £19.14**.
+3. **Everything paused, then ten re-enabled:** `"takeaway helensburgh"`, `"takeaway near me"`,
+   `"food delivery helensburgh"`, `"takeaway garelochhead"`, `"fried chicken helensburgh"`,
+   `"fried chicken near me"`, `"peri peri near me"`, `"chicken burger near me"`,
+   `"best takeaway helensburgh"`, `"takeaway open now"`.
+4. **RSA rewritten.** None of the 15 headlines had contained "takeaway" or "Helensburgh". Swapped
+   `Free Parking on Main St` → `Takeaway in Helensburgh`, `Generous Portions` → `Fried Chicken Near
+   Me`, `The Chicken Fillet Burger` → `Food Delivery Helensburgh`, `Garelochhead's Own` → `Local
+   Takeaway, Open Now`. **Ad strength Poor → Good**, saved.
+
+### 🔴 WHY GOOGLE REPORTS ZERO CONVERSIONS. NOT A BUG — CONSENT, WORKING AS BUILT.
+
+**Aug 29 closed and the account reads `All conv. 0.00`, `All conv. value 0.00`**, with
+`260829-D005` (£29.47, real `gclid`, 17:20 UK) sitting in our own `orders` table. Diagnosed from the
+code, not guessed:
+- `storefront/index.html:40` pushes **`consent default: denied`** (UK PECR), and **line 47 sets
+  `ads_data_redaction: true`** — when `ad_storage` is denied Google **strips the click identifier**
+  from the conversion ping. A customer who never taps Allow is invisible to the browser tag **by
+  design**. At 5 clicks of volume Google models nothing to fill the gap.
+- ⚠️ **Correction to an earlier claim made this session:** the conversion tag is NOT missing and NOT
+  broken. `storefront/src/lib/analytics.ts` fires `trackPurchase` on the confirmation screen with
+  subtotal, currency and order number, on both the fresh-order and Stripe-return routes, and
+  `index.html:37` declares `gtag` inline so it always exists. The Goals page showing "No recent
+  conversions / Last activity Aug 29" is the **tag being seen**, not a conversion recorded.
+- 📌 **Therefore the offline upload from our own `orders.gclid` is the only reliable route**, because
+  we capture the click id from the URL ourselves, independent of Google's tag and unaffected by
+  redaction.
+
+**🔴 OPEN, UNDECIDED, and a legal question not a technical one:** may we upload a click id belonging
+to a customer who **declined** advertising cookies? We hold it either way; UK PECR/GDPR is a separate
+matter. Malik: *"i dont know buddy. we'd upload the list in a couple of days when we have sufficient
+data pts."* **Parked by decision, not forgotten.**
+
+### 🟢 DEPLOYED 2026-08-30 ~00:30-06:40 UTC, BOTH PIPELINES VERIFIED: `orders.ads_consent`
+
+**Shipped `28d36df` + `9f45217`, pushed to `9f45217`.** `pg_dump` first
+(`/root/backups/pre-ads-consent-*.sql.gz`, `gzip -t` OK), shop shut (01:26 UK). Verified on the box,
+not assumed: server HEAD **`9f45217`**, `alembic_version = **a9b0c1d2e3f4**`, `orders.ads_consent`
+present in `information_schema`.
+
+🔴 **The two-pipeline trap fired exactly as [[chick-shack-two-deploy-pipelines]] warns, and was caught
+by checking the bundle.** After the backend deploy the live JS was **still `index-CAgFhDWT.js`,
+unchanged hash, 0 hits for `ads_consent`** — backend accepting a field the browser never sent. The
+storefront has **no GitHub workflow**; it ships by `npm run deploy` (`vite build && wrangler deploy`)
+from `storefront/`. Rebuilt and deployed: live bundle now **`index-Dclr8gPp.js`**, `ads_consent`
+present, conversion id `xy0DCPb1kOccEL3z7slE` still present, `AW-18408520125` still in `index.html`,
+site 200. **A green push is not a storefront deploy. Always diff the live bundle hash.**
+
+🔴 **Found while committing: the whole consent half of F34 was live but had NEVER been committed.**
+`ConsentBar.tsx` and `consent.ts` were untracked; `index.html` and `App.tsx` sat modified in the
+working tree. A clean checkout would have rebuilt the storefront with **no cookie banner and no
+conversion tag**, silently. Committed as `9f45217`, byte-identical to what was already running, no
+behaviour change.
+
+⚠️ **STILL NOT PROVEN:** no real order has yet written `ads_consent`. The shop opens 16:00 UK; the
+first real order after that is the test. Until one is read back from the DB this is deployed, not
+working.
+
+### The change itself
+
+Because that decision cannot be made in a few days unless the data is recorded **now** —
+`consent.ts` kept the choice in localStorage only and it never reached the order.
+
+| File | Change |
+|---|---|
+| `backend/alembic/versions/a9b0c1d2e3f4_order_ads_consent.py` | **new**, head was `f8a9b0c1d2e3` |
+| `backend/app/models/order.py` | `ads_consent` column, nullable, no index |
+| `backend/app/schemas/public_order.py` | field + `drop_unknown_ads_consent` validator |
+| `backend/app/services/public_order_service.py` | persists it on every order |
+| `storefront/src/lib/api.ts` | posts it from `storedConsent()` at the `placeOrder` choke point |
+| `storefront/src/lib/analytics.ts` | `markFired` no longer runs when `gtag` is absent |
+
+Three states and **`NULL` is not `denied`** — it means the banner went unanswered. Recorded for every
+order, not only ad ones: the denominator is what says how much the tag structurally misses.
+⚠️ `tsc --noEmit` clean and `ruff` clean. **The migration has NOT been run, nothing is deployed, and
+no real order has been observed writing this column.** Do not describe it as working.
+
+⚠️ **Still unaddressed:** the `chick-shack.com` #1-organic problem above, and conversion tracking
+still reads `0.00%` — Google
+cannot see the one order we can — and the `chick-shack.com` #1-organic problem above is untouched.
+Only sitelinks remain unticked on Google's own recommendation list.
+
+📌 **Meta is NOT the ready alternative.** Verified this pass: `storefront/src` contains **gtag only,
+no `fbq` and no `connect.facebook.net`**. The 08-25 blocker stands — **no Meta pixel = no
+measurement = no Meta spend.**
+
+📌 **Today's trade, for context:** 9 online orders, £228.70 total, 16:23 to 18:55 UK, one of the nine
+carries a gclid. The other 8 are organic by the same reading. **Today is not closed** (shop trades to
+~21:00 UK) and, per the 08-27 method note, Google Ads same-day figures revise upward — the £19.14 and
+the 5 clicks are provisional until the day closes in the account's time zone.
+
+**Still not built, unchanged:** no source column anywhere in the admin UI (gclid is readable only by
+SQL), no import-type conversion action in Google Ads Data Manager, and no OCI upload, so **Google
+still cannot see this conversion** — only we can. The bilal-app script
+(`C:\FBAI\bilal-app\gads_oci_export.py`) remains the model for that upload.
+
+**Previously (2026-08-28 22:10 UTC),** end of the FZ LLC documents session.
+🟢 **Both FZ LLC PDFs are with Martin.** Git verified at 22:06 UTC: local HEAD, `origin/main` and the
+server are all on **`28a6663`**, nothing unpushed, working tree carries docs and `_files/` only. This
+session wrote no code and ran no deploy. Header below is the previous entry, kept for its deploy record.
+
+**Previously (2026-08-28 21:20 UTC),** end of the scheduled after-close deploy,
 written by the session that scheduled and ran it.
 🟢 **HEAD `464bee9` = `origin/main` = server** (`www/current -> releases/464bee9…`). Deployed 21:04-21:08
 UTC after Chick Shack closed, `pg_dump` first (`/root/backups/pre-blocked-customer-20260828-210437.sql.gz`,
@@ -18,6 +220,85 @@ header said cron `080fa201` "did NOT fire and cannot" because its session had en
 cron fired at 21:04 UTC, and `464bee9` is now verified on the live endpoint (below). A session
 cannot see another session's in-memory cron; **absence from your own session is not evidence that a
 job is dead.** `PAUSE_CHECKPOINT_2026-08-29.md` is that other session's checkpoint and predates this.
+
+## 🟢 2026-08-28 20:15-22:10 UTC (01:15-03:10 PKT 08-29). FZ LLC: UAT GUIDE REVISED AND THE FULL PROPOSAL REWRITTEN ON NEW PRICING. BOTH PDFs SENT TO MARTIN ON WHATSAPP 03:02-03:04 PKT. NO CODE TOUCHED, NO DEPLOY FROM THIS SESSION.
+
+**Delivered to Martin Zubeldia (screenshot, WhatsApp "Martin Uae"):**
+`FZ_LLC_Testing_Guide_2026-08-28.pdf` (182 KB) and `FZ_LLC_Proposal_2026-08-29.pdf` (215 KB), with
+Malik's covering note that API integration processes are outlined but **their pricing is not in the
+public docs, so meetings with local reps are needed for API pricing.** Martin replied **"Allow me to
+review this during meeting"**; Malik: "lets connect on Monday and take it from there." 🔴 **The
+Monday 2026-08-31 deadline is therefore MET on documents. The open thread is Martin's review.**
+Malik confirmed he **signed in as `martin-fz` himself and everything works.**
+
+🔴 **PRICING CHANGED, THIS SUPERSEDES THE 225 AED ANCHOR EVERYWHERE.**
+**AED 360/month all-inclusive** (full platform, both locations, unlimited logins, hosting, support
+and maintenance, our assistance with the delivery-platform API integrations, all future product
+improvements) **+ AED 1,500 one-time for the ordering website**, whose domain FZ LLC buys and owns.
+12-month minimum term, AED 0 upfront on the platform. The old **two-tier A/B structure is gone**, and
+so are the per-platform integration fees (was AED 4,500-9,000 one-time + 40/month each): that work
+now sits **inside the monthly**, which is the deliberate "technical partner on retainer" pitch.
+Memory updated: `MEMORY.md` and `memory/fz-llc-pricing-and-build-posture.md` now read 360, marked as
+set 2026-08-29 and superseding 225.
+⚠️ **Ambiguity flagged to Malik and NOT resolved:** "assistance for integrations of APIs" was written
+as *our integration work is included*; if he meant only helping Martin obtain access, with the build
+chargeable, that is a one-line change. He did not answer before sending.
+
+**Delivery-platform research finished and verified from primary sources**, all recorded with
+source URLs in `_context/clients/fz-llc-uae/integrations/2026-08-28_primary-source-verification-notes.md`:
+- 🔴 **The "Talabat requires an NDA" claim is DROPPED** on Malik's instruction. It was never confirmed
+  on any primary source. It must not reappear in any client document.
+- 🔴 **New from the full Direct Flow spec Malik pasted:** Direct Flow **still requires the Delivery
+  Hero Vendor App as a fallback** (the tablet does not disappear); an **implementation contract**
+  exists (not an NDA); and **Delivery Hero can unilaterally disable an integration** if the escalation
+  contact goes quiet or a contract article is unmet. This became the proposal's lead argument.
+- 🟢 **Careem: `https://auth-partners.careem.com/login` found by Malik**, a live Partner Portal with
+  sign-up. Replaces "integrator only". Honest limit stated in the quote: it is the business partner
+  portal, not a published POS developer programme.
+- **noon Food: no usable public docs.** `noon-docs.noonpartners.dev` re-fetched and confirmed to be
+  noon's **e-commerce marketplace** API, not food delivery. Route is a support case at
+  `https://developer.noon.partners/support/support-cases`.
+- **Deliveroo:** best self-serve path, `api-docs.deliveroo.com` + `developers.deliveroo.com`.
+  ⚠️ Its UAE trading status is carried from 08-26 research and **was never re-verified**; Malik was
+  told and chose not to check. The proposal asserts it. Same for the Uber Eats exit claim, which was
+  then removed from the document entirely.
+- **Middleware, listed flat as equals on Malik's instruction:** Deliverect, GetOrder, Grubtech.
+  ⚠️ Deliverect's fetched Middle East index does **not** name Talabat, so the old "Deliverect has
+  production Talabat integrations" claim stays unconfirmed. Grubtech's page names Talabat **and**
+  Careem. GetOrder could not be fetched at all (403, Cloudflare JS challenge).
+- **All commission percentages were removed from the proposal** on Malik's "dont assume anything".
+
+**Shopify comparison, verified by Malik in a browser** (my server-side fetch could not read the
+prices; four extraction attempts failed, they are injected client-side). **USD, not AED:** Basic
+$22/mo (2% third-party payment fee), Grow $58 (1%), Advanced $359 (0.6%), Plus from $2,300 (0.2%).
+Full note at `_context/clients/fz-llc-uae/integrations/2026-08-29_shopify-vs-custom-website.md`.
+⚠️ In the final sent version Malik removed the three comparison points, so **Section 8 now shows
+Shopify's prices with no counter-argument beside them**. Flagged to him; he sent it as is.
+
+**UAT guide: eight edits applied and re-rendered**, all verified by reading the PDF back, not assumed.
+Removed the covering-email credentials line, "two conventions" heading became **"Important note"**,
+the tax-invoice "causes real trouble" line, "A finding is worth more than a compliment", and the
+generic-login-page known issue. Added: FZ LLC can send us their real menu/recipes to load or add a
+few themselves; and a suggested answer to the open kitchen question, **a printer attached to the POS
+so the kitchen gets its own dedicated ticket**. Card banner now offers to help set up an online
+payment gateway instead of pricing it separately.
+
+⚠️ **Tooling note, saves the next session an hour.** No markdown library is installable here (no DNS
+locally, **no pip on the server either**), and WeasyPrint is unusable (no GTK). A self-contained
+converter now lives at the session scratchpad's `render_guide.py`; render with headless Chrome
+(`--headless=new --no-pdf-header-footer --print-to-pdf`). It handles headings, pipe tables, ordered
+and unordered lists with continuation lines, blockquotes, rules and inline bold/italic/code.
+
+🔴 **My own error this session, corrected by the deploying session and recorded so it is not
+repeated.** My 20:15 UTC refresh asserted cron `080fa201` "did NOT fire and cannot" because its
+session had ended. I had **no evidence that session had ended**; I inferred it from not seeing it.
+It was alive, it fired at 21:04 UTC, and the deploy happened. **Absence from your own session is not
+evidence that another session's job is dead.**
+
+**Martin's login link, verified end to end:** `https://eats.sitaratech.info/login?shop=martin-fz`
+(200 through production nginx; `/login` confirmed in the router; `?shop=` is the tenant parameter in
+`frontend/src/lib/tenant.ts`; `martin-fz` active in the production `tenants` table). `?shop=` is only
+honoured when nobody is signed in, so the link is safe to send to several people.
 
 ## 🟢 2026-08-28 18:50-21:20 UTC. ONE CHICK SHACK CUSTOMER BLOCKED FROM ONLINE ORDERING. GUARD SHIPPED `464bee9`, FLAG SET THROUGH THE REAL ROUTE, REFUSAL PROVEN ON THE LIVE ENDPOINT.
 
