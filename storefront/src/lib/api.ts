@@ -21,6 +21,7 @@
 
 import type { Pence, ServiceType } from "../types";
 import { storedClickId, type ClickType } from "./clickId";
+import { storedConsent } from "./consent";
 
 const DEFAULT_API_BASE = "https://eats.sitaratech.info/api/v1";
 const DEFAULT_TENANT_SLUG = "chick-shack";
@@ -121,6 +122,18 @@ export interface ApiOrderRequest {
    */
   gclid?: string;
   click_type?: ClickType;
+  /**
+   * What the customer chose on the cookie banner when they ordered.
+   *
+   * The browser conversion tag under-reports by design — consent defaults to
+   * denied and `ads_data_redaction` strips the click id — so an offline upload
+   * from our own `gclid` column is the reliable route. Whether that upload may
+   * legally include someone who declined advertising cookies is a separate
+   * question, and this is the field that lets it be answered from data.
+   *
+   * Omitted when the banner has not been answered on this device.
+   */
+  ads_consent?: "granted" | "denied";
 }
 
 export interface ApiOrderLine {
@@ -273,9 +286,18 @@ export function placeOrder(order: ApiOrderRequest): Promise<ApiOrderResponse> {
   // `storedClickId` never throws and returns null on any doubt, so the spread
   // is a no-op for the ordinary visitor who never saw an ad.
   const click = storedClickId();
+  // Attached at the same choke point and for the same reason. Recorded for
+  // EVERY order, not only ad ones: knowing how many customers decline is what
+  // tells us how much the browser tag is missing. `storedConsent` returns null
+  // when the banner has not been answered, and null is a real third answer.
+  const consent = storedConsent();
   return request<ApiOrderResponse>(`/public/${TENANT_SLUG}/orders`, {
     method: "POST",
-    body: JSON.stringify(click ? { ...order, ...click } : order),
+    body: JSON.stringify({
+      ...order,
+      ...(click ?? {}),
+      ...(consent ? { ads_consent: consent } : {}),
+    }),
   });
 }
 

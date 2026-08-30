@@ -631,6 +631,9 @@ async def create_public_order(
         # validated and coerced to None by the schema if unusable.
         gclid=data.gclid,
         click_type=data.click_type if data.gclid else None,
+        # Stored for every order, not only ad ones: the denominator matters as
+        # much as the numerator when judging how much the browser tag misses.
+        ads_consent=data.ads_consent,
         created_by=system_user.id,
         items=order_items,
     )

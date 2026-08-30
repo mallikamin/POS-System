@@ -154,6 +154,23 @@ class Order(BaseMixin, Base):
         nullable=True,
         comment="One of gclid, gbraid, wbraid",
     )
+    # What the customer chose on the cookie banner at the moment they ordered.
+    #
+    # The browser tag under-reports by design: consent defaults to denied and
+    # `ads_data_redaction` strips the click id from the ping, so a conversion
+    # from a customer who never tapped Allow is not attributable in Google. We
+    # hold the click id ourselves regardless, which means an offline upload is
+    # technically possible for every ad order -- and legally is NOT the same
+    # question for someone who declined advertising cookies.
+    #
+    # Recorded so that decision can be made on data rather than a guess. NULL
+    # means the banner was never answered on that visit (or the order predates
+    # this column); it is not the same as "denied".
+    ads_consent: Mapped[str | None] = mapped_column(
+        String(10),
+        nullable=True,
+        comment="granted or denied on the cookie banner when the order was placed",
+    )
 
     customer_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     customer_phone: Mapped[str | None] = mapped_column(String(20), nullable=True)

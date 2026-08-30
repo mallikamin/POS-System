@@ -37,6 +37,9 @@ _CLICK_ID_RE = re.compile(r"^[A-Za-z0-9_.-]{8,150}$")
 # `wbraid` are the iOS/privacy-safe variants; they are NOT interchangeable with
 # `gclid` when uploading a conversion, which is why the kind is stored.
 _CLICK_TYPES = frozenset({"gclid", "gbraid", "wbraid"})
+# The only two answers the cookie banner can produce. Absent is a third state
+# and is deliberately not in here: it means the banner was never answered.
+_ADS_CONSENT = frozenset({"granted", "denied"})
 
 
 class PublicModifier(BaseModel):
@@ -174,6 +177,11 @@ class PublicOrderCreate(BaseModel):
     gclid: str | None = None
     click_type: str | None = None
 
+    # What the customer chose on the cookie banner, so that "may we upload this
+    # click to Google?" is a question the data can answer later instead of a
+    # guess made under pressure. Absent means the banner went unanswered.
+    ads_consent: str | None = None
+
     @field_validator("gclid", mode="before")
     @classmethod
     def drop_unusable_gclid(cls, v: object) -> str | None:
@@ -209,6 +217,20 @@ class PublicOrderCreate(BaseModel):
             return None
         v = v.strip().lower()
         return v if v in _CLICK_TYPES else None
+
+    @field_validator("ads_consent", mode="before")
+    @classmethod
+    def drop_unknown_ads_consent(cls, v: object) -> str | None:
+        """Only the two real answers survive; anything else becomes absent.
+
+        Same 422 reasoning as the two validators above -- this is measurement
+        riding along with a basket and it must never be able to fail an order.
+        Absent is meaningful in its own right: the banner was not answered.
+        """
+        if not isinstance(v, str):
+            return None
+        v = v.strip().lower()
+        return v if v in _ADS_CONSENT else None
 
     @model_validator(mode="after")
     def delivery_requires_area_and_address(self) -> "PublicOrderCreate":
