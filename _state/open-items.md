@@ -34,8 +34,12 @@ cheese sauce: 6.000 -> 5.940  (delta -0.060)
   Cheese Sauce      -0.030  Sold 1 x Extra Cheese Sauce (add-on)
 ```
 
-⚠️ **That verification order is still on Martin's tenant**, marked in its notes as safe to void or
-ignore. Void it before he reviews if it would confuse the demo.
+🟢 **That verification order has since been removed on Malik's instruction and its stock put back.**
+`void_order` could not do it (it refuses a completed order, and a void never reverses stock, so
+voiding would have left the tenant 0.060 kg short with nothing explaining it). Removed directly
+instead, balances restored through `LocationStock` with the ingredient rollup recomputed from it.
+Verified in SQL afterwards: 11 orders, 0 named OI99, Cheese Sauce 6.000, Chicken Stuffing 9.000,
+Croissant Dough 63.140, all identical to before the test.
 
 **Also created on production for FZ LLC**, so the feature is visible rather than theoretical: an
 **Extras** group on the two chicken items, with **Extra Cheese Sauce** (charged 2.00, costs 0.42)

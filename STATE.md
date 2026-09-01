@@ -39,9 +39,20 @@ BOM module shipped. Martin would have hit it the first time he changed a quantit
 their orders. Re-checked after the deploy: storefront 200, POS health `database: healthy /
 redis: healthy`, their public menu endpoint 200, 291 orders unchanged.
 
-⚠️ **Two things left on the tenant, both deliberate and both reversible:** the verification order
-`OI99-B9BC1` (its notes say safe to void or ignore) and the two new add-ons. Void the order before
-Martin reviews if it would muddy the demo.
+🟢 **The verification order is gone, on Malik's instruction, and the stock it consumed is back.**
+`void_order` could not do it: it refuses a `completed` order outright (`order_service.py:715`), and a
+void never reverses stock anyway, so voiding would have left Martin 0.060 kg of cheese sauce short
+with no record of why. The order, its line, its chosen modifier, its status log and its four
+movements were removed instead, and the balances restored the way the stock service holds them
+(`LocationStock` is the truth, `Ingredient.current_stock` recomputed from it, so the two cannot
+drift). Dry run first, `pg_dump` first, then verified independently in SQL: **martin-fz back to 11
+orders, 0 orders named OI99, Cheese Sauce 6.000, Chicken Stuffing 9.000, Croissant Dough 63.140** —
+every figure identical to before the test.
+
+📌 **The two add-ons stay**, because they are the feature, not the test: Extra Cheese Sauce (200,
+costs 41.70) and Extra Chicken Stuffing (400, costs 75.55), both with an active recipe. Martin's own
+three modifiers (Beef, Birria, Chicken) are untouched and have no recipe, which is correct: they
+change no ingredients.
 
 ⚠️ **`seed_fz_llc.py` was committed by mistake in `1eb9ce6` and untracked again in `97f0ec4`.** It
 carries the FZ demo password in plaintext and imports the untracked `system_admin.py`. The
