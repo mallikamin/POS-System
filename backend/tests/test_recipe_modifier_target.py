@@ -530,3 +530,112 @@ class TestAddonCosting:
         report = await location_service.profitability_report(db, tenant.id)
 
         assert report["totals"]["product_cost_minor"] == 346
+
+
+# ---------------------------------------------------------------------------
+# THROUGH THE ROUTE, NOT ONLY THE SERVICE
+# ---------------------------------------------------------------------------
+
+
+class TestThroughTheApi:
+    """Every service-level test above passed while saving a recipe returned 400
+    to every client, because none of them came through the route. These do.
+    """
+
+    async def test_saving_a_new_recipe_returns_it(
+        self, client, admin_token, db: AsyncSession, tenant: Tenant,
+        extra_cheese: Modifier, cheese: Ingredient,
+    ):
+        """The create path. It answered 400 for every tenant until 2026-09-01:
+        the route partially refreshed the object after commit, leaving
+        `updated_at` unloaded, so building the response raised MissingGreenlet.
+        """
+        resp = await client.post(
+            "/api/v1/inventory/recipes",
+            headers={"Authorization": "Bearer " + admin_token},
+            json={
+                "modifier_id": str(extra_cheese.id),
+                "yield_servings": 1,
+                "recipe_items": [
+                    {
+                        "ingredient_id": str(cheese.id),
+                        "quantity": 0.03,
+                        "unit": "kg",
+                        "waste_factor": 0,
+                    }
+                ],
+            },
+        )
+
+        assert resp.status_code == 201, resp.text
+        body = resp.json()
+        assert body["modifier_id"] == str(extra_cheese.id)
+        assert body["modifier_name"] == "Extra Cheese Sauce"
+        assert body["modifier_group_name"] == "Extras"
+        assert body["modifier_price"] == 200
+        # Costed against the add-on's own price, net of tax, like a menu item.
+        assert body["food_cost_percentage"] is not None
+
+    async def test_editing_a_recipe_bumps_the_version(
+        self, client, admin_token, db: AsyncSession, tenant: Tenant,
+        extra_cheese: Modifier, cheese: Ingredient,
+    ):
+        """Editing answered 400 too, and once it stopped, the new version was
+        numbered 1 again because the old one had been deactivated before
+        `create_recipe` could count it.
+        """
+        auth = {"Authorization": "Bearer " + admin_token}
+        items = [
+            {
+                "ingredient_id": str(cheese.id),
+                "quantity": 0.03,
+                "unit": "kg",
+                "waste_factor": 0,
+            }
+        ]
+        created = await client.post(
+            "/api/v1/inventory/recipes",
+            headers=auth,
+            json={
+                "modifier_id": str(extra_cheese.id),
+                "yield_servings": 1,
+                "recipe_items": items,
+            },
+        )
+        assert created.status_code == 201, created.text
+        assert created.json()["version"] == 1
+
+        items[0]["quantity"] = 0.06
+        edited = await client.patch(
+            "/api/v1/inventory/recipes/" + created.json()["id"],
+            headers=auth,
+            json={"recipe_items": items, "yield_servings": 1},
+        )
+
+        assert edited.status_code == 200, edited.text
+        body = edited.json()
+        assert body["version"] == 2
+        assert body["modifier_id"] == str(extra_cheese.id)
+        assert body["modifier_name"] == "Extra Cheese Sauce"
+
+    async def test_the_recipe_list_labels_an_addon(
+        self, client, admin_token, db: AsyncSession, tenant: Tenant,
+        extra_cheese: Modifier, cheese: Ingredient, admin_user: User,
+    ):
+        """The Recipes screen itself. `_enrich_recipe`'s modifier branch reads
+        `.group`, eager-loaded on this path and not on the write paths.
+        """
+        await _addon_recipe(db, tenant, admin_user, extra_cheese, cheese)
+        await db.commit()
+
+        resp = await client.get(
+            "/api/v1/inventory/recipes",
+            headers={"Authorization": "Bearer " + admin_token},
+            params={"is_active": "true"},
+        )
+
+        assert resp.status_code == 200, resp.text
+        addons = [r for r in resp.json() if r["modifier_id"]]
+        assert len(addons) == 1
+        assert addons[0]["modifier_name"] == "Extra Cheese Sauce"
+        assert addons[0]["modifier_group_name"] == "Extras"

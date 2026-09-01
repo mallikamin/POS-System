@@ -221,13 +221,16 @@ async def create_recipe(
             db, current_user.tenant_id, data, current_user.id
         )
         await db.commit()
-        # produces_ingredient must be refreshed too, or a newly created
-        # sub-recipe comes back with no label at all.
-        await db.refresh(
-            recipe, ["recipe_items", "menu_item", "produces_ingredient", "modifier"]
-        )
+        # Re-fetched, NOT partially refreshed. `db.refresh(obj, [names])` left
+        # every column outside that list unloaded, so building the response
+        # touched `updated_at` and raised MissingGreenlet -- a 400 on every
+        # recipe save, for every tenant, through this endpoint. Found on
+        # 2026-09-01 by walking the client's own UAT path over HTTP; the
+        # service-level tests never saw it because they never came through the
+        # route. `get_recipe` eager-loads every label this response needs.
+        saved = await recipe_service.get_recipe(db, current_user.tenant_id, recipe.id)
         tax_settings = await order_service._get_tax_settings(db, current_user.tenant_id)
-        return _enrich_recipe(recipe, tax_settings)
+        return _enrich_recipe(saved, tax_settings)
 
     except ValueError as e:
         raise HTTPException(
@@ -332,11 +335,12 @@ async def update_recipe(
             db, recipe, data, current_user.id
         )
         await db.commit()
-        await db.refresh(
-            updated, ["recipe_items", "menu_item", "produces_ingredient", "modifier"]
-        )
+        # Re-fetched rather than partially refreshed, same reason as the create
+        # route above: a partial refresh left `updated_at` unloaded and every
+        # save that cut a new version came back as a 400.
+        saved = await recipe_service.get_recipe(db, current_user.tenant_id, updated.id)
         tax_settings = await order_service._get_tax_settings(db, current_user.tenant_id)
-        return _enrich_recipe(updated, tax_settings)
+        return _enrich_recipe(saved, tax_settings)
 
     except ValueError as e:
         raise HTTPException(

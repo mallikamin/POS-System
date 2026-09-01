@@ -373,9 +373,13 @@ async def update_recipe(
     Otherwise, updates metadata only.
     """
     if data.recipe_items is not None:
-        # Creating new version - deactivate current and create new
-        recipe.is_active = False
-        await db.flush()
+        # Deliberately NOT deactivating here first. `create_recipe` looks up the
+        # ACTIVE recipe for this target, deactivates it, and numbers the new one
+        # `existing.version + 1`. Deactivating up front hid the current recipe
+        # from that lookup, so every edit was numbered version 1 again and the
+        # version badge never moved off 1 however many times a recipe was
+        # edited. Found on 2026-09-01 by editing through the API rather than the
+        # service.
 
         # Build new recipe data
         # Every target must be carried across, or the new version fails the
