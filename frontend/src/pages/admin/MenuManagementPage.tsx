@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { Link } from "react-router-dom";
 import {
   Plus,
   Pencil,
@@ -30,6 +31,7 @@ import { Thumb } from "@/components/admin/Thumb";
 import { formatPKR, rupeesToPaisa, paisaToRupees } from "@/utils/currency";
 import { useMenuStore } from "@/stores/menuStore";
 import * as menuApi from "@/services/menuApi";
+import * as inventoryApi from "@/services/inventoryApi";
 import { useCurrencyCode } from "@/hooks/useCurrencyCode";
 import type {
   Category,
@@ -841,6 +843,16 @@ function ModifierGroupsTab() {
   const [deleteTarget, setDeleteTarget] = useState<ModifierGroup | null>(null);
   const [expandedGroupId, setExpandedGroupId] = useState<string | null>(null);
 
+  // Which add-ons already say what they are made of (OI-99 follow-up). Pricing
+  // an extra and costing it happen on different screens, deliberately, but
+  // nothing used to connect them: a manager could price five extras, give two
+  // of them a recipe, and never see that the other three were booking no cost
+  // at all and reporting a 100% margin.
+  const [modifiersWithRecipe, setModifiersWithRecipe] = useState<Set<string>>(
+    new Set()
+  );
+  const [usesRecipes, setUsesRecipes] = useState(false);
+
   // Group form state
   const [name, setName] = useState("");
   const [required, setRequired] = useState(false);
@@ -860,8 +872,26 @@ function ModifierGroupsTab() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await menuApi.fetchModifierGroups();
+      const [data, recipes] = await Promise.all([
+        menuApi.fetchModifierGroups(),
+        // Only to answer "does this add-on have a recipe". A failure here is
+        // not fatal: a tenant without the inventory module still needs its
+        // menu screen, and simply gets no badges.
+        inventoryApi
+          .fetchRecipes({ is_active: true, limit: 500 })
+          .catch(() => []),
+      ]);
       setGroups(data);
+      // A tenant with no recipes at all does not use this module, so it sees no
+      // recipe badges rather than a wall of "No recipe" on every add-on.
+      setUsesRecipes(recipes.length > 0);
+      setModifiersWithRecipe(
+        new Set(
+          recipes
+            .map((r) => r.modifier_id)
+            .filter((id): id is string => Boolean(id))
+        )
+      );
     } catch {
       // silently fail
     } finally {
@@ -1116,6 +1146,26 @@ function ModifierGroupsTab() {
                               +{formatPKR(mod.price_adjustment)}
                             </Badge>
                           )}
+                          {usesRecipes &&
+                            (modifiersWithRecipe.has(mod.id) ? (
+                              <Link
+                                to="/admin/recipes"
+                                title="This add-on has a recipe: selling it deducts stock and books its cost."
+                              >
+                                <Badge variant="secondary">Recipe</Badge>
+                              </Link>
+                            ) : (
+                              mod.price_adjustment > 0 && (
+                                <Link
+                                  to="/admin/recipes"
+                                  title="Nobody has said what this add-on is made of, so selling it moves no stock and books no cost. Its margin will read higher than it is."
+                                >
+                                  <Badge variant="outline" className="border-warning-300 text-warning-700">
+                                    No recipe
+                                  </Badge>
+                                </Link>
+                              )
+                            ))}
                           <Badge
                             variant={
                               mod.is_available ? "success" : "destructive"
