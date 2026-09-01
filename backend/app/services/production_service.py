@@ -71,6 +71,10 @@ def _recipe_label(recipe: Recipe) -> str:
         return recipe.produces_ingredient.name
     if recipe.menu_item is not None:
         return recipe.menu_item.name
+    if recipe.modifier is not None:
+        # Marked as an add-on in the movement history, because "Cheese Sauce"
+        # alone would read as a production run rather than a sale.
+        return f"{recipe.modifier.name} (add-on)"
     return f"recipe {recipe.id}"
 
 
@@ -108,9 +112,14 @@ async def run_production(
     recipe = await _load_recipe(db, tenant_id, recipe_id)
 
     if recipe.produces_ingredient_id is None:
+        what = (
+            "is for an add-on"
+            if recipe.modifier_id is not None
+            else "produces a menu item"
+        )
         raise StockError(
-            "This recipe produces a menu item, not an ingredient, so it cannot "
-            "be produced into stock. Sell it instead."
+            f"This recipe {what}, not an ingredient, so it cannot be produced "
+            "into stock. Sell it instead."
         )
     if not recipe.recipe_items:
         raise StockError("This recipe has no ingredients, so nothing can be produced.")
@@ -196,7 +205,9 @@ async def consume_for_order(
     result = await db.execute(
         select(Order)
         .where(Order.id == order_id, Order.tenant_id == tenant_id)
-        .options(selectinload(Order.items))
+        # `.modifiers` is chained: the add-ons on a line are consumed too
+        # (OI-99), and a lazy load there raises MissingGreenlet.
+        .options(selectinload(Order.items).selectinload(OrderItem.modifiers))
     )
     order = result.scalar_one_or_none()
     if order is None:
@@ -207,30 +218,8 @@ async def consume_for_order(
     deducted: list[dict] = []
     missing_recipe: list[uuid.UUID] = []
 
-    for line in order.items:
-        if line.menu_item_id is None:
-            continue
-        recipe_result = await db.execute(
-            select(Recipe)
-            .where(
-                Recipe.tenant_id == tenant_id,
-                Recipe.menu_item_id == line.menu_item_id,
-                Recipe.is_active == True,  # noqa: E712
-            )
-            .options(
-                selectinload(Recipe.recipe_items),
-                selectinload(Recipe.produces_ingredient),
-                selectinload(Recipe.menu_item),
-            )
-        )
-        recipe = recipe_result.scalar_one_or_none()
-        if recipe is None:
-            # A sellable item with no recipe is normal (a canned drink is bought
-            # and sold, not made). Recorded, not treated as an error.
-            missing_recipe.append(line.menu_item_id)
-            continue
-
-        qty = Decimal(str(line.quantity))
+    async def _deduct(recipe: Recipe, qty: Decimal) -> None:
+        """Explode one recipe `qty` times and write the movements."""
         for item in recipe.recipe_items:
             used = _consumed_quantity(item.quantity, item.waste_factor, qty)
             if used <= 0:
@@ -248,6 +237,64 @@ async def consume_for_order(
                 notes=f"Sold {qty} x {_recipe_label(recipe)}",
             )
             deducted.append({"ingredient_id": item.ingredient_id, "quantity": used})
+
+    for line in order.items:
+        if line.menu_item_id is None:
+            continue
+        qty = Decimal(str(line.quantity))
+
+        recipe_result = await db.execute(
+            select(Recipe)
+            .where(
+                Recipe.tenant_id == tenant_id,
+                Recipe.menu_item_id == line.menu_item_id,
+                Recipe.is_active == True,  # noqa: E712
+            )
+            .options(
+                selectinload(Recipe.recipe_items),
+                selectinload(Recipe.produces_ingredient),
+                selectinload(Recipe.menu_item),
+                selectinload(Recipe.modifier),
+            )
+        )
+        recipe = recipe_result.scalar_one_or_none()
+        if recipe is None:
+            # A sellable item with no recipe is normal (a canned drink is bought
+            # and sold, not made). Recorded, not treated as an error.
+            missing_recipe.append(line.menu_item_id)
+        else:
+            await _deduct(recipe, qty)
+
+        # OI-99. An add-on the customer paid for is made of something too.
+        # Deducted at the LINE's quantity, because `order_item_modifiers` holds
+        # one row per chosen modifier per line, not per unit: two croissants
+        # with extra cheese is one modifier row and two portions of cheese.
+        #
+        # Deliberately outside the `recipe is None` branch above: an item with
+        # no recipe of its own can still carry an add-on that has one, and
+        # skipping those was the first version of this bug.
+        for chosen in line.modifiers:
+            mod_result = await db.execute(
+                select(Recipe)
+                .where(
+                    Recipe.tenant_id == tenant_id,
+                    Recipe.modifier_id == chosen.modifier_id,
+                    Recipe.is_active == True,  # noqa: E712
+                )
+                .options(
+                    selectinload(Recipe.recipe_items),
+                    selectinload(Recipe.produces_ingredient),
+                    selectinload(Recipe.menu_item),
+                    selectinload(Recipe.modifier),
+                )
+            )
+            mod_recipe = mod_result.scalar_one_or_none()
+            if mod_recipe is None:
+                # Normal: most modifiers (Mild/Medium/Hot, Regular/Large) change
+                # no ingredients at all. Not recorded as a missing recipe, which
+                # is reserved for sellable items.
+                continue
+            await _deduct(mod_recipe, qty)
 
     return {
         "order_id": order_id,

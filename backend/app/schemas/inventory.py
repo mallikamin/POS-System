@@ -125,14 +125,19 @@ class RecipeItemResponse(RecipeItemBase):
 
 
 class RecipeBase(BaseModel):
-    """A recipe produces exactly one of `menu_item_id` (a sellable final
-    product) or `produces_ingredient_id` (an in-house sub-recipe/intermediate
-    like dough, sauce, or stuffing that other recipes then consume as an
-    ingredient) -- never both, never neither.
+    """A recipe is attached to exactly one target, never two, never none:
+
+      * `menu_item_id` -- a sellable final product,
+      * `produces_ingredient_id` -- an in-house sub-recipe/intermediate like
+        dough, sauce, or stuffing that other recipes then consume as an
+        ingredient,
+      * `modifier_id` -- a paid add-on chosen at the till (extra cheese, an
+        extra shot), consumed and costed on top of the line it is added to.
     """
 
     menu_item_id: uuid.UUID | None = None
     produces_ingredient_id: uuid.UUID | None = None
+    modifier_id: uuid.UUID | None = None
     yield_servings: Num = Field(
         default=1,
         gt=0,
@@ -147,12 +152,15 @@ class RecipeBase(BaseModel):
 
     @model_validator(mode="after")
     def _exactly_one_target(self) -> "RecipeBase":
-        has_menu_item = self.menu_item_id is not None
-        has_ingredient = self.produces_ingredient_id is not None
-        if has_menu_item == has_ingredient:
+        targets = (
+            self.menu_item_id,
+            self.produces_ingredient_id,
+            self.modifier_id,
+        )
+        if sum(1 for target in targets if target is not None) != 1:
             raise ValueError(
-                "Exactly one of menu_item_id or produces_ingredient_id "
-                "must be set."
+                "Exactly one of menu_item_id, produces_ingredient_id or "
+                "modifier_id must be set."
             )
         return self
 
@@ -193,7 +201,13 @@ class RecipeResponse(RecipeBase):
     # Set instead of menu_item_name when this is a sub-recipe. Without it the
     # UI has an id and no way to label a dough or sauce recipe.
     produces_ingredient_name: str | None = None
-    food_cost_percentage: Num | None = None  # cost_per_serving / menu_item_net_price
+    # Set instead of both when the recipe belongs to an add-on. The price is
+    # the modifier's own `price_adjustment`, which is what the customer pays
+    # for it on top of the line, so the same food-cost arithmetic applies.
+    modifier_name: str | None = None
+    modifier_group_name: str | None = None
+    modifier_price: int | None = None
+    food_cost_percentage: Num | None = None  # cost_per_serving / net price
 
     model_config = {"from_attributes": True}
 

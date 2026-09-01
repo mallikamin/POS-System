@@ -105,14 +105,23 @@ export interface Recipe {
   id: string;
   tenant_id: string;
   /**
-   * A recipe produces EITHER a sellable menu item OR an ingredient, never both
-   * and never neither (the database enforces it). A recipe that produces an
-   * ingredient is a sub-recipe: dough, a sauce, a stuffing, which other recipes
-   * then consume. That is what makes multi-layer production chains possible.
+   * A recipe is attached to exactly one of three targets, never two and never
+   * none (the database enforces it):
+   *
+   *  - a sellable menu item;
+   *  - an ingredient it produces, which makes it a sub-recipe (dough, a sauce,
+   *    a stuffing) that other recipes then consume, and is what makes
+   *    multi-layer production chains possible;
+   *  - a modifier, meaning a paid add-on chosen at the till, which is consumed
+   *    and costed on top of the line it is added to.
    */
   menu_item_id: string | null;
   produces_ingredient_id: string | null;
   produces_ingredient_name: string | null;
+  modifier_id: string | null;
+  modifier_name: string | null;
+  modifier_group_name: string | null;
+  modifier_price: number | null; // minor units, the add-on's price adjustment
   menu_item_name: string | null; // Denormalized for display
   menu_item_price: number | null; // minor units, as on the menu board
   // Menu price with the tenant's tax backed out when prices are tax-inclusive

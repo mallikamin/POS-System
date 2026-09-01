@@ -1,11 +1,18 @@
 /**
  * Recipe Builder Page
- * Two-panel interface: target list (menu items or ingredients) -> Recipe Editor
+ * Two-panel interface: target list -> Recipe Editor
  *
- * A recipe produces EITHER a sellable menu item OR an ingredient. The second
- * kind is a sub-recipe: dough, a sauce, a stuffing, which other recipes then
- * consume as an ordinary ingredient line. That is what makes multi-layer
- * production chains work (raw -> sub-recipe -> intermediate -> final item).
+ * A recipe is attached to one of three things:
+ *
+ *  - a sellable menu item;
+ *  - an ingredient it produces, making it a sub-recipe (dough, a sauce, a
+ *    stuffing) that other recipes then consume as an ordinary ingredient line,
+ *    which is what makes multi-layer production chains work
+ *    (raw -> sub-recipe -> intermediate -> final item);
+ *  - a modifier, meaning a paid add-on chosen at the till. Its ingredients are
+ *    deducted and costed on top of the line it is added to, so an upsell stops
+ *    reading as pure margin (OI-99).
+ *
  * Auto-calculates food cost % with real-time updates.
  */
 
@@ -22,6 +29,7 @@ import {
   AlertTriangle,
   X,
   Search,
+  PlusCircle,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -42,7 +50,7 @@ import { Select } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Thumb } from "@/components/admin/Thumb";
 
-import type { MenuItem, Category } from "@/types/menu";
+import type { MenuItem, Category, ModifierGroup, ModifierOption } from "@/types/menu";
 import type {
   Ingredient,
   Recipe,
@@ -55,16 +63,17 @@ import { formatPKR, taxName } from "@/utils/currency";
 import { netOfTax } from "@/utils/tax";
 import { useConfigStore } from "@/stores/configStore";
 
-type TargetMode = "menu_item" | "sub_recipe";
+type TargetMode = "menu_item" | "sub_recipe" | "modifier";
 
 /**
- * The backend 422s on both targets or neither (a DB CHECK constraint plus a
- * Pydantic validator), so the two keys are modelled as a union rather than two
- * loose optional fields that could both be filled in by mistake.
+ * The backend 422s on two targets or none (a DB CHECK constraint plus a
+ * Pydantic validator), so the keys are modelled as a union rather than three
+ * loose optional fields that could all be filled in by mistake.
  */
 type RecipeTarget =
-  | { menu_item_id: string; produces_ingredient_id?: never }
-  | { produces_ingredient_id: string; menu_item_id?: never };
+  | { menu_item_id: string; produces_ingredient_id?: never; modifier_id?: never }
+  | { produces_ingredient_id: string; menu_item_id?: never; modifier_id?: never }
+  | { modifier_id: string; menu_item_id?: never; produces_ingredient_id?: never };
 
 type RecipeSavePayload = RecipeTarget & {
   yield_servings?: number;
@@ -89,6 +98,7 @@ export default function RecipeBuilderPage() {
   // What this recipe produces: a sellable menu item, or an ingredient
   const [targetMode, setTargetMode] = useState<TargetMode>("menu_item");
   const isSubRecipe = targetMode === "sub_recipe";
+  const isModifier = targetMode === "modifier";
 
   // Menu items + categories
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
@@ -104,8 +114,14 @@ export default function RecipeBuilderPage() {
   // dropdown alone does not scale to a real bakery's ingredient count.
   const [targetSearch, setTargetSearch] = useState("");
 
+  // Modifiers (add-on target list). Loaded by group so the list can be read
+  // the way the till presents it: "Extras > Extra Cheese Sauce".
+  const [modifierGroups, setModifierGroups] = useState<ModifierGroup[]>([]);
+  const [modifiersLoading, setModifiersLoading] = useState(true);
+
   // Active recipes: labels which targets already have one, and is how a
-  // sub-recipe is looked up (there is no by-ingredient endpoint)
+  // sub-recipe or an add-on is looked up (there is no by-ingredient or
+  // by-modifier endpoint)
   const [activeRecipes, setActiveRecipes] = useState<Recipe[]>([]);
 
   // Selected target + recipe (exactly one of the two selections is ever set)
@@ -114,6 +130,8 @@ export default function RecipeBuilderPage() {
   );
   const [selectedIngredientTarget, setSelectedIngredientTarget] =
     useState<Ingredient | null>(null);
+  const [selectedModifier, setSelectedModifier] =
+    useState<ModifierOption | null>(null);
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [recipeLoading, setRecipeLoading] = useState(false);
 
@@ -186,6 +204,22 @@ export default function RecipeBuilderPage() {
     }
   }, [toast]);
 
+  // Fetch modifier groups (add-on target list)
+  const fetchModifiers = useCallback(async () => {
+    setModifiersLoading(true);
+    try {
+      const data = await menuApi.fetchModifierGroups(false);
+      setModifierGroups(data);
+    } catch (err) {
+      toast({
+        variant: "destructive",
+        title: "Failed to load add-ons",
+      });
+    } finally {
+      setModifiersLoading(false);
+    }
+  }, [toast]);
+
   // Fetch active recipes (target badges + sub-recipe lookup)
   const fetchActiveRecipes = useCallback(async (): Promise<Recipe[]> => {
     try {
@@ -207,8 +241,9 @@ export default function RecipeBuilderPage() {
   useEffect(() => {
     fetchMenuData();
     fetchIngredients();
+    fetchModifiers();
     fetchActiveRecipes();
-  }, [fetchMenuData, fetchIngredients, fetchActiveRecipes]);
+  }, [fetchMenuData, fetchIngredients, fetchModifiers, fetchActiveRecipes]);
 
   // Fill the editor from a saved recipe
   const applyRecipeToEditor = useCallback((recipeData: Recipe) => {
@@ -245,6 +280,7 @@ export default function RecipeBuilderPage() {
   const loadRecipe = useCallback(
     async (menuItem: MenuItem) => {
       setSelectedIngredientTarget(null);
+      setSelectedModifier(null);
       setSelectedMenuItem(menuItem);
       setRecipeLoading(true);
 
@@ -274,6 +310,7 @@ export default function RecipeBuilderPage() {
   const loadRecipeForIngredient = useCallback(
     async (ingredient: Ingredient) => {
       setSelectedMenuItem(null);
+      setSelectedModifier(null);
       setSelectedIngredientTarget(ingredient);
       setRecipeLoading(true);
 
@@ -287,6 +324,42 @@ export default function RecipeBuilderPage() {
         const recipeData = recipes.find(
           (r) => r.produces_ingredient_id === ingredient.id
         );
+
+        if (recipeData) {
+          applyRecipeToEditor(recipeData);
+        } else {
+          resetEditor();
+        }
+      } catch (err) {
+        toast({
+          variant: "destructive",
+          title: "Failed to load recipe",
+        });
+      } finally {
+        setRecipeLoading(false);
+      }
+    },
+    [toast, applyRecipeToEditor, resetEditor]
+  );
+
+  // Load the recipe attached to the selected add-on. Same shape as the
+  // sub-recipe lookup: found in the active list by modifier_id, because there
+  // is no by-modifier endpoint.
+  const loadRecipeForModifier = useCallback(
+    async (modifier: ModifierOption) => {
+      setSelectedMenuItem(null);
+      setSelectedIngredientTarget(null);
+      setSelectedModifier(modifier);
+      setRecipeLoading(true);
+
+      try {
+        const recipes = await inventoryApi.fetchRecipes({
+          is_active: true,
+          limit: 500,
+        });
+        setActiveRecipes(recipes);
+
+        const recipeData = recipes.find((r) => r.modifier_id === modifier.id);
 
         if (recipeData) {
           applyRecipeToEditor(recipeData);
@@ -320,9 +393,17 @@ export default function RecipeBuilderPage() {
     });
 
     const costPerServing = yieldServings > 0 ? totalCost / yieldServings : 0;
-    const netPrice = selectedMenuItem
-      ? netOfTax(selectedMenuItem.price, taxRateBps, pricesIncludeTax)
-      : 0;
+    // An add-on is costed against what the customer pays for IT, on the same
+    // net-of-tax basis as a menu item, so the two percentages mean the same
+    // thing. A free add-on has no price to divide by and gets no percentage
+    // rather than a misleading one.
+    const grossPrice = selectedMenuItem
+      ? selectedMenuItem.price
+      : selectedModifier && selectedModifier.price_adjustment > 0
+        ? selectedModifier.price_adjustment
+        : 0;
+    const netPrice =
+      grossPrice > 0 ? netOfTax(grossPrice, taxRateBps, pricesIncludeTax) : 0;
     const foodCostPct = netPrice > 0 ? (costPerServing / netPrice) * 100 : 0;
 
     return { totalCost, costPerServing, netPrice, foodCostPct };
@@ -331,6 +412,7 @@ export default function RecipeBuilderPage() {
     ingredients,
     yieldServings,
     selectedMenuItem,
+    selectedModifier,
     taxRateBps,
     pricesIncludeTax,
   ]);
@@ -338,7 +420,10 @@ export default function RecipeBuilderPage() {
   const { totalCost, costPerServing, netPrice, foodCostPct } = calculateCosts();
   const taxInsidePrice = pricesIncludeTax && taxRateBps > 0;
 
-  const hasTarget = selectedMenuItem !== null || selectedIngredientTarget !== null;
+  const hasTarget =
+    selectedMenuItem !== null ||
+    selectedIngredientTarget !== null ||
+    selectedModifier !== null;
 
   // Yield is servings for a menu item, but a quantity in the produced
   // ingredient's own unit for a sub-recipe (5 meaning 5 kg of dough)
@@ -375,6 +460,15 @@ export default function RecipeBuilderPage() {
 
   const visibleMenuItems = menuItems.filter((item) => matchesSearch(item.name));
 
+  // Groups with no matching add-on are dropped entirely, so a search never
+  // leaves a heading standing over an empty list.
+  const visibleModifierGroups = modifierGroups
+    .map((group) => ({
+      ...group,
+      modifiers: group.modifiers.filter((mod) => matchesSearch(mod.name)),
+    }))
+    .filter((group) => group.modifiers.length > 0);
+
   // Switch between the two recipe targets
   function handleModeChange(mode: TargetMode) {
     if (mode === targetMode) return;
@@ -384,6 +478,7 @@ export default function RecipeBuilderPage() {
     setTargetSearch("");
     setSelectedMenuItem(null);
     setSelectedIngredientTarget(null);
+    setSelectedModifier(null);
     resetEditor();
   }
 
@@ -391,6 +486,8 @@ export default function RecipeBuilderPage() {
   function handleReloadTarget() {
     if (selectedIngredientTarget) {
       loadRecipeForIngredient(selectedIngredientTarget);
+    } else if (selectedModifier) {
+      loadRecipeForModifier(selectedModifier);
     } else if (selectedMenuItem) {
       loadRecipe(selectedMenuItem);
     }
@@ -543,6 +640,8 @@ export default function RecipeBuilderPage() {
         produces_ingredient_id: selectedIngredientTarget.id,
         ...base,
       };
+    } else if (selectedModifier) {
+      payload = { modifier_id: selectedModifier.id, ...base };
     } else if (selectedMenuItem) {
       payload = { menu_item_id: selectedMenuItem.id, ...base };
     } else {
@@ -572,6 +671,8 @@ export default function RecipeBuilderPage() {
       // Reload the target and refresh the "has a recipe" badges
       if (selectedIngredientTarget) {
         await loadRecipeForIngredient(selectedIngredientTarget);
+      } else if (selectedModifier) {
+        await loadRecipeForModifier(selectedModifier);
       } else if (selectedMenuItem) {
         await loadRecipe(selectedMenuItem);
         await fetchActiveRecipes();
@@ -648,7 +749,7 @@ export default function RecipeBuilderPage() {
           </span>
           <div className="flex flex-wrap gap-2">
             <Button
-              variant={isSubRecipe ? "outline" : "default"}
+              variant={targetMode === "menu_item" ? "default" : "outline"}
               onClick={() => handleModeChange("menu_item")}
               className="min-h-[48px] gap-2"
             >
@@ -663,11 +764,21 @@ export default function RecipeBuilderPage() {
               <Layers className="h-4 w-4" />
               Sub-recipe (produces an ingredient)
             </Button>
+            <Button
+              variant={isModifier ? "default" : "outline"}
+              onClick={() => handleModeChange("modifier")}
+              className="min-h-[48px] gap-2"
+            >
+              <PlusCircle className="h-4 w-4" />
+              Add-on (modifier)
+            </Button>
           </div>
           <p className="text-pos-xs text-secondary-500 sm:ml-auto sm:max-w-xs">
             {isSubRecipe
               ? "An in-house ingredient such as dough, a sauce, or a stuffing, which other recipes then use as an input line."
-              : "A sellable item on the menu, priced and ordered by customers."}
+              : isModifier
+                ? "A paid extra the customer chooses at the till. What it is made of is deducted from stock and costed on top of the line it is added to."
+                : "A sellable item on the menu, priced and ordered by customers."}
           </p>
         </CardContent>
       </Card>
@@ -678,7 +789,7 @@ export default function RecipeBuilderPage() {
         <Card className="lg:col-span-1">
           <CardHeader>
             <CardTitle className="text-pos-lg">
-              {isSubRecipe ? "Ingredients" : "Menu Items"}
+              {isSubRecipe ? "Ingredients" : isModifier ? "Add-ons" : "Menu Items"}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -690,17 +801,26 @@ export default function RecipeBuilderPage() {
                 value={targetSearch}
                 onChange={(e) => setTargetSearch(e.target.value)}
                 placeholder={
-                  isSubRecipe ? "Search ingredients" : "Search menu items"
+                  isSubRecipe
+                    ? "Search ingredients"
+                    : isModifier
+                      ? "Search add-ons"
+                      : "Search menu items"
                 }
                 aria-label={
-                  isSubRecipe ? "Search ingredients" : "Search menu items"
+                  isSubRecipe
+                    ? "Search ingredients"
+                    : isModifier
+                      ? "Search add-ons"
+                      : "Search menu items"
                 }
                 className="min-h-[48px] pl-9"
               />
             </div>
 
-            {/* Category filter */}
-            {isSubRecipe ? (
+            {/* Category filter. Add-ons are grouped by their modifier group,
+                which the list itself shows, so there is nothing to filter. */}
+            {isModifier ? null : isSubRecipe ? (
               <Select
                 value={ingredientFilter}
                 onChange={(e) => setIngredientFilter(e.target.value)}
@@ -729,7 +849,67 @@ export default function RecipeBuilderPage() {
             )}
 
             {/* Target list */}
-            {isSubRecipe ? (
+            {isModifier ? (
+              modifiersLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary-600" />
+                </div>
+              ) : visibleModifierGroups.length === 0 ? (
+                <div className="py-8 text-center text-pos-sm text-secondary-500">
+                  {searchNeedle
+                    ? `No add-ons match "${targetSearch.trim()}".`
+                    : "No add-ons yet. Create them in Menu > Modifier Groups, then give the ones made from stock a recipe here."}
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {visibleModifierGroups.map((group) => (
+                    <div key={group.id} className="space-y-2">
+                      <div className="text-pos-xs font-medium uppercase tracking-wide text-secondary-500">
+                        {group.name}
+                      </div>
+                      {group.modifiers.map((mod) => {
+                        const isSelected = selectedModifier?.id === mod.id;
+                        const hasRecipe = activeRecipes.some(
+                          (r) => r.modifier_id === mod.id
+                        );
+
+                        return (
+                          <button
+                            key={mod.id}
+                            onClick={() => loadRecipeForModifier(mod)}
+                            className={`w-full rounded-lg border p-3 text-left transition-colors ${
+                              isSelected
+                                ? "border-primary-500 bg-primary-50"
+                                : "border-secondary-200 hover:bg-secondary-50"
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1">
+                                <div className="text-pos-sm font-medium text-secondary-900">
+                                  {mod.name}
+                                </div>
+                                <div className="text-pos-xs text-secondary-500">
+                                  {mod.price_adjustment > 0
+                                    ? `+${formatPKR(mod.price_adjustment)}`
+                                    : mod.price_adjustment < 0
+                                      ? formatPKR(mod.price_adjustment)
+                                      : "No extra charge"}
+                                </div>
+                              </div>
+                              {hasRecipe ? (
+                                <Badge variant="secondary" className="text-pos-xs">
+                                  Recipe
+                                </Badge>
+                              ) : null}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
+              )
+            ) : isSubRecipe ? (
               ingredientsLoading ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="h-6 w-6 animate-spin text-primary-600" />
@@ -836,7 +1016,9 @@ export default function RecipeBuilderPage() {
               <div className="py-12 text-center text-secondary-500">
                 {isSubRecipe
                   ? "Select an ingredient to create or edit the sub-recipe that produces it."
-                  : "Select a menu item to create or edit its recipe."}
+                  : isModifier
+                    ? "Select an add-on to say what it is made of. Add-ons without a recipe are still sold, they just consume no stock."
+                    : "Select a menu item to create or edit its recipe."}
               </div>
             ) : recipeLoading ? (
               <div className="flex items-center justify-center py-12">
@@ -851,14 +1033,20 @@ export default function RecipeBuilderPage() {
                       <div className="text-pos-base font-semibold text-secondary-900">
                         {selectedIngredientTarget
                           ? selectedIngredientTarget.name
-                          : selectedMenuItem?.name}
+                          : selectedModifier
+                            ? selectedModifier.name
+                            : selectedMenuItem?.name}
                       </div>
                       <div className="text-pos-sm text-secondary-600">
                         {selectedIngredientTarget
                           ? `Sub-recipe, measured in ${selectedIngredientTarget.unit}`
-                          : selectedMenuItem
-                            ? `Price: ${formatPKR(selectedMenuItem.price)}`
-                            : ""}
+                          : selectedModifier
+                            ? selectedModifier.price_adjustment > 0
+                              ? `Add-on, charged ${formatPKR(selectedModifier.price_adjustment)} on top of the line`
+                              : "Add-on, no extra charge"
+                            : selectedMenuItem
+                              ? `Price: ${formatPKR(selectedMenuItem.price)}`
+                              : ""}
                       </div>
                     </div>
                     {recipe && (
@@ -875,7 +1063,9 @@ export default function RecipeBuilderPage() {
                     <Label htmlFor="yield">
                       {isSubRecipe
                         ? `Yield Quantity (${producedUnit}) *`
-                        : "Yield Servings *"}
+                        : isModifier
+                          ? "Portions per batch *"
+                          : "Yield Servings *"}
                     </Label>
                     <Input
                       id="yield"
@@ -895,7 +1085,9 @@ export default function RecipeBuilderPage() {
                     <p className="text-pos-xs text-secondary-500">
                       {isSubRecipe
                         ? `How much one batch makes, in ${producedUnit}. Enter 5 for a batch yielding 5 ${producedUnit}.`
-                        : "Servings produced by one batch of this recipe."}
+                        : isModifier
+                          ? "Leave at 1: the quantities below are what one add-on uses."
+                          : "Servings produced by one batch of this recipe."}
                     </p>
                   </div>
                   <div className="space-y-2">

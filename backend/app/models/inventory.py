@@ -19,6 +19,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID as Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -27,7 +28,7 @@ from app.database import Base
 from app.models.base import BaseMixin
 
 if TYPE_CHECKING:
-    from app.models.menu import MenuItem
+    from app.models.menu import MenuItem, Modifier
     from app.models.tenant import Tenant
     from app.models.user import User
 
@@ -120,22 +121,49 @@ class Ingredient(BaseMixin, Base):
 
 
 class Recipe(BaseMixin, Base):
-    """Recipe template for a menu item.
+    """Recipe template for a menu item, a modifier, or a produced ingredient.
 
     Each recipe defines the ingredients and quantities needed to make 1 serving.
     """
 
     __tablename__ = "recipes"
+    # One ACTIVE recipe per target, not one recipe per target. The difference
+    # matters: saving an edit deactivates the old row and inserts a new one, so
+    # a plain UNIQUE(tenant_id, menu_item_id) made every recipe uneditable --
+    # the second version collided with the first at the database. Proven
+    # against a real Postgres schema on 2026-09-01, then fixed here by scoping
+    # each rule to `is_active`, which is what `is_active`'s own comment below
+    # always claimed it did.
     __table_args__ = (
-        UniqueConstraint("tenant_id", "menu_item_id", name="uq_recipe_tenant_item"),
-        UniqueConstraint(
+        Index(
+            "uq_recipe_active_menu_item",
+            "tenant_id",
+            "menu_item_id",
+            unique=True,
+            postgresql_where=text("is_active AND menu_item_id IS NOT NULL"),
+            sqlite_where=text("is_active AND menu_item_id IS NOT NULL"),
+        ),
+        Index(
+            "uq_recipe_active_produces_ingredient",
             "tenant_id",
             "produces_ingredient_id",
-            name="uq_recipe_tenant_produces_ingredient",
+            unique=True,
+            postgresql_where=text("is_active AND produces_ingredient_id IS NOT NULL"),
+            sqlite_where=text("is_active AND produces_ingredient_id IS NOT NULL"),
+        ),
+        Index(
+            "uq_recipe_active_modifier",
+            "tenant_id",
+            "modifier_id",
+            unique=True,
+            postgresql_where=text("is_active AND modifier_id IS NOT NULL"),
+            sqlite_where=text("is_active AND modifier_id IS NOT NULL"),
         ),
         Index("ix_recipe_tenant_active", "tenant_id", "is_active"),
         CheckConstraint(
-            "(menu_item_id IS NOT NULL) != (produces_ingredient_id IS NOT NULL)",
+            "(CASE WHEN menu_item_id IS NOT NULL THEN 1 ELSE 0 END"
+            " + CASE WHEN produces_ingredient_id IS NOT NULL THEN 1 ELSE 0 END"
+            " + CASE WHEN modifier_id IS NOT NULL THEN 1 ELSE 0 END) = 1",
             name="ck_recipe_exactly_one_target",
         ),
     )
@@ -144,18 +172,26 @@ class Recipe(BaseMixin, Base):
     tenant_id: Mapped[uuid.UUID] = mapped_column(
         Uuid, ForeignKey("tenants.id"), nullable=False, index=True
     )
-    # A recipe produces exactly one of these two things (enforced by the
+    # A recipe produces exactly one of these three things (enforced by the
     # check constraint above):
     #   - menu_item_id: a sellable final product (existing behaviour)
     #   - produces_ingredient_id: an in-house-made sub-recipe/intermediate
     #     (dough, sauce, stuffing) that other recipes then consume as a
     #     RecipeItem, enabling raw -> sub-recipe -> intermediate -> final
     #     production chains. See Ingredient.is_produced.
+    #   - modifier_id: an add-on the customer chooses at the till (extra
+    #     cheese, an extra shot). Sold as part of a line, not on its own, so
+    #     it is consumed and costed alongside the line's own recipe. Without
+    #     this a paid add-on moved no stock and carried no cost, which
+    #     overstated the margin on every modified line (OI-99).
     menu_item_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid, ForeignKey("menu_items.id"), nullable=True
     )
     produces_ingredient_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid, ForeignKey("ingredients.id"), nullable=True
+    )
+    modifier_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("modifiers.id"), nullable=True
     )
 
     # Recipe metadata
@@ -196,6 +232,12 @@ class Recipe(BaseMixin, Base):
         "Ingredient",
         back_populates="production_recipe",
         foreign_keys=[produces_ingredient_id],
+    )
+    # One-directional on purpose: `Modifier` is on the hot menu path that every
+    # tenant loads on every POS boot, and it does not need to know about
+    # recipes to do its job.
+    modifier: Mapped["Modifier | None"] = relationship(
+        "Modifier", foreign_keys=[modifier_id]
     )
     creator: Mapped["User"] = relationship("User")
     recipe_items: Mapped[list["RecipeItem"]] = relationship(

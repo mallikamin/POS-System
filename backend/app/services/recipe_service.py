@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.inventory import Ingredient, Recipe, RecipeItem
-from app.models.menu import MenuItem
+from app.models.menu import MenuItem, Modifier
 from app.schemas.inventory import (
     IngredientCreate,
     IngredientUpdate,
@@ -117,10 +117,10 @@ async def create_recipe(
 ) -> Recipe:
     """Create a new recipe with recipe items.
 
-    Automatically calculates total cost and cost per serving. A recipe
-    produces either a sellable `menu_item_id` or, for a sub-recipe/
-    intermediate (dough, sauce, stuffing), a `produces_ingredient_id` --
-    schema-validated as exactly one of the two.
+    Automatically calculates total cost and cost per serving. A recipe is
+    attached to a sellable `menu_item_id`, a paid add-on `modifier_id`, or,
+    for a sub-recipe/intermediate (dough, sauce, stuffing), a
+    `produces_ingredient_id` -- schema-validated as exactly one of the three.
     """
     produced_ingredient: Ingredient | None = None
 
@@ -137,6 +137,23 @@ async def create_recipe(
         existing_recipe_result = await db.execute(
             select(Recipe).where(
                 Recipe.menu_item_id == data.menu_item_id,
+                Recipe.tenant_id == tenant_id,
+                Recipe.is_active == True,
+            )
+        )
+    elif data.modifier_id is not None:
+        modifier_result = await db.execute(
+            select(Modifier).where(
+                Modifier.id == data.modifier_id,
+                Modifier.tenant_id == tenant_id,
+            )
+        )
+        if modifier_result.scalar_one_or_none() is None:
+            raise ValueError("Modifier not found")
+
+        existing_recipe_result = await db.execute(
+            select(Recipe).where(
+                Recipe.modifier_id == data.modifier_id,
                 Recipe.tenant_id == tenant_id,
                 Recipe.is_active == True,
             )
@@ -173,6 +190,7 @@ async def create_recipe(
         tenant_id=tenant_id,
         menu_item_id=data.menu_item_id,
         produces_ingredient_id=data.produces_ingredient_id,
+        modifier_id=data.modifier_id,
         version=version,
         yield_servings=data.yield_servings,
         prep_time_minutes=data.prep_time_minutes,
@@ -269,6 +287,9 @@ async def get_recipe(
             selectinload(Recipe.recipe_items),
             selectinload(Recipe.menu_item),
             selectinload(Recipe.produces_ingredient),
+            # `.group` is chained because the API labels an add-on recipe with
+            # its group name; a lazy load there raises MissingGreenlet.
+            selectinload(Recipe.modifier).selectinload(Modifier.group),
         )
         .where(
             Recipe.id == recipe_id,
@@ -293,6 +314,9 @@ async def get_recipe_by_menu_item(
             selectinload(Recipe.recipe_items),
             selectinload(Recipe.menu_item),
             selectinload(Recipe.produces_ingredient),
+            # `.group` is chained because the API labels an add-on recipe with
+            # its group name; a lazy load there raises MissingGreenlet.
+            selectinload(Recipe.modifier).selectinload(Modifier.group),
         )
         .where(
             Recipe.menu_item_id == menu_item_id,
@@ -320,6 +344,9 @@ async def list_recipes(
             selectinload(Recipe.recipe_items),
             selectinload(Recipe.menu_item),
             selectinload(Recipe.produces_ingredient),
+            # `.group` is chained because the API labels an add-on recipe with
+            # its group name; a lazy load there raises MissingGreenlet.
+            selectinload(Recipe.modifier).selectinload(Modifier.group),
         )
         .where(Recipe.tenant_id == tenant_id)
     )
@@ -351,9 +378,12 @@ async def update_recipe(
         await db.flush()
 
         # Build new recipe data
+        # Every target must be carried across, or the new version fails the
+        # exactly-one-target rule and a modifier recipe cannot be edited.
         new_recipe_data = RecipeCreate(
             menu_item_id=recipe.menu_item_id,
             produces_ingredient_id=recipe.produces_ingredient_id,
+            modifier_id=recipe.modifier_id,
             yield_servings=data.yield_servings or recipe.yield_servings,
             prep_time_minutes=data.prep_time_minutes or recipe.prep_time_minutes,
             cook_time_minutes=data.cook_time_minutes or recipe.cook_time_minutes,

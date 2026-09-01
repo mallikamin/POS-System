@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db, require_role
@@ -30,21 +31,24 @@ def _enrich_recipe(recipe, tax_settings: tuple[int, bool]) -> RecipeResponse:
 
     A recipe has no name column of its own: it is identified by its target. A
     normal recipe is named after its menu item; a sub-recipe after the
-    ingredient it makes (dough, sauce, stuffing). The list endpoint previously
-    did none of this, so sub-recipes and menu-item recipes alike arrived at the
-    UI with nothing to display.
+    ingredient it makes (dough, sauce, stuffing); an add-on recipe after its
+    modifier. The list endpoint previously did none of this, so sub-recipes and
+    menu-item recipes alike arrived at the UI with nothing to display.
 
     `tax_settings` is the tenant's `(rate_bps, prices_include_tax)` from
     `order_service._get_tax_settings`. Food cost is a share of what the business
-    keeps, so the divisor is the menu price NET of any tax it contains (F13);
-    the same helper the order path uses backs it out, so the two cannot drift.
+    keeps, so the divisor is the price NET of any tax it contains (F13); the
+    same helper the order path uses backs it out, so the two cannot drift. An
+    add-on is costed against its own `price_adjustment` on the same basis, so a
+    modifier's food cost % means the same thing as an item's.
 
-    Requires `menu_item` and `produces_ingredient` to be eager-loaded.
+    Requires `menu_item`, `produces_ingredient` and `modifier` to be
+    eager-loaded.
     """
     response = RecipeResponse.model_validate(recipe)
+    rate_bps, prices_include_tax = tax_settings
 
     if recipe.menu_item is not None:
-        rate_bps, prices_include_tax = tax_settings
         response.menu_item_name = recipe.menu_item.name
         response.menu_item_price = recipe.menu_item.price
         net_price = net_of_tax(recipe.menu_item.price, rate_bps, prices_include_tax)
@@ -52,6 +56,25 @@ def _enrich_recipe(recipe, tax_settings: tuple[int, bool]) -> RecipeResponse:
         if net_price > 0:
             # Net price and recipe cost are both in minor units.
             response.food_cost_percentage = recipe.cost_per_serving / net_price * 100
+    elif recipe.modifier is not None:
+        response.modifier_name = recipe.modifier.name
+        response.modifier_price = recipe.modifier.price_adjustment
+        # The list/get paths eager-load `.group`; the refresh-after-write paths
+        # do not, and touching an unloaded relationship on an async session
+        # raises MissingGreenlet. Asked, not assumed: the group name is a label,
+        # never worth a failed write response.
+        if "group" not in sa_inspect(recipe.modifier).unloaded:
+            response.modifier_group_name = recipe.modifier.group.name
+        # A free add-on (or one that discounts the line) has no price to divide
+        # by, so it gets a cost with no percentage rather than a misleading one.
+        if recipe.modifier.price_adjustment > 0:
+            net_price = net_of_tax(
+                recipe.modifier.price_adjustment, rate_bps, prices_include_tax
+            )
+            if net_price > 0:
+                response.food_cost_percentage = (
+                    recipe.cost_per_serving / net_price * 100
+                )
     elif recipe.produces_ingredient is not None:
         response.produces_ingredient_name = recipe.produces_ingredient.name
 
@@ -201,7 +224,7 @@ async def create_recipe(
         # produces_ingredient must be refreshed too, or a newly created
         # sub-recipe comes back with no label at all.
         await db.refresh(
-            recipe, ["recipe_items", "menu_item", "produces_ingredient"]
+            recipe, ["recipe_items", "menu_item", "produces_ingredient", "modifier"]
         )
         tax_settings = await order_service._get_tax_settings(db, current_user.tenant_id)
         return _enrich_recipe(recipe, tax_settings)
@@ -250,7 +273,7 @@ async def get_recipe(
             detail="Recipe not found",
         )
 
-    await db.refresh(recipe, ["menu_item", "produces_ingredient"])
+    await db.refresh(recipe, ["menu_item", "produces_ingredient", "modifier"])
     tax_settings = await order_service._get_tax_settings(db, current_user.tenant_id)
     return _enrich_recipe(recipe, tax_settings)
 
@@ -274,7 +297,7 @@ async def get_recipe_by_menu_item(
             detail="No active recipe found for this menu item",
         )
 
-    await db.refresh(recipe, ["menu_item", "produces_ingredient"])
+    await db.refresh(recipe, ["menu_item", "produces_ingredient", "modifier"])
     tax_settings = await order_service._get_tax_settings(db, current_user.tenant_id)
     return _enrich_recipe(recipe, tax_settings)
 
@@ -310,7 +333,7 @@ async def update_recipe(
         )
         await db.commit()
         await db.refresh(
-            updated, ["recipe_items", "menu_item", "produces_ingredient"]
+            updated, ["recipe_items", "menu_item", "produces_ingredient", "modifier"]
         )
         tax_settings = await order_service._get_tax_settings(db, current_user.tenant_id)
         return _enrich_recipe(updated, tax_settings)

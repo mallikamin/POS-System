@@ -22,7 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.inventory import Recipe
 from app.models.location import Location, SalesChannel
-from app.models.order import Order, OrderItem
+from app.models.order import Order, OrderItem, OrderItemModifier
 from app.services.stock_service import StockError
 
 # Orders that never became real revenue must not appear in profit reporting.
@@ -209,6 +209,13 @@ async def _product_cost_minor(
     built on sub-recipes is already the fully rolled-up chain cost. An item with
     no recipe contributes zero cost -- visible as an unusually high margin,
     which is the correct prompt to go and build its recipe.
+
+    Two passes, summed: the item lines, then the paid add-ons on those lines
+    (OI-99). Leaving the add-ons out booked their revenue with no cost against
+    it, so every modified line reported a margin better than the real one, and
+    the error grew with how hard the counter upsold. Both passes multiply by the
+    LINE quantity, matching what `production_service.consume_for_order` deducts
+    from stock, so cost and consumption cannot disagree.
     """
     if not order_ids:
         return {}
@@ -231,8 +238,27 @@ async def _product_cost_minor(
         )
     ).all()
 
+    modifier_rows = (
+        await db.execute(
+            select(
+                OrderItem.order_id,
+                OrderItem.quantity,
+                Recipe.cost_per_serving,
+            )
+            .select_from(OrderItemModifier)
+            .join(OrderItem, OrderItem.id == OrderItemModifier.order_item_id)
+            .join(
+                Recipe,
+                (Recipe.modifier_id == OrderItemModifier.modifier_id)
+                & (Recipe.tenant_id == tenant_id)
+                & (Recipe.is_active == True),  # noqa: E712
+            )
+            .where(OrderItem.order_id.in_(order_ids))
+        )
+    ).all()
+
     totals: dict[uuid.UUID, int] = {}
-    for order_id, quantity, cost_per_serving in rows:
+    for order_id, quantity, cost_per_serving in [*rows, *modifier_rows]:
         if cost_per_serving is None:
             continue
         # `cost_per_serving` is ALREADY in minor units, the same unit as

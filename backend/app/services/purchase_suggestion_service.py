@@ -48,7 +48,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.inventory import Ingredient, Recipe, RecipeItem
-from app.models.menu import MenuItem
+from app.models.menu import MenuItem, Modifier
 from app.services import purchase_order_service, stock_service, supplier_service
 from app.services.supplier_service import ProcurementError
 
@@ -116,6 +116,16 @@ async def _load_recipes(db: AsyncSession, tenant_id: uuid.UUID) -> dict:
         .scalars()
         .all()
     }
+    # Add-on recipes are plannable targets like any other: a week's worth of
+    # extra-cheese portions consumes real cheese sauce (OI-99).
+    modifiers = {
+        m.id: m
+        for m in (
+            await db.execute(select(Modifier).where(Modifier.tenant_id == tenant_id))
+        )
+        .scalars()
+        .all()
+    }
     return {
         "by_id": {r.id: r for r in recipes},
         # Which recipe MAKES this ingredient, for the sub-recipe recursion.
@@ -126,6 +136,7 @@ async def _load_recipes(db: AsyncSession, tenant_id: uuid.UUID) -> dict:
         },
         "ingredients": ingredients,
         "menu_items": menu_items,
+        "modifiers": modifiers,
     }
 
 
@@ -137,6 +148,9 @@ def _recipe_label(recipe: Recipe, index: dict) -> str:
     if recipe.produces_ingredient_id:
         ingredient = index["ingredients"].get(recipe.produces_ingredient_id)
         return ingredient.name if ingredient else "Sub-recipe"
+    if recipe.modifier_id:
+        modifier = index["modifiers"].get(recipe.modifier_id)
+        return f"{modifier.name} (add-on)" if modifier else "Add-on"
     return "Recipe"  # pragma: no cover -- the check constraint forbids this
 
 
@@ -272,7 +286,11 @@ async def build_suggestion(
                 "batches": _qty(batches),
                 "yield_servings": _qty(recipe.yield_servings or 1),
                 "produces": (
-                    "menu_item" if recipe.menu_item_id else "ingredient"
+                    "menu_item"
+                    if recipe.menu_item_id
+                    else "modifier"
+                    if recipe.modifier_id
+                    else "ingredient"
                 ),
             }
         )
