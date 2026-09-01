@@ -1,5 +1,93 @@
 # Open items register
 
+**OI-100 🟢 FOUND AND CLOSED 2026-09-01, INSIDE OI-99. NO RECIPE COULD BE EDITED, ON ANY TENANT,
+EVER. THE UNIQUE CONSTRAINT HAD NO `is_active` PREDICATE.**
+
+Found because the new modifier constraint inherited the same shape and my own test caught it.
+`uq_recipe_tenant_item` was `UNIQUE (tenant_id, menu_item_id)` with no predicate. Saving an edit
+deactivates the old recipe and inserts a new one, so version 2 always collided with version 1.
+**Proven on the real Postgres schema, not inferred:**
+
+```
+ERROR:  duplicate key value violates unique constraint "uq_recipe_tenant_item"
+DETAIL: Key (tenant_id, menu_item_id)=(11ecdbe0-..., 90139eb3-...) already exists.
+```
+
+Replaced by partial unique indexes on `is_active`, which is what `Recipe.is_active`'s own comment
+("Only one active recipe per menu item") always claimed. Strictly more permissive, and production
+had zero duplicates so nothing could fail to migrate. Re-proven after the migration: deactivate +
+insert version 2 now succeeds.
+
+📌 **Nobody had reported this**, which means nobody had successfully edited a recipe since the BOM
+module shipped. Martin would have hit it the first time he changed a quantity.
+
+**OI-99 🟢 CLOSED 2026-09-01, SHIPPED `1eb9ce6` AND PROVEN ON PRODUCTION. A RECIPE CAN NOW BE
+ATTACHED TO AN ADD-ON, WHICH DEDUCTS STOCK AND CARRIES COST.**
+
+**Proven on production, on `martin-fz`, through the real order path** (order `OI99-B9BC1`):
+
+```
+cheese sauce: 6.000 -> 5.940  (delta -0.060)
+  Croissant Dough   -0.150  Sold 1 x Chicken & Cheese Croissant
+  Chicken Stuffing  -0.080  Sold 1 x Chicken & Cheese Croissant
+  Cheese Sauce      -0.030  Sold 1 x Chicken & Cheese Croissant
+  Cheese Sauce      -0.030  Sold 1 x Extra Cheese Sauce (add-on)
+```
+
+⚠️ **That verification order is still on Martin's tenant**, marked in its notes as safe to void or
+ignore. Void it before he reviews if it would confuse the demo.
+
+**Also created on production for FZ LLC**, so the feature is visible rather than theoretical: an
+**Extras** group on the two chicken items, with **Extra Cheese Sauce** (charged 2.00, costs 0.42)
+and **Extra Chicken Stuffing** (charged 4.00, costs 0.76).
+
+**Chick Shack is untouched, proven from production data, not assumed:** 0 recipes, 0 locations,
+0 ingredients, so `_apply_inventory_and_commission` returns at the locations check and none of this
+code runs on their orders. Storefront, POS health, and their public menu endpoint all re-checked
+after the deploy. 291 orders unchanged.
+
+17 new tests. Full suite 11 failed / 958 passed, against a 13-failed baseline; the remaining
+failures are pre-existing and unrelated (a stale error-message assertion in `test_pay_first`, a 401
+in `test_p1a_features`, and the QuickBooks Desktop group).
+
+Original diagnosis kept below for the record.
+
+**OI-99 (as opened) 🔴 2026-08-31 BY THE CLIENT, DIAGNOSED NOT BUILT. A RECIPE CAN ONLY BE ATTACHED
+TO A MENU ITEM. MODIFIERS CONSUME NOTHING AND COST NOTHING.**
+
+Martin Zubeldia (FZ LLC), WhatsApp 17:58: *"The recipes need to be linked to an item or to a
+modifier. Right now they can only be linked to a menu item."* He is right, and it is three faults,
+not one screen. Verified by reading the code, not assumed:
+
+1. **Model.** `Recipe` (`backend/app/models/inventory.py:122`) carries a check constraint that is an
+   XOR of exactly two targets: `menu_item_id` (sellable) or `produces_ingredient_id` (sub-recipe).
+   There is no `modifier_id` column, so the link he wants cannot be stored at all.
+2. **Consumption.** `production_service.consume_for_order` (line 210) iterates `order.items` and
+   looks up a recipe by `line.menu_item_id`. `order_item_modifiers` is never read. Add extra cheese
+   to an order and no cheese leaves stock, at any location, ever.
+3. **Costing.** `location_service` COGS (lines 206-227) joins `Recipe.cost_per_serving` on
+   `Recipe.menu_item_id == OrderItem.menu_item_id` only. A modifier's ingredient cost is therefore
+   zero in per-channel profitability while the customer paid `price_adjustment` for it. **The margin
+   on any modified line is overstated**, which is the more damaging half: wrong stock can be counted
+   and corrected, a flattering margin gets believed.
+
+The data needed is already captured: `order_item_modifiers` stores `modifier_id` plus a denormalized
+name and `price_adjustment` (`backend/app/models/order.py:458`), so consumption at completion time
+needs no new capture, only a join.
+
+**Shape of the fix** (not started, nothing estimated to Martin):
+- `recipes.modifier_id` as a third XOR branch, unique per `(tenant_id, modifier_id)`, plus migration.
+- Recipe builder: a target picker (menu item / modifier / produces ingredient) instead of an
+  item-only selector.
+- `consume_for_order`: after each line, consume each attached modifier's recipe multiplied by the
+  line quantity. Idempotency key stays the order.
+- COGS: add the modifier recipe cost to the line cost, or the margin stays wrong.
+- Check `purchase_suggestion_service`, which also walks recipes from sales, or the order planner
+  keeps under-ordering anything used only as a modifier.
+
+⚠️ **This is not a "noted for the roadmap" item.** He found it in the first hour of his own UAT, on
+the exact module the AED 360/month is being sold on.
+
 **OI-94 🟢 CLOSED 2026-08-27 21:48 UTC, MEASURED ON THE LIVE SITE (`8264139` + `4ecd5b3`).**
 gzip now lives in `nginx.demo.conf`, the file production reads, shipped with OI-92 item 2. Closed by
 the curl, not the file: entry bundle `index-CvjbBnQ3.js` **232,412 -> 76,489 bytes** with

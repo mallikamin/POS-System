@@ -1,9 +1,471 @@
 # STATE — Restaurant POS System
 
-**Last refreshed:** 2026-08-29 18:35 UTC (19:35 UK), `/refresh` on Chick Shack Google Ads.
-🟢 **No drift in code or deploy state:** HEAD = `origin/main` = `28a6663`, 0 unpushed, 158 dirty
-(docs and `_files/` only, unchanged set). The only production contact on this pass was a read-only
-`SELECT`. **What changed is a fact, not the code: the first Google-Ads-attributed order exists.**
+**Last refreshed:** 2026-09-01, OI-99 shipped and proven on production. OI-100 found and fixed inside it.
+
+## 🟢 2026-09-01 01:14-01:25 UTC. MARTIN'S FINDING IS FIXED AND LIVE (`1eb9ce6`). AN ADD-ON NOW DEDUCTS STOCK AND CARRIES COST, PROVEN ON PRODUCTION THROUGH A REAL ORDER. CHICK SHACK PROVEN UNTOUCHED.
+
+**Malik's instruction: build it, deploy live, confirm. Done, and confirmed on the box rather than
+from the Action.**
+
+**Proven on production, `martin-fz`, order `OI99-B9BC1`:**
+```
+cheese sauce: 6.000 -> 5.940  (delta -0.060)
+  Croissant Dough   -0.150  Sold 1 x Chicken & Cheese Croissant
+  Chicken Stuffing  -0.080  Sold 1 x Chicken & Cheese Croissant
+  Cheese Sauce      -0.030  Sold 1 x Chicken & Cheese Croissant
+  Cheese Sauce      -0.030  Sold 1 x Extra Cheese Sauce (add-on)
+```
+Two portions of cheese sauce leave stock, one for the croissant and one for the add-on, each written
+as its own movement so the history explains itself.
+
+**What changed, in one line each:** `recipes.modifier_id` as a third target; the recipe builder
+offers **Add-on (modifier)** beside menu item and sub-recipe; `consume_for_order` deducts every
+chosen add-on at the line quantity, even when the line's own item has no recipe; profitability adds
+the add-on's cost so the margin stops reading high; the order planner can target and label an
+add-on. Cost and consumption run off the same numbers, so no screen can disagree with another.
+
+🟢 **Created on production for FZ LLC so it is visible, not theoretical:** an **Extras** group on the
+two chicken items, **Extra Cheese Sauce** (charged 2.00, costs 0.42) and **Extra Chicken Stuffing**
+(charged 4.00, costs 0.76).
+
+🔴 **OI-100, found inside this work and fixed with it: NO RECIPE COULD BE EDITED, ON ANY TENANT.**
+`uq_recipe_tenant_item` had no `is_active` predicate, so saving an edit (deactivate old, insert new)
+always collided with version 1. Proven on the real schema, then replaced by partial unique indexes
+and re-proven. Nobody had reported it, which means nobody had successfully edited a recipe since the
+BOM module shipped. Martin would have hit it the first time he changed a quantity.
+
+🟢 **CHICK SHACK UNTOUCHED, FROM PRODUCTION DATA, NOT ASSUMED.** 0 recipes, 0 locations,
+0 ingredients, so the inventory path returns at its locations check and none of this executes on
+their orders. Re-checked after the deploy: storefront 200, POS health `database: healthy /
+redis: healthy`, their public menu endpoint 200, 291 orders unchanged.
+
+⚠️ **Two things left on the tenant, both deliberate and both reversible:** the verification order
+`OI99-B9BC1` (its notes say safe to void or ignore) and the two new add-ons. Void the order before
+Martin reviews if it would muddy the demo.
+
+⚠️ **`seed_fz_llc.py` was committed by mistake in `1eb9ce6` and untracked again in `97f0ec4`.** It
+carries the FZ demo password in plaintext and imports the untracked `system_admin.py`. The
+credential is in history at `1eb9ce6`; rotating that demo password is Malik's call.
+
+📌 **The Meta pixel migration `b0c1d2e3f4a5` is still uncommitted and undeployed.** This migration
+was parented on `a9b0c1d2e3f4` (production's actual head at the time) to keep it that way, and the
+local Meta revision was re-parented onto `c1d2e3f4a5b6`. **Whoever ships the Meta work keeps that
+parent.**
+
+## 🔴 2026-08-31 17:58 (Martin's time). MARTIN FOUND THE BACK OFFICE, THEN FOUND A REAL HOLE IN IT. RECIPES CANNOT ATTACH TO MODIFIERS, SO MODIFIERS CONSUME NO STOCK AND CARRY NO COST. OPENED AS OI-99, NOT BUILT.
+
+**WhatsApp.** Malik asked which screen he was on and sent `https://eats.sitaratech.info/admin`.
+Martin: *"Found it"*, then *"The recipes need to be linked to an item or to a modifier. Right now
+they can only be linked to a menu item."*
+
+**He is right, and it is three faults, not one screen.** Read from the code:
+- `Recipe` (`backend/app/models/inventory.py:122`) has a check constraint that is an XOR of exactly
+  two targets, `menu_item_id` or `produces_ingredient_id`. No `modifier_id` exists to link.
+- `production_service.consume_for_order` (line 210) walks `order.items` by `menu_item_id` and never
+  reads `order_item_modifiers`. Extra cheese sold is cheese that never leaves stock.
+- `location_service` COGS (lines 206-227) joins recipe cost on `menu_item_id` only, so a modifier is
+  revenue with zero cost. **Margin on every modified line reads high.** That is the worse half: a
+  wrong stock figure gets counted and corrected, a flattering margin gets believed.
+
+Full diagnosis and the shape of the fix are in `_state/open-items.md` under **OI-99**. Nothing built,
+nothing estimated to Martin, no reply sent to him on this yet.
+
+📌 **He is running his own UAT right now and it is finding things.** Expect more today. Every one of
+them lands on the inventory/costing module the AED 360/month is being sold on.
+
+## 🟡 2026-08-31. MARTIN (FZ LLC) IS IN THE POS AND ASKED WHERE THE INVENTORY MODULES AND THE BACK OFFICE ARE. NOT A FAULT, A NAVIGATION QUESTION. NOTHING SENT BACK YET.
+
+**WhatsApp, screenshot from Malik, 17:12 their time.** Malik sent
+`https://eats.sitaratech.info/login?shop=martin-fz`. Martin replied: *"What about the inventory
+modules how to check them"* and *"The back office"*.
+
+**The answer, read from the code, not assumed:**
+- The back office is the **Admin** button in the top-right bar of the POS, once signed in
+  (`frontend/src/components/layout/POSLayout.tsx:92`). It is not a separate URL or a second login.
+  Direct link if he prefers: `https://eats.sitaratech.info/admin`.
+- Martin's demo user is seeded with the **admin** role (`backend/app/scripts/seed_fz_llc.py`), so the
+  whole left-hand nav is his. Nothing is permission-gated away from him.
+- Inventory lives in the Admin left nav in workflow order
+  (`frontend/src/components/layout/AdminLayout.tsx:38-64`): Ingredients, Recipes, Locations, Stock,
+  Transfers, then Suppliers, Purchase Orders, Order Planner, Sales Channels, Profitability,
+  Quotations, Tax Invoices. Only the two QuickBooks entries are conditional.
+- **He already has the walkthrough:** `FZ_LLC_Testing_Guide_2026-08-28.pdf`, sent 08-29 03:02 PKT.
+  Exercises 1-8 are exactly this question: locations, recipes and costing, run a batch, transfer
+  between sites, stock moving on a completed order, tax invoice, order planner, goods receiving.
+
+⚠️ **Worth noticing rather than only answering.** He has the guide and still asked where the
+modules are, which points at the entry point being unobvious from the POS screen, not at the guide
+being unread. The guide's own "already on our list" section admits the admin layout will be regrouped.
+
+📌 **Open thread unchanged from 08-28:** Martin said *"Allow me to review this during
+meeting"*; Malik proposed connecting Monday, which is today. The Monday deadline was met on
+documents (proposal + testing guide sent). Pricing stands at **AED 360/month + AED 1,500 one-time**
+for the website.
+
+
+## 🟡 2026-08-31 02:40 UTC. CHICK SHACK META BUSINESS PORTFOLIO FOUND. MALIK'S ACCESS IS "BASIC" AND THAT IS PROBABLY NOT ENOUGH TO CREATE THE PIXEL.
+
+**From Malik's screenshot of `business.facebook.com/latest/settings/business_users`:**
+
+| | |
+|---|---|
+| Business portfolio id | `1927063584657144` |
+| Asset id in the URL | `1176900818828909` |
+| **Malik Amin** | **Partial access · Basic** — on `malik.amin187@gmail.com` |
+| **Imran Rasul** | Full access · Everything |
+| `UnclaimedBusinessUser FromPool` (`@chickshack.uk`) | Full access · Everything |
+
+🔴 **BLOCKER, LIKELY: "Basic" partial access does not create data sources.** Creating a dataset and
+generating a Conversions API access token both need full control of the portfolio. ⚠️ **Not verified
+from here** — the cheap test is whether a **Datasets** entry appears under Data Sources in the left
+nav. In the screenshot, Data Sources shows only Catalogs, Shared audiences and Business creative
+folders, with **no Datasets item**, which is consistent with insufficient permission but is not proof
+(the list may be scrolled). ➜ **If it is missing, Imran must raise Malik to full control.**
+
+🔴 **STANDING RULE BROKEN: Malik is in this portfolio on a PERSONAL Gmail
+(`malik.amin187@gmail.com`).** [[sitara-meta-receiving-account]] says client Page and ad access goes
+to **`amin@sitaratech.info`**, never the personal Facebook account. Worth fixing NOW, before a pixel,
+a dataset and an ad account get attached to a personal login and have to be migrated later.
+
+⚠️ **Unexplained, worth one look, not yet alarming:** `UnclaimedBusinessUser FromPool` on
+`@chickshack.uk` holds **Full access · Everything**. Usually a pooled user created when an Instagram
+account is attached. Understand what it is before the account starts spending.
+
+📌 **This is the gate on everything in the 01:30 entry.** The pixel and Conversions API code is
+written and tested; it stays inert until `META_PIXEL_ID` and `META_CAPI_ACCESS_TOKEN` exist, and
+neither can be created without the access above.
+
+## 🟢 2026-08-31 02:10 UTC. LOOK A "FLAME GRILL" APPROVED BY MALIK (verbal). PRODUCTION SET BUILT FOR FB / IG / STORIES / GOOGLE BUSINESS.
+
+**Malik, verbal, this session:** *"flame grill is the theme approved. give me creatives for fb/ig/gbp
+- remove the click to website, u can use chickshack logo and more optimizations"*
+
+**Approved look is Look A, Flame Grill** — the storefront's own tokens (`ink #12100f`,
+`flame #e2361d`, `ember #f5a524`, `cream #faf7f2`). The other three looks are dropped from
+production; the 08-30 theme board stays as the record of what was compared.
+
+**Delivered:** `_files/2026-08/chick-shack-flame-creatives.html`, published artifact
+`https://claude.ai/code/artifact/634a6e42-df40-464b-aad7-f60dcea9b9ee`. Four export ratios
+(FB 1:1 1080², IG 4:5 1080×1350, Story 9:16 1080×1920 with safe-zone guides drawn, GBP 4:3
+1200×900), all 7 days, 4 everyday ads, plus the Ads Manager copy for each.
+
+✅ **EXPORTED. 47 ready-to-upload JPGs in `_files/2026-08/creatives/`** (7.6 MB total), rendered
+from the approved HTML with headless Chromium via Playwright at exact placement sizes. Regenerate
+with the exporter in the session scratchpad. Naming: `<nn>-<name>_<placement>-<w>x<h>.jpg`.
+⚠️ **A contrast fault was found only by LOOKING at the rendered files**, not on the proof sheet: on
+the bright peri and fried-chicken photos the flame-red half of the wordmark and shout was close to
+unreadable. Fixed with a top scrim plus text shadows, applied to the proof sheet AND the exporter
+together so they cannot drift. Dark-photo creatives had hidden it entirely.
+
+**On-image CTA and URL REMOVED on instruction.** No price, no website line, no button on any image.
+All of it moved into the ad's own fields, where it is a real tappable control, stays legible, can be
+A/B tested without a redraw, and does not cost delivery on a text-heavy creative.
+
+🔴 **THERE IS NO CHICK SHACK LOGO FILE ANYWHERE IN THIS PROJECT.** Searched the repo, the client
+folder `_context/clients/chick-shack-uk/`, and the storefront: the live site draws the name as TYPE
+(`App.tsx`, Archivo Black, CHICK cream + SHACK flame), it does not load artwork. The creatives
+therefore carry that same wordmark reproduced exactly, plus "Garelochhead" beneath. **It is honest
+and site-consistent but it is not a logo.** ➜ **ASK IMRAN for a PNG or SVG with a transparent
+background.** It drops into the same corner with nothing else moving.
+
+⚠️ **Google Business is deliberately NOT given the same graphic, and this is a real distinction, not
+a shortcut.** Google's photo guidance wants images that represent the business as it is; a captioned
+promotional graphic in the Photos section reads as an advert, underperforms a plain food shot and can
+be removed. So GBP gets **clean photos carrying only the small mark**, and only Offer / What's New
+posts (which supply their own title and button) get the designed 4:3 frame.
+
+📌 **Free and worth more than any of these graphics, still not done:** the GBP **Order pickup /
+Order delivery** buttons point somewhere nobody has verified, and Malik is a Manager on that profile.
+Same conversation as the `chick-shack.com` organic-result problem.
+
+⚠️ **Deal prices still have to exist in the till before any of this runs.** Taking prices off the
+creatives does not remove the need for the deals themselves to be set up, or Monday's customer
+arrives expecting something the shop has not configured. Imran's call, still not made.
+
+🔴 **THE PIXEL IS STILL NOT LIVE AND APPROVED CREATIVES DO NOT CHANGE THAT.** Code written and tested
+(26 tests, see the 01:30 entry) but no `META_PIXEL_ID` and no `META_CAPI_ACCESS_TOKEN` exist, so
+nothing is deployed and nothing is measurable. **Measurement goes in before spend.** Blocked on
+Malik creating the dataset in Events Manager.
+
+## 🟡 2026-08-31 01:30 UTC. META PIXEL + CONVERSIONS API BUILT, TESTED, NOT DEPLOYED, NOT CONFIGURED. WAITING ON A PIXEL ID AND AN ACCESS TOKEN.
+
+**The 08-30 blocker is closed in code.** The storefront had no `fbq` at all; it now has a
+consent-gated pixel and the backend reports every sale server-side.
+
+**What was built**
+- `storefront/src/lib/metaPixel.ts` (new). Loads with `consent revoke` BEFORE `init`, so no
+  `_fbp`/`_fbc` cookie is written until the banner is accepted. Events: PageView, ViewContent
+  (item opened), AddToCart, InitiateCheckout (checkout screen), AddPaymentInfo (submit),
+  Purchase. Captures `fbclid` on arrival, 30-day window, mirroring `clickId.ts`.
+- `backend/app/services/meta_capi.py` (new). Server-side Purchase, SHA-256 hashed email / phone /
+  name, unhashed `fbp` / `fbc` / IP / user agent. Graph `v21.0` pinned. 3s timeout. Never raises.
+- Dedup: browser and server both send `event_id = purchase.<order_id>`, derived identically on
+  both sides, so an order counts once. Asserted by a test.
+- `orders.fbp`, `orders.fbc`, `orders.meta_capi_status` (migration `b0c1d2e3f4a5`).
+- `META_PIXEL_ID`, `META_CAPI_ACCESS_TOKEN`, `META_CAPI_TEST_EVENT_CODE` in config, `.env.example`
+  AND the `environment:` list of `docker-compose.demo.yml` (the backend has no `env_file:`; a key
+  missing from that list reaches nothing and fails silently, which has bitten this file 3 times).
+
+🔴 **CONSENT IS A HARD GATE, AND IT IS A DELIBERATE COST.** `meta_capi` refuses to report any order
+whose `ads_consent` is not exactly `granted`. Sending a hashed email to an ad network for a customer
+who just tapped Decline is not defensible under UK PECR/GDPR, and "the pixel was blocked so we sent
+it server-side" is the pattern the rules exist to stop. On 08-30, 8 of 14 granted, so roughly 40% of
+orders will be unmeasurable by design. That is the right trade and it should be stated to Imran, not
+hidden.
+
+**Verified, not assumed**
+- Migration applies on a clean DB (run in the Docker test stack).
+- 22 new `test_meta_capi.py` tests pass. Consent gate asserted from 5 directions.
+- 4 new `test_order_meta_fields.py` tests pass: `fbp`/`fbc` posted by the browser reach the row,
+  a malformed cookie is DROPPED not 422'd, and an unconfigured server reports nothing.
+- Full suite: **13 failed / 935 passed** on this tree vs **13 failed / 913 passed** on clean HEAD
+  in a throwaway worktree. **Same 13 failures both sides, so none are mine.** The extra 22 passes
+  are the new file. (Pre-existing failures: 8 QuickBooks Desktop, 2 date-dependent tenant-routing,
+  1 pay-first wording, 2 others.)
+- `tsc --noEmit` clean, `vite build` clean, `ruff` clean.
+
+🔴 **NOT VERIFIED, AND IT CANNOT BE FROM HERE: that Meta accepts the payload.** No pixel id and no
+access token exist yet. Every test above uses a stubbed HTTP client. **Nobody should call this
+working until a real order appears in Events Manager.** Use `META_CAPI_TEST_EVENT_CODE` for that
+first order, then unset it.
+
+📌 **NEXT, and it is Malik's step, not ours: create the pixel in Events Manager and get the id.**
+Then the access token. Then set the three env vars, redeploy, place one real order with the test
+code set, and watch it land. Nothing is deployed until then; the code is inert with the vars unset.
+
+⚠️ **Retargeting answer to the question actually asked: yes, both audiences work, but only for
+customers who accept cookies.** Purchasers come from the Purchase event; abandoned checkouts are
+everyone who fired InitiateCheckout minus everyone who fired Purchase, which is why that event was
+wired at all. Audiences are built in Ads Manager once the pixel has data; they need roughly 2 to 3
+days of traffic before they are usable.
+
+🟡 **Creatives: shared with Imran, approval expected but NOT given.** Unchanged.
+
+## 🔴 2026-08-31 00:35 UTC. CORRECTION. THE 20:05 ORDER TABLE WAS QUERIED WITH NO `tenant_id` FILTER AND MIXED FZ LLC'S DATA INTO CHICK SHACK'S. THE REPORTS PAGE WAS RIGHT.
+
+**Malik challenged the "£6,279.28 on 08-27" line against the live Reports page, which shows
+27/08/2026 = 11 online orders, £279.28. He was right to.**
+
+🔴 **What actually sits in the table for 27 Aug:** eleven real online orders totalling **£279.28**,
+plus one row the Reports page correctly excludes:
+
+| Order | Created | £ | Type | Status | Payment | Customer |
+|---|---|---|---|---|---|---|
+| `260827-001` | 2026-08-27 22:56 UTC | **6000.00** | **takeaway** | **in_kitchen** | **unpaid** | **Emirates Catering Co** |
+
+🔴 **THAT ROW IS NOT CHICK SHACK'S. It belongs to `martin-fz` (FZ LLC — Bakery & Cafe, Martin
+Zubeldia's UAE tenant).** The query had **no `tenant_id` filter**, so it swept every tenant on the box
+and reported another client's data as Chick Shack's. Malik caught it. £279.28 + £6,000.00 = £6,279.28
+and 11 + 1 = 12, which is how a cross-tenant total reconciled and still meant nothing.
+**The Reports page is correct; the query was.**
+
+🔴 **The error was not one bad row, it was the query.** `SELECT ... FROM orders` counts voided rows,
+unpaid rows, and non-online rows as orders. The Reports page applies the real-order definition and
+does not. **This is [[filter-is-not-an-invariant]] again (OI-61 → OI-65 → OI-66 → OI-68): one
+definition of "a real order", and a hand-written query is not it.** Three of the four days posted at
+20:05 were wrong as a result.
+
+**Corrected, filtered to `order_type='online' AND status<>'voided'`, matching the Reports page:**
+
+| Day | Real online orders | £ | With `gclid` | granted | denied |
+|---|---|---|---|---|---|
+| 08-27 | 11 | 279.28 | 0 | 0 | 0 |
+| 08-28 | 11 | 311.89 | 0 | 0 | 0 |
+| 08-29 | 13 | 359.34 | **1** | 0 | 0 |
+| 08-30 | **14** | **345.38** | 0 | 8 | 5 |
+
+What the 20:05 entry got wrong: 08-27 said 12 / £6,279.28 (a £6,000 test order), 08-28 said 13 /
+£384.63 (included a **voided** £45.74 order, an unpaid £14.68 order and a £27.00 takeaway), 08-30 said
+9 / £209.09 (a mid-evening snapshot that then read as a closing figure). **08-29 at 13 / £359.34 was
+correct.**
+
+🟢 **The answer to Malik's actual question is UNCHANGED and now stronger: ZERO orders on 30 August
+came from Google Ads.** The full closed day is **14 online orders, £345.38, and not one `gclid`**.
+Since F34 shipped on 08-27: **49 real online orders, exactly one with a `gclid`**, and that one
+(`260829-D005`) was a returning customer bought on a brand keyword.
+
+🟢 **Consent, full closed day, and it overturns this morning's alarm completely: 8 GRANTED, 5 denied,
+1 unanswered.** STATE said at 17:05 that 2 of 2 customers actively declined and that the browser
+conversion tag would therefore *"structurally never record a Chick Shack conversion."* **On a full
+day, the majority grant.** A Meta pixel or a Google tag would see roughly three orders in five here.
+📌 That further **de-escalates the parked legal question** about uploading a declined customer's
+click id. It is an optimisation, not the whole measurement route.
+
+🔴 **DO NOT TOUCH `260827-001`. It is another tenant's data.** An earlier version of this entry
+proposed voiding it as a stray test order. That was wrong and would have been a destructive write on
+FZ LLC's records. Nothing was executed.
+📌 **Standing rule for this box: every query against `orders` carries a `tenant_id` filter, always.**
+The database is multi-tenant and Chick Shack, Cosa Nostra, YK Demo and FZ LLC all live in it. Read
+Chick Shack numbers off the Reports page, or off a query joined to `tenants` on `slug='chick-shack'`.
+Never off an unfiltered `SELECT`.
+
+🟡 **Creatives: shared with Imran, approval expected but NOT yet given.** Unchanged from 19:40.
+🔴 **The Meta pixel blocker is unchanged and is the critical path.** No `fbq` in the storefront.
+
+## 🔴 2026-08-30 20:05 UTC (21:05 UK). NINE ORDERS TODAY, ZERO FROM GOOGLE ADS. AND THE "EVERYONE DECLINES" READ FROM THIS MORNING IS WRONG.
+
+**Read from production `orders`, not inferred. Today, all nine, all online:**
+
+| Order | UK | £ | Status | `ads_consent` | `gclid` |
+|---|---|---|---|---|---|
+| `260830-C001` | 16:05 | 19.66 | completed | `denied` | NULL |
+| `260830-D002` | 17:57 | 32.05 | completed | `denied` | NULL |
+| `260830-D003` | 18:21 | 27.86 | completed | `denied` | NULL |
+| `260830-D004` | 18:44 | 13.69 | completed | `denied` | NULL |
+| `260830-C005` | 19:18 | 29.65 | in_kitchen | **`granted`** | NULL |
+| `260830-D006` | 19:22 | 32.17 | completed | **`granted`** | NULL |
+| `260830-C007` | 19:22 | 25.66 | in_kitchen | `denied` | NULL |
+| `260830-C008` | 19:26 | 18.67 | in_kitchen | (unanswered) | NULL |
+| `260830-C009` | 19:43 | 9.68 | in_kitchen | **`granted`** | NULL |
+
+🔴 **ANSWER TO "did any of today's orders come from Google Ads": NO. Zero of nine.** Not one order
+today carries a `gclid` or any click id. Every order today is organic. **Second consecutive day of
+zero ad-attributed orders**, and the first full day on the overhauled keyword set.
+
+**Cumulative since F34 shipped, read in the same pass:**
+
+| Day | Orders | With `gclid` | granted | denied | unanswered | £ |
+|---|---|---|---|---|---|---|
+| 08-27 | 12 | 0 | 0 | 0 | 12 | 6279.28 |
+| 08-28 | 13 | 0 | 0 | 0 | 13 | 384.63 |
+| 08-29 | 13 | **1** | 0 | 0 | 13 | 359.34 |
+| 08-30 | 9 | 0 | 3 | 5 | 1 | 209.09 |
+
+**47 orders since 08-27, exactly one with a `gclid`**, and that one (`260829-D005`) was a returning
+customer bought on a brand keyword. One in forty-seven, and the one is not an acquisition.
+
+🟢 **CORRECTION, AND IT MATTERS: this morning's "2 of 2 customers actively declined" is superseded
+by a bigger sample and reads very differently.** STATE said at 17:05 UTC that *"if refusal is the
+norm here, the browser conversion tag will structurally never record a Chick Shack conversion."*
+**With nine orders instead of two, that is not what the data says.**
+- **3 granted (33%), 5 denied (56%), 1 unanswered (11%).** A third of customers do accept advertising
+  cookies. The browser tag is **not** structurally dead here; it will see roughly one order in three.
+- n=9 is still small and one evening is not a rate, but the direction has changed materially and the
+  earlier alarm should not be repeated to anyone as if it still stood.
+- 📌 **This lowers the urgency of the parked legal question** (may we upload a `gclid` from a customer
+  who declined). It is no longer "the entire measurement route or nothing". Still Malik's call, still
+  parked, but it is now an optimisation rather than a survival question.
+- ⚠️ **The 08-27 to 08-29 NULLs are NOT customers ignoring the banner.** `ads_consent` only began
+  writing on 08-30. The consent denominator is **today's 9 orders only**, never the 47.
+
+⚠️ **Anomaly, not chased this pass: 08-27 shows 12 orders totalling £6,279.28** against £384, £359
+and £209 on the three days either side. That is one very large row, almost certainly a test or a
+mis-keyed order, and it will distort any revenue reporting that spans that date. **Worth one look
+before any figure covering 08-27 is shown to Imran or BPO World.**
+
+📌 **Trade today: 9 online orders, £209.09, 16:05 to 19:43 UK, and still trading at the time of the
+query.** Against 08-29's full day of 13 / £359.34. This morning's 17:05 snapshot caught it at 2
+orders / £51.71, so the evening did land as expected.
+
+🟡 **Creatives: shared with Imran, approval expected but NOT yet given.** Malik sent the Meta creative
+proof sheet (`_files/2026-08/meta-ad-creatives.html`, published artifact) and reports *"he'd approve"*.
+**Treat as pending, not approved, until he says so.** Prices were stripped from every creative on
+Malik's instruction: pricing is Imran's decision alone. All four looks go into rotation rather than
+one being chosen. Still awaiting Imran on: whether "fried when you order it" is true, whether he wants
+to run "Best in the Gareloch", the real opening hours, and photo licensing for paid use.
+
+🔴 **The Meta pixel blocker is unchanged and now the critical path.** No `fbq` anywhere in the
+storefront. With creatives about to be approved, this is the only thing standing between here and a
+launchable campaign, and the consent numbers above say a browser pixel would in fact see about a third
+of orders. **Build pixel + Conversions API before any spend.**
+
+## 🟡 2026-08-30 19:40 UTC (20:40 UK). DIRECTION CHANGE, MALIK'S CALL, VERBAL: GOOGLE ADS JUDGED SLOW, TRIAL A META CAMPAIGN ALONGSIDE. CREATIVE DESIGN STARTS FIRST.
+
+**Malik, verbal, this session:** *"google ads on chick shack have been slow, we can try the meta
+experiment, maybe more clicks will yield better response. we'd have to design creatives first."*
+
+**Status: DECIDED IN PRINCIPLE, NOTHING BUILT, NOTHING SPENT.** No Meta ad account named, no budget
+set, no campaign created. The first deliverable is creative mockups for **Imran to approve**, not a
+live campaign. Google Ads is **not** being switched off by this; the two run in parallel.
+
+**What Malik asked for and what was produced this session:**
+- A day-of-week deal calendar. He fixed four days himself: **Peri Monday, Tender Tuesday, Wing
+  Wednesday, Fried Chicken Thursday.** Friday/Saturday/Sunday were left to us to propose.
+- HTML ad mockups across several themes and colour palettes, for the deal days and for regular
+  (non-deal) creatives, in a form he can show Imran for sign-off.
+- Delivered as a published artifact. See `_files/2026-08/` for the source file.
+
+🔴 **HARD BLOCKER FOR MEASUREMENT, FOUND THIS PASS, NOT PREVIOUSLY RECORDED: there is no Meta pixel
+on the storefront.** `grep -rniE "fbq|facebook|connect\.facebook" storefront/src storefront/index.html`
+returns **nothing**. `storefront/index.html` carries the Google tag only (`AW-18408520125`, lines
+52-56). So a Meta campaign launched today would be **completely unmeasurable**: no ViewContent, no
+AddToCart, no Purchase, no audiences, no retargeting. Meta would report clicks and we would have no
+way to tie a single one to an order. Roughly a half-day of work: pixel + CAPI + wiring the choice
+into the existing `consent.ts` gate, which already exists and works.
+📌 **Sequence this before spend, not after.** The Google Ads lesson from 08-29/08-30 was that the
+measurement gap is what makes the spend unreadable. Repeating it on a second channel would be a
+self-inflicted wound.
+
+⚠️ **The consent finding applies to Meta as well, possibly worse.** 2 of 2 customers on 08-30
+**actively tapped decline** on advertising cookies. A Meta browser pixel is subject to the same
+gate. **Conversions API (server-side) is the mitigation** and is the reason to build CAPI rather
+than the pixel alone.
+
+⚠️ **Deal mechanics are Imran's margin, not ours to set.** The mockups carry placeholder discounts,
+clearly marked. **He must set the actual numbers before anything is published.** Note also that the
+four days he chose are **Mon-Thu, the quiet nights**, which is correct: discounting Fri/Sat, the
+peak takeaway nights, would burn margin on demand the shop already has. Our Fri/Sat/Sun proposals
+are therefore **bundles and hero items at full price, not percentage discounts.**
+
+⚠️ **Everything above about the ad channels is unchanged and still true.** Google Ads: 1 gclid in
+40 orders since 08-27, and that one a returner. The overhauled keyword set has had **one** trading
+day. **Do not let the Meta experiment be read as a verdict on the keyword overhaul**, which has not
+yet had the data to be judged.
+
+## 🟢 2026-08-30 17:05 UTC (18:05 UK). `ads_consent` PROVEN ON REAL ORDERS. BOTH OF TODAY'S CUSTOMERS ACTIVELY DECLINED. NO GOOGLE ADS ORDER TODAY.
+
+**Read from production `orders`, not inferred:**
+
+| Order | UTC | UK | £ | Type | `ads_consent` | `click_type` | `gclid` |
+|---|---|---|---|---|---|---|---|
+| `260830-D002` | 16:57 | 17:57 | 32.05 | delivery, **unpaid/cash** | **`denied`** | none | **NULL** |
+| `260830-C001` | 15:05 | 16:05 | 19.66 | collection, paid card | **`denied`** | none | **NULL** |
+
+🟢 **The 08-30 06:40 UTC open item is CLOSED.** STATE previously read *"no real order has yet written
+`ads_consent` … this is deployed, not working."* Two real orders have now written it. The column,
+the schema validator, the service persist and the storefront POST all work end to end on the live
+path. **Verified, not assumed.**
+
+🔴 **ANSWER TO "any luck with google ads orders": NO. Not today.** Neither of today's two orders
+carries a `gclid`. Both are organic. **Since F34 shipped on 08-27: 40 orders, exactly 1 with a
+`gclid`** (`260829-D005`, and that one was a returning customer bought on a brand keyword). One in
+forty, and the one is not an acquisition.
+
+🔴 **New, and more important than the order count: `denied` means the customer TAPPED DECLINE.**
+Confirmed from `storefront/src/lib/consent.ts`. `storedConsent()` returns `null` when the banner was
+never answered and only returns `"denied"` when `cs_consent_v1` holds that value in localStorage,
+i.e. after an explicit click. So this is **not** "banner ignored". **2 of 2 customers actively
+refused advertising cookies.**
+- n=2 is far too small to call a rate. But the direction matters: if refusal is the norm here, the
+  **browser conversion tag will structurally never record a Chick Shack conversion**, no matter how
+  the campaign is tuned. `ads_data_redaction: true` strips the click id on a denied load.
+- 📌 **This raises the stakes on the parked legal question** rather than leaving it academic. If most
+  customers decline, then "may we upload a `gclid` belonging to someone who declined?" is not an edge
+  case. It is **the entire measurement route or nothing**. Still Malik's call, still parked
+  ("we'd upload the list in a couple of days when we have sufficient data pts"), now with the note
+  that the answer decides whether Google Ads can ever be measured for this shop.
+- **Keep watching the denominator.** Every order records the choice; a week of it gives a real
+  refusal rate. Today: 2/2 denied, 0 granted, 0 unanswered.
+
+⚠️ **Today is the FIRST trading day on the new keyword set** (brand paused, 10 generic keywords, RSA
+rewritten, all done 08-30). Zero ad-attributed orders on day one is **expected, not a verdict**. The
+three generic keywords had taken 0 clicks in the six days prior. Do not read today as the overhaul
+failing; it has not had a day of data yet.
+⚠️ **Not checked this pass:** whether the campaign served at all today (impressions/clicks/spend).
+That needs the Google Ads UI, which is not readable from here. A screenshot of the account for
+2026-08-30 is the missing half of the picture.
+
+📌 **Today's trade so far:** 2 online orders, **£51.71**, 16:05 to 17:57 UK. **The day is not
+closed.** The shop trades to ~21:00 UK, so this will grow. For contrast, **08-29 closed at 13 online
+orders / £359.34**. Two orders by 18:00 against thirteen yesterday is a thin evening so far, but
+yesterday's run was 15:23 to 19:46 UK, so most of yesterday's volume also landed after 18:00.
+
+⚠️ **Unchanged and still untouched, both outrank the ad tuning:** (1) `chick-shack.com` still ranks
+**#1 organic** for the brand name, serving a **wrong menu** (Imran's own words, 2026-07-27) and a
+phone number, above `chickshackg84.com` at #2. Free traffic routed away from the ordering system,
+and not ours to fix unilaterally (`README.md:91`). (2) Where the Google Business Profile **Order
+pickup / Order delivery** buttons point is still unverified, and Malik is a Manager on that profile.
+**One conversation with Imran covers both.**
 
 ## 🟢 2026-08-29 18:35 UTC (19:35 UK). FIRST ORDER ATTRIBUTED TO A GOOGLE AD, READ FROM OUR OWN DATABASE. THE CUSTOMER IS A RETURNER, NOT A NEW ONE.
 
