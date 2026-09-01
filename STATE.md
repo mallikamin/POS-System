@@ -1,6 +1,41 @@
 # STATE — Restaurant POS System
 
-**Last refreshed:** 2026-09-01, OI-99 shipped; OI-100 and OI-101 found and fixed behind it. Martin's UAT path walked end to end on production.
+**Last refreshed:** 2026-09-01, OI-99 shipped and closed; OI-100/101 fixed behind it; add-on signpost live. Resume point below.
+
+## ▶️ 2026-09-01 03:10 UTC. RESUME POINT. FZ LLC ADD-ON WORK IS DONE AND LIVE. NOTHING IS HALF-SHIPPED.
+
+**Where things stand.** Martin's finding is fixed, deployed and proven on production. Four commits
+tonight, all pushed and deployed green: `1eb9ce6` (the feature), `b227c81` (two older bugs it
+uncovered), `c953cf7` (the add-on signpost), plus the docs commits.
+
+**What is live for `martin-fz`:**
+- A recipe can be attached to an add-on. Selling it deducts stock and books cost.
+- An **Extras** group on the two chicken items: Extra Cheese Sauce (2.00, costs 0.42) and Extra
+  Chicken Stuffing (4.00, costs 0.76).
+- Recipes can be created and edited at all, which they could not before tonight.
+- Each add-on row in Menu Management shows **Recipe** or, for a paid add-on with none, **No recipe**,
+  linking to the builder.
+
+**The one thing NOT verified: the pixels.** Every check tonight was API, database or bundle contents.
+The Chrome extension is not set up on this machine ([[no-claude-in-chrome]]), so nothing was clicked
+by me. Malik walked the Recipe Builder himself and it rendered correctly (three target buttons,
+add-ons grouped, prices shown). **Not yet seen by anyone: the new Recipe / No recipe badge**, which
+is also invisible on Martin's tenant today because both paid add-ons already have recipes. It appears
+the moment a new paid add-on is created without one.
+
+**Next, when you pick this up:**
+1. **OI-102**, agreed with Malik, not urgent: hide the inventory group from Chick Shack's admin nav.
+   Mechanism already exists (`isModuleHidden(config, ...)`, as used for QuickBooks). One nav change
+   plus one config row.
+2. Martin's Monday review is the live thread. He has the proposal and the testing guide; pricing
+   stands at AED 360/month + AED 1,500 one-time.
+3. Open question Malik never answered from 08-28: whether "assistance for integrations of APIs"
+   means our integration work is included in the monthly, or only help obtaining access.
+
+**Two loose ends carried, both flagged and neither blocking:**
+- The FZ demo login is in git history at `1eb9ce6`. Malik's call, and he has said it is a demo.
+- The Meta pixel migration `b0c1d2e3f4a5` is still uncommitted and undeployed, re-parented onto
+  `c1d2e3f4a5b6`. Whoever ships Meta keeps that parent.
 
 ## 🟢 2026-09-01 02:30 UTC. MARTIN'S UAT PATH WALKED END TO END ON PRODUCTION. IT WAS NOT FINE: SAVING A RECIPE HAD BEEN RETURNING 400 TO EVERY CLIENT. FIXED AND RE-PROVEN (`b227c81`).
 

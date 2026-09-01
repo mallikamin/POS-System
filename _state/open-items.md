@@ -1,5 +1,42 @@
 # Open items register
 
+**OI-101 🟢 FOUND AND CLOSED 2026-09-01, SHIPPED `b227c81`. NO RECIPE COULD BE SAVED THROUGH THE API,
+ON ANY TENANT, AND EDITS NEVER INCREMENTED THE VERSION.**
+
+Found by walking Martin's own UAT path over HTTP after OI-99 shipped with 17 green tests. The first
+two writes failed: `POST /inventory/recipes` and `PATCH .../{id}` with items both returned **400**,
+`1 validation error for RecipeResponse / updated_at / MissingGreenlet`. The routes did `db.commit()`
+then `db.refresh(obj, [names])`, and a partial refresh leaves every column outside that list
+unloaded, so building the response attempted IO. Pre-existing, proven by removing the OI-99 line and
+seeing the identical 400. Second bug behind it: `update_recipe` deactivated the current recipe before
+`create_recipe` could count it, so every new version was numbered 1.
+
+Fixed by re-fetching through `recipe_service.get_recipe` and by letting `create_recipe` do the
+deactivating. Three route-level tests added, because **all 17 OI-99 tests called the service layer
+and none came through the route**. `ERROR_LOG.md` carries the rule.
+
+Re-walked on production afterwards, all green: recipes list, opening an add-on, the builder's add-on
+picker and by-menu-item lookup, a metadata edit, an edit cutting v2, a create (201), a delete (204),
+the profitability report and the stock position screen.
+
+**OI-102 🔵 OPENED 2026-09-01 BY MALIK, NOT URGENT, FIX IN THE NEXT BATCH. CHICK SHACK CAN SEE THE
+WHOLE INVENTORY MODULE IT NEVER BOUGHT.**
+
+Malik, logged in as Imran, navigated to the recipe view and found it there. Ingredients, Recipes,
+Locations, Stock, Transfers, Suppliers, Purchase Orders, Order Planner, Profitability, Quotations
+and Tax Invoices are all in `baseNavItems` unconditionally
+(`frontend/src/components/layout/AdminLayout.tsx:38-64`).
+
+**Not from the OI-99 work.** `git diff 6f72d89..HEAD -- AdminLayout.tsx` is empty; the entries
+arrived on **2026-08-26 in `815a21e`**, the FZ multi-location build. Chick Shack has 0 recipes,
+0 ingredients and 0 locations, so every one of those screens is empty rather than wrong.
+
+**Not urgent, Malik's call:** *"imran only sees or uses the online orders view."*
+
+**Fix:** the mechanism already exists. `isModuleHidden(config, "<name>")` is how the two QuickBooks
+entries are hidden per tenant; extend it to an inventory group and set it on the Chick Shack config.
+One nav change plus one config row, no backend work.
+
 **OI-100 🟢 FOUND AND CLOSED 2026-09-01, INSIDE OI-99. NO RECIPE COULD BE EDITED, ON ANY TENANT,
 EVER. THE UNIQUE CONSTRAINT HAD NO `is_active` PREDICATE.**
 
