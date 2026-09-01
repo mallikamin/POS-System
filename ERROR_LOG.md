@@ -29,6 +29,68 @@ Each entry follows:
 
 ---
 
+### 2026-09-01 - I committed a file that was untracked ON PURPOSE, and it carried a secret
+- **Error**: `backend/app/scripts/seed_fz_llc.py` went into commit `1eb9ce6`, putting the FZ demo
+  tenant's plaintext login into git history. The committed copy was also unusable on the server: it
+  imports `app.scripts.system_admin`, untracked for the same reason, so running it failed with
+  `ModuleNotFoundError: No module named 'app.scripts.system_admin'`.
+- **Context**: shipping OI-99. I had edited the seed to add the new add-on definitions, saw the file
+  listed as `??` in `git status`, and staged it with the source files as "new work".
+- **Root Cause**: I read `??` as "new file I just made" when it meant "file this repo deliberately
+  keeps out of git". I never asked WHY it was untracked. A file that has existed for days and is
+  still untracked is a decision, not an oversight, and the usual reason is that it holds something
+  that must not be committed. I also did not read its imports before staging, which would have shown
+  it depending on another untracked module.
+- **Fix**: `git rm --cached` in `97f0ec4`; the working copy keeps the add-on definitions. The value
+  remains in history at `1eb9ce6`.
+- **Rule**: **Never stage a `??` file without first asking why it is untracked.** Two cheap checks
+  before staging any untracked file: look for it in `.gitignore` / `git log --diff-filter=D -- <path>`,
+  and grep it for imports of other untracked modules and for anything secret-shaped. If it holds one
+  or depends on one that is out of git, it stays out and you say so out loud. Staging explicit paths
+  (which I did do) is no protection when the path list itself is wrong.
+
+---
+
+### 2026-09-01 - 17 green tests, and the endpoint they covered returned 400 to every client
+- **Error**: `POST /inventory/recipes` and `PATCH /inventory/recipes/{id}` (items changed) both
+  answered **400** with
+  `1 validation error for RecipeResponse / updated_at / MissingGreenlet: greenlet_spawn has not
+  been called`. Saving a recipe was impossible through the API, for every tenant, menu-item recipes
+  included. Separately, when that was fixed, every edit renumbered the new version **1**.
+- **Context**: after shipping OI-99 with 17 passing tests, I walked the client's actual UAT path
+  over HTTP instead of asserting it was fine. The first two writes failed immediately.
+- **Root Cause**: two, both pre-existing and neither about add-ons. (1) The routes did
+  `await db.commit()` then `db.refresh(obj, [names])`; a partial refresh leaves every column outside
+  that list unloaded, so building the response touched `updated_at` and attempted IO. (2)
+  `update_recipe` set `is_active = False` before calling `create_recipe`, which then found no active
+  recipe to count from and numbered the new one 1. **My 17 tests all called the service layer and
+  none came through the route**, so both bugs were invisible to them.
+- **Fix**: re-fetch via `recipe_service.get_recipe` after commit (the pattern CLAUDE.md already
+  documents for post-mutation reads); stop pre-deactivating in `update_recipe`. Three route-level
+  tests added.
+- **Rule**: **Service-level tests do not cover an endpoint.** If a client will call it, one test has
+  to go through the route. And when a feature is "done", walk the user's real path end to end before
+  saying so - the tests tell you the code you wrote works, not that the screen opens. "The route is
+  thin" is a claim to check, not an assumption to ship on.
+
+---
+
+### 2026-08-28 - A `curl -I` probe said the ETag was missing through nginx; it was HEAD, not nginx
+- **Error**: post-deploy check printed `etag via nginx: <none>` and the revalidation returned 200
+  instead of 304, right after the same URL had returned an ETag and a 304 inside the container.
+- **Context**: verifying `GET /api/v1/media/{id}` (cacheable image delivery) through the shared
+  nginx over HTTPS after deploying `f3beeef`.
+- **Root Cause**: `curl -I` sends **HEAD**. The route was declared with `@router.get`, and
+  FastAPI does not add HEAD to a GET route, so nginx faithfully relayed a `405 Method Not
+  Allowed` with no ETag. The probe then sent an empty `If-None-Match`, which can only be a 200.
+  Nothing on the path a browser uses (GET) was wrong, and nginx was not stripping anything.
+- **Fix**: re-probed with `curl -D - -o /dev/null` (a real GET): ETag present, 304 on
+  revalidation. Route changed to `api_route(methods=["GET", "HEAD"])` with an explicit
+  bodiless HEAD response and a test (`b4f51a7`, held for the after-close deploy).
+- **Rule**: **probe with the method the real client uses.** A browser fetches an `<img>` with
+  GET; `-I` is not a shortcut for that. When a proxy check disagrees with a direct check, first
+  ask whether the two requests were actually the same request before suspecting the proxy.
+
 ### 2026-08-27 (late) - A campaign result quoted from the same day, and retracted the next morning
 
 **What happened.** Chick Shack's first Google Search campaign went live. Reading the account
@@ -1381,6 +1443,22 @@ genuine defect with no human clicking anything.
 - **Rule**: **a config test must run in the same environment the config will run in**: same
   mounts AND same network. A bare upstream name makes network membership part of "valid".
 
+## 2026-08-28 (early) - Two verification traps on the box: a read-only rootfs, and `ls` hiding a dotfile
+
+- **Error**: `docker cp` into `pos-system-backend-1` failed with `container rootfs is marked
+  read-only`; and a `.env.demo` backup check `ls /root/backups | grep -c env.demo.pre-f13` printed
+  `0` and aborted the chain, although the copy had succeeded.
+- **Context**: F13 verification. I wanted a script inside the running backend to read the real
+  HTTP route as the `martin-fz` admin, and a safety copy of `.env.demo` before the deploy.
+- **Root Cause**: the backend container runs with a read-only root filesystem, so nothing can be
+  copied in; and `ls` without `-a` does not list files beginning with a dot, so the count of a
+  file literally named `.env.demo.pre-f13-…` was zero.
+- **Fix**: `docker exec -i -w /app <backend> python -` with the script on stdin (nothing written
+  to the container); `ls -la | grep` plus `cmp` against the live file for the backup.
+- **Rule**: **a "0 found" from a listing is not proof of absence** until the listing is known to
+  show the thing you are counting: dotfiles need `ls -a`, and a backup is verified by `cmp`, not by
+  its name appearing. And do not plan on writing into app containers here; feed scripts over stdin.
+
 ## 2026-08-27 (late night) - `pkill -f` matched my own ssh session, and a wrong "alive" check hid it
 
 - **Error**: `ssh ... 'pkill -f oi92-poll.sh; ...'` exited 255. A later `pgrep` reported the
@@ -1394,3 +1472,23 @@ genuine defect with no human clicking anything.
 - **Rule**: **never `pkill -f <pattern>` through a shell whose own command line contains
   `<pattern>`.** Use a pid file, or a bracketed pattern that cannot match itself, and read the
   process count, not a boolean.
+
+## 2026-08-30 — Cross-tenant query reported another client's £6,000 order as Chick Shack revenue
+
+- **What I did**: queried production `orders` for Chick Shack's daily trade with
+  `WHERE created_at >= date '2026-08-27'` and **no `tenant_id` filter**, then reported
+  27 Aug as "12 orders, £6,279.28".
+- **Truth**: Chick Shack did 11 orders / £279.28 that day, exactly as the Reports page at
+  `eats.sitaratech.info/online-orders/reports` showed. The extra £6,000 was `260827-001`,
+  "Emirates Catering Co", belonging to the **`martin-fz` tenant (FZ LLC, Martin Zubeldia)**.
+- **How much worse it got**: I then described that row as a stray test order and **offered to
+  void it**. That would have been a destructive write against a different client's data.
+  Nothing was executed. Malik caught both the number and the proposal.
+- **Second fault in the same query**: no status or channel filter either, so voided and unpaid
+  rows were counted as sales (08-28 was reported 13 / £384.63 against a real 11 / £311.89).
+- **Rule**: the box is multi-tenant (`chick-shack`, `martin-fz`, `cosa-nostra`,
+  `demo-restaurant`). **Every query against `orders` carries a `tenant_id` filter, always** —
+  `JOIN tenants t ON t.id = o.tenant_id WHERE t.slug = 'chick-shack'`. When a figure disagrees
+  with what Malik sees on his own screen, the query is wrong, not the screen: check the tenant
+  filter before anything else. Never propose a write against a row without first confirming
+  which tenant owns it.

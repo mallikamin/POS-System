@@ -1,6 +1,38 @@
 # STATE — Restaurant POS System
 
-**Last refreshed:** 2026-09-01, OI-99 shipped and proven on production. OI-100 found and fixed inside it.
+**Last refreshed:** 2026-09-01, OI-99 shipped; OI-100 and OI-101 found and fixed behind it. Martin's UAT path walked end to end on production.
+
+## 🟢 2026-09-01 02:30 UTC. MARTIN'S UAT PATH WALKED END TO END ON PRODUCTION. IT WAS NOT FINE: SAVING A RECIPE HAD BEEN RETURNING 400 TO EVERY CLIENT. FIXED AND RE-PROVEN (`b227c81`).
+
+**Malik asked the right question: is it 200% done, or will Martin get a surprise?** Instead of
+answering from the test results I drove the real HTTP API on production as an admin on `martin-fz`.
+The first two writes failed.
+
+🔴 **OI-101, pre-existing and nothing to do with add-ons: every recipe save answered 400.**
+```
+1 validation error for RecipeResponse / updated_at
+MissingGreenlet: greenlet_spawn has not been called
+```
+The routes did `db.commit()` then `db.refresh(obj, [names])`; a partial refresh leaves every column
+outside that list unloaded, so building the response touched `updated_at` and attempted IO. Create
+and edit alike, **every tenant, menu-item recipes included**. Proven pre-existing by removing the
+OI-99 line and watching the identical 400. Fixed by re-fetching through `recipe_service.get_recipe`.
+
+🔴 **Second one behind it: editing always renumbered the new version 1**, because `update_recipe`
+deactivated the current recipe before `create_recipe` could count it. Now increments properly.
+
+⚠️ **How both hid: my 17 OI-99 tests all called the service layer and none came through the route.**
+Green tests, dead endpoint. Three route-level tests added; `ERROR_LOG.md` carries the rule.
+
+**Re-walked on production after the fix, all green:** Recipes list, opening one add-on, the builder's
+add-on picker, the builder's by-menu-item lookup, a metadata edit, an edit that cuts a new version
+(now v2), creating a recipe from scratch (201), deleting one (204), the profitability report, and
+the stock position screen.
+
+🧹 **Probe residue removed from Martin's tenant.** The first failed POST had already committed before
+it 400'd, leaving a cheese-sauce recipe attached to his `Beef` empanada filling, plus a superseded
+version or two. Four probe recipes deleted. His own Beef / Birria / Chicken modifiers are back to
+having no recipe, which is correct, and only the two intended add-ons carry one.
 
 ## 🟢 2026-09-01 01:14-01:25 UTC. MARTIN'S FINDING IS FIXED AND LIVE (`1eb9ce6`). AN ADD-ON NOW DEDUCTS STOCK AND CARRIES COST, PROVEN ON PRODUCTION THROUGH A REAL ORDER. CHICK SHACK PROVEN UNTOUCHED.
 
