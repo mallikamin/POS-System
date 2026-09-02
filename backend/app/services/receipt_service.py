@@ -169,12 +169,16 @@ async def get_receipt_data(
         tax_amount=order.tax_amount,
         discount_lines=receipt_discounts,
         discount_amount=order.discount_amount,
+        delivery_fee=order.delivery_fee or 0,
+        service_fee=order.service_fee or 0,
+        tip=order.tip or 0,
         total=order.total,
         payments=receipt_payments,
         payment_status=order.payment_status,
         cash_tax_rate_bps=getattr(config, "cash_tax_rate_bps", 0) or tax_rate_bps,
         card_tax_rate_bps=getattr(config, "card_tax_rate_bps", 0) or tax_rate_bps,
         currency=config.currency if config else "PKR",
+        receipt_format=(getattr(config, "receipt_format", None) or "thermal"),
     )
 
 
@@ -363,6 +367,7 @@ async def get_session_receipt_data(
         total=final_total,
         payments=receipt_payments,
         payment_status=payment_status,
+        receipt_format=(getattr(config, "receipt_format", None) or "thermal"),
         cash_tax_rate_bps=getattr(config, "cash_tax_rate_bps", 0) or tax_rate_bps,
         card_tax_rate_bps=getattr(config, "card_tax_rate_bps", 0) or tax_rate_bps,
         currency=config.currency if config else "PKR",

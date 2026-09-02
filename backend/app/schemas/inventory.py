@@ -55,7 +55,12 @@ class IngredientBase(BaseModel):
 
 
 class IngredientCreate(IngredientBase):
-    pass
+    # Martin (FZ LLC, 2026-09-02): "there is no difference between bought items
+    # ... and ingredients manufactured by us, where the price needs to be
+    # calculated by the system". A made-in-house ingredient can now be declared
+    # as such at creation, before its recipe exists. While it is produced, its
+    # cost is owned by the recipe engine, so any cost sent here is ignored.
+    is_produced: bool = False
 
 
 class IngredientUpdate(BaseModel):
@@ -68,6 +73,7 @@ class IngredientUpdate(BaseModel):
     reorder_point: Num | None = Field(None, ge=0)
     reorder_quantity: Num | None = Field(None, ge=0)
     is_active: bool | None = None
+    is_produced: bool | None = None
     notes: str | None = None
     image_url: str | None = Field(None, max_length=500)
 
@@ -77,6 +83,11 @@ class IngredientResponse(IngredientBase):
     tenant_id: uuid.UUID
     current_stock: Num
     is_produced: bool
+    # The active recipe that makes this ingredient, when there is one. A
+    # produced ingredient with no recipe yet is the "No recipe" state the
+    # Ingredients screen signposts.
+    production_recipe_id: uuid.UUID | None = None
+    production_recipe_name: str | None = None
     created_at: datetime
     updated_at: datetime | None
 

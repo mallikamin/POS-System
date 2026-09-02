@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Minus, Plus, ShoppingCart, ChefHat, X, Loader2, CreditCard, User, Search, RotateCcw } from "lucide-react";
+import { Minus, Plus, ShoppingCart, ChefHat, X, Loader2, CreditCard, User, Search, RotateCcw, Truck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -11,7 +11,7 @@ import {
   DialogFooter,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { formatPKR, taxName } from "@/utils/currency";
+import { formatPKR, taxName, majorToMinor } from "@/utils/currency";
 import { useCurrencyCode } from "@/hooks/useCurrencyCode";
 import { splitTax } from "@/utils/tax";
 import { useCartStore, type CartLine, type Cart, EMPTY_CART } from "@/stores/cartStore";
@@ -67,6 +67,19 @@ export function CartPanel({ waiterId, onOrderCreated }: CartPanelProps = {}) {
   const [customerExpanded, setCustomerExpanded] = useState(false);
   const searchTimeout = useRef<ReturnType<typeof setTimeout>>();
 
+  /*
+   * Charges added at the till. Martin (FZ LLC, 2026-09-02): "need to have
+   * option to add charges (such as delivery fees for example)". Held as the
+   * typed strings so "2." survives while it is being typed; converted to minor
+   * units once, through the currency module, when they are used.
+   */
+  const [chargesOpen, setChargesOpen] = useState(false);
+  const [deliveryFeeInput, setDeliveryFeeInput] = useState("");
+  const [serviceFeeInput, setServiceFeeInput] = useState("");
+  const deliveryFee = toMinor(deliveryFeeInput, currency);
+  const serviceFee = toMinor(serviceFeeInput, currency);
+  const chargesTotal = deliveryFee + serviceFee;
+
   // Debounced phone search
   useEffect(() => {
     if (phoneQuery.length < 3) { setSearchResults([]); return; }
@@ -116,7 +129,10 @@ export function CartPanel({ waiterId, onOrderCreated }: CartPanelProps = {}) {
    * Tax-inclusive: the tax is already inside `subtotal`, so it is derived by
    * subtraction (never as `net * rate`) and the total IS the subtotal.
    */
-  const { tax, total } = splitTax(subtotal, TAX_BPS, pricesIncludeTax);
+  const { tax, total: goodsTotal } = splitTax(subtotal, TAX_BPS, pricesIncludeTax);
+  // Charges ride outside the tax, exactly as `order_service.order_total` adds
+  // them on the server, so the quoted total is the charged total.
+  const total = goodsTotal + chargesTotal;
 
   async function handleSendToKitchen() {
     if (cart.lines.length === 0 || isSending) return;
@@ -144,8 +160,13 @@ export function CartPanel({ waiterId, onOrderCreated }: CartPanelProps = {}) {
         tableId,
         custName,
         custPhone,
-        waiterId
+        waiterId,
+        { delivery_fee: deliveryFee, service_fee: serviceFee }
       );
+      // Charges belong to the order just sent, never to the next one.
+      setDeliveryFeeInput("");
+      setServiceFeeInput("");
+      setChargesOpen(false);
       onOrderCreated?.();
       if (isPayFirst) {
         // Pay-first: redirect to payment page
@@ -296,6 +317,53 @@ export function CartPanel({ waiterId, onOrderCreated }: CartPanelProps = {}) {
               nothing for a tenant with no locations configured. */}
           <SaleAttributionPicker />
 
+          {/* Charges: delivery fee, service charge */}
+          <div className="rounded-lg border border-secondary-200">
+            <button
+              type="button"
+              onClick={() => setChargesOpen(!chargesOpen)}
+              className="flex w-full items-center gap-2 px-3 py-2 text-xs font-medium text-secondary-700 hover:bg-secondary-50 transition-colors min-h-[44px]"
+              aria-expanded={chargesOpen}
+            >
+              <Truck className="h-3.5 w-3.5 text-secondary-400" />
+              {chargesTotal > 0 ? `Charges: ${formatPKR(chargesTotal)}` : "Add charges (delivery fee, service charge)"}
+              <span className="ml-auto text-secondary-400">{chargesOpen ? "Hide" : "Edit"}</span>
+            </button>
+            {chargesOpen && (
+              <div className="grid grid-cols-2 gap-2 border-t border-secondary-100 px-3 py-2">
+                <label className="space-y-1">
+                  <span className="text-[11px] font-medium text-secondary-500">Delivery fee ({currency})</span>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    min="0"
+                    step="0.01"
+                    value={deliveryFeeInput}
+                    onChange={(e) => setDeliveryFeeInput(e.target.value)}
+                    placeholder="0.00"
+                    className="w-full h-11 rounded border border-secondary-200 px-2 text-sm focus:border-primary-400 focus:outline-none"
+                  />
+                </label>
+                <label className="space-y-1">
+                  <span className="text-[11px] font-medium text-secondary-500">Service charge ({currency})</span>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    min="0"
+                    step="0.01"
+                    value={serviceFeeInput}
+                    onChange={(e) => setServiceFeeInput(e.target.value)}
+                    placeholder="0.00"
+                    className="w-full h-11 rounded border border-secondary-200 px-2 text-sm focus:border-primary-400 focus:outline-none"
+                  />
+                </label>
+                <p className="col-span-2 text-[10px] text-secondary-400">
+                  Added on top of the {taxName(currency)}-inclusive goods total and printed as their own lines on the receipt.
+                </p>
+              </div>
+            )}
+          </div>
+
           {/* Totals */}
           <div className="space-y-1 text-sm">
             <div className="flex justify-between text-secondary-600">
@@ -309,6 +377,18 @@ export function CartPanel({ waiterId, onOrderCreated }: CartPanelProps = {}) {
               </span>
               <span>{formatPKR(tax)}</span>
             </div>
+            {deliveryFee > 0 && (
+              <div className="flex justify-between text-secondary-600">
+                <span>Delivery fee</span>
+                <span>{formatPKR(deliveryFee)}</span>
+              </div>
+            )}
+            {serviceFee > 0 && (
+              <div className="flex justify-between text-secondary-600">
+                <span>Service charge</span>
+                <span>{formatPKR(serviceFee)}</span>
+              </div>
+            )}
             <div className="flex justify-between font-bold text-secondary-900 text-base pt-1 border-t border-secondary-100">
               <span>Total</span>
               <span>{formatPKR(total)}</span>
@@ -365,6 +445,13 @@ export function CartPanel({ waiterId, onOrderCreated }: CartPanelProps = {}) {
       </Dialog>
     </div>
   );
+}
+
+/** A typed amount in major units ("12.50") to minor units, 0 for anything unparseable or negative. */
+function toMinor(input: string, currency: string): number {
+  const value = parseFloat(input);
+  if (!Number.isFinite(value) || value <= 0) return 0;
+  return majorToMinor(value, currency);
 }
 
 /* ==========================================================================

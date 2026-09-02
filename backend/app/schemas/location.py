@@ -130,6 +130,8 @@ class SalesChannelBase(BaseModel):
         default=0, ge=0, description="Flat per-order fee in minor units"
     )
     is_active: bool = True
+    # Show as its own tile on the POS channel selector.
+    pos_visible: bool = True
     notes: str | None = None
 
 
@@ -142,6 +144,7 @@ class SalesChannelUpdate(BaseModel):
     commission_bps: int | None = Field(None, ge=0, le=10000)
     fixed_fee_minor: int | None = Field(None, ge=0)
     is_active: bool | None = None
+    pos_visible: bool | None = None
     notes: str | None = None
 
 

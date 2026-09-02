@@ -250,9 +250,12 @@ class PurchaseOrder(BaseMixin, Base):
         Numeric(14, 2), nullable=False, default=0
     )
 
+    # "Additional comments" to the supplier (Martin, FZ LLC 2026-09-02): printed
+    # on the document under the delivery instructions. It was internal-only
+    # before, and never printed, which is what he was missing.
     notes: Mapped[str | None] = mapped_column(Text)
     # Free-text instructions printed on the document itself, e.g. "deliver
-    # before 9am". Kept apart from `notes`, which is internal.
+    # before 9am". Kept apart from `notes` so each reads as its own section.
     delivery_instructions: Mapped[str | None] = mapped_column(Text)
 
     created_by: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("users.id"))

@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user
 from app.database import get_db
 from app.models.user import User
+from app.schemas.common import PaginatedResponse
 from app.schemas.customer import (
     CustomerCreate,
     CustomerOrderHistoryItem,
@@ -17,6 +18,27 @@ from app.schemas.customer import (
 from app.services import customer_service
 
 router = APIRouter(prefix="/customers", tags=["customers"])
+
+
+@router.get("", response_model=PaginatedResponse[CustomerResponse])
+async def list_customers(
+    q: str | None = Query(None, max_length=100, description="Name, company, phone or TRN"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=100),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> PaginatedResponse[CustomerResponse]:
+    """The back-office customer list. Read-only on the stats: unlike search,
+    this does not recompute every row's totals on the way out."""
+    customers, total = await customer_service.list_customers(
+        db,
+        current_user.tenant_id,
+        q=q,
+        offset=(page - 1) * page_size,
+        limit=page_size,
+    )
+    items = [CustomerResponse.model_validate(c) for c in customers]
+    return PaginatedResponse.create(items, total, page, page_size)
 
 
 @router.get("/search", response_model=list[CustomerResponse])

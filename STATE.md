@@ -1,6 +1,38 @@
 # STATE — Restaurant POS System
 
-**Last refreshed:** 2026-09-01, OI-99 shipped and closed; OI-100/101 fixed behind it; add-on signpost live. Resume point below.
+**Last refreshed:** 2026-09-03 (refresh for Martin's round-1 feedback). No drift in the FZ resume point; a new block added on top for the feedback batch.
+
+## 🟡 2026-09-03. MARTIN'S ROUND-1 FEEDBACK: ALL SEVEN ITEMS BUILT AND TESTED LOCALLY. DEPLOY AND PRODUCTION WALK ARE THE NEXT TWO STEPS.
+
+Verbatim text, the item table and the item-by-item write-up for the reply live in
+`_context/clients/fz-llc-uae/feedback_2026-09-02_martin-round1.md`. Items M1-M7: ingredients
+bought vs made in-house, PO additional comments, receipt A4 vs roll, POS channel tiles per sales
+channel plus "Pick up", order charges (delivery fee / service charge), back-office Customers screen
+with company + TRN, admin drawer unusable on a phone. His one positive line: "on the laptop works
+perfect."
+
+**Proof so far, all local:** `backend/tests/test_martin_round1.py` (11 route-level tests) green;
+222 green across every touched backend suite; frontend type-check and lint clean. **Nothing in this
+batch has been seen on a screen or on production yet.** The full suite has 17 failures + 2 errors,
+all pre-existing and proven so by re-running them with this work stashed (QuickBooks Desktop
+builders, pay-first message text, public tenant routing sort/date, one void 401, one rejected-order
+guard). Not touched.
+
+**One migration, `d2e3f4a5b6c7`, parented on production's head `c1d2e3f4a5b6`.** Adds
+`restaurant_configs.receipt_format` + `takeaway_label`, `sales_channels.pos_visible`,
+`customers.company_name` + `trn`, sets "Pick up" for martin-fz and hides the website channel from
+the POS tiles. The uncommitted Meta migration `b0c1d2e3f4a5` has been re-parented onto it locally.
+
+**Two decisions Martin should hear stated, not discover:** charges sit outside the VAT (same rule
+as the online channel; UAE may want VAT on delivery, that is a follow-up); and a made-in-house
+cost is snapshot-on-save, so a parent recipe picks up a changed sub-recipe cost when it is next
+saved.
+
+**Two pre-existing bugs fixed on the way** (`ERROR_LOG.md` 2026-09-03): discount re-total
+double-charged VAT for tax-inclusive tenants; tax invoice never printed the customer address.
+
+**Next:** commit (staged paths only, the Meta files stay out), `git push origin main`, confirm the
+migration ran on the box, then walk M1-M7 on production as Martin and flip the table to DEPLOYED.
 
 ## ▶️ 2026-09-01 03:10 UTC. RESUME POINT. FZ LLC ADD-ON WORK IS DONE AND LIVE. NOTHING IS HALF-SHIPPED.
 
@@ -36,6 +68,95 @@ the moment a new paid add-on is created without one.
 - The FZ demo login is in git history at `1eb9ce6`. Malik's call, and he has said it is a demo.
 - The Meta pixel migration `b0c1d2e3f4a5` is still uncommitted and undeployed, re-parented onto
   `c1d2e3f4a5b6`. Whoever ships Meta keeps that parent.
+
+## 🟢 2026-09-01 18:45 UK. THE ABANDONED ORDERS ARE NOT LOST ORDERS. 10 OF 12 CAME BACK AND PAID, MOST INSIDE TWO MINUTES. GOOGLE ADS IS STILL AT ONE ATTRIBUTED ORDER EVER, AND THE ADS CONSOLE SAYS WHY.
+
+**Malik asked why orders are being abandoned and whether Google Ads has produced anything. Both
+answered from production data (read-only, `tenant_id`-filtered) and from his own Ads screenshots.**
+
+🟢 **ABANDONMENT: the money is not leaking.** Every card checkout that never authorised, last 19
+days, paired against the next paid order from the same phone within 90 minutes:
+
+| Abandoned | UK | £ | Recovered as | £ | Minutes later |
+|---|---|---|---|---|---|
+| `260814-D002` | 08-14 19:05 | 21.67 | `260814-D006` | 20.67 | 42.1 |
+| `260816-D004` | 08-16 18:31 | 30.97 | `260816-D005` | 46.94 | 7.1 |
+| `260819-C007` | 08-19 20:55 | 14.68 | `260819-C008` | 12.68 | 2.0 |
+| `260822-D013` | 08-22 20:36 | 38.03 | `260822-D014` | 34.05 | 2.6 |
+| `260822-D015` | 08-22 21:03 | 26.67 | none | none | **never** |
+| `260822-D016` | 08-22 21:05 | 29.16 | none | none | **never** |
+| `260826-D004` | 08-26 19:59 | 36.45 | `260826-D005` | 40.45 | 4.7 |
+| `260828-D010` | 08-28 20:38 | 14.68 | `260828-D011` | 14.68 | 2.8 |
+| `260829-C012` | 08-29 20:43 | 40.65 | `260829-C013` | 51.64 | 2.6 |
+| `260830-D013` | 08-30 20:32 | 12.69 | `260830-D014` | 12.69 | 0.9 |
+| `260901-D001` | 09-01 18:08 | 20.46 | `260901-D002` | 20.67 | 1.6 |
+| `260901-C004` | 09-01 18:30 | 10.69 | `260901-C005` | 10.69 | 0.9 |
+| `260902-C002` | 09-02 18:42 | 29.67 | `260902-C003` (cash) | 29.67 | 2.0 |
+
+**11 of 13 recovered (09-02 row added 2026-09-02 23:50 UK). Total revenue genuinely lost in twenty days: one customer, one basket.**
+`260822-D015`/`D016` are the same person (Darren Godwin) failing twice two minutes apart and not
+returning. Call it **£29.16 lost, all-time-to-date**, on £2,447.80 of trade in the last ten days
+alone.
+
+🟢 **The bounce rate is flat, not rising.** Card attempts vs never-authorised, by week:
+
+| Week | Card attempts | Bounced | % |
+|---|---|---|---|
+| 08-03 | 43 | 1 | 2.3 |
+| 08-10 | 59 | 4 | 6.8 |
+| 08-17 | 63 | 4 | 6.3 |
+| 08-24 | 59 | 4 | 6.8 |
+| 08-31 (partial, through 09-02) | 12 | 3 | 25.0 |
+
+⚠️ **The 25% is 3 of 12 over three days and all three recovered. It is not a rate.** Three full weeks
+sit at 6.3-6.8%. Nothing has got worse; today just looks bad at n=5.
+
+🔬 **What the mechanism actually is, and it is NOT price shock.** On all twelve,
+`stripe_payment_intent_id IS NULL`: **not one customer ever entered a card**. They reached the
+Stripe hosted page and left it. And in four of the ten recoveries the replacement basket is the
+**identical total** (12.69→12.69, 14.68→14.68, 10.69→10.69), while in three it is **larger**
+(30.97→46.94, 40.65→51.64, 36.45→40.45). Nobody re-ordered cheaper. **A customer who left because
+the total was too high does not come back ninety seconds later and pay the same total.** This reads
+as a mis-tap, a back button, or a redirect that did not land. A transport/UX stumble at the
+hand-off to Stripe, not an objection to the price.
+📌 `260901-C004` is the clearest single case: card £10.69 abandoned 18:30, **same basket paid as
+non-card at 18:31**. The customer switched payment method rather than leaving.
+
+📌 **The visible cost is the order-number gap, not the money.** Numbers are allocated at basket
+submit and OI-68 never re-issues one, so each bounce burns a number and the tablet shows a hole.
+**That is the thing that keeps generating this question, and this is the fourth time.** The unbuilt
+idea from 08-07 (surface an abandoned/declined count on the reports page) now has **twelve** data
+points behind it. Still not built, still not asked for.
+
+🔴 **GOOGLE ADS: still one attributed order, ever. 1 `gclid` in 296 online orders all-time.** The
+one (`260829-D005`) was a returning customer on a brand keyword. Zero on 08-30, 08-31 and today.
+
+🔴 **The Ads console explains it, and the problem is not the conversion rate, it is that the
+campaign is barely running.** From Malik's screenshots, 24 Aug - 1 Sep: **68 impressions, 7 clicks,
+£28.55 spent, £4.08 average CPC.**
+- **£19.14 of the £28.55 went to brand terms that are now paused**: `[chick shack]` exact (6 impr,
+  3 clicks, 50% CTR, £13.08) and `"chick shack helensburgh"` (5 impr, 2 clicks, £6.06). People
+  searching the shop by name were being charged for.
+- **After the 08-30 cull, one keyword is doing anything**: `"takeaway helensburgh"`: 40 impr,
+  2 clicks, 5% CTR, £9.41. The other two live keywords (`"food delivery near me"`,
+  `"takeaway near me"`) have **10 impressions between them and zero clicks**.
+- **All three live keywords read `Eligible (Limited)` / `Rarely shown (low Quality Score)`.** Google
+  is throttling delivery, so more budget will not buy more traffic until QS moves.
+
+⚠️ **The unit economics do not work at £4.08 a click, and that is the bigger finding.** AOV over
+the last ten days is **£27.81** (88 orders, £2,447.80). At £4.08/click the campaign needs a **~15%
+click-to-order rate just for revenue to equal ad spend**, and roughly **49%** to cover the click on
+a 30% gross margin. ⚠️ *The 30% is my assumption; Imran's real food-cost margin has never been
+stated and should be asked before this is put to him.* Either way, a £4 click against a £28 basket
+in a town this size is the wrong shape. **Google Ads here is not underperforming its keywords, it
+is underperforming its price.**
+📌 This strengthens, and does not just repeat, the 08-30 direction change to trial Meta. It also
+says the Meta trial must be judged on **cost per order**, not clicks, from day one.
+
+🟢 **Trade is normal.** Full days: 08-27 11/£279.28, 08-28 10/£297.21, 08-29 12/£318.69, 08-30
+15/£385.03, 08-31 6/£180.59. Today at 18:31 UK: 3 paid orders / £52.04 and still trading.
+⚠️ 08-31's 6 orders is the weakest day since 08-24 and has no recorded explanation. One day, not a
+trend, but worth a glance if 09-01 also lands short.
 
 ## 🟢 2026-09-01 02:30 UTC. MARTIN'S UAT PATH WALKED END TO END ON PRODUCTION. IT WAS NOT FINE: SAVING A RECIPE HAD BEEN RETURNING 400 TO EVERY CLIENT. FIXED AND RE-PROVEN (`b227c81`).
 

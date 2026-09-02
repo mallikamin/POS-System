@@ -29,6 +29,9 @@ export interface OrderCreateRequest {
   /** Which channel it arrived through, so the profitability report can
    *  charge the right commission against it. */
   sales_channel_id?: string;
+  /** Charges added at the till, in minor units, outside the tax. */
+  delivery_fee?: number;
+  service_fee?: number;
 }
 
 export interface OrderItemModifierResponse {
@@ -65,7 +68,13 @@ export interface OrderResponse {
   subtotal: number;
   tax_amount: number;
   discount_amount: number;
+  /** Charges outside the tax. 0 on orders that carry none. */
+  delivery_fee: number;
+  service_fee: number;
+  tip: number;
   total: number;
+  sales_channel_id?: string | null;
+  sales_channel_name?: string | null;
   notes?: string;
   created_by: string;
   created_at: string;
@@ -86,6 +95,9 @@ export interface OrderListItem {
   waiter_name?: string;
   item_count: number;
   total: number;
+  /** "Careem Now", "Deliveroo"... when the cashier attributed the sale. */
+  sales_channel_id?: string | null;
+  sales_channel_name?: string | null;
   created_at: string;
   created_by: string;
 }

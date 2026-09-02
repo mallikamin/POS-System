@@ -236,6 +236,14 @@ class SalesChannel(BaseMixin, Base):
     fixed_fee_minor: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # Martin (FZ LLC, 2026-09-02) wanted Deliveroo / Careem / Keeta / Noon as
+    # entry points on the POS beside pick up and call centre. They are sales
+    # channels, not order types, so this flag puts a channel on the channel
+    # selector as its own tile. Off for a channel whose orders never start at
+    # the till (the website channel: those arrive through the storefront).
+    pos_visible: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
     notes: Mapped[str | None] = mapped_column(Text)
 
     tenant: Mapped["Tenant"] = relationship("Tenant")

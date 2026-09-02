@@ -4,6 +4,7 @@ import { LogOut, User, ClipboardList, Settings } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { useUIStore } from "@/stores/uiStore";
 import { useConfigStore } from "@/stores/configStore";
+import { useSaleAttributionStore } from "@/stores/saleAttributionStore";
 import { Button } from "@/components/ui/button";
 
 function Clock() {
@@ -33,6 +34,8 @@ function POSLayout() {
   const { fetchConfig } = useConfigStore();
   const config = useConfigStore((s) => s.config);
   const navigate = useNavigate();
+  const salesChannels = useSaleAttributionStore((s) => s.channels);
+  const salesChannelId = useSaleAttributionStore((s) => s.channelId);
 
   // Fetch restaurant config once after the user is authenticated
   useEffect(() => {
@@ -45,7 +48,23 @@ function POSLayout() {
     return <Navigate to="/login" replace />;
   }
 
-  const channel = currentChannel ? channelLabels[currentChannel] : null;
+  const salesChannel = salesChannelId
+    ? salesChannels.find((c) => c.id === salesChannelId)
+    : undefined;
+
+  /*
+   * The header badge names the sales channel the till is ringing up under
+   * (Careem Now, Deliveroo, ...) when one is chosen, otherwise the order type,
+   * using the tenant's own word for the walk-in channel ("Pick up").
+   */
+  let channel = currentChannel ? channelLabels[currentChannel] : null;
+  if (channel && currentChannel === "takeaway") {
+    if (salesChannel) {
+      channel = { label: salesChannel.name, color: "bg-orange-500" };
+    } else if (config?.takeaway_label) {
+      channel = { ...channel, label: config.takeaway_label };
+    }
+  }
 
   const handleLogout = () => {
     logout();

@@ -44,6 +44,16 @@ class Customer(BaseMixin, Base):
         comment="Normalized phone (digits only, e.g. 03001234567)",
     )
     email: Mapped[str | None] = mapped_column(String(320), nullable=True)
+    # Martin (FZ LLC, 2026-09-02): a business customer needs its legal name and
+    # its TRN on record, so a tax invoice issued to it names the right party
+    # and carries the number they reclaim VAT against. Both NULL for a private
+    # individual, which is every customer that existed before this.
+    company_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    trn: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
+        comment="Customer's Tax Registration Number (UAE TRN or local equivalent)",
+    )
     alt_contact: Mapped[str | None] = mapped_column(
         String(50),
         nullable=True,

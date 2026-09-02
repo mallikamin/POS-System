@@ -51,7 +51,14 @@ class ReceiptData(BaseModel):
     tax_amount: int  # paisa
     discount_lines: list[ReceiptDiscountLine] = []
     discount_amount: int  # paisa
+    # Charges outside the tax. Printed as their own lines so the visible
+    # lines always add up to the total; 0 on orders that carry none.
+    delivery_fee: int = 0
+    service_fee: int = 0
+    tip: int = 0
     total: int  # paisa
+    # How this tenant prints: 'thermal' (80mm roll) or 'a4'.
+    receipt_format: str = "thermal"
 
     payments: list[ReceiptPayment]
     payment_status: str

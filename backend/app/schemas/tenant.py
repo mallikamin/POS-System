@@ -37,6 +37,10 @@ class RestaurantConfigResponse(BaseModel):
     card_tax_rate_bps: int = 500
     receipt_header: str | None = None
     receipt_footer: str | None = None
+    # 'thermal' (80mm roll) or 'a4'. Presentation only.
+    receipt_format: str = "thermal"
+    # Display name for the walk-in channel; None means "Takeaway".
+    takeaway_label: str | None = None
     discount_approval_threshold_bps: int = 0
     discount_approval_threshold_fixed: int = 0
     online_ordering_only: bool = False

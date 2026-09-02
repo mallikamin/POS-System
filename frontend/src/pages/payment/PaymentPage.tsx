@@ -819,6 +819,16 @@ function PaymentPage() {
             <>
               <div className="flex justify-between"><span className="text-secondary-500">Subtotal</span><span className="font-medium">{formatPKR(orderDetail.subtotal)}</span></div>
               <div className="flex justify-between"><span className="text-secondary-500">Tax ({orderDetail.tax_amount > 0 ? `${((orderDetail.tax_amount / orderDetail.subtotal) * 100).toFixed(0)}%` : "0%"})</span><span className="font-medium">{formatPKR(orderDetail.tax_amount)}</span></div>
+              {/* Charges outside the tax. Shown so the lines add up to the total. */}
+              {(orderDetail.delivery_fee ?? 0) > 0 && (
+                <div className="flex justify-between"><span className="text-secondary-500">Delivery fee</span><span className="font-medium">{formatPKR(orderDetail.delivery_fee)}</span></div>
+              )}
+              {(orderDetail.service_fee ?? 0) > 0 && (
+                <div className="flex justify-between"><span className="text-secondary-500">Service charge</span><span className="font-medium">{formatPKR(orderDetail.service_fee)}</span></div>
+              )}
+              {(orderDetail.tip ?? 0) > 0 && (
+                <div className="flex justify-between"><span className="text-secondary-500">Tip</span><span className="font-medium">{formatPKR(orderDetail.tip)}</span></div>
+              )}
             </>
           )}
           {discountBreakdown && discountBreakdown.total_discount > 0 && (

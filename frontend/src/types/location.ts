@@ -63,6 +63,8 @@ export interface SalesChannel {
   /** Flat per-order fee in minor units. */
   fixed_fee_minor: number;
   is_active: boolean;
+  /** Shown as its own tile on the POS channel selector. */
+  pos_visible: boolean;
   notes: string | null;
   created_at: string;
 }
@@ -73,6 +75,7 @@ export interface SalesChannelCreate {
   commission_bps: number;
   fixed_fee_minor: number;
   is_active?: boolean;
+  pos_visible?: boolean;
   notes?: string | null;
 }
 

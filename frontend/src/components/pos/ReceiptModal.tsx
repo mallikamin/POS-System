@@ -10,6 +10,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import api from "@/lib/axios";
+import { useConfigStore } from "@/stores/configStore";
 
 interface ReceiptItem {
   modifiers: Array<{
@@ -48,12 +49,18 @@ interface ReceiptData {
   tax_rate_display: string;
   tax_amount: number;
   discount_amount: number;
+  /** Charges outside the tax; 0 when the order carries none. */
+  delivery_fee: number;
+  service_fee: number;
+  tip: number;
   total: number;
   payments: ReceiptPayment[];
   payment_status: string;
   cash_tax_rate_bps: number;
   card_tax_rate_bps: number;
   currency: string;
+  /** "thermal" (80mm roll) or "a4". Decided in Settings, per tenant. */
+  receipt_format: "thermal" | "a4";
 }
 
 /*
@@ -109,7 +116,19 @@ export function ReceiptModal({ orderId, sessionId, open, onClose }: Props) {
 
   function handlePrint() {
     if (!printRef.current) return;
-    const printWindow = window.open("", "_blank", "width=320,height=600");
+    /*
+     * Martin (FZ LLC, 2026-09-02): "option to either print a vertical receipt
+     * or an A4 format". Same receipt, two page shapes. The thermal stylesheet
+     * is exactly what every tenant printed before this existed; A4 widens the
+     * body to a page, sets the paper size for the print dialog, and uses a
+     * proportional font at a size that reads at arm's length.
+     */
+    const isA4 = receipt?.receipt_format === "a4";
+    const printWindow = window.open(
+      "",
+      "_blank",
+      isA4 ? "width=900,height=1000" : "width=320,height=600",
+    );
     if (!printWindow) return;
 
     // Set title safely via DOM API (no string interpolation into HTML)
@@ -117,18 +136,30 @@ export function ReceiptModal({ orderId, sessionId, open, onClose }: Props) {
 
     // Inject styles via DOM (no document.write)
     const style = printWindow.document.createElement("style");
-    style.textContent = [
+    const shared = [
       "* { margin: 0; padding: 0; box-sizing: border-box; }",
-      "body { font-family: 'Courier New', monospace; font-size: 12px; width: 80mm; padding: 4mm; color: #000; }",
       ".center { text-align: center; }",
       ".right { text-align: right; }",
       ".bold { font-weight: bold; }",
-      ".divider { border-top: 1px dashed #000; margin: 4px 0; }",
       ".row { display: flex; justify-content: space-between; }",
+    ];
+    const thermal = [
+      "body { font-family: 'Courier New', monospace; font-size: 12px; width: 80mm; padding: 4mm; color: #000; }",
+      ".divider { border-top: 1px dashed #000; margin: 4px 0; }",
       ".modifier { padding-left: 8px; font-size: 10px; color: #666; }",
       ".total-row { font-size: 14px; font-weight: bold; }",
       "@media print { body { width: 80mm; } }",
-    ].join("\n");
+    ];
+    const a4 = [
+      "@page { size: A4; margin: 18mm; }",
+      "body { font-family: Helvetica, Arial, sans-serif; font-size: 14px; width: 174mm; margin: 0 auto; padding: 12mm 0; color: #000; line-height: 1.5; }",
+      "body > div { max-width: none !important; border: 0 !important; padding: 0 !important; font-family: inherit !important; font-size: inherit !important; }",
+      ".divider { border-top: 1px solid #000; margin: 10px 0; }",
+      ".modifier { padding-left: 14px; font-size: 12px; color: #555; }",
+      ".total-row { font-size: 20px; font-weight: bold; }",
+      ".bold.text-sm { font-size: 24px; }",
+    ];
+    style.textContent = [...shared, ...(isA4 ? a4 : thermal)].join("\n");
     printWindow.document.head.appendChild(style);
 
     // Clone content into print window (safe — no innerHTML injection)
@@ -140,10 +171,12 @@ export function ReceiptModal({ orderId, sessionId, open, onClose }: Props) {
     printWindow.close();
   }
 
+  const takeawayLabel = useConfigStore((s) => s.config?.takeaway_label);
   const orderTypeLabel: Record<string, string> = {
     dine_in: "Dine-In",
-    takeaway: "Takeaway",
+    takeaway: takeawayLabel || "Takeaway",
     call_center: "Call Center",
+    online: "Online",
   };
 
   return (
@@ -160,7 +193,7 @@ export function ReceiptModal({ orderId, sessionId, open, onClose }: Props) {
               className="gap-2"
             >
               <Printer className="h-4 w-4" />
-              Print
+              {receipt?.receipt_format === "a4" ? "Print A4" : "Print"}
             </Button>
           </DialogTitle>
         </DialogHeader>
@@ -338,6 +371,26 @@ export function ReceiptModal({ orderId, sessionId, open, onClose }: Props) {
               <div className="row flex justify-between">
                 <span>Discount</span>
                 <span>-{formatAmount(receipt.discount_amount, receipt.currency)}</span>
+              </div>
+            )}
+            {/* Charges outside the tax, each on its own line so what is
+                printed adds up to the total. */}
+            {receipt.delivery_fee > 0 && (
+              <div className="row flex justify-between">
+                <span>Delivery fee</span>
+                <span>{formatAmount(receipt.delivery_fee, receipt.currency)}</span>
+              </div>
+            )}
+            {receipt.service_fee > 0 && (
+              <div className="row flex justify-between">
+                <span>Service charge</span>
+                <span>{formatAmount(receipt.service_fee, receipt.currency)}</span>
+              </div>
+            )}
+            {receipt.tip > 0 && (
+              <div className="row flex justify-between">
+                <span>Tip</span>
+                <span>{formatAmount(receipt.tip, receipt.currency)}</span>
               </div>
             )}
 

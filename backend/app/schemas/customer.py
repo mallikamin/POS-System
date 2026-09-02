@@ -16,6 +16,10 @@ class CustomerCreate(BaseModel):
         description="Digits only, e.g. 03001234567",
     )
     email: str | None = Field(None, max_length=320)
+    # Business customers: legal name and Tax Registration Number, so a tax
+    # invoice to them names the right party and carries a reclaimable TRN.
+    company_name: str | None = Field(None, max_length=255)
+    trn: str | None = Field(None, max_length=50)
     alt_contact: str | None = Field(None, max_length=50)
     default_address: str | None = Field(None, max_length=2000)
     city: str | None = Field(None, max_length=100)
@@ -33,6 +37,8 @@ class CustomerUpdate(BaseModel):
         pattern=r"^\d{7,20}$",
     )
     email: str | None = None
+    company_name: str | None = Field(None, max_length=255)
+    trn: str | None = Field(None, max_length=50)
     alt_contact: str | None = None
     default_address: str | None = None
     city: str | None = None
@@ -47,6 +53,8 @@ class CustomerResponse(BaseModel):
     name: str
     phone: str
     email: str | None = None
+    company_name: str | None = None
+    trn: str | None = None
     alt_contact: str | None = None
     default_address: str | None = None
     city: str | None = None

@@ -211,6 +211,29 @@ def net_of_tax(amount: int, rate_bps: int, prices_include_tax: bool) -> int:
     return amount - tax_amount if prices_include_tax else amount
 
 
+def order_total(order: Order, prices_include_tax: bool) -> int:
+    """What the customer pays for an order, from its stored parts.
+
+    One rule, used everywhere an order is re-totalled (payment-mode retax,
+    discount sync, split allocations), because every place that wrote its own
+    version got at least one of these wrong:
+
+        goods  = subtotal                (prices include tax, F19)
+               = subtotal + tax_amount   (prices exclude tax)
+        total  = goods + delivery_fee + service_fee + tip - discount_amount
+
+    Fees and the tip ride OUTSIDE the tax, exactly as `public_order_service`
+    has always charged them on the online channel; the POS charges added for
+    Martin (FZ LLC, 2026-09-02) follow the same rule so the two channels cannot
+    quote different totals for the same basket and fee.
+    """
+    goods_total = (
+        order.subtotal if prices_include_tax else order.subtotal + order.tax_amount
+    )
+    extras = (order.delivery_fee or 0) + (order.service_fee or 0) + (order.tip or 0)
+    return goods_total + extras - (order.discount_amount or 0)
+
+
 # ---------------------------------------------------------------------------
 # Create Order
 # ---------------------------------------------------------------------------
@@ -337,7 +360,13 @@ async def create_order(
         }
         order_items_data.append(item_dict)
 
-    tax_amount, total = compute_tax(subtotal, tax_rate_bps, prices_include_tax)
+    tax_amount, goods_total = compute_tax(subtotal, tax_rate_bps, prices_include_tax)
+    # Charges added at the till (Martin, FZ LLC 2026-09-02: "option to add
+    # charges such as delivery fees"). Outside the tax, same as the online
+    # channel; see `order_total` for the one rule.
+    delivery_fee = data.delivery_fee or 0
+    service_fee = data.service_fee or 0
+    total = goods_total + delivery_fee + service_fee
 
     # Retry loop to handle order number race condition under concurrency.
     # The uq_order_tenant_number constraint catches collisions; we regenerate
@@ -430,6 +459,8 @@ async def create_order(
             subtotal=subtotal,
             tax_amount=tax_amount,
             discount_amount=0,
+            delivery_fee=delivery_fee,
+            service_fee=service_fee,
             total=total,
             notes=data.notes,
             created_by=user_id,
@@ -869,16 +900,22 @@ async def get_payment_preview(
     prices_include_tax = True if row is None else bool(row.tax_inclusive)
 
     subtotal = order.subtotal
-    cash_tax, cash_total = compute_tax(subtotal, cash_rate, prices_include_tax)
-    card_tax, card_total = compute_tax(subtotal, card_rate, prices_include_tax)
+    cash_tax, cash_goods = compute_tax(subtotal, cash_rate, prices_include_tax)
+    card_tax, card_goods = compute_tax(subtotal, card_rate, prices_include_tax)
+    # Fees and tip are outside the tax, so they are the same under either
+    # method and simply ride on top (see `order_total`).
+    extras = (order.delivery_fee or 0) + (order.service_fee or 0) + (order.tip or 0)
 
     return PaymentPreviewResponse(
         order_id=order.id,
         subtotal=subtotal,
         cash_tax_rate_bps=cash_rate,
         cash_tax_amount=cash_tax,
-        cash_total=cash_total,
+        cash_total=cash_goods + extras,
         card_tax_rate_bps=card_rate,
         card_tax_amount=card_tax,
-        card_total=card_total,
+        card_total=card_goods + extras,
+        delivery_fee=order.delivery_fee or 0,
+        service_fee=order.service_fee or 0,
+        tip=order.tip or 0,
     )

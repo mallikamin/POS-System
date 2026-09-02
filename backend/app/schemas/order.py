@@ -46,6 +46,11 @@ class OrderCreate(BaseModel):
     # carries a TRN on its tax invoice.
     location_id: uuid.UUID | None = None
     sales_channel_id: uuid.UUID | None = None
+    # Charges added at the till, in minor units, outside the tax (Martin,
+    # FZ LLC 2026-09-02: "option to add charges such as delivery fees"). Both
+    # default to 0 so every existing client keeps sending exactly what it did.
+    delivery_fee: int = Field(0, ge=0, le=1_000_000)
+    service_fee: int = Field(0, ge=0, le=1_000_000)
 
     @model_validator(mode="after")
     def call_center_requires_phone(self) -> "OrderCreate":
@@ -118,7 +123,15 @@ class OrderResponse(BaseModel):
     subtotal: int
     tax_amount: int
     discount_amount: int
+    # Charges outside the tax. 0 on every order that predates them.
+    delivery_fee: int = 0
+    service_fee: int = 0
+    tip: int = 0
     total: int
+    # Which sales channel (Careem, Deliveroo, ...) the sale came through, when
+    # the cashier said so. The name is resolved in the route, not stored here.
+    sales_channel_id: uuid.UUID | None = None
+    sales_channel_name: str | None = None
     notes: str | None = None
     created_by: uuid.UUID
     created_at: datetime
@@ -139,6 +152,10 @@ class PaymentPreviewResponse(BaseModel):
     card_tax_rate_bps: int
     card_tax_amount: int
     card_total: int
+    # Ride on top of either total, outside the tax.
+    delivery_fee: int = 0
+    service_fee: int = 0
+    tip: int = 0
 
 
 class OrderListResponse(BaseModel):
@@ -156,6 +173,8 @@ class OrderListResponse(BaseModel):
     waiter_name: str | None = None
     item_count: int = 0
     total: int
+    sales_channel_id: uuid.UUID | None = None
+    sales_channel_name: str | None = None
     created_at: datetime
     created_by: uuid.UUID
 

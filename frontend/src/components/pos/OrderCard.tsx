@@ -183,7 +183,19 @@ export function OrderCard({ order, onTransition, onVoid }: OrderCardProps) {
     () => new Set(user?.role.permissions.map((permission) => permission.code) ?? []),
     [user]
   );
-  const typeConfig = ORDER_TYPE_CONFIG[order.order_type] ?? { label: "Order", bg: "bg-secondary-100", text: "text-secondary-700", icon: Package };
+  const takeawayLabel = useConfigStore((s) => s.config?.takeaway_label);
+  const baseTypeConfig = ORDER_TYPE_CONFIG[order.order_type] ?? { label: "Order", bg: "bg-secondary-100", text: "text-secondary-700", icon: Package };
+  /*
+   * The badge names the sales channel when the cashier attributed the sale
+   * (a Careem order reads "Careem Now", not "Takeaway"), otherwise the order
+   * type, with the tenant's own word for the walk-in channel ("Pick up").
+   */
+  const typeConfig = {
+    ...baseTypeConfig,
+    label:
+      order.sales_channel_name ||
+      (order.order_type === "takeaway" && takeawayLabel ? takeawayLabel : baseTypeConfig.label),
+  };
 
   /**
    * Online orders are worked from the Online Orders queue, not from here.

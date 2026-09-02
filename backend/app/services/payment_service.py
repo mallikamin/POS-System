@@ -639,12 +639,8 @@ async def _retax_unpaid_session_orders_for_method(
         order.tax_amount = tax_amount
         # When prices include tax, the tax already sits inside `subtotal`, so
         # adding it again would double-charge -- the bug this whole change fixes.
-        goods_total = (
-            order.subtotal
-            if prices_include_tax
-            else order.subtotal + order.tax_amount
-        )
-        order.total = goods_total - order.discount_amount
+        # `order_total` owns that rule (and keeps any charges on the order).
+        order.total = _order_total(order, prices_include_tax)
 
     await db.flush()
 
@@ -796,10 +792,11 @@ def _order_total(order: Order, prices_include_tax: bool) -> int:
 
     F19: this used to be written inline as
     `subtotal + tax_amount - discount_amount` in several places, which
-    double-charges a tenant whose prices already include the tax.
+    double-charges a tenant whose prices already include the tax. The rule now
+    lives in `order_service.order_total`, which also keeps any delivery or
+    service charge on the order when it is re-totalled here.
     """
-    goods_total = order.subtotal if prices_include_tax else order.subtotal + order.tax_amount
-    return goods_total - order.discount_amount
+    return order_service.order_total(order, prices_include_tax)
 
 
 async def _retax_unpaid_session_orders_for_split_allocations(

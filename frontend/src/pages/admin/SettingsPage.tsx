@@ -24,6 +24,8 @@ interface ConfigData {
   card_tax_rate_bps: number;
   receipt_header: string | null;
   receipt_footer: string | null;
+  receipt_format: "thermal" | "a4";
+  takeaway_label: string | null;
   discount_approval_threshold_bps: number;
   discount_approval_threshold_fixed: number;
 }
@@ -42,6 +44,10 @@ function SettingsPage() {
   const [cardTaxRate, setCardTaxRate] = useState(5);
   const [receiptHeader, setReceiptHeader] = useState("");
   const [receiptFooter, setReceiptFooter] = useState("");
+  // Martin (FZ LLC, 2026-09-02): "option to either print a vertical receipt
+  // or an A4 format", and "pick up" rather than "take away" on the till.
+  const [receiptFormat, setReceiptFormat] = useState<"thermal" | "a4">("thermal");
+  const [takeawayLabel, setTakeawayLabel] = useState("");
   const [discountThresholdPct, setDiscountThresholdPct] = useState(0);
   const [discountThresholdFixed, setDiscountThresholdFixed] = useState(0);
 
@@ -62,6 +68,8 @@ function SettingsPage() {
       setCardTaxRate(data.card_tax_rate_bps / 100);
       setReceiptHeader(data.receipt_header ?? "");
       setReceiptFooter(data.receipt_footer ?? "");
+      setReceiptFormat(data.receipt_format === "a4" ? "a4" : "thermal");
+      setTakeawayLabel(data.takeaway_label ?? "");
 
       setDiscountThresholdPct((data.discount_approval_threshold_bps ?? 0) / 100);
       setDiscountThresholdFixed((data.discount_approval_threshold_fixed ?? 0) / 100);
@@ -87,6 +95,9 @@ function SettingsPage() {
         card_tax_rate_bps: Math.round(cardTaxRate * 100),
         receipt_header: receiptHeader || null,
         receipt_footer: receiptFooter || null,
+        receipt_format: receiptFormat,
+        // Empty string clears it back to "Takeaway" (null would mean "unchanged").
+        takeaway_label: takeawayLabel.trim(),
         discount_approval_threshold_bps: Math.round(discountThresholdPct * 100),
         discount_approval_threshold_fixed: Math.round(discountThresholdFixed * 100),
       });
@@ -165,6 +176,21 @@ function SettingsPage() {
                 onChange={(e) => setTimezone(e.target.value)}
                 className="min-h-[48px]"
               />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="takeawayLabel">Name for the walk-in channel</Label>
+              <Input
+                id="takeawayLabel"
+                value={takeawayLabel}
+                onChange={(e) => setTakeawayLabel(e.target.value)}
+                placeholder="Takeaway"
+                maxLength={40}
+                className="min-h-[48px]"
+              />
+              <p className="text-pos-sm text-secondary-500">
+                Shown on the POS channel tile and order header. Leave blank for
+                &ldquo;Takeaway&rdquo;; a delivery business might prefer &ldquo;Pick up&rdquo;.
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -338,6 +364,45 @@ function SettingsPage() {
             <h2 className="text-pos-lg font-semibold text-secondary-800">
               Receipt Template
             </h2>
+            <div className="space-y-2">
+              <Label>Print format</Label>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setReceiptFormat("thermal")}
+                  className={`rounded-lg border-2 p-4 text-left transition-colors min-h-[80px] ${
+                    receiptFormat === "thermal"
+                      ? "border-primary-500 bg-primary-50"
+                      : "border-secondary-200 hover:border-secondary-300"
+                  }`}
+                >
+                  <div className="font-medium text-secondary-900">Vertical (80mm roll)</div>
+                  <p className="mt-1 text-pos-sm text-secondary-500">
+                    Thermal till printer. Narrow slip, monospace.
+                  </p>
+                  {receiptFormat === "thermal" && (
+                    <Badge className="mt-2" variant="default">Active</Badge>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setReceiptFormat("a4")}
+                  className={`rounded-lg border-2 p-4 text-left transition-colors min-h-[80px] ${
+                    receiptFormat === "a4"
+                      ? "border-primary-500 bg-primary-50"
+                      : "border-secondary-200 hover:border-secondary-300"
+                  }`}
+                >
+                  <div className="font-medium text-secondary-900">A4 page</div>
+                  <p className="mt-1 text-pos-sm text-secondary-500">
+                    Office or laser printer. Full page, same receipt content.
+                  </p>
+                  {receiptFormat === "a4" && (
+                    <Badge className="mt-2" variant="default">Active</Badge>
+                  )}
+                </button>
+              </div>
+            </div>
             <div className="space-y-2">
               <Label htmlFor="header">Receipt Header</Label>
               <Textarea

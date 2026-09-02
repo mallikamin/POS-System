@@ -105,6 +105,30 @@ async def create_ingredient(
     return IngredientResponse.model_validate(ingredient)
 
 
+async def _with_production_recipes(
+    db: AsyncSession, tenant_id: uuid.UUID, ingredients: list
+) -> list[IngredientResponse]:
+    """Serialise ingredients, naming the recipe that makes each produced one.
+
+    The Ingredients screen shows "Made in-house, from <recipe>" or "No recipe
+    yet" on that basis (Martin, FZ LLC 2026-09-02). A produced ingredient's
+    recipe has no name of its own; it is named by what it produces, so the
+    label is the ingredient's own name plus the version.
+    """
+    owners = await recipe_service.active_production_recipes(
+        db, tenant_id, [i.id for i in ingredients if i.is_produced]
+    )
+    out: list[IngredientResponse] = []
+    for ingredient in ingredients:
+        resp = IngredientResponse.model_validate(ingredient)
+        recipe = owners.get(ingredient.id)
+        if recipe is not None:
+            resp.production_recipe_id = recipe.id
+            resp.production_recipe_name = f"{ingredient.name} v{recipe.version}"
+        out.append(resp)
+    return out
+
+
 @router.get("/ingredients", response_model=list[IngredientResponse])
 async def list_ingredients(
     category: str | None = Query(None),
@@ -123,7 +147,7 @@ async def list_ingredients(
         skip=skip,
         limit=limit,
     )
-    return [IngredientResponse.model_validate(i) for i in ingredients]
+    return await _with_production_recipes(db, current_user.tenant_id, ingredients)
 
 
 @router.get("/ingredients/{ingredient_id}", response_model=IngredientResponse)
@@ -141,7 +165,7 @@ async def get_ingredient(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Ingredient not found",
         )
-    return IngredientResponse.model_validate(ingredient)
+    return (await _with_production_recipes(db, current_user.tenant_id, [ingredient]))[0]
 
 
 @router.patch(
@@ -165,9 +189,12 @@ async def update_ingredient(
             detail="Ingredient not found",
         )
 
-    updated = await recipe_service.update_ingredient(db, ingredient, data)
+    try:
+        updated = await recipe_service.update_ingredient(db, ingredient, data)
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
     await db.commit()
-    return IngredientResponse.model_validate(updated)
+    return (await _with_production_recipes(db, current_user.tenant_id, [updated]))[0]
 
 
 @router.delete(

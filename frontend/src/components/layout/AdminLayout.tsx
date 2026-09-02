@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
-import { Navigate, Outlet, NavLink, useNavigate } from "react-router-dom";
+import { Navigate, Outlet, NavLink, useNavigate, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
+  Menu,
+  Contact,
   UtensilsCrossed,
   Users,
   Settings,
@@ -39,6 +41,7 @@ const baseNavItems = [
   { to: "/admin", label: "Dashboard", icon: LayoutDashboard, end: true },
   { to: "/admin/menu", label: "Menu", icon: UtensilsCrossed, end: false },
   { to: "/admin/staff", label: "Staff", icon: Users, end: false },
+  { to: "/admin/customers", label: "Customers", icon: Contact, end: false },
   { to: "/admin/settings", label: "Settings", icon: Settings, end: false },
   { to: "/admin/reports", label: "Reports", icon: BarChart3, end: false },
   { to: "/admin/z-report", label: "Z-Report", icon: FileText, end: false },
@@ -74,8 +77,26 @@ function AdminLayout() {
     setAdminSidebarCollapsed,
   } = useUIStore();
   const navigate = useNavigate();
+  const location = useLocation();
   const [qbConnectionType, setQbConnectionType] = useState<string | null>(null);
   const [qbLoaded, setQbLoaded] = useState(false);
+
+  /*
+   * Martin (FZ LLC, 2026-09-02): "On the phone you can't really enter the
+   * sections of the admin portal." Three things were wrong below `lg`:
+   *
+   *  1. The overlay was `fixed z-40` while the drawer was a plain flex child
+   *     with no z-index, so the overlay painted OVER the drawer. Every tap on
+   *     a nav entry landed on the overlay and closed it. The drawer is now
+   *     `fixed z-50` on small screens (and back in normal flow at `lg`).
+   *  2. The drawer pushed the page instead of floating over it, squeezing the
+   *     content to a strip on a 360px phone.
+   *  3. Nothing closed it after a tap, so even a successful navigation left
+   *     the drawer covering the page. It closes on every route change.
+   */
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [location.pathname, setSidebarOpen]);
 
   /*
    * Load the tenant config here, not only in POSLayout.
@@ -169,9 +190,12 @@ function AdminLayout() {
       <aside
         className={cn(
           "flex shrink-0 flex-col border-r border-secondary-200 bg-white transition-all duration-200 print:hidden",
+          // Below `lg`: a drawer floating above the page and above the overlay.
+          "max-lg:fixed max-lg:inset-y-0 max-lg:left-0 max-lg:z-50 max-lg:shadow-xl",
           collapsed ? "w-64 lg:w-16" : "w-64",
-          !sidebarOpen && "max-lg:-ml-64"
+          !sidebarOpen && "max-lg:-translate-x-full"
         )}
+        aria-hidden={!sidebarOpen ? undefined : false}
       >
         {/* Sidebar header */}
         <div
@@ -190,7 +214,7 @@ function AdminLayout() {
           </h2>
           <button
             onClick={() => setSidebarOpen(false)}
-            className="rounded p-1 text-secondary-400 hover:text-secondary-600 lg:hidden"
+            className="-mr-2 flex h-11 w-11 items-center justify-center rounded text-secondary-400 hover:text-secondary-600 lg:hidden"
             aria-label="Close sidebar"
           >
             <ArrowLeft className="h-5 w-5" />
@@ -225,9 +249,10 @@ function AdminLayout() {
               to={item.to}
               end={item.end}
               title={item.label}
+              onClick={() => setSidebarOpen(false)}
               className={({ isActive }) =>
                 cn(
-                  "flex items-center gap-3 rounded-lg px-3 py-2.5 text-pos-sm font-medium transition-colors",
+                  "flex min-h-[44px] items-center gap-3 rounded-lg px-3 py-2.5 text-pos-sm font-medium transition-colors",
                   collapsed && "lg:justify-center lg:px-0",
                   isActive
                     ? "bg-primary-50 text-primary-700"
@@ -274,10 +299,10 @@ function AdminLayout() {
           <div className="flex items-center gap-3">
             <button
               onClick={() => setSidebarOpen(true)}
-              className="rounded p-1 text-secondary-400 hover:text-secondary-600 lg:hidden"
-              aria-label="Open sidebar"
+              className="-ml-2 flex h-11 w-11 items-center justify-center rounded text-secondary-600 hover:bg-secondary-100 lg:hidden"
+              aria-label="Open menu"
             >
-              <LayoutDashboard className="h-5 w-5" />
+              <Menu className="h-6 w-6" />
             </button>
 
             <Button
@@ -287,19 +312,21 @@ function AdminLayout() {
               className="gap-2"
             >
               <ArrowLeft className="h-4 w-4" />
-              Back to POS
+              <span className="hidden sm:inline">Back to POS</span>
+              <span className="sm:hidden">POS</span>
             </Button>
           </div>
 
           {user && (
-            <span className="text-pos-sm text-secondary-600">
-              {user.full_name} ({user.role.name})
+            <span className="truncate text-pos-sm text-secondary-600">
+              {user.full_name}
+              <span className="hidden sm:inline"> ({user.role.name})</span>
             </span>
           )}
         </header>
 
         {/* Content */}
-        <main className="flex-1 overflow-auto p-6 print:overflow-visible print:p-0">
+        <main className="flex-1 overflow-auto p-3 sm:p-6 print:overflow-visible print:p-0">
           <Outlet />
         </main>
       </div>

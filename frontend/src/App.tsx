@@ -34,6 +34,7 @@ const OnlineReportsPage = lazy(
 const AdminDashboard = lazy(() => import("@/pages/admin/AdminDashboard"));
 const MenuManagementPage = lazy(() => import("@/pages/admin/MenuManagementPage"));
 const StaffManagementPage = lazy(() => import("@/pages/admin/StaffManagementPage"));
+const CustomersPage = lazy(() => import("@/pages/admin/CustomersPage"));
 const SettingsPage = lazy(() => import("@/pages/admin/SettingsPage"));
 const ReportsPage = lazy(() => import("@/pages/admin/ReportsPage"));
 const QuickBooksPage = lazy(() => import("@/pages/admin/QuickBooksPage"));
@@ -109,6 +110,7 @@ export function App() {
             <Route index element={<AdminDashboard />} />
             <Route path="menu" element={<MenuManagementPage />} />
             <Route path="staff" element={<StaffManagementPage />} />
+            <Route path="customers" element={<CustomersPage />} />
             <Route path="settings" element={<SettingsPage />} />
             <Route path="reports" element={<ReportsPage />} />
             <Route path="z-report" element={<ZReportPage />} />

@@ -29,6 +29,41 @@ Each entry follows:
 
 ---
 
+### 2026-09-03 - Applying a discount double-charged VAT, because a total was computed inline a fourth time
+- **Error**: for a tax-inclusive tenant, `POST /discounts/apply` on a 27.00 order (VAT inside) set
+  `order.total` to `subtotal + tax_amount - discount` = 28.29 - discount. The customer would have been
+  charged the VAT twice, the exact shape of F19, on every discounted order. Nobody had noticed because
+  no tax-inclusive tenant had applied a discount yet.
+- **Context**: adding delivery and service charges to POS orders (Martin round-1, M5). Every place that
+  re-derives an order's total had to keep the charges, so I read all of them: `payment_service` had a
+  correct `_order_total` helper; `discount_service._sync_order_discount` had its own inline formula
+  from before F19 and had never been updated.
+- **Root Cause**: the rule for "what does the customer pay" lived in three places (order creation,
+  payment retax, discount sync) and F19 fixed two of them. The third was found only because a new
+  field had to be threaded through every one of them.
+- **Fix**: `order_service.order_total(order, prices_include_tax)` is now the single rule (goods under
+  the tenant's convention, plus delivery fee, service fee and tip, minus discount); `payment_service`
+  and `discount_service` both call it. The two discount tests that had pinned the old formula on a
+  tenant with no config row now declare the tax-exclusive convention their fixture assumes.
+- **Rule**: **a money rule gets one function, and a new money field is threaded by grepping for every
+  reader of the old fields, not by editing the path you happen to be on.** If a formula appears inline
+  twice, the third copy is already wrong somewhere.
+
+### 2026-09-03 - The tax invoice read the customer address from a field that does not exist
+- **Error**: a tax invoice to a known customer never carried their address. `tax_invoice_service`
+  built the recipient with `getattr(customer, "address", None)`; the column is `default_address`, so
+  the value was always `None` and `getattr` hid it.
+- **Context**: adding company name and TRN to customers (Martin round-1, M6) meant touching the
+  recipient block.
+- **Root Cause**: `getattr(obj, "name", None)` on an ORM model turns a typo into silence. It is the
+  same failure as a TS type missing a response field: wrong in both directions, loud in neither.
+- **Fix**: read `customer.default_address` and `customer.city` directly; a company customer is now
+  invoiced under `company_name` with its `trn`. A route-level test asserts all four fields.
+- **Rule**: **never `getattr` a column off an ORM model with a default.** If the attribute may not
+  exist, that is a schema question to answer, not an exception to swallow.
+
+---
+
 ### 2026-09-01 - I committed a file that was untracked ON PURPOSE, and it carried a secret
 - **Error**: `backend/app/scripts/seed_fz_llc.py` went into commit `1eb9ce6`, putting the FZ demo
   tenant's plaintext login into git history. The committed copy was also unusable on the server: it

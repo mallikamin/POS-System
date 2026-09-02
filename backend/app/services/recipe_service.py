@@ -31,10 +31,17 @@ async def create_ingredient(
     tenant_id: uuid.UUID,
     data: IngredientCreate,
 ) -> Ingredient:
-    """Create a new ingredient."""
+    """Create a new ingredient.
+
+    A made-in-house ingredient (`is_produced`) starts at cost 0 whatever was
+    sent: its cost is written by the recipe that produces it, once built.
+    """
+    payload = data.model_dump()
+    if payload.get("is_produced"):
+        payload["cost_per_unit"] = Decimal("0")
     ingredient = Ingredient(
         tenant_id=tenant_id,
-        **data.model_dump(),
+        **payload,
     )
     db.add(ingredient)
     await db.flush()
@@ -80,13 +87,60 @@ async def list_ingredients(
     return list(result.scalars().all())
 
 
+async def active_production_recipes(
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    ingredient_ids: list[uuid.UUID],
+) -> dict[uuid.UUID, Recipe]:
+    """produces_ingredient_id -> the active recipe that makes it.
+
+    One query for a whole list, so the Ingredients screen can say which recipe
+    owns each made-in-house cost without a relationship on Ingredient (an
+    ingredient has many recipe VERSIONS pointing at it, only one active).
+    """
+    if not ingredient_ids:
+        return {}
+    result = await db.execute(
+        select(Recipe).where(
+            Recipe.tenant_id == tenant_id,
+            Recipe.is_active == True,  # noqa: E712
+            Recipe.produces_ingredient_id.in_(ingredient_ids),
+        )
+    )
+    return {r.produces_ingredient_id: r for r in result.scalars().all()}
+
+
 async def update_ingredient(
     db: AsyncSession,
     ingredient: Ingredient,
     data: IngredientUpdate,
 ) -> Ingredient:
-    """Update ingredient fields."""
+    """Update ingredient fields.
+
+    Martin (FZ LLC, 2026-09-02): a made-in-house ingredient's cost "needs to be
+    calculated by the system". So while `is_produced` is true the cost is the
+    recipe engine's to write (`sync_produced_ingredient_cost`) and a cost sent
+    here is dropped rather than letting an admin type over the roll-up. And an
+    ingredient with an active production recipe cannot be flipped back to
+    "bought": the recipe is the source of truth, delete it first.
+    """
     update_data = data.model_dump(exclude_unset=True)
+
+    if update_data.get("is_produced") is False and ingredient.is_produced:
+        owners = await active_production_recipes(
+            db, ingredient.tenant_id, [ingredient.id]
+        )
+        if ingredient.id in owners:
+            raise ValueError(
+                f"{ingredient.name} is made in-house by an active recipe "
+                f"(version {owners[ingredient.id].version}). Delete that recipe "
+                "before marking the ingredient as bought."
+            )
+
+    will_be_produced = update_data.get("is_produced", ingredient.is_produced)
+    if will_be_produced:
+        update_data.pop("cost_per_unit", None)
+
     for field, value in update_data.items():
         setattr(ingredient, field, value)
 

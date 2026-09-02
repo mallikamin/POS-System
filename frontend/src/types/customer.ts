@@ -4,6 +4,9 @@ export interface CustomerCreate {
   name: string;
   phone: string; // digits only, 7-20 chars
   email?: string | null;
+  /** Business customers: legal name and Tax Registration Number. */
+  company_name?: string | null;
+  trn?: string | null;
   alt_contact?: string | null;
   default_address?: string | null;
   city?: string | null;
@@ -16,6 +19,8 @@ export interface CustomerUpdate {
   name?: string | null;
   phone?: string | null;
   email?: string | null;
+  company_name?: string | null;
+  trn?: string | null;
   alt_contact?: string | null;
   default_address?: string | null;
   city?: string | null;
@@ -30,6 +35,8 @@ export interface CustomerResponse {
   name: string;
   phone: string;
   email?: string | null;
+  company_name?: string | null;
+  trn?: string | null;
   alt_contact?: string | null;
   default_address?: string | null;
   city?: string | null;
@@ -42,6 +49,14 @@ export interface CustomerResponse {
   risk_flag: string; // "normal" | "high" | "blocked"
   created_at: string;
   updated_at?: string | null;
+}
+
+export interface PaginatedCustomers {
+  items: CustomerResponse[];
+  total: number;
+  page: number;
+  page_size: number;
+  pages: number;
 }
 
 export interface CustomerOrderHistoryItem {

@@ -53,6 +53,17 @@ class RestaurantConfig(BaseMixin, Base):
     )
     receipt_header: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     receipt_footer: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    # Martin (FZ LLC, 2026-09-02): "option to either print a vertical receipt
+    # or an A4 format". `thermal` is the 80mm roll every tenant printed on
+    # before this existed; `a4` lays the same receipt out on a full page.
+    # Presentation only: the receipt data is identical either way.
+    receipt_format: Mapped[str] = mapped_column(
+        String(10), nullable=False, default="thermal", server_default="thermal"
+    )
+    # Display name for the walk-in channel. The order_type stays `takeaway`
+    # (reports, kitchen tickets and the state machine key on it); only the tile
+    # and the header badge read differently. NULL means "Takeaway".
+    takeaway_label: Mapped[str | None] = mapped_column(String(40), nullable=True)
 
     delivery_minimum: Mapped[int] = mapped_column(
         Integer,

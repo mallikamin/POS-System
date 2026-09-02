@@ -21,6 +21,9 @@ class RestaurantConfigUpdate(BaseModel):
     restaurant_name: str | None = Field(None, min_length=1, max_length=200)
     receipt_header: str | None = None
     receipt_footer: str | None = None
+    receipt_format: str | None = Field(None, pattern=r"^(thermal|a4)$")
+    # Empty string clears it back to "Takeaway".
+    takeaway_label: str | None = Field(None, max_length=40)
     default_tax_rate: int | None = Field(None, ge=0, le=10000)
     cash_tax_rate_bps: int | None = Field(None, ge=0, le=10000)
     card_tax_rate_bps: int | None = Field(None, ge=0, le=10000)
@@ -106,6 +109,10 @@ async def update_restaurant_config(
         config.receipt_header = data.receipt_header
     if data.receipt_footer is not None:
         config.receipt_footer = data.receipt_footer
+    if data.receipt_format is not None:
+        config.receipt_format = data.receipt_format
+    if data.takeaway_label is not None:
+        config.takeaway_label = data.takeaway_label.strip() or None
     if data.default_tax_rate is not None:
         config.default_tax_rate = data.default_tax_rate
     if data.cash_tax_rate_bps is not None:

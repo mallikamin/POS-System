@@ -221,10 +221,16 @@ async def get_tax_invoice(
             await db.execute(select(Customer).where(Customer.id == order.customer_id))
         ).scalar_one_or_none()
         if customer is not None:
+            # A business customer is invoiced under its legal name with its
+            # own TRN, which is what lets it reclaim the VAT (Martin, FZ LLC
+            # 2026-09-02). The address used to be read from a field that does
+            # not exist on Customer (`address`), so it never printed.
             recipient = TaxInvoiceParty(
-                name=customer.name or "Customer",
+                name=customer.company_name or customer.name or "Customer",
+                trn=customer.trn,
                 phone=customer.phone,
-                address_line1=getattr(customer, "address", None),
+                address_line1=customer.default_address,
+                city=customer.city,
             )
     if recipient is None and (order.customer_name or order.customer_phone):
         recipient = TaxInvoiceParty(

@@ -349,6 +349,13 @@ async def _sync_order_discount(
     )
     order = result.scalar_one_or_none()
     if order:
+        # `order_total` is the one rule for an order's payable amount. The
+        # inline `subtotal + tax_amount - discount` this replaces double-charged
+        # tax-inclusive tenants (F19) and would have dropped any delivery or
+        # service charge the moment a discount was applied.
+        from app.services import order_service
+
+        _, prices_include_tax = await order_service._get_tax_settings(db, tenant_id)
         order.discount_amount = total_discount
-        order.total = order.subtotal + order.tax_amount - total_discount
+        order.total = order_service.order_total(order, prices_include_tax)
         await db.flush()

@@ -60,6 +60,10 @@ function SalesChannelsPage() {
   const [commissionPercent, setCommissionPercent] = useState("");
   const [fixedFee, setFixedFee] = useState("");
   const [isActive, setIsActive] = useState(true);
+  // Martin (FZ LLC, 2026-09-02): Deliveroo / Careem / Keeta / Noon as their
+  // own tiles on the POS. A channel is a sales channel first; this says
+  // whether it also appears on the channel selector at the till.
+  const [posVisible, setPosVisible] = useState(true);
 
   useEffect(() => {
     void loadChannels();
@@ -84,6 +88,7 @@ function SalesChannelsPage() {
     setCommissionPercent("0");
     setFixedFee("0");
     setIsActive(true);
+    setPosVisible(true);
     setShowDialog(true);
   }
 
@@ -94,6 +99,7 @@ function SalesChannelsPage() {
     setCommissionPercent(bpsToPercentInput(channel.commission_bps));
     setFixedFee(String(minorToMajor(channel.fixed_fee_minor, currency)));
     setIsActive(channel.is_active);
+    setPosVisible(channel.pos_visible ?? true);
     setShowDialog(true);
   }
 
@@ -134,6 +140,7 @@ function SalesChannelsPage() {
           commission_bps: commissionBps,
           fixed_fee_minor: fixedFeeMinor,
           is_active: isActive,
+          pos_visible: posVisible,
         });
         toast({ title: "Sales channel updated", variant: "success" });
       } else {
@@ -143,6 +150,7 @@ function SalesChannelsPage() {
           commission_bps: commissionBps,
           fixed_fee_minor: fixedFeeMinor,
           is_active: isActive,
+          pos_visible: posVisible,
         });
         toast({ title: "Sales channel created", variant: "success" });
       }
@@ -221,6 +229,7 @@ function SalesChannelsPage() {
                   </th>
                   <th className="px-4 py-3 font-medium text-right">Fixed Fee</th>
                   <th className="px-4 py-3 font-medium">Status</th>
+                  <th className="px-4 py-3 font-medium">On the POS</th>
                   <th className="px-4 py-3 font-medium text-right">Actions</th>
                 </tr>
               </thead>
@@ -246,6 +255,9 @@ function SalesChannelsPage() {
                       <Badge variant={channel.is_active ? "success" : "secondary"}>
                         {channel.is_active ? "Active" : "Inactive"}
                       </Badge>
+                    </td>
+                    <td className="px-4 py-3 text-secondary-600">
+                      {channel.is_active && channel.pos_visible ? "Own tile" : "Hidden"}
                     </td>
                     <td className="px-4 py-3 text-right">
                       <Button
@@ -352,6 +364,17 @@ function SalesChannelsPage() {
                 </p>
               </div>
               <Switch checked={isActive} onCheckedChange={setIsActive} />
+            </div>
+
+            <div className="flex items-center justify-between border-t border-secondary-100 pt-4">
+              <div>
+                <Label>Show on the POS</Label>
+                <p className="text-xs text-secondary-500">
+                  Gives this channel its own tile on the order-channel screen,
+                  so a Careem or Deliveroo order is rung up under its name.
+                </p>
+              </div>
+              <Switch checked={posVisible} onCheckedChange={setPosVisible} />
             </div>
           </div>
 

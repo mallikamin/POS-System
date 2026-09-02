@@ -8,12 +8,37 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.order import Order
+from app.models.restaurant_config import RestaurantConfig
 from app.models.tenant import Tenant
 from app.models.user import Permission, Role, RolePermission
 
 
 def _auth(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
+
+
+@pytest_asyncio.fixture(autouse=True)
+async def tax_exclusive_config(db: AsyncSession, tenant: Tenant) -> RestaurantConfig:
+    """The `order` fixture is built tax-EXCLUSIVE (8621 + 1379 = 10000).
+
+    Totals are re-derived through the one rule in `order_service.order_total`
+    when a discount is applied or removed, and that rule reads the tenant's
+    convention. Without a config row the convention defaults to inclusive
+    (F19), under which a 10000 order would re-total to 8621. Say what the
+    fixture means so the arithmetic below (`subtotal + tax - discount`) is
+    asserted under the convention it was written for.
+    """
+    cfg = RestaurantConfig(
+        tenant_id=tenant.id,
+        tax_inclusive=False,
+        default_tax_rate=1600,
+        cash_tax_rate_bps=1600,
+        card_tax_rate_bps=1600,
+    )
+    db.add(cfg)
+    await db.flush()
+    await db.commit()
+    return cfg
 
 
 @pytest_asyncio.fixture(autouse=True)

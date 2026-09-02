@@ -4,7 +4,17 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-import { Package, Plus, Pencil, Trash2, Loader2, AlertTriangle } from "lucide-react";
+import { Link } from "react-router-dom";
+import {
+  Package,
+  Plus,
+  Pencil,
+  Trash2,
+  Loader2,
+  AlertTriangle,
+  ChefHat,
+  ShoppingBag,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -41,6 +51,14 @@ export default function IngredientManagementPage() {
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [activeFilter, setActiveFilter] = useState<boolean | "all">("all");
+  /*
+   * Martin (FZ LLC, 2026-09-02): "there is no difference between bought items
+   * (flour, coca cola cans, fruits) which have a price and ingredients
+   * manufactured by us, where the price needs to be calculated by the
+   * system". The distinction always existed in the data (`is_produced`); this
+   * screen simply never showed it, and let a calculated cost be typed over.
+   */
+  const [sourceFilter, setSourceFilter] = useState<"all" | "bought" | "produced">("all");
 
   // Dialog state
   const [createOpen, setCreateOpen] = useState(false);
@@ -59,6 +77,7 @@ export default function IngredientManagementPage() {
   const [reorderPoint, setReorderPoint] = useState("");
   const [reorderQuantity, setReorderQuantity] = useState("");
   const [isActive, setIsActive] = useState(true);
+  const [isProduced, setIsProduced] = useState(false);
   const [notes, setNotes] = useState("");
   const [imageUrl, setImageUrl] = useState<string | null>(null);
 
@@ -80,6 +99,11 @@ export default function IngredientManagementPage() {
           ing.name.toLowerCase().includes(searchLower)
         );
       }
+      if (sourceFilter !== "all") {
+        filtered = filtered.filter((ing) =>
+          sourceFilter === "produced" ? ing.is_produced : !ing.is_produced
+        );
+      }
 
       setIngredients(filtered);
     } catch (err) {
@@ -90,7 +114,7 @@ export default function IngredientManagementPage() {
     } finally {
       setLoading(false);
     }
-  }, [categoryFilter, activeFilter, search, toast]);
+  }, [categoryFilter, activeFilter, sourceFilter, search, toast]);
 
   useEffect(() => {
     fetchIngredients();
@@ -112,6 +136,7 @@ export default function IngredientManagementPage() {
     setReorderPoint("");
     setReorderQuantity("");
     setIsActive(true);
+    setIsProduced(false);
     setNotes("");
     setImageUrl(null);
   }
@@ -134,6 +159,7 @@ export default function IngredientManagementPage() {
     setReorderPoint(String(ingredient.reorder_point || ""));
     setReorderQuantity(String(ingredient.reorder_quantity || ""));
     setIsActive(ingredient.is_active);
+    setIsProduced(ingredient.is_produced);
     setNotes(ingredient.notes || "");
     setImageUrl(ingredient.image_url ?? null);
     setEditOpen(true);
@@ -155,14 +181,18 @@ export default function IngredientManagementPage() {
         name: name.trim(),
         category: category.trim() || "General",
         unit: unit.trim(),
-        cost_per_unit: costPerUnitRupees
-          ? rupeesToPaisa(parseFloat(costPerUnitRupees))
-          : 0,
-        supplier_name: supplierName.trim() || null,
-        supplier_contact: supplierContact.trim() || null,
+        // A made-in-house ingredient has no typed cost: the recipe that
+        // produces it writes the cost. The server ignores one anyway.
+        cost_per_unit:
+          !isProduced && costPerUnitRupees
+            ? rupeesToPaisa(parseFloat(costPerUnitRupees))
+            : 0,
+        supplier_name: isProduced ? null : supplierName.trim() || null,
+        supplier_contact: isProduced ? null : supplierContact.trim() || null,
         reorder_point: reorderPoint ? parseFloat(reorderPoint) : 0,
         reorder_quantity: reorderQuantity ? parseFloat(reorderQuantity) : 0,
         is_active: isActive,
+        is_produced: isProduced,
         notes: notes.trim() || null,
         image_url: imageUrl,
       };
@@ -206,17 +236,22 @@ export default function IngredientManagementPage() {
         name: name.trim(),
         category: category.trim() || "General",
         unit: unit.trim(),
-        cost_per_unit: costPerUnitRupees
-          ? rupeesToPaisa(parseFloat(costPerUnitRupees))
-          : 0,
-        supplier_name: supplierName.trim() || null,
-        supplier_contact: supplierContact.trim() || null,
+        supplier_name: isProduced ? null : supplierName.trim() || null,
+        supplier_contact: isProduced ? null : supplierContact.trim() || null,
         reorder_point: reorderPoint ? parseFloat(reorderPoint) : 0,
         reorder_quantity: reorderQuantity ? parseFloat(reorderQuantity) : 0,
         is_active: isActive,
+        is_produced: isProduced,
         notes: notes.trim() || null,
         image_url: imageUrl,
       };
+      // Only a bought ingredient's cost is ours to send. A produced one's is
+      // calculated by its recipe and the server drops any value sent.
+      if (!isProduced) {
+        payload.cost_per_unit = costPerUnitRupees
+          ? rupeesToPaisa(parseFloat(costPerUnitRupees))
+          : 0;
+      }
 
       await inventoryApi.updateIngredient(editTarget.id, payload);
 
@@ -304,6 +339,18 @@ export default function IngredientManagementPage() {
           ))}
         </select>
 
+        {/* Source filter: bought vs made in-house */}
+        <select
+          value={sourceFilter}
+          onChange={(e) => setSourceFilter(e.target.value as typeof sourceFilter)}
+          className="min-h-[48px] rounded-md border border-secondary-300 px-3 text-pos-sm"
+          aria-label="Filter by source"
+        >
+          <option value="all">Bought and made in-house</option>
+          <option value="bought">Bought only</option>
+          <option value="produced">Made in-house only</option>
+        </select>
+
         {/* Active filter */}
         <select
           value={String(activeFilter)}
@@ -336,6 +383,7 @@ export default function IngredientManagementPage() {
                 <thead>
                   <tr className="border-b text-secondary-500">
                     <th className="pb-3 font-medium">Name</th>
+                    <th className="pb-3 font-medium">Source</th>
                     <th className="pb-3 font-medium">Category</th>
                     <th className="pb-3 font-medium">Unit</th>
                     <th className="pb-3 font-medium text-right">Cost/Unit</th>
@@ -370,6 +418,36 @@ export default function IngredientManagementPage() {
                             </span>
                           </div>
                         </td>
+                        <td className="py-3">
+                          {ingredient.is_produced ? (
+                            <div className="flex flex-col gap-0.5">
+                              <Badge variant="secondary" className="w-fit gap-1 text-xs">
+                                <ChefHat className="h-3 w-3" />
+                                Made in-house
+                              </Badge>
+                              {ingredient.production_recipe_id ? (
+                                <Link
+                                  to="/admin/recipes"
+                                  className="text-[11px] text-primary-600 hover:underline"
+                                >
+                                  Recipe: {ingredient.production_recipe_name}
+                                </Link>
+                              ) : (
+                                <Link
+                                  to="/admin/recipes"
+                                  className="text-[11px] text-amber-700 hover:underline"
+                                >
+                                  No recipe yet. Build one
+                                </Link>
+                              )}
+                            </div>
+                          ) : (
+                            <Badge variant="outline" className="w-fit gap-1 text-xs">
+                              <ShoppingBag className="h-3 w-3" />
+                              Bought
+                            </Badge>
+                          )}
+                        </td>
                         <td className="py-3 text-secondary-600">
                           {ingredient.category}
                         </td>
@@ -378,6 +456,13 @@ export default function IngredientManagementPage() {
                         </td>
                         <td className="py-3 text-right text-secondary-900">
                           {formatPKR(ingredient.cost_per_unit)}
+                          {ingredient.is_produced && (
+                            <div className="text-[10px] font-normal text-secondary-400">
+                              {ingredient.production_recipe_id
+                                ? "calculated from recipe"
+                                : "awaiting recipe"}
+                            </div>
+                          )}
                         </td>
                         <td className="py-3 text-right text-secondary-600">
                           {ingredient.current_stock.toFixed(2)}
@@ -490,22 +575,40 @@ export default function IngredientManagementPage() {
               />
             </div>
 
-            {/* Cost per Unit */}
-            <div className="space-y-2">
-              <Label htmlFor="create-cost">Cost per Unit ({currency})</Label>
-              <Input
-                id="create-cost"
-                type="number"
-                min="0"
-                step="0.01"
-                value={costPerUnitRupees}
-                onChange={(e) => setCostPerUnitRupees(e.target.value)}
-                placeholder="800.00"
-                className="min-h-[48px]"
-              />
-            </div>
+            {/* Bought or made in-house */}
+            <SourceSwitch
+              idPrefix="create"
+              isProduced={isProduced}
+              onChange={setIsProduced}
+            />
 
-            {/* Supplier */}
+            {/* Cost per Unit: typed for a bought item, calculated for a
+                made-in-house one */}
+            {isProduced ? (
+              <p className="rounded-md border border-dashed border-secondary-300 bg-secondary-50 px-3 py-2 text-pos-sm text-secondary-600">
+                The cost per {unit.trim() || "unit"} will be calculated from this
+                ingredient's recipe. After saving, build the recipe under{" "}
+                <span className="font-medium">Recipes</span> and choose
+                &ldquo;Sub-recipe&rdquo; as the target.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                <Label htmlFor="create-cost">Cost per Unit ({currency})</Label>
+                <Input
+                  id="create-cost"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={costPerUnitRupees}
+                  onChange={(e) => setCostPerUnitRupees(e.target.value)}
+                  placeholder="800.00"
+                  className="min-h-[48px]"
+                />
+              </div>
+            )}
+
+            {/* Supplier (bought items only) */}
+            {!isProduced && (
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="create-supplier-name">Supplier Name</Label>
@@ -530,6 +633,7 @@ export default function IngredientManagementPage() {
                 />
               </div>
             </div>
+            )}
 
             {/* Reorder points */}
             <div className="grid grid-cols-2 gap-4">
@@ -657,19 +761,50 @@ export default function IngredientManagementPage() {
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="edit-cost">Cost per Unit ({currency})</Label>
-              <Input
-                id="edit-cost"
-                type="number"
-                min="0"
-                step="0.01"
-                value={costPerUnitRupees}
-                onChange={(e) => setCostPerUnitRupees(e.target.value)}
-                className="min-h-[48px]"
-              />
-            </div>
+            <SourceSwitch
+              idPrefix="edit"
+              isProduced={isProduced}
+              onChange={setIsProduced}
+              lockedByRecipe={!!editTarget?.production_recipe_id}
+            />
 
+            {isProduced ? (
+              <div className="space-y-2">
+                <Label>Cost per Unit ({currency})</Label>
+                <div className="flex min-h-[48px] items-center justify-between rounded-md border border-dashed border-secondary-300 bg-secondary-50 px-3 text-pos-sm">
+                  <span className="font-medium text-secondary-900">
+                    {formatPKR(editTarget?.cost_per_unit ?? 0)}
+                  </span>
+                  {editTarget?.production_recipe_id ? (
+                    <Link
+                      to="/admin/recipes"
+                      className="text-primary-600 hover:underline"
+                    >
+                      Calculated from recipe. Edit the recipe to change it.
+                    </Link>
+                  ) : (
+                    <Link to="/admin/recipes" className="text-amber-700 hover:underline">
+                      No recipe yet. Build one to calculate the cost.
+                    </Link>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Label htmlFor="edit-cost">Cost per Unit ({currency})</Label>
+                <Input
+                  id="edit-cost"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={costPerUnitRupees}
+                  onChange={(e) => setCostPerUnitRupees(e.target.value)}
+                  className="min-h-[48px]"
+                />
+              </div>
+            )}
+
+            {!isProduced && (
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="edit-supplier-name">Supplier Name</Label>
@@ -692,6 +827,7 @@ export default function IngredientManagementPage() {
                 />
               </div>
             </div>
+            )}
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -796,6 +932,68 @@ export default function IngredientManagementPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+/* ==========================================================================
+   Bought / made in-house switch
+   ========================================================================== */
+
+interface SourceSwitchProps {
+  idPrefix: string;
+  isProduced: boolean;
+  onChange: (produced: boolean) => void;
+  /** An active recipe makes this ingredient; the server refuses to flip it. */
+  lockedByRecipe?: boolean;
+}
+
+function SourceSwitch({ idPrefix, isProduced, onChange, lockedByRecipe }: SourceSwitchProps) {
+  const base =
+    "flex flex-1 items-start gap-2 rounded-lg border-2 p-3 text-left transition-colors min-h-[64px]";
+  const on = "border-primary-500 bg-primary-50";
+  const off = "border-secondary-200 hover:border-secondary-300";
+  return (
+    <div className="space-y-2">
+      <Label>Source</Label>
+      <div className="flex gap-3">
+        <button
+          type="button"
+          id={`${idPrefix}-source-bought`}
+          onClick={() => !lockedByRecipe && onChange(false)}
+          disabled={lockedByRecipe}
+          className={`${base} ${!isProduced ? on : off} disabled:cursor-not-allowed disabled:opacity-60`}
+          aria-pressed={!isProduced}
+        >
+          <ShoppingBag className="mt-0.5 h-4 w-4 shrink-0 text-secondary-500" />
+          <span>
+            <span className="block font-medium text-secondary-900">Bought</span>
+            <span className="block text-xs text-secondary-500">
+              Flour, cans, fruit. You enter the price you pay.
+            </span>
+          </span>
+        </button>
+        <button
+          type="button"
+          id={`${idPrefix}-source-produced`}
+          onClick={() => onChange(true)}
+          className={`${base} ${isProduced ? on : off}`}
+          aria-pressed={isProduced}
+        >
+          <ChefHat className="mt-0.5 h-4 w-4 shrink-0 text-secondary-500" />
+          <span>
+            <span className="block font-medium text-secondary-900">Made in-house</span>
+            <span className="block text-xs text-secondary-500">
+              Dough, sauces, fillings. The cost is calculated from its recipe.
+            </span>
+          </span>
+        </button>
+      </div>
+      {lockedByRecipe && (
+        <p className="text-xs text-secondary-500">
+          An active recipe makes this ingredient. Delete that recipe first to mark it as bought.
+        </p>
+      )}
     </div>
   );
 }

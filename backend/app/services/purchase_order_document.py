@@ -107,6 +107,9 @@ class PurchaseOrderDocument:
     tax_minor: Decimal = Decimal("0")
     total_minor: Decimal = Decimal("0")
     delivery_instructions: str | None = None
+    # "Additional comments" on the order (Martin, FZ LLC 2026-09-02): anything
+    # for the supplier that is not a delivery instruction. Printed under it.
+    additional_comments: str | None = None
 
 
 async def build_document(
@@ -192,6 +195,7 @@ async def build_document(
         tax_minor=Decimal(str(po.tax_minor)),
         total_minor=Decimal(str(po.total_minor)),
         delivery_instructions=po.delivery_instructions,
+        additional_comments=po.notes,
     )
 
 
@@ -249,6 +253,10 @@ def render_text(doc: PurchaseOrderDocument) -> str:
     if doc.delivery_instructions:
         out.append("Delivery instructions:")
         out.append(doc.delivery_instructions)
+        out.append("")
+    if doc.additional_comments:
+        out.append("Additional comments:")
+        out.append(doc.additional_comments)
         out.append("")
     out.append("Please confirm receipt of this order and the expected delivery date.")
     out.append("")
@@ -356,6 +364,14 @@ def render_html(doc: PurchaseOrderDocument) -> str:
         if doc.delivery_instructions
         else ""
     )
+    comments = (
+        f"""<div style="margin-top:12px; padding:12px 14px; background-color:{_C_BG}; border-radius:6px;">
+<div style="font-size:11px; letter-spacing:1px; text-transform:uppercase; color:{_C_MUTED}; margin-bottom:4px;">Additional comments</div>
+<div style="font-size:13px; color:{_C_INK}; white-space:pre-wrap;">{html_escape(doc.additional_comments)}</div>
+</div>"""
+        if doc.additional_comments
+        else ""
+    )
 
     return f"""<!doctype html>
 <html>
@@ -405,6 +421,7 @@ def render_html(doc: PurchaseOrderDocument) -> str:
 </table>
 
 {instructions}
+{comments}
 
 <div style="margin-top:26px; padding-top:16px; border-top:1px solid {_C_LINE}; font-size:12px; color:{_C_MUTED};">
 Please confirm receipt of this order and the expected delivery date.

@@ -83,6 +83,13 @@ export interface RestaurantConfig extends BaseEntity {
   default_tax_rate: number;
   receipt_header: string | null;
   receipt_footer: string | null;
+  /** How the browser receipt prints: `thermal` (80mm roll) or `a4`. */
+  receipt_format: "thermal" | "a4";
+  /**
+   * Display name for the walk-in channel ("Pick up" for FZ LLC). Null means
+   * "Takeaway". The order_type underneath is always `takeaway`.
+   */
+  takeaway_label: string | null;
   /**
    * True for a shop that takes orders only from its website (Chick Shack):
    * the POS lands on the online-orders queue instead of the channel selector.

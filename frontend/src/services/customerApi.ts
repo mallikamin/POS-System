@@ -4,7 +4,20 @@ import type {
   CustomerResponse,
   CustomerUpdate,
   CustomerOrderHistoryItem,
+  PaginatedCustomers,
 } from "@/types/customer";
+
+/**
+ * The back-office customer list. `q` matches name, company, phone or TRN.
+ */
+export async function listCustomers(params: {
+  q?: string;
+  page?: number;
+  page_size?: number;
+} = {}): Promise<PaginatedCustomers> {
+  const { data } = await api.get<PaginatedCustomers>("/customers", { params });
+  return data;
+}
 
 /**
  * Search customers by phone number (partial match)

@@ -31,6 +31,13 @@ export interface Ingredient {
    * anybody pays.
    */
   is_produced: boolean;
+  /**
+   * The active recipe that makes a produced ingredient, when one exists.
+   * Null on a produced ingredient means "no recipe yet", which the
+   * Ingredients screen signposts rather than hides.
+   */
+  production_recipe_id: string | null;
+  production_recipe_name: string | null;
   /** Photograph, uploaded via /media/images. Follows the ingredient onto every screen that names it. */
   image_url: string | null;
   created_at: string;
@@ -47,6 +54,8 @@ export interface IngredientCreate {
   reorder_point?: number;
   reorder_quantity?: number;
   is_active?: boolean;
+  /** Made in-house from a recipe. The cost is then calculated, never typed. */
+  is_produced?: boolean;
   notes?: string | null;
   image_url?: string | null;
 }
@@ -61,6 +70,7 @@ export interface IngredientUpdate {
   reorder_point?: number;
   reorder_quantity?: number;
   is_active?: boolean;
+  is_produced?: boolean;
   notes?: string | null;
   image_url?: string | null;
 }

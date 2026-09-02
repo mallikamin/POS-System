@@ -5,8 +5,11 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from sqlalchemy import select
+
 from app.api.deps import get_current_user, require_permission
 from app.database import get_db
+from app.models.location import SalesChannel
 from app.models.user import User
 from app.schemas.common import PaginatedResponse
 from app.schemas.order import (
@@ -24,13 +27,33 @@ from app.services.auth_service import validate_verify_token
 router = APIRouter(prefix="/orders", tags=["orders"])
 
 
-def _to_order_response(order) -> OrderResponse:
+async def _channel_names(db: AsyncSession, tenant_id: uuid.UUID) -> dict[uuid.UUID, str]:
+    """id -> name for every sales channel this tenant has, active or not.
+
+    An order keeps its channel after the channel is retired, so the lookup
+    must not filter on `is_active`. One small query per request rather than a
+    relationship on Order, so an order row never needs the channel loaded to
+    be rendered elsewhere.
+    """
+    rows = await db.execute(
+        select(SalesChannel.id, SalesChannel.name).where(
+            SalesChannel.tenant_id == tenant_id
+        )
+    )
+    return {row.id: row.name for row in rows}
+
+
+def _to_order_response(
+    order, channel_names: dict[uuid.UUID, str] | None = None
+) -> OrderResponse:
     resp = OrderResponse.model_validate(order)
     if getattr(order, "table", None):
         resp.table_number = order.table.number
         resp.table_label = order.table.label
     if getattr(order, "waiter", None):
         resp.waiter_name = order.waiter.full_name
+    if channel_names and order.sales_channel_id:
+        resp.sales_channel_name = channel_names.get(order.sales_channel_id)
     return resp
 
 
@@ -61,7 +84,7 @@ async def create_order(
     )
     await db.commit()
     await db.refresh(order)
-    return _to_order_response(order)
+    return _to_order_response(order, await _channel_names(db, current_user.tenant_id))
 
 
 # ---------------------------------------------------------------------------
@@ -90,6 +113,7 @@ async def list_orders(
         offset=offset,
         limit=page_size,
     )
+    channel_names = await _channel_names(db, current_user.tenant_id)
     items = [
         OrderListResponse(
             id=o.id,
@@ -104,6 +128,10 @@ async def list_orders(
             waiter_name=o.waiter.full_name if getattr(o, "waiter", None) else None,
             item_count=len(o.items),
             total=o.total,
+            sales_channel_id=o.sales_channel_id,
+            sales_channel_name=(
+                channel_names.get(o.sales_channel_id) if o.sales_channel_id else None
+            ),
             created_at=o.created_at,
             created_by=o.created_by,
         )
@@ -127,7 +155,7 @@ async def get_order(
     order = await order_service.get_order(db, order_id, current_user.tenant_id)
     if order is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Order not found")
-    return _to_order_response(order)
+    return _to_order_response(order, await _channel_names(db, current_user.tenant_id))
 
 
 # ---------------------------------------------------------------------------

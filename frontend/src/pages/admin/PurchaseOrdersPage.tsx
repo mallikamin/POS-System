@@ -138,6 +138,10 @@ function PurchaseOrdersPage() {
   const [expectedDate, setExpectedDate] = useState("");
   const [taxPercent, setTaxPercent] = useState(String(defaultTaxBps / 100));
   const [deliveryInstructions, setDeliveryInstructions] = useState("");
+  // Martin (FZ LLC, 2026-09-02): "needs to have a section with 'additional
+  // comments' same as there is delivery instructions". Stored as the PO's
+  // `notes`, which existed but was never on the form nor on the document.
+  const [additionalComments, setAdditionalComments] = useState("");
   const [lines, setLines] = useState<DraftLine[]>([newLine()]);
   const [catalogue, setCatalogue] = useState<SupplierItemRow[]>([]);
 
@@ -239,6 +243,7 @@ function PurchaseOrdersPage() {
     setExpectedDate("");
     setTaxPercent(String(defaultTaxBps / 100));
     setDeliveryInstructions("");
+    setAdditionalComments("");
     setLines([newLine()]);
     setShowCreate(true);
   }
@@ -263,6 +268,7 @@ function PurchaseOrdersPage() {
         expected_date: expectedDate || null,
         tax_bps: Math.round((Number(taxPercent) || 0) * 100),
         delivery_instructions: deliveryInstructions.trim() || null,
+        notes: additionalComments.trim() || null,
         lines: usable.map((line) => ({
           ingredient_id: line.ingredient_id,
           quantity_ordered: line.quantity,
@@ -747,9 +753,21 @@ function PurchaseOrdersPage() {
                       </table>
 
                       {order.delivery_instructions && (
-                        <p className="rounded bg-secondary-50 p-3 text-sm text-secondary-600">
-                          {order.delivery_instructions}
-                        </p>
+                        <div className="rounded bg-secondary-50 p-3 text-sm text-secondary-600">
+                          <p className="mb-1 text-xs font-medium uppercase tracking-wide text-secondary-500">
+                            Delivery instructions
+                          </p>
+                          <p className="whitespace-pre-wrap">{order.delivery_instructions}</p>
+                        </div>
+                      )}
+
+                      {order.notes && (
+                        <div className="rounded bg-secondary-50 p-3 text-sm text-secondary-600">
+                          <p className="mb-1 text-xs font-medium uppercase tracking-wide text-secondary-500">
+                            Additional comments
+                          </p>
+                          <p className="whitespace-pre-wrap">{order.notes}</p>
+                        </div>
                       )}
 
                       {order.last_email_error && (
@@ -968,6 +986,16 @@ function PurchaseOrdersPage() {
               value={deliveryInstructions}
               onChange={(e) => setDeliveryInstructions(e.target.value)}
               placeholder="Printed on the order the supplier receives."
+            />
+          </div>
+
+          <div>
+            <Label>Additional comments</Label>
+            <Textarea
+              rows={2}
+              value={additionalComments}
+              onChange={(e) => setAdditionalComments(e.target.value)}
+              placeholder="Anything else for the supplier. Printed under the delivery instructions."
             />
           </div>
 

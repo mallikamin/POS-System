@@ -2,7 +2,7 @@
 
 import uuid
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.customer import Customer
@@ -37,6 +37,45 @@ async def search_by_phone(
     return list(result.scalars().all())
 
 
+async def list_customers(
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    q: str | None = None,
+    offset: int = 0,
+    limit: int = 50,
+) -> tuple[list[Customer], int]:
+    """The back-office customer list (Martin, FZ LLC 2026-09-02: "a menu in
+    back office with crm options").
+
+    `q` matches the name, company name, phone digits or TRN, case-insensitive
+    substring. The walk-in placeholder (phone 0000000000) is never listed; it
+    is a bookkeeping row, not a customer anyone would edit.
+    """
+    base = select(Customer).where(
+        Customer.tenant_id == tenant_id,
+        Customer.phone != "0000000000",
+    )
+    if q:
+        needle = f"%{q.strip().lower()}%"
+        digits = "".join(c for c in q if c.isdigit())
+        clauses = [
+            func.lower(Customer.name).like(needle),
+            func.lower(func.coalesce(Customer.company_name, "")).like(needle),
+            func.lower(func.coalesce(Customer.trn, "")).like(needle),
+        ]
+        if digits:
+            clauses.append(Customer.phone.like(f"%{digits}%"))
+        base = base.where(or_(*clauses))
+
+    total = (
+        await db.execute(select(func.count()).select_from(base.subquery()))
+    ).scalar_one()
+    rows = await db.execute(
+        base.order_by(Customer.name).offset(offset).limit(limit)
+    )
+    return list(rows.scalars().all()), total
+
+
 async def get_customer(
     db: AsyncSession, customer_id: uuid.UUID, tenant_id: uuid.UUID
 ) -> Customer | None:
@@ -69,6 +108,8 @@ async def create_customer(
         name=data.name,
         phone=normalized_phone,
         email=data.email,
+        company_name=data.company_name,
+        trn=data.trn,
         alt_contact=data.alt_contact,
         default_address=data.default_address,
         city=data.city,

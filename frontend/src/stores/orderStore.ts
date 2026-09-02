@@ -28,7 +28,8 @@ interface OrderActions {
     tableId?: string,
     customerName?: string,
     customerPhone?: string,
-    waiterId?: string
+    waiterId?: string,
+    charges?: { delivery_fee?: number; service_fee?: number }
   ) => Promise<OrderResponse>;
   transitionOrder: (id: string, status: string) => Promise<void>;
   voidOrder: (id: string, reason: string, authToken?: string) => Promise<void>;
@@ -75,7 +76,8 @@ export const useOrderStore = create<OrderStore>()((set, get) => ({
     tableId?: string,
     customerName?: string,
     customerPhone?: string,
-    waiterId?: string
+    waiterId?: string,
+    charges?: { delivery_fee?: number; service_fee?: number }
   ) => {
     set({ isSending: true, error: null });
     try {
@@ -119,6 +121,11 @@ export const useOrderStore = create<OrderStore>()((set, get) => ({
         items,
         location_id: attribution.locationId || undefined,
         sales_channel_id: attribution.channelId || undefined,
+        // Charges added at the till (delivery fee, service charge), in minor
+        // units. Omitted entirely when zero so the payload every existing
+        // client sends is unchanged.
+        ...(charges?.delivery_fee ? { delivery_fee: charges.delivery_fee } : {}),
+        ...(charges?.service_fee ? { service_fee: charges.service_fee } : {}),
       };
 
       const order = await createOrder(payload);
