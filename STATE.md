@@ -2,7 +2,19 @@
 
 **Last refreshed:** 2026-09-03 (refresh for Martin's round-1 feedback). No drift in the FZ resume point; a new block added on top for the feedback batch.
 
-## 🟡 2026-09-03. MARTIN'S ROUND-1 FEEDBACK: ALL SEVEN ITEMS BUILT AND TESTED LOCALLY. DEPLOY AND PRODUCTION WALK ARE THE NEXT TWO STEPS.
+## 🟢 2026-09-02 19:30 UTC. MARTIN'S ROUND-1 FEEDBACK: ALL SEVEN ITEMS DEPLOYED (`36ae70f`) AND WALKED ON PRODUCTION OVER THE API. PIXELS STILL UNSEEN.
+
+**Deployed and verified** (details and the item-by-item write-up for the reply in the feedback
+file): Action green including `alembic upgrade head`; as the FZ admin on `martin-fz`, read-only:
+config carries `receipt_format` + `takeaway_label="Pick up"`, website channel hidden from the POS
+tiles, made-in-house ingredients name their recipes, orders name their sales channel, receipts and
+payment preview carry the fee fields, customers list works, PO document renders, and every new
+screen is present in the live bundle chunks. **Nothing clicked in a browser.** Before replying to
+Martin: sign in on a phone, open the admin menu, tap Customers (30 seconds, covers M6 and M7).
+
+The block below is the pre-deploy state, kept for the record.
+
+## 🟡 2026-09-03 (earlier). MARTIN'S ROUND-1 FEEDBACK: ALL SEVEN ITEMS BUILT AND TESTED LOCALLY.
 
 Verbatim text, the item table and the item-by-item write-up for the reply live in
 `_context/clients/fz-llc-uae/feedback_2026-09-02_martin-round1.md`. Items M1-M7: ingredients
@@ -31,8 +43,8 @@ saved.
 **Two pre-existing bugs fixed on the way** (`ERROR_LOG.md` 2026-09-03): discount re-total
 double-charged VAT for tax-inclusive tenants; tax invoice never printed the customer address.
 
-**Next:** commit (staged paths only, the Meta files stay out), `git push origin main`, confirm the
-migration ran on the box, then walk M1-M7 on production as Martin and flip the table to DEPLOYED.
+**Next (done above):** committed as `36ae70f` with staged paths only (Meta files stayed out),
+pushed, migration confirmed via the config response, M1-M7 walked over the API.
 
 ## ▶️ 2026-09-01 03:10 UTC. RESUME POINT. FZ LLC ADD-ON WORK IS DONE AND LIVE. NOTHING IS HALF-SHIPPED.
 

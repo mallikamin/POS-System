@@ -34,17 +34,27 @@ DEPLOYED (live, verified) · ANSWERED (no build needed, reply sent).
 
 | # | Area | Martin's ask | Status |
 |---|------|--------------|--------|
-| M1 | Ingredients | Distinguish bought items (price entered) from items we manufacture (price calculated from the recipe) | BUILT 2026-09-03 |
-| M2 | Purchase order | "Additional comments" field alongside delivery instructions | BUILT 2026-09-03 |
-| M3 | Receipt settings | Choose vertical (thermal roll) or A4 receipt format | BUILT 2026-09-03 |
-| M4 | POS channels | Pick up / Call center / Deliveroo / Careem / Keeta / Noon instead of only Takeaway / Call center | BUILT 2026-09-03 |
-| M5 | Charges | Add charges to an order, e.g. delivery fee | BUILT 2026-09-03 |
-| M6 | CRM | Back-office customer screen: name, phone, contact details, TRN for companies | BUILT 2026-09-03 |
-| M7 | Mobile | Admin portal sections cannot be entered on a phone | BUILT 2026-09-03 |
+| M1 | Ingredients | Distinguish bought items (price entered) from items we manufacture (price calculated from the recipe) | DEPLOYED `36ae70f` |
+| M2 | Purchase order | "Additional comments" field alongside delivery instructions | DEPLOYED `36ae70f` |
+| M3 | Receipt settings | Choose vertical (thermal roll) or A4 receipt format | DEPLOYED `36ae70f` |
+| M4 | POS channels | Pick up / Call center / Deliveroo / Careem / Keeta / Noon instead of only Takeaway / Call center | DEPLOYED `36ae70f` |
+| M5 | Charges | Add charges to an order, e.g. delivery fee | DEPLOYED `36ae70f` |
+| M6 | CRM | Back-office customer screen: name, phone, contact details, TRN for companies | DEPLOYED `36ae70f` |
+| M7 | Mobile | Admin portal sections cannot be entered on a phone | DEPLOYED `36ae70f` |
 
-BUILT = in the working tree with route-level tests green (`backend/tests/test_martin_round1.py`,
-11 tests) and the frontend type-check and lint clean. Not yet deployed, not yet seen on a screen.
-Update this table to DEPLOYED only after the production walk.
+DEPLOYED 2026-09-02 19:30 UTC, commit `36ae70f`, Action green (build, backup, `alembic upgrade
+head`, hostname checks). **Verified on production over the real API as the FZ admin, read-only,
+nothing created on the tenant:** config returns `receipt_format=thermal` and `takeaway_label=Pick
+up` (the migration and its data row ran); the website channel is `pos_visible=false`, the other
+five true; Cheese Sauce, Chicken Stuffing and Croissant Dough come back "made in-house" naming their
+v1 recipes, 12 bought; the orders list names the sales channel per order ("WhatsApp / Direct",
+"noon Food", "Careem Now"); order detail, payment preview, receipt and tax invoice all answer 200
+with the new fields; the customers list answers 200 (0 customers, walk-in excluded); an existing PO
+document renders. The live bundle chunks contain the new screens (Customers route and the fixed
+drawer in AdminLayout, `pos_visible` in the channel screen, "Print A4", "Made in-house", TRN).
+
+**Not verified: the pixels.** Nothing here has been clicked in a browser. Malik's 2-minute check
+before replying to Martin: sign in as Martin on a phone, open the admin menu and tap Customers.
 
 ## What was built, item by item (for the reply to Martin)
 
