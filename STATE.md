@@ -43,6 +43,9 @@ so **no number was consumed and no row was written.**
 🔴 **Nothing has been seen on Imran's tablet.** The first real order of the next service is the
 last proof, and it should read `C001` or `D001`.
 
+**Resume point for this session:** `PAUSE_CHECKPOINT_2026-09-03.md` (untracked, local, same as
+every other checkpoint here). Full entry: **OI-103** in `_state/open-items.md`.
+
 The block below is the state before this change.
 
 ## 🟢 2026-09-02 19:30 UTC. MARTIN'S ROUND-1 FEEDBACK: ALL SEVEN ITEMS DEPLOYED (`36ae70f`) AND WALKED ON PRODUCTION OVER THE API. PIXELS STILL UNSEEN.
