@@ -1,5 +1,37 @@
 # Open items register
 
+**OI-103 🟢 REQUESTED AND SHIPPED 2026-09-03 (Imran). COLLECTION AND DELIVERY NOW EACH RUN THEIR
+OWN DAILY ORDER NUMBER.**
+
+Imran wants the numbering his till gives him: deliveries count D001, D002, and the third order of
+the day, if it is a collection, is C001. Until now there was **one shared counter** and the letter
+was only a category marker, which is why the tablet showed `D001` then `C002`.
+
+⚠️ **This reverses a deliberate decision of Malik's from 2026-08-04** (recorded under OI-67(b)):
+the shared counter meant the highest number on the pass answered "how many orders today". With two
+counters it answers "how many of that type today". Imran's numbering wins; the trade is noted so
+nobody rediscovers it as a bug.
+
+- One function, `generate_order_number` in `backend/app/services/order_service.py`. The read that
+  allocates the number is now scoped to numbers carrying the same letter.
+- **No migration, no data rewrite, no collision risk.** Each letter continues from its own
+  high-water mark, so no number issued under the shared counter can be handed out twice.
+  `260903-C001` and `260903-D001` are different strings and the unique constraint is on the whole
+  number.
+- Unlettered numbers (dine-in, takeaway, call centre) keep `YYMMDD-NNN` and now run a third,
+  separate sequence. Moot for Chick Shack, which is online-only, relevant if a POS tenant ever
+  turns the online channel on.
+- Tests: `test_collection_and_delivery_each_run_their_own_counter`,
+  `test_switching_mid_day_never_re_issues_a_shared_counter_number`,
+  `test_till_orders_keep_the_plain_number_and_their_own_counter`. 49 green in that file, 153 green
+  across the six order and printing suites.
+- Before-snapshot of the live numbers taken from production first:
+  `_files/2026-09-03/chick-shack-order-numbers-BEFORE.txt` (36 orders, 08-30 to 09-02).
+- ⚠️ **Not yet seen on Imran's tablet.** Deployed at 04:0x BST with the shop shut and zero orders
+  on 09-03, so the first real order of the next service is the proof. Expect `C001` or `D001`.
+
+---
+
 **OI-101 🟢 FOUND AND CLOSED 2026-09-01, SHIPPED `b227c81`. NO RECIPE COULD BE SAVED THROUGH THE API,
 ON ANY TENANT, AND EDITS NEVER INCREMENTED THE VERSION.**
 

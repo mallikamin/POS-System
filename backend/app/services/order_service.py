@@ -44,8 +44,9 @@ VALID_TRANSITIONS: dict[str, list[str]] = {
 
 
 #: Letter stamped into an online order's number so the fulfilment type is
-#: readable at a glance on the printed receipt (Imran, 2026-08-04):
-#: `260804-C001` collection, `260804-D002` delivery.
+#: readable at a glance on the printed receipt (Imran, 2026-08-04), and since
+#: 2026-09-03 the key to its OWN daily sequence (Imran, matching what EposNow
+#: gave him): `260903-C001` first collection, `260903-D001` first delivery.
 SERVICE_TYPE_MARKERS = {"collection": "C", "delivery": "D"}
 
 
@@ -54,19 +55,20 @@ async def generate_order_number(
 ) -> str:
     """Generate a daily sequential order number: `YYMMDD-NNN`, or `YYMMDD-XNNN`.
 
-    **One shared counter per tenant per day**, deliberately -- the letter marks
-    which category an order belongs to, it does not start a separate sequence.
-    So a collection order followed by a delivery order reads `260804-C001` then
-    `260804-D002`, and the plain sequence stays the single source of "how many
-    orders today", which is what makes them easy to track and impossible to
-    confuse with each other.
+    **One counter per fulfilment type per tenant per day** (Imran, 2026-09-03).
+    Collection and delivery each run their own sequence, so a delivery order
+    followed by a collection order reads `260903-D001` then `260903-C001`, and
+    a third order that is a collection reads `260903-C002`.
 
-    The count is a row count, not a parse of previous numbers, so introducing
-    the letter cannot disturb the sequence -- old and new formats coexist
-    safely and no existing order number is ever rewritten.
+    This REPLACES the shared counter shipped on 2026-08-04, where the letter
+    was only a category marker on one sequence (`260903-D001`, `260903-C002`).
+    What it costs: the highest number on the pass is no longer "how many orders
+    today", it is how many of that type. Imran asked for the numbering his till
+    gives him, and that one is per type.
 
     `service_type` is only set on online orders. Every other channel (dine-in,
-    takeaway, call centre) passes `None` and keeps the original `YYMMDD-NNN`.
+    takeaway, call centre) passes `None`, keeps the plain `YYMMDD-NNN`, and now
+    runs its own sequence too.
     """
     now = datetime.now(timezone.utc)
     date_prefix = now.strftime("%y%m%d")
@@ -87,29 +89,41 @@ async def generate_order_number(
         .with_for_update()
     )
 
-    # ⚠️ Allocated from the highest number ALREADY ISSUED today, not from
-    # `count(*)`, and the letter is stripped before comparing.
+    # ⚠️ Allocated from the highest number ALREADY ISSUED today CARRYING THE
+    # SAME LETTER, not from `count(*)`.
     #
     # `count(*) + 1` was wrong in two ways. It collides whenever two customers
     # check out in the same instant -- both count N and both take N+1 -- and
     # while the `uq_order_tenant_number` constraint used to reject the loser,
     # the C/D marker broke even that accidental safety net: a collection and a
     # delivery order colliding produce `-C006` and `-D006`, which are different
-    # strings, so both save and the shared counter silently forks.
+    # strings, so both save and the counter silently forks.
     #
-    # Reading the max issued value keeps one sequence across both letters, and
-    # is also self-healing: a deleted or voided row no longer rewinds the
-    # counter onto a number that has already been printed on a receipt.
+    # Reading the max issued value is also self-healing: a deleted or voided
+    # row no longer rewinds the counter onto a number that has already been
+    # printed on a receipt.
+    #
+    # Scoping the read to one letter is what makes the sequences independent,
+    # and it is why switching over mid-day is safe: each letter continues from
+    # its own high-water mark, so no number issued under the old shared counter
+    # can ever be handed out a second time.
     result = await db.execute(
         select(Order.order_number).where(
             Order.tenant_id == tenant_id,
-            Order.order_number.like(f"{date_prefix}-%"),
+            Order.order_number.like(f"{date_prefix}-{marker}%"),
         )
     )
     highest = 0
     for issued in result.scalars():
         tail = issued.split("-", 1)[1] if "-" in issued else ""
-        digits = tail.lstrip("".join(SERVICE_TYPE_MARKERS.values()))
+        if marker:
+            if not tail.startswith(marker):
+                continue
+            digits = tail[len(marker) :]
+        else:
+            # No letter asked for: the plain sequence. A lettered number is not
+            # all digits, so it drops out here and cannot bump this counter.
+            digits = tail
         if digits.isdigit():
             highest = max(highest, int(digits))
 

@@ -1,6 +1,37 @@
 # STATE — Restaurant POS System
 
-**Last refreshed:** 2026-09-03 (refresh for Martin's round-1 feedback). No drift in the FZ resume point; a new block added on top for the feedback batch.
+**Last refreshed:** 2026-09-03 04:0x BST (Chick Shack order-numbering refresh). No drift found in the FZ or Chick Shack state; a new block added on top for the numbering change.
+
+## 🟢 2026-09-03 ~04:10 BST. CHICK SHACK: COLLECTION AND DELIVERY NOW EACH RUN THEIR OWN DAILY NUMBER. DEPLOYED. UNSEEN ON THE TABLET.
+
+**What Imran asked for.** Deliveries count D001, D002; the third order of the day, if it is a
+collection, is C001. The tablet was showing `D001` then `C002` because there was **one shared
+counter per day** and the letter was only a category marker.
+
+⚠️ **This reverses Malik's own decision of 2026-08-04.** The shared counter existed so the highest
+number on the pass answered "how many orders today". It now answers "how many of that type today".
+Imran's numbering wins; the trade is written down so it is not rediscovered as a bug. Full entry:
+**OI-103** in `_state/open-items.md`.
+
+**The change is one function**, `generate_order_number` in `backend/app/services/order_service.py`:
+the read that allocates the number is scoped to numbers carrying the same letter. **No migration,
+no data rewrite.** Each letter continues from its own high-water mark, so nothing issued under the
+shared counter can be handed out twice.
+
+**Proof so far, all local.** 49 green in `test_public_tenant_routing.py` including three tests
+written for this, 153 green across the six order and printing suites. One failure,
+`test_cannot_advance_a_rejected_order`, is the pre-existing rejected-order guard already listed
+below and untouched by this. `ruff check` clean.
+
+**Production before-snapshot taken first**, read-only, tenant-filtered:
+`_files/2026-09-03/chick-shack-order-numbers-BEFORE.txt` — 36 orders from 08-30 to 09-02, last one
+`260902-D008` at 20:02. **Zero orders exist for 09-03**, so the shop was shut and the switch lands
+on a clean day boundary.
+
+🔴 **Nothing has been seen on Imran's tablet.** The first real order of the next service is the
+proof, and it should read `C001` or `D001`.
+
+The block below is the state before this change.
 
 ## 🟢 2026-09-02 19:30 UTC. MARTIN'S ROUND-1 FEEDBACK: ALL SEVEN ITEMS DEPLOYED (`36ae70f`) AND WALKED ON PRODUCTION OVER THE API. PIXELS STILL UNSEEN.
 
