@@ -28,8 +28,20 @@ below and untouched by this. `ruff check` clean.
 `260902-D008` at 20:02. **Zero orders exist for 09-03**, so the shop was shut and the switch lands
 on a clean day boundary.
 
+**DEPLOYED AND PROVEN ON PRODUCTION, READ-ONLY.** Commit `4eda4ae`, "Deploy to Production" green.
+The new allocator is in the running backend container, and the real `generate_order_number` was
+called against the real database with the clock pinned to 2026-09-02, a day that actually ended
+`C004` / `D008`:
+
+    collection -> 260902-C005      (the old shared counter would have said C009)
+    delivery   -> 260902-D009
+    plain      -> 260902-001       (its own third sequence)
+
+The function only reads; the session was rolled back and the 4-day order count is unchanged at 36,
+so **no number was consumed and no row was written.**
+
 🔴 **Nothing has been seen on Imran's tablet.** The first real order of the next service is the
-proof, and it should read `C001` or `D001`.
+last proof, and it should read `C001` or `D001`.
 
 The block below is the state before this change.
 

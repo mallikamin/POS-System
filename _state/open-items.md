@@ -27,8 +27,12 @@ nobody rediscovers it as a bug.
   across the six order and printing suites.
 - Before-snapshot of the live numbers taken from production first:
   `_files/2026-09-03/chick-shack-order-numbers-BEFORE.txt` (36 orders, 08-30 to 09-02).
-- ⚠️ **Not yet seen on Imran's tablet.** Deployed at 04:0x BST with the shop shut and zero orders
-  on 09-03, so the first real order of the next service is the proof. Expect `C001` or `D001`.
+- **Proven on production, read-only** (`4eda4ae`, Deploy to Production green). The real function,
+  called against the real database with the clock pinned to 09-02 (a day that ended `C004`/`D008`),
+  returned `260902-C005` and `260902-D009`; the old shared counter would have said `C009`. Session
+  rolled back, order count unchanged at 36, no number consumed.
+- ⚠️ **Not yet seen on Imran's tablet.** Deployed 04:10 BST with the shop shut and zero orders on
+  09-03, so the first real order of the next service is the last proof. Expect `C001` or `D001`.
 
 ---
 
