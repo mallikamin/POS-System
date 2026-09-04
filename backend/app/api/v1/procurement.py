@@ -98,6 +98,7 @@ def _receipt_out(receipt: GoodsReceipt) -> GoodsReceiptResponse:
                 ingredient_id=line.ingredient_id,
                 quantity_received=line.quantity_received,
                 unit=line.unit,
+                units_per_purchase_unit=line.units_per_purchase_unit,
                 unit_price_minor=line.unit_price_minor,
             )
             for line in receipt.lines
@@ -150,6 +151,8 @@ def _po_out(po: PurchaseOrder) -> PurchaseOrderResponse:
                     - Decimal(str(item.quantity_received)),
                 ),
                 unit=item.unit,
+                units_per_purchase_unit=item.units_per_purchase_unit,
+                stock_unit=item.ingredient.unit,
                 unit_price_minor=item.unit_price_minor,
                 line_total_minor=item.line_total_minor,
                 supplier_sku=item.supplier_sku,

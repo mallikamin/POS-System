@@ -70,6 +70,17 @@ def _qty(value) -> Decimal:
     return Decimal(str(value)).quantize(_QTY)
 
 
+def _rate(value) -> Decimal:
+    """A cost PER STOCKING UNIT, four decimal places.
+
+    Separate from `_money` on purpose (Martin M8). `_money` is for sums
+    actually charged, which are settled to two places. This is a rate derived
+    by division -- fils per gram -- and rounding it to two places at the point
+    of division puts the error straight into every recipe cost.
+    """
+    return Decimal(str(value)).quantize(Decimal("0.0001"))
+
+
 # ---------------------------------------------------------------------------
 # NUMBERING
 # ---------------------------------------------------------------------------
@@ -270,13 +281,37 @@ async def _resolve_line(
         if catalogue is not None and Decimal(str(catalogue.last_price_minor)) > 0:
             price = catalogue.last_price_minor
         else:
-            price = ingredient.cost_per_unit
+            # Martin M8: for an ingredient with a purchase unit the whole line
+            # is expressed in purchase units, so the fallback price must be the
+            # price of a can, not the price of a gram. Falling through to
+            # `cost_per_unit` here would under-price the order by the
+            # conversion factor -- 400x for a tomato can.
+            price = (
+                ingredient.purchase_cost_minor
+                if ingredient.purchase_unit
+                else ingredient.cost_per_unit
+            )
     price = _money(price)
     if price < 0:
         raise ProcurementError("A unit price cannot be negative.")
 
     sku = line.get("supplier_sku") or (catalogue.supplier_sku if catalogue else None)
     return ingredient, price, sku
+
+
+def purchase_unit_of(ingredient: Ingredient) -> tuple[str, Decimal]:
+    """The unit a purchase order line is written in, and its conversion.
+
+    ("can", 400) for an ingredient with a purchase unit, ("g", 1) for one
+    bought in the unit it is stocked in. Every line-writing path goes through
+    this so the unit and its conversion can never be set from different places
+    and disagree.
+    """
+    if ingredient.purchase_unit:
+        return ingredient.purchase_unit, Decimal(
+            str(ingredient.units_per_purchase_unit or 1)
+        )
+    return ingredient.unit, Decimal("1")
 
 
 async def create_purchase_order(
@@ -329,13 +364,15 @@ async def create_purchase_order(
                 "quantities into one line."
             )
         seen.add(ingredient.id)
+        order_unit, conversion = purchase_unit_of(ingredient)
         db.add(
             PurchaseOrderItem(
                 tenant_id=tenant_id,
                 purchase_order_id=po.id,
                 ingredient_id=ingredient.id,
                 quantity_ordered=_qty(line["quantity_ordered"]),
-                unit=ingredient.unit,
+                unit=order_unit,
+                units_per_purchase_unit=conversion,
                 unit_price_minor=price,
                 supplier_sku=sku,
                 notes=line.get("notes"),
@@ -390,13 +427,15 @@ async def update_purchase_order(
                     "the quantities into one line."
                 )
             seen.add(ingredient.id)
+            order_unit, conversion = purchase_unit_of(ingredient)
             db.add(
                 PurchaseOrderItem(
                     tenant_id=tenant_id,
                     purchase_order_id=po.id,
                     ingredient_id=ingredient.id,
                     quantity_ordered=_qty(line["quantity_ordered"]),
-                    unit=ingredient.unit,
+                    unit=order_unit,
+                    units_per_purchase_unit=conversion,
                     unit_price_minor=price,
                     supplier_sku=sku,
                     notes=line.get("notes"),
@@ -544,6 +583,15 @@ async def receive_goods(
         if price < 0:
             raise ProcurementError("A received unit price cannot be negative.")
 
+        # Martin M8. The line counts purchase units ("3 cans"); stock counts
+        # stocking units ("1200 g"). This is the one place the two meet, and
+        # both numbers below have to cross the conversion together: the
+        # quantity multiplied by it, the unit cost divided by it. Converting
+        # only one would book the right weight at 400x the right price.
+        conversion = Decimal(str(item.units_per_purchase_unit or 1))
+        stock_quantity = _qty(quantity * conversion)
+        stock_unit_cost = _rate(price / conversion) if conversion > 0 else _rate(price)
+
         db.add(
             GoodsReceiptLine(
                 tenant_id=tenant_id,
@@ -552,6 +600,7 @@ async def receive_goods(
                 ingredient_id=item.ingredient_id,
                 quantity_received=quantity,
                 unit=item.unit,
+                units_per_purchase_unit=conversion,
                 unit_price_minor=price,
             )
         )
@@ -564,17 +613,17 @@ async def receive_goods(
             db,
             tenant_id=tenant_id,
             ingredient_id=item.ingredient_id,
-            quantity_delta=quantity,
+            quantity_delta=stock_quantity,
             transaction_type="purchase",
             location_id=po.location_id,
-            unit_cost=price,
+            unit_cost=stock_unit_cost,
             performed_by=performed_by,
             reference_number=po.po_number,
             notes=f"Goods receipt {receipt.receipt_number}",
         )
 
         await _apply_purchase_price(
-            db, tenant_id, po.supplier_id, item.ingredient_id, price
+            db, tenant_id, po.supplier_id, item.ingredient_id, price, conversion
         )
 
     await db.flush()
@@ -594,13 +643,22 @@ async def _apply_purchase_price(
     supplier_id: uuid.UUID,
     ingredient_id: uuid.UUID,
     price_minor: Decimal,
+    conversion: Decimal = Decimal("1"),
 ) -> None:
     """Update what we know an ingredient costs, from what we just paid.
 
-    Two writes, and the second one is guarded:
+    `price_minor` is per PURCHASE unit and `conversion` is the stocking units
+    in one of them (Martin M8), so a can at 8.50 with 400 g in it writes 850 to
+    the purchase price and 2.125 to the cost of a gram. Both stay in step
+    because they are written together, here, from the same pair of numbers.
+
+    Three writes, and the last one is guarded:
 
     * The supplier's catalogue price always updates. That is a fact about this
-      supplier and nothing else reads it as an authority.
+      supplier and nothing else reads it as an authority. It is stored per
+      purchase unit, matching the PO line it came from.
+    * The ingredient's own `purchase_cost_minor` follows it, so the admin form
+      shows the price actually last paid for a can.
     * The ingredient master's `cost_per_unit` updates ONLY for a purchased
       ingredient. For an `is_produced` one it is a rollup owned by
       `recipe_service.sync_produced_ingredient_cost`, and overwriting it here
@@ -626,7 +684,9 @@ async def _apply_purchase_price(
         )
     ).scalar_one_or_none()
     if ingredient is not None and not ingredient.is_produced:
-        ingredient.cost_per_unit = _money(price_minor)
+        divisor = conversion if conversion and conversion > 0 else Decimal("1")
+        ingredient.purchase_cost_minor = _money(price_minor)
+        ingredient.cost_per_unit = _rate(price_minor / divisor)
         await db.flush()
 
 
@@ -686,13 +746,23 @@ async def outstanding_quantities(
 
     The ordering suggestion must subtract this, or it will re-order everything
     that is already in a van on its way to the door.
+
+    🔴 **Returned in STOCKING units**, which is what the caller compares
+    against stock on hand. The line itself counts purchase units (Martin M8:
+    "2 cans"), so the outstanding quantity is multiplied by the line's own
+    snapshotted conversion before it is summed. Leaving that out would say two
+    cans are coming when what is coming is 800 g, and the suggestion would
+    order 798 g more of them.
     """
     stmt = (
         select(
             PurchaseOrderItem.ingredient_id,
             func.sum(
-                PurchaseOrderItem.quantity_ordered
-                - PurchaseOrderItem.quantity_received
+                (
+                    PurchaseOrderItem.quantity_ordered
+                    - PurchaseOrderItem.quantity_received
+                )
+                * PurchaseOrderItem.units_per_purchase_unit
             ),
         )
         .join(PurchaseOrder, PurchaseOrder.id == PurchaseOrderItem.purchase_order_id)

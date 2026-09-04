@@ -1527,3 +1527,30 @@ genuine defect with no human clicking anything.
   with what Malik sees on his own screen, the query is wrong, not the screen: check the tenant
   filter before anything else. Never propose a write against a row without first confirming
   which tenant owns it.
+
+---
+
+### [2026-09-04] — A Pydantic response-field default turned a forgotten field into a plausible wrong number
+
+- **Error**: A goods receipt reported `units_per_purchase_unit: 1.0` on the wire while the
+  `goods_receipt_lines` row in Postgres held `400.0000`. No exception, no warning, no failing
+  test. Stock moved correctly (800 g), so every screen looked right except the one number that
+  explains WHY it was 800.
+- **Context**: Building Martin's M8, two units and a conversion on bought ingredients. Found
+  only by reading the raw Postgres row after the API walk, not by any assertion.
+- **Root Cause**: `GoodsReceiptLineResponse.units_per_purchase_unit` was declared as
+  `Num = 1`. The hand-written response builder `_receipt_out()` in `api/v1/procurement.py`
+  builds the schema field by field and simply never passed it. A required field would have
+  raised a `ValidationError` on the first request. The default silently supplied 1, which is
+  the correct value for most ingredients and therefore looks entirely plausible.
+- **Fix**: Passed the field in `_receipt_out()`, and removed the `= 1` default from BOTH
+  `GoodsReceiptLineResponse` and `PurchaseOrderItemResponse` so the field is required. Added a
+  route-level assertion in `tests/test_martin_round2.py` reading the conversion back off the
+  receive response.
+- **Rule**: **A response schema built field-by-field by hand must not give its fields
+  defaults.** The default is not a convenience there, it is a silent substitution for a bug.
+  Reserve defaults for schemas populated by `from_attributes`. And when a new field is added
+  to a response model, grep for every hand-written constructor of that model, not just the one
+  you were editing: `_po_out` was updated and `_receipt_out` was missed in the same file.
+- **Second rule**: this was caught by reading the DATABASE ROW, not the API response and not
+  the test suite. When a value crosses a unit boundary, check the stored row at least once.

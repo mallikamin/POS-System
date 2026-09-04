@@ -72,6 +72,19 @@ export default function IngredientManagementPage() {
   const [category, setCategory] = useState("General");
   const [unit, setUnit] = useState("kg");
   const [costPerUnitRupees, setCostPerUnitRupees] = useState(""); // Display in PKR
+  /**
+   * Martin (FZ LLC, 2026-09-04, M8): "2 units and a conversion. The unit you
+   * buy, the unit you store) use in recipes ... I buy tomato cans..so in the
+   * purchase order I will request 2 cans. But in my recipes I use grams".
+   *
+   * Off by default, and the whole block stays hidden until it is switched on,
+   * because most ingredients are bought in the unit they are stocked in and
+   * three extra boxes on every create form would be a tax on the simple case.
+   */
+  const [hasPurchaseUnit, setHasPurchaseUnit] = useState(false);
+  const [purchaseUnit, setPurchaseUnit] = useState("");
+  const [unitsPerPurchaseUnit, setUnitsPerPurchaseUnit] = useState("");
+  const [purchaseCostRupees, setPurchaseCostRupees] = useState("");
   const [supplierName, setSupplierName] = useState("");
   const [supplierContact, setSupplierContact] = useState("");
   const [reorderPoint, setReorderPoint] = useState("");
@@ -131,6 +144,10 @@ export default function IngredientManagementPage() {
     setCategory("General");
     setUnit("kg");
     setCostPerUnitRupees("");
+    setHasPurchaseUnit(false);
+    setPurchaseUnit("");
+    setUnitsPerPurchaseUnit("");
+    setPurchaseCostRupees("");
     setSupplierName("");
     setSupplierContact("");
     setReorderPoint("");
@@ -154,6 +171,16 @@ export default function IngredientManagementPage() {
     setCategory(ingredient.category);
     setUnit(ingredient.unit);
     setCostPerUnitRupees(String(paisaToRupees(ingredient.cost_per_unit)));
+    setHasPurchaseUnit(Boolean(ingredient.purchase_unit));
+    setPurchaseUnit(ingredient.purchase_unit || "");
+    setUnitsPerPurchaseUnit(
+      ingredient.purchase_unit ? String(ingredient.units_per_purchase_unit) : ""
+    );
+    setPurchaseCostRupees(
+      ingredient.purchase_unit
+        ? String(paisaToRupees(ingredient.purchase_cost_minor))
+        : ""
+    );
     setSupplierName(ingredient.supplier_name || "");
     setSupplierContact(ingredient.supplier_contact || "");
     setReorderPoint(String(ingredient.reorder_point || ""));
@@ -165,6 +192,44 @@ export default function IngredientManagementPage() {
     setEditOpen(true);
   }
 
+  /**
+   * The purchase-unit trio for a payload, or the "no conversion" trio.
+   *
+   * Returned as one object rather than three loose values so the unit, the
+   * conversion and the price it belongs to can never be assembled from
+   * different places and end up describing different things. A produced
+   * ingredient never gets one: it is made, not bought.
+   */
+  function purchaseFields() {
+    if (isProduced || !hasPurchaseUnit || !purchaseUnit.trim()) {
+      return {
+        purchase_unit: null,
+        units_per_purchase_unit: 1,
+        purchase_cost_minor: 0,
+      };
+    }
+    return {
+      purchase_unit: purchaseUnit.trim(),
+      units_per_purchase_unit: parseFloat(unitsPerPurchaseUnit),
+      purchase_cost_minor: purchaseCostRupees
+        ? rupeesToPaisa(parseFloat(purchaseCostRupees))
+        : 0,
+    };
+  }
+
+  /** Null when the form is fine, otherwise the sentence to show. */
+  function purchaseUnitProblem(): string | null {
+    if (isProduced || !hasPurchaseUnit) return null;
+    if (!purchaseUnit.trim()) {
+      return "Say what you buy it in, for example a can or a case.";
+    }
+    const conversion = parseFloat(unitsPerPurchaseUnit);
+    if (!Number.isFinite(conversion) || conversion <= 0) {
+      return `Say how many ${unit.trim() || "units"} are in one ${purchaseUnit.trim()}.`;
+    }
+    return null;
+  }
+
   // Create ingredient
   async function handleCreate() {
     if (!name.trim() || !unit.trim()) {
@@ -172,6 +237,12 @@ export default function IngredientManagementPage() {
         variant: "destructive",
         title: "Name and unit are required",
       });
+      return;
+    }
+
+    const problem = purchaseUnitProblem();
+    if (problem) {
+      toast({ variant: "destructive", title: problem });
       return;
     }
 
@@ -187,6 +258,9 @@ export default function IngredientManagementPage() {
           !isProduced && costPerUnitRupees
             ? rupeesToPaisa(parseFloat(costPerUnitRupees))
             : 0,
+        // M8. When a purchase unit is set the server derives the cost above
+        // from these three and ignores what was sent, so the two never drift.
+        ...purchaseFields(),
         supplier_name: isProduced ? null : supplierName.trim() || null,
         supplier_contact: isProduced ? null : supplierContact.trim() || null,
         reorder_point: reorderPoint ? parseFloat(reorderPoint) : 0,
@@ -230,12 +304,19 @@ export default function IngredientManagementPage() {
       return;
     }
 
+    const problem = purchaseUnitProblem();
+    if (problem) {
+      toast({ variant: "destructive", title: problem });
+      return;
+    }
+
     setSaving(true);
     try {
       const payload: IngredientUpdate = {
         name: name.trim(),
         category: category.trim() || "General",
         unit: unit.trim(),
+        ...purchaseFields(),
         supplier_name: isProduced ? null : supplierName.trim() || null,
         supplier_contact: isProduced ? null : supplierContact.trim() || null,
         reorder_point: reorderPoint ? parseFloat(reorderPoint) : 0,
@@ -453,6 +534,15 @@ export default function IngredientManagementPage() {
                         </td>
                         <td className="py-3 text-secondary-600">
                           {ingredient.unit}
+                          {/* M8: the second unit, when there is one, so the two
+                              are visible on the row rather than only in the
+                              dialog that set them. */}
+                          {ingredient.purchase_unit && (
+                            <div className="text-[10px] font-normal text-secondary-400">
+                              buy: 1 {ingredient.purchase_unit} ={" "}
+                              {ingredient.units_per_purchase_unit} {ingredient.unit}
+                            </div>
+                          )}
                         </td>
                         <td className="py-3 text-right text-secondary-900">
                           {formatPKR(ingredient.cost_per_unit)}
@@ -461,6 +551,12 @@ export default function IngredientManagementPage() {
                               {ingredient.production_recipe_id
                                 ? "calculated from recipe"
                                 : "awaiting recipe"}
+                            </div>
+                          )}
+                          {!ingredient.is_produced && ingredient.purchase_unit && (
+                            <div className="text-[10px] font-normal text-secondary-400">
+                              {formatPKR(ingredient.purchase_cost_minor)} per{" "}
+                              {ingredient.purchase_unit}
                             </div>
                           )}
                         </td>
@@ -563,16 +659,20 @@ export default function IngredientManagementPage() {
               />
             </div>
 
-            {/* Unit */}
+            {/* Unit. Relabelled with M8: it is the STOCKING unit, and calling
+                it that here is the only place the distinction can be taught. */}
             <div className="space-y-2">
-              <Label htmlFor="create-unit">Unit *</Label>
+              <Label htmlFor="create-unit">Unit I store and cook in *</Label>
               <Input
                 id="create-unit"
                 value={unit}
                 onChange={(e) => setUnit(e.target.value)}
-                placeholder="kg, L, pieces, etc."
+                placeholder="kg, g, L, pieces, etc."
                 className="min-h-[48px]"
               />
+              <p className="text-xs text-secondary-500">
+                Recipes and stock on hand are both counted in this.
+              </p>
             </div>
 
             {/* Bought or made in-house */}
@@ -592,19 +692,21 @@ export default function IngredientManagementPage() {
                 &ldquo;Sub-recipe&rdquo; as the target.
               </p>
             ) : (
-              <div className="space-y-2">
-                <Label htmlFor="create-cost">Cost per Unit ({currency})</Label>
-                <Input
-                  id="create-cost"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={costPerUnitRupees}
-                  onChange={(e) => setCostPerUnitRupees(e.target.value)}
-                  placeholder="800.00"
-                  className="min-h-[48px]"
-                />
-              </div>
+              <PurchaseUnitFields
+                idPrefix="create"
+                currency={currency}
+                stockUnit={unit}
+                enabled={hasPurchaseUnit}
+                onEnabledChange={setHasPurchaseUnit}
+                purchaseUnit={purchaseUnit}
+                onPurchaseUnitChange={setPurchaseUnit}
+                unitsPerPurchaseUnit={unitsPerPurchaseUnit}
+                onUnitsPerPurchaseUnitChange={setUnitsPerPurchaseUnit}
+                purchaseCostRupees={purchaseCostRupees}
+                onPurchaseCostChange={setPurchaseCostRupees}
+                costPerUnitRupees={costPerUnitRupees}
+                onCostPerUnitChange={setCostPerUnitRupees}
+              />
             )}
 
             {/* Supplier (bought items only) */}
@@ -752,13 +854,16 @@ export default function IngredientManagementPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="edit-unit">Unit *</Label>
+              <Label htmlFor="edit-unit">Unit I store and cook in *</Label>
               <Input
                 id="edit-unit"
                 value={unit}
                 onChange={(e) => setUnit(e.target.value)}
                 className="min-h-[48px]"
               />
+              <p className="text-xs text-secondary-500">
+                Recipes and stock on hand are both counted in this.
+              </p>
             </div>
 
             <SourceSwitch
@@ -790,18 +895,21 @@ export default function IngredientManagementPage() {
                 </div>
               </div>
             ) : (
-              <div className="space-y-2">
-                <Label htmlFor="edit-cost">Cost per Unit ({currency})</Label>
-                <Input
-                  id="edit-cost"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={costPerUnitRupees}
-                  onChange={(e) => setCostPerUnitRupees(e.target.value)}
-                  className="min-h-[48px]"
-                />
-              </div>
+              <PurchaseUnitFields
+                idPrefix="edit"
+                currency={currency}
+                stockUnit={unit}
+                enabled={hasPurchaseUnit}
+                onEnabledChange={setHasPurchaseUnit}
+                purchaseUnit={purchaseUnit}
+                onPurchaseUnitChange={setPurchaseUnit}
+                unitsPerPurchaseUnit={unitsPerPurchaseUnit}
+                onUnitsPerPurchaseUnitChange={setUnitsPerPurchaseUnit}
+                purchaseCostRupees={purchaseCostRupees}
+                onPurchaseCostChange={setPurchaseCostRupees}
+                costPerUnitRupees={costPerUnitRupees}
+                onCostPerUnitChange={setCostPerUnitRupees}
+              />
             )}
 
             {!isProduced && (
@@ -993,6 +1101,169 @@ function SourceSwitch({ idPrefix, isProduced, onChange, lockedByRecipe }: Source
         <p className="text-xs text-secondary-500">
           An active recipe makes this ingredient. Delete that recipe first to mark it as bought.
         </p>
+      )}
+    </div>
+  );
+}
+
+interface PurchaseUnitFieldsProps {
+  idPrefix: string;
+  currency: string;
+  /** The stocking unit typed above, used verbatim in every label here. */
+  stockUnit: string;
+  enabled: boolean;
+  onEnabledChange: (value: boolean) => void;
+  purchaseUnit: string;
+  onPurchaseUnitChange: (value: string) => void;
+  unitsPerPurchaseUnit: string;
+  onUnitsPerPurchaseUnitChange: (value: string) => void;
+  purchaseCostRupees: string;
+  onPurchaseCostChange: (value: string) => void;
+  costPerUnitRupees: string;
+  onCostPerUnitChange: (value: string) => void;
+}
+
+/**
+ * Cost for a bought ingredient, in one unit or in two.
+ *
+ * Martin (FZ LLC, 2026-09-04, M8): "I buy tomato cans..so in the purchase
+ * order I will request 2 cans. But in my recipes I use grams."
+ *
+ * The switch is off by default and the whole two-unit block is hidden behind
+ * it, so the common case (buy kilos, cook kilos) is the same single cost box
+ * it has always been. Switched on, the typed cost box disappears entirely and
+ * is replaced by a computed line, because a screen that shows both an editable
+ * cost per gram and a price per can invites someone to make them disagree.
+ */
+function PurchaseUnitFields({
+  idPrefix,
+  currency,
+  stockUnit,
+  enabled,
+  onEnabledChange,
+  purchaseUnit,
+  onPurchaseUnitChange,
+  unitsPerPurchaseUnit,
+  onUnitsPerPurchaseUnitChange,
+  purchaseCostRupees,
+  onPurchaseCostChange,
+  costPerUnitRupees,
+  onCostPerUnitChange,
+}: PurchaseUnitFieldsProps) {
+  const storeUnit = stockUnit.trim() || "unit";
+  const buyUnit = purchaseUnit.trim() || "purchase unit";
+  const conversion = parseFloat(unitsPerPurchaseUnit);
+  const price = parseFloat(purchaseCostRupees);
+  const derived =
+    Number.isFinite(conversion) && conversion > 0 && Number.isFinite(price)
+      ? price / conversion
+      : null;
+
+  return (
+    <div className="space-y-3">
+      <label
+        htmlFor={`${idPrefix}-two-units`}
+        className="flex cursor-pointer items-start gap-3 rounded-lg border-2 border-secondary-200 p-3 transition-colors hover:border-secondary-300"
+      >
+        <input
+          id={`${idPrefix}-two-units`}
+          type="checkbox"
+          checked={enabled}
+          onChange={(e) => onEnabledChange(e.target.checked)}
+          className="mt-1 h-5 w-5 shrink-0 accent-primary-600"
+        />
+        <span>
+          <span className="block font-medium text-secondary-900">
+            I buy this in a different unit from the one I cook with
+          </span>
+          <span className="block text-xs text-secondary-500">
+            For example, bought by the can and used by the gram.
+          </span>
+        </span>
+      </label>
+
+      {!enabled ? (
+        <div className="space-y-2">
+          <Label htmlFor={`${idPrefix}-cost`}>
+            Cost per {storeUnit} ({currency})
+          </Label>
+          <Input
+            id={`${idPrefix}-cost`}
+            type="number"
+            min="0"
+            step="0.01"
+            value={costPerUnitRupees}
+            onChange={(e) => onCostPerUnitChange(e.target.value)}
+            placeholder="800.00"
+            className="min-h-[48px]"
+          />
+        </div>
+      ) : (
+        <div className="space-y-3 rounded-lg border border-secondary-200 bg-secondary-50 p-3">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor={`${idPrefix}-purchase-unit`}>I buy it in *</Label>
+              <Input
+                id={`${idPrefix}-purchase-unit`}
+                value={purchaseUnit}
+                onChange={(e) => onPurchaseUnitChange(e.target.value)}
+                placeholder="can, case, sack"
+                className="min-h-[48px]"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor={`${idPrefix}-conversion`}>
+                {storeUnit} in one {buyUnit} *
+              </Label>
+              <Input
+                id={`${idPrefix}-conversion`}
+                type="number"
+                min="0"
+                step="any"
+                value={unitsPerPurchaseUnit}
+                onChange={(e) => onUnitsPerPurchaseUnitChange(e.target.value)}
+                placeholder="400"
+                className="min-h-[48px]"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor={`${idPrefix}-purchase-cost`}>
+              Cost per {buyUnit} ({currency})
+            </Label>
+            <Input
+              id={`${idPrefix}-purchase-cost`}
+              type="number"
+              min="0"
+              step="0.01"
+              value={purchaseCostRupees}
+              onChange={(e) => onPurchaseCostChange(e.target.value)}
+              placeholder="8.50"
+              className="min-h-[48px]"
+            />
+          </div>
+
+          {/* Read-only on purpose. This is the number recipes are costed at,
+              and it is arithmetic, not an opinion. */}
+          <p className="text-pos-sm text-secondary-600">
+            {derived === null ? (
+              <>
+                Fill in the three boxes above and the cost per {storeUnit} will
+                be worked out here.
+              </>
+            ) : (
+              <>
+                Cost per {storeUnit}:{" "}
+                <span className="font-medium text-secondary-900">
+                  {currency} {derived.toFixed(4)}
+                </span>
+                . Purchase orders are placed in {buyUnit}s; recipes and stock
+                stay in {storeUnit}.
+              </>
+            )}
+          </p>
+        </div>
       )}
     </div>
   );

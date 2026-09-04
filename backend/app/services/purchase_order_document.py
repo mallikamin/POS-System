@@ -59,6 +59,20 @@ def _qty_str(value) -> str:
     return text
 
 
+def _stock_equivalent(item) -> str | None:
+    """"= 800 g", for a line ordered in a unit the kitchen does not cook in.
+
+    Martin M8. Returns None when the purchase unit and the stocking unit are
+    the same, which is every line raised before the conversion existed, so no
+    existing purchase order document changes at all.
+    """
+    conversion = Decimal(str(item.units_per_purchase_unit or 1))
+    if conversion == 1 or item.unit == item.ingredient.unit:
+        return None
+    total = Decimal(str(item.quantity_ordered)) * conversion
+    return f"= {_qty_str(total)} {item.ingredient.unit}"
+
+
 @dataclass
 class DocumentParty:
     name: str
@@ -89,6 +103,12 @@ class DocumentLine:
     unit_price_minor: Decimal
     line_total_minor: Decimal
     notes: str | None = None
+    # What the quantity works out to in the kitchen's own units, when the two
+    # differ (Martin M8). The supplier is asked for cans and only cans; this
+    # rides along in the notes column so the person checking the delivery in
+    # can see the weight without doing the arithmetic. None when there is no
+    # conversion, which keeps every existing document byte-identical.
+    stock_equivalent: str | None = None
 
 
 @dataclass
@@ -170,6 +190,7 @@ async def build_document(
             unit_price_minor=Decimal(str(item.unit_price_minor)),
             line_total_minor=Decimal(str(item.line_total_minor)),
             notes=item.notes,
+            stock_equivalent=_stock_equivalent(item),
         )
         for item in po.items
     ]
@@ -241,6 +262,8 @@ def render_text(doc: PurchaseOrderDocument) -> str:
             f"{_money_str(line.unit_price_minor, doc.currency):>14}"
             f"{_money_str(line.line_total_minor, doc.currency):>14}"
         )
+        if line.stock_equivalent:
+            out.append(f"  {line.stock_equivalent}")
         if line.notes:
             out.append(f"  note: {line.notes}")
     out.append("-" * 72)
@@ -321,12 +344,22 @@ def render_html(doc: PurchaseOrderDocument) -> str:
             if line.notes
             else ""
         )
+        # Martin M8. The supplier is invoiced for cans; the equivalent in the
+        # kitchen's own unit sits under it, muted, for whoever checks the
+        # delivery in. Empty string when there is no conversion, so a document
+        # for an ingredient bought in its stocking unit is unchanged.
+        equivalent = (
+            f'<div style="font-size:11px; color:{_C_MUTED};">'
+            f"{html_escape(line.stock_equivalent)}</div>"
+            if line.stock_equivalent
+            else ""
+        )
         line_rows.append(
             f"""<tr>
 <td style="padding:10px 8px; font-size:13px; color:{_C_INK}; border-bottom:1px solid {_C_LINE};">
 {html_escape(line.description)}{sku}{note}</td>
 <td style="padding:10px 8px; font-size:13px; color:{_C_INK}; text-align:right; white-space:nowrap; border-bottom:1px solid {_C_LINE};">
-{html_escape(_qty_str(line.quantity))} {html_escape(line.unit)}</td>
+{html_escape(_qty_str(line.quantity))} {html_escape(line.unit)}{equivalent}</td>
 <td style="padding:10px 8px; font-size:13px; color:{_C_INK}; text-align:right; white-space:nowrap; border-bottom:1px solid {_C_LINE};">
 {html_escape(_money_str(line.unit_price_minor, doc.currency))}</td>
 <td style="padding:10px 8px; font-size:13px; color:{_C_INK}; text-align:right; white-space:nowrap; border-bottom:1px solid {_C_LINE};">

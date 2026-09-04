@@ -190,10 +190,24 @@ class PurchaseOrderItemResponse(BaseModel):
     ingredient_id: uuid.UUID
     ingredient_name: str
     ingredient_image_url: str | None = None
+    # Counted and priced in `unit`, which is the ingredient's PURCHASE unit
+    # when it has one (Martin M8). Two cans, not eight hundred grams.
     quantity_ordered: Num
     quantity_received: Num
     quantity_outstanding: Num
     unit: str
+    # Stocking units in one `unit`, snapshotted when the line was written.
+    # 1 whenever the ingredient is bought in the unit it is stocked in.
+    #
+    # REQUIRED, with no default, on purpose. It was written with `= 1` first
+    # and `_receipt_out` in the routes forgot to pass it, so every goods
+    # receipt reported a conversion of 1 while the database held 400 -- caught
+    # only by reading the raw row on 2026-09-04. A default here turns a missing
+    # field into a plausible wrong number instead of an error.
+    units_per_purchase_unit: Num
+    # The stocking unit, so a screen can say "2 cans (800 g)" without a second
+    # round trip for the ingredient.
+    stock_unit: str | None = None
     unit_price_minor: Num
     line_total_minor: Num
     supplier_sku: str | None
@@ -208,6 +222,8 @@ class GoodsReceiptLineResponse(BaseModel):
     ingredient_id: uuid.UUID
     quantity_received: Num
     unit: str
+    # Required, no default. See the note on `PurchaseOrderItemResponse`.
+    units_per_purchase_unit: Num
     unit_price_minor: Num
 
 

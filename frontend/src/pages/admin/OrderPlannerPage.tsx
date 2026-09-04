@@ -483,7 +483,7 @@ function OrderPlannerPage() {
                               {line.ingredient_name}
                               {num(line.pack_size) > 0 && (
                                 <span className="ml-2 text-xs text-secondary-500">
-                                  {num(line.pack_size)} {line.unit} packs
+                                  {num(line.pack_size)} {line.purchase_unit} packs
                                 </span>
                               )}
                             </td>
@@ -496,8 +496,20 @@ function OrderPlannerPage() {
                             <td className="py-2 text-right">
                               {num(line.on_order)}
                             </td>
+                            {/* M8: what to ORDER, so it is counted in the unit
+                                the supplier sells. The columns to its left
+                                are the kitchen's own units, and mixing the two
+                                in one row is exactly what Martin flagged. */}
                             <td className="py-2 text-right font-medium">
-                              {num(line.suggested_quantity)} {line.unit}
+                              {num(line.suggested_quantity)} {line.purchase_unit}
+                              {line.purchase_unit !== line.unit && (
+                                <div className="text-[10px] font-normal text-secondary-400">
+                                  ={" "}
+                                  {num(line.suggested_quantity) *
+                                    num(line.units_per_purchase_unit)}{" "}
+                                  {line.unit}
+                                </div>
+                              )}
                             </td>
                             <td className="py-2 text-right">
                               {formatMoney(
@@ -529,7 +541,7 @@ function OrderPlannerPage() {
                       {plan.unsourced.map((line) => (
                         <li key={line.ingredient_id}>
                           {line.ingredient_name} ·{" "}
-                          {num(line.suggested_quantity)} {line.unit}
+                          {num(line.suggested_quantity)} {line.purchase_unit}
                         </li>
                       ))}
                     </ul>

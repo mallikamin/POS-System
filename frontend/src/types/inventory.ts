@@ -13,8 +13,24 @@ export interface Ingredient {
   tenant_id: string;
   name: string;
   category: string; // e.g., "Meat", "Grains", "Spices"
-  unit: string; // e.g., "kg", "L", "pieces"
-  cost_per_unit: number; // paisa
+  /** The STOCKING unit: what recipes spend and stock on hand counts. "g", "kg", "L". */
+  unit: string;
+  /**
+   * Minor units per one STOCKING unit. Read-only on screen whenever
+   * `purchase_unit` is set: the server derives it and ignores what is sent.
+   */
+  cost_per_unit: number;
+  /**
+   * Martin (FZ LLC, 2026-09-04, M8): "2 units and a conversion. The unit you
+   * buy, the unit you store) use in recipes". What the supplier sells, e.g.
+   * "can". Null means bought in the unit it is stocked in, which is every
+   * ingredient that existed before this and stays the simple case on screen.
+   */
+  purchase_unit: string | null;
+  /** Stocking units in one purchase unit, e.g. 400 g per can. 1 when there is no conversion. */
+  units_per_purchase_unit: number;
+  /** Minor units per PURCHASE unit, e.g. 850 = 8.50 AED a can. The price actually typed. */
+  purchase_cost_minor: number;
   supplier_name: string | null;
   supplier_contact: string | null;
   reorder_point: number;
@@ -47,8 +63,14 @@ export interface Ingredient {
 export interface IngredientCreate {
   name: string;
   category?: string;
+  /** The stocking unit. Recipes are written in this. */
   unit: string;
+  /** Ignored by the server when `purchase_unit` is set. Send the can price instead. */
   cost_per_unit?: number; // paisa
+  /** M8: what the supplier sells. Omit for an ingredient bought in its stocking unit. */
+  purchase_unit?: string | null;
+  units_per_purchase_unit?: number;
+  purchase_cost_minor?: number;
   supplier_name?: string | null;
   supplier_contact?: string | null;
   reorder_point?: number;
@@ -65,6 +87,9 @@ export interface IngredientUpdate {
   category?: string;
   unit?: string;
   cost_per_unit?: number; // paisa
+  purchase_unit?: string | null;
+  units_per_purchase_unit?: number;
+  purchase_cost_minor?: number;
   supplier_name?: string | null;
   supplier_contact?: string | null;
   reorder_point?: number;

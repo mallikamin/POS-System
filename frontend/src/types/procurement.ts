@@ -124,10 +124,18 @@ export interface PurchaseOrderItem {
   ingredient_id: string;
   ingredient_name: string;
   ingredient_image_url: string | null;
+  /**
+   * Counted and priced in `unit`, which is the ingredient's PURCHASE unit when
+   * it has one (Martin M8, 2026-09-04). Two cans, not eight hundred grams.
+   */
   quantity_ordered: string;
   quantity_received: string;
   quantity_outstanding: string;
   unit: string;
+  /** Stocking units in one `unit`, snapshotted on the line. 1 when there is no conversion. */
+  units_per_purchase_unit: string;
+  /** The stocking unit, so a row can read "2 cans (800 g)" without a second fetch. */
+  stock_unit: string | null;
   unit_price_minor: string;
   line_total_minor: string;
   supplier_sku: string | null;
@@ -275,8 +283,20 @@ export interface ProductionPlanRow {
 
 export interface SuggestionLine {
   ingredient_id: string;
-  ingredient_name: string;
+  /**
+   * The STOCKING unit. `required`, `on_hand`, `on_order` and `shortfall` are
+   * all counted in this, because that is what recipes spend.
+   */
   unit: string;
+  ingredient_name: string;
+  /**
+   * The PURCHASE unit (Martin M8). `suggested_quantity`, `unit_price_minor`
+   * and `pack_size` are counted in THIS, because that is what the supplier
+   * sells and what the purchase order will say. Equal to `unit` unless the
+   * ingredient is bought in something else.
+   */
+  purchase_unit: string;
+  units_per_purchase_unit: string;
   required: string;
   on_hand: string;
   on_order: string;

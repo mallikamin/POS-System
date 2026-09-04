@@ -49,6 +49,10 @@ class Ingredient(BaseMixin, Base):
         UniqueConstraint("tenant_id", "name", name="uq_ingredient_tenant_name"),
         Index("ix_ingredient_tenant_category", "tenant_id", "category"),
         Index("ix_ingredient_tenant_active", "tenant_id", "is_active"),
+        CheckConstraint(
+            "units_per_purchase_unit > 0",
+            name="ck_ingredient_purchase_conversion_positive",
+        ),
     )
 
     # Identity
@@ -61,14 +65,67 @@ class Ingredient(BaseMixin, Base):
     category: Mapped[str] = mapped_column(
         String(100), nullable=False, default="General"
     )  # Protein, Grain, Spice, Oil, Dairy, Vegetable, etc.
+    # THE STOCKING UNIT. Recipes consume it, stock on hand counts it, and
+    # `cost_per_unit` is the cost of one of it. Martin (FZ LLC, 2026-09-04)
+    # calls it "the unit you store / use in recipes".
     unit: Mapped[str] = mapped_column(
         String(50), nullable=False
     )  # kg, g, L, ml, pieces, etc.
     cost_per_unit: Mapped[Decimal] = mapped_column(
-        Numeric(10, 2), nullable=False, default=0
-    )  # Cost in paisa
+        Numeric(12, 4), nullable=False, default=0
+    )  # MINOR UNITS per one `unit`. DERIVED, never typed, whenever
+    # `purchase_unit` is set -- see the block below.
+    #
+    # FOUR decimal places, widened from two on 2026-09-04 with Martin M8. A
+    # rate is not a price: 8.50 AED for a 400 g can is 2.125 fils a gram, and
+    # at two places that rounds to 2.13, restating the can at 8.52. Small
+    # until a recipe costs a kilo of something, and exactly the sort of drift
+    # that makes a chef stop believing the food-cost report. Money actually
+    # charged (purchase prices, line totals) stays at two places.
     supplier_name: Mapped[str | None] = mapped_column(String(200))
     supplier_contact: Mapped[str | None] = mapped_column(String(100))
+
+    # ---------------------------------------------------------------------
+    # TWO UNITS AND A CONVERSION (Martin, FZ LLC, 2026-09-04 -- item M8)
+    #
+    # > "Ingredients bought Need to have 2 units and a conversion. The unit
+    # >  you buy, the unit you store) use in recipes ... I buy tomato cans..
+    # >  so in the purchase order I will request 2 cans. But in my recipes I
+    # >  use grams"
+    #
+    # `unit` above stays the stocking unit (g). `purchase_unit` is what the
+    # supplier sells (can) and `units_per_purchase_unit` is how many stocking
+    # units are in one of them (400). A NULL or blank `purchase_unit` means
+    # bought and stocked in the same unit, which is every ingredient that
+    # existed before this change -- hence the conversion defaults to 1 and
+    # nothing already in the database moves.
+    #
+    # This is NOT `supplier_items.pack_size`. That is a same-unit rounding
+    # aid ("25 kg per sack") scoped to one supplier. This one changes the
+    # unit the number is expressed in, and it belongs on the ingredient
+    # master because Martin buys tomatoes in cans from whoever sells them.
+    #
+    # Consequences, all enforced in code rather than by convention:
+    #   * A purchase order line for this ingredient is counted and priced in
+    #     PURCHASE units. `purchase_order_service` snapshots the conversion
+    #     onto the line, so editing it here never rewrites history.
+    #   * A goods receipt books `quantity * conversion` into stock, in
+    #     stocking units, at `price / conversion` per stocking unit.
+    #   * `cost_per_unit` is then derived. The admin types the price of a
+    #     can; the cost of a gram falls out of it.
+    #   * A produced (`is_produced`) ingredient has no purchase unit. It is
+    #     not bought, and its cost belongs to the recipe engine.
+    # ---------------------------------------------------------------------
+    purchase_unit: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    units_per_purchase_unit: Mapped[Decimal] = mapped_column(
+        Numeric(12, 4), nullable=False, server_default="1", default=Decimal("1")
+    )
+    # MINOR UNITS per one `purchase_unit`, e.g. 850 = 8.50 AED per can. The
+    # authoritative price when a purchase unit is in play; `cost_per_unit` is
+    # computed from it and from the conversion.
+    purchase_cost_minor: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2), nullable=False, server_default="0", default=Decimal("0")
+    )
 
     # Stock tracking
     current_stock: Mapped[Decimal] = mapped_column(
@@ -275,9 +332,11 @@ class RecipeItem(BaseMixin, Base):
         Numeric(5, 2), nullable=False, default=0
     )  # Waste % (5 = 5% waste)
 
-    # Cost (denormalized for history)
+    # Cost (denormalized for history). Four places, matching
+    # `Ingredient.cost_per_unit` -- this is a copy of it, and a snapshot that
+    # rounds harder than the thing it snapshots is not a snapshot.
     cost_per_unit_snapshot: Mapped[Decimal] = mapped_column(
-        Numeric(10, 2), nullable=False, default=0
+        Numeric(12, 4), nullable=False, default=0
     )
     total_cost: Mapped[Decimal] = mapped_column(
         Numeric(10, 2), nullable=False, default=0
@@ -334,12 +393,15 @@ class InventoryTransaction(BaseMixin, Base):
         Numeric(12, 3), nullable=False
     )  # Positive = increase, Negative = decrease
     unit: Mapped[str] = mapped_column(String(50), nullable=False)
+    # Per STOCKING unit, four places, matching `Ingredient.cost_per_unit`. A
+    # goods receipt for tomato cans lands here already converted: grams and
+    # fils-per-gram, never cans.
     unit_cost: Mapped[Decimal] = mapped_column(
-        Numeric(10, 2), nullable=False, default=0
+        Numeric(12, 4), nullable=False, default=0
     )  # Cost at time of transaction
     total_cost: Mapped[Decimal] = mapped_column(
-        Numeric(10, 2), nullable=False, default=0
-    )  # quantity * unit_cost
+        Numeric(12, 2), nullable=False, default=0
+    )  # quantity * unit_cost -- real money, two places
 
     # Balance after transaction
     balance_after: Mapped[Decimal] = mapped_column(Numeric(12, 3), nullable=False)

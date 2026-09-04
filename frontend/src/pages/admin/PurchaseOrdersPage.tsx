@@ -694,6 +694,18 @@ function PurchaseOrdersPage() {
                               </td>
                               <td className="py-2 text-right">
                                 {qty(item.quantity_ordered)} {item.unit}
+                                {/* M8: the same quantity in the unit the
+                                    kitchen counts, when the two differ. The
+                                    supplier is still asked for cans. */}
+                                {qty(item.units_per_purchase_unit) !== 1 &&
+                                  item.stock_unit && (
+                                    <div className="text-[10px] text-secondary-400">
+                                      ={" "}
+                                      {qty(item.quantity_ordered) *
+                                        qty(item.units_per_purchase_unit)}{" "}
+                                      {item.stock_unit}
+                                    </div>
+                                  )}
                               </td>
                               <td className="py-2 text-right">
                                 <span
@@ -882,6 +894,12 @@ function PurchaseOrdersPage() {
             </div>
             {lines.map((line, index) => {
               const known = catalogueByIngredient.get(line.ingredient_id);
+              // M8. The quantity box counts what the supplier sells, so it has
+              // to be labelled with that unit and not with the one recipes use.
+              // Martin's whole point: he requests 2 cans, he cooks in grams.
+              const chosen = purchasable.find((i) => i.id === line.ingredient_id);
+              const orderUnit = chosen?.purchase_unit || chosen?.unit || "";
+              const chosenQty = Number(line.quantity);
               return (
                 <div key={line.uid} className="grid gap-2 md:grid-cols-12">
                   <div className="md:col-span-6">
@@ -899,7 +917,7 @@ function PurchaseOrdersPage() {
                       <option value="">Select an ingredient</option>
                       {purchasable.map((i) => (
                         <option key={i.id} value={i.id}>
-                          {i.name} ({i.unit})
+                          {i.name} ({i.purchase_unit || i.unit})
                         </option>
                       ))}
                     </Select>
@@ -916,7 +934,7 @@ function PurchaseOrdersPage() {
                       type="number"
                       step="0.001"
                       min={0}
-                      placeholder="Qty"
+                      placeholder={orderUnit ? `Qty (${orderUnit})` : "Qty"}
                       value={line.quantity}
                       onChange={(e) => {
                         const next = [...lines];
@@ -924,6 +942,12 @@ function PurchaseOrdersPage() {
                         setLines(next);
                       }}
                     />
+                    {chosen?.purchase_unit && chosenQty > 0 && (
+                      <p className="mt-1 text-xs text-secondary-500">
+                        = {chosenQty * chosen.units_per_purchase_unit}{" "}
+                        {chosen.unit}
+                      </p>
+                    )}
                   </div>
                   <div className="md:col-span-3">
                     <Input
@@ -1166,6 +1190,19 @@ function PurchaseOrdersPage() {
                           <span className="ml-1 text-xs text-secondary-500">
                             ({item.unit})
                           </span>
+                          {/* M8: what this many cans will put on the shelf.
+                              Shown here because this is the moment stock
+                              actually moves, and the number that moves is not
+                              the number being typed. */}
+                          {qty(item.units_per_purchase_unit) !== 1 &&
+                            item.stock_unit &&
+                            Number(receiveQty[item.id]) > 0 && (
+                              <span className="ml-1 text-xs text-secondary-400">
+                                → {Number(receiveQty[item.id]) *
+                                  qty(item.units_per_purchase_unit)}{" "}
+                                {item.stock_unit} into stock
+                              </span>
+                            )}
                         </span>
                       </div>
                       {read && (

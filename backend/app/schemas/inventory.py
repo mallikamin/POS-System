@@ -43,8 +43,39 @@ Num = Annotated[
 class IngredientBase(BaseModel):
     name: str = Field(..., max_length=200)
     category: str = Field(default="General", max_length=100)
-    unit: str = Field(..., max_length=50, description="kg, L, pieces, etc.")
-    cost_per_unit: Num = Field(default=0, ge=0, description="Cost in paisa")
+    unit: str = Field(
+        ...,
+        max_length=50,
+        description="The STOCKING unit: what recipes spend and stock counts. g, kg, L, pieces.",
+    )
+    cost_per_unit: Num = Field(
+        default=0,
+        ge=0,
+        description=(
+            "Minor units per one stocking unit. Read-only whenever purchase_unit "
+            "is set: the server derives it from purchase_cost_minor and the "
+            "conversion, and ignores whatever is sent."
+        ),
+    )
+    # Martin (FZ LLC, 2026-09-04, item M8): "2 units and a conversion. The unit
+    # you buy, the unit you store) use in recipes". Leave purchase_unit unset
+    # for an ingredient bought in the unit it is stocked in, which is the
+    # behaviour every ingredient had before this.
+    purchase_unit: str | None = Field(
+        None,
+        max_length=50,
+        description="What the supplier sells, e.g. 'can'. Blank means same as unit.",
+    )
+    units_per_purchase_unit: Num = Field(
+        default=1,
+        gt=0,
+        description="Stocking units in one purchase unit, e.g. 400 g per can.",
+    )
+    purchase_cost_minor: Num = Field(
+        default=0,
+        ge=0,
+        description="Minor units per purchase unit, e.g. 850 = 8.50 AED per can.",
+    )
     supplier_name: str | None = Field(None, max_length=200)
     supplier_contact: str | None = Field(None, max_length=100)
     reorder_point: Num = Field(default=0, ge=0)
@@ -68,6 +99,9 @@ class IngredientUpdate(BaseModel):
     category: str | None = Field(None, max_length=100)
     unit: str | None = Field(None, max_length=50)
     cost_per_unit: Num | None = Field(None, ge=0)
+    purchase_unit: str | None = Field(None, max_length=50)
+    units_per_purchase_unit: Num | None = Field(None, gt=0)
+    purchase_cost_minor: Num | None = Field(None, ge=0)
     supplier_name: str | None = Field(None, max_length=200)
     supplier_contact: str | None = Field(None, max_length=100)
     reorder_point: Num | None = Field(None, ge=0)

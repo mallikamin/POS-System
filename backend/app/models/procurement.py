@@ -317,7 +317,20 @@ class PurchaseOrderItem(BaseMixin, Base):
     quantity_received: Mapped[Decimal] = mapped_column(
         Numeric(12, 3), nullable=False, default=0
     )
+    # The PURCHASE unit when the ingredient has one ("can"), otherwise its
+    # stocking unit. `quantity_ordered` and `unit_price_minor` are both in
+    # terms of this. Martin orders 2 cans; the kitchen later spends grams.
     unit: Mapped[str] = mapped_column(String(50), nullable=False)
+    # Stocking units per one `unit`, SNAPSHOT at the moment the line was
+    # written (Martin M8, 2026-09-04). 1 whenever the ingredient is bought and
+    # stocked in the same unit, which is every line raised before this change.
+    # Snapshotted rather than read live from the ingredient so that changing
+    # the can size next month does not silently restate what a receipt from
+    # last month put into stock -- the same reasoning as
+    # `RecipeItem.cost_per_unit_snapshot`.
+    units_per_purchase_unit: Mapped[Decimal] = mapped_column(
+        Numeric(12, 4), nullable=False, server_default="1", default=Decimal("1")
+    )
 
     # MINOR UNITS per `unit`. See the module docstring; no `* 100` anywhere.
     unit_price_minor: Mapped[Decimal] = mapped_column(
@@ -419,10 +432,18 @@ class GoodsReceiptLine(BaseMixin, Base):
         Uuid, ForeignKey("ingredients.id"), nullable=False
     )
 
+    # Counted in the line's `unit`, which is the PURCHASE unit when the
+    # ingredient has one. "3 cans arrived", not "1200 g arrived".
     quantity_received: Mapped[Decimal] = mapped_column(Numeric(12, 3), nullable=False)
     unit: Mapped[str] = mapped_column(String(50), nullable=False)
+    # Stocking units per one `unit`, snapshot at receipt time (Martin M8). The
+    # stock movement this line produced was `quantity_received * this`, so the
+    # receipt stays self-explaining even after the ingredient is edited.
+    units_per_purchase_unit: Mapped[Decimal] = mapped_column(
+        Numeric(12, 4), nullable=False, server_default="1", default=Decimal("1")
+    )
     # What was actually charged on this delivery, which is not always what the
-    # PO said. MINOR UNITS.
+    # PO said. MINOR UNITS, per `unit`.
     unit_price_minor: Mapped[Decimal] = mapped_column(
         Numeric(12, 2), nullable=False, default=0
     )

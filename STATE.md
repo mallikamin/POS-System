@@ -1,6 +1,94 @@
 # STATE — Restaurant POS System
 
-**Last refreshed:** 2026-09-03 04:0x BST (Chick Shack order-numbering refresh). No drift found in the FZ or Chick Shack state; a new block added on top for the numbering change.
+**Last refreshed:** 2026-09-04 (Martin round-2 built). Top block: FZ LLC item M8, two units and a
+conversion on bought ingredients, BUILT and proven on Postgres, NOT deployed. The Chick Shack
+blocks below are unchanged.
+
+## 🟡 2026-09-04. MARTIN ROUND 2 (M8): TWO UNITS AND A CONVERSION. BUILT AND PROVEN ON POSTGRES. NOT DEPLOYED, NOT SEEN.
+
+Received on WhatsApp at 12:25-12:26 GST with a screenshot of the round-1 Create Ingredient
+modal. Verbatim text, the build write-up and the reply material live in
+`_context/clients/fz-llc-uae/feedback_2026-09-04_martin-round2.md`.
+
+> "Ingredients bought Need to have 2 units and a conversion.The unit you buy, the unit you
+> store)use in recipes ... I buy tomato cans..so in the purchase order I will request 2 cans
+> ... But in my recipes I use grams"
+
+**What changed.** `ingredients.unit` keeps its meaning as the stocking unit; three columns
+join it for what the supplier sells (`purchase_unit`, `units_per_purchase_unit`,
+`purchase_cost_minor`). Purchase orders and goods receipts are written in purchase units and
+snapshot the conversion on the line; the receipt books `quantity x conversion` into stock at
+`price / conversion`; recipes are untouched and still spend grams; the order planner rounds a
+shortfall up to whole cans. `cost_per_unit`, the recipe snapshot and the stock movement rate
+were widened from two decimal places to four, because 8.50 for a 400 g can is 2.125 fils a
+gram and two places restated the can at 8.52.
+
+🔴 **`supplier_items.pack_size` is not this** and was not reused. It is a same-unit
+rounding aid scoped to one supplier. The conversion belongs to the ingredient master.
+
+**Migration `e5f6a7b8c9d0`, parented on production's head `d2e3f4a5b6c7`** (NOT on the
+untracked Meta migration `b0c1d2e3f4a5`, which has been re-parented onto it locally again).
+**Run against real Postgres 16 locally**: columns landed at the right precision, the
+conversion check constraint refuses zero, downgrade/upgrade round-trips, and **nothing moved**
+- all 16 local ingredients came out with no purchase unit and a conversion of 1.
+
+**Proof.** `backend/tests/test_martin_round2.py`, 12 route-level tests, green; 147 green
+across every touched backend suite; frontend type-check clean, lint unchanged. **And the
+tomato example walked end to end over the real API on Postgres**, not only SQLite: 2.125 fils
+a gram stored exactly, AED 17.00 for two cans, 800 g into stock, cost per gram unchanged after
+receiving. Local test data was deleted afterwards; the ingredient count is back to 16.
+
+**One bug found and fixed on the way**, and it is the interesting one: the goods-receipt
+response builder never passed the new conversion field, and the schema's `= 1` default filled
+it in silently while the database held 400. Caught by reading the raw Postgres row, not by the
+API response and not by the test suite. Both new response fields are now required, with no
+default. Full entry in `ERROR_LOG.md`, 2026-09-04.
+
+🔴 **Not deployed and not seen.** Nothing has been clicked in a browser and nothing is
+on production. **The step-by-step UAT script covering M1-M8 is
+`_context/clients/fz-llc-uae/UAT_FZ_LLC_2026-09-04.md`** - walk it on production, on a laptop
+AND on a phone, before replying to Martin.
+
+**Round 1 (M1-M7) remains DEPLOYED at `36ae70f`** and API-verified, unchanged by this.
+
+**Two commercial follow-ups are still open** and this build closing out is their trigger:
+Martin wants a demo for his partners, and his partners prefer **a meeting in the Dubai office
+rather than a call**. Answer the meeting in the same reply that confirms the build.
+
+## 🟡 2026-09-04. CHICK SHACK 09-03 SERVICE: SIX ORDERS, ALL DELIVERY, `D001`-`D006`. THE NUMBERING CHANGE IS STILL UNPROVEN.
+
+Read from production read-only, tenant-filtered to `chick-shack`:
+
+    260903-D001 confirmed 15:33   260903-D004 completed 17:10
+    260903-D002 completed 15:36   260903-D005 completed 17:24
+    260903-D003 completed 15:37   260903-D006 voided    20:34   (rejected, "Closing soon")
+
+(times UTC; the tablet shows BST, +1). **Zero orders exist for 09-04 yet.**
+
+🔴 **`260903-D001` was never a real order and never reached the tablet.** Abbie Stewart, GBP 43.66,
+`confirmed`/`unpaid`, `updated_at` half a second after `created_at` and never touched again: an
+abandoned card checkout. The queue hides unpaid card orders until Stripe confirms the money
+(OI-65), so it correctly never published. Not new — 17 such rows since 07-30, including `260901-D001`
+and `260902-C002`.
+
+⚠️ **But it consumed the number.** `generate_order_number` runs at checkout submit
+(`public_order_service.py:601`), before payment, so an abandoned checkout burns a number and the
+first order the shop actually sees reads `D002`. That happened on 09-03 and on 09-01. **This now
+matters**, because OI-103 was about giving Imran a count he can trust. If the first order on the
+pass must always read `D001`, the number has to be allocated at payment/publication instead. Not
+built, not decided.
+
+🔴 **This sequence does not prove OI-103.** A delivery-only day produces the identical string under
+the old shared counter and the new per-letter one. The proof is still outstanding and needs a
+**mixed** day: a collection order arriving after deliveries must read `C001`, not `C007`.
+
+**Zero collection orders on 09-03 is not evidence of a fault.** There is no per-mode switch in the
+code — the only kill switch, `ordering_paused`, stops collection and delivery together, and
+delivery ran all evening. Prior four days ran 5/16, 2/6, 4/6, 3/8 collection, so ~39%; six
+delivery-only orders is roughly a 1-in-20 evening. **Not verified from here:** that the storefront
+checkout still renders the Collection choice — that UI ships on the separate storefront pipeline,
+not this repo. 30-second check: open `chickshackg84.com`, add an item, open checkout, confirm
+Collection is selectable.
 
 ## 🟢 2026-09-03 ~04:10 BST. CHICK SHACK: COLLECTION AND DELIVERY NOW EACH RUN THEIR OWN DAILY NUMBER. DEPLOYED. UNSEEN ON THE TABLET.
 

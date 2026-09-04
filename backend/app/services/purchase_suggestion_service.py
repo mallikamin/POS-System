@@ -40,7 +40,7 @@ morning orders everything twice.
 from __future__ import annotations
 
 import uuid
-from decimal import Decimal
+from decimal import ROUND_CEILING, Decimal
 from typing import TYPE_CHECKING
 
 from sqlalchemy import select
@@ -232,6 +232,12 @@ def _round_to_pack(quantity: Decimal, catalogue: "SupplierItem | None") -> Decim
 
     Always UP. Rounding a shortfall down would order less than the production
     plan needs, which is the one direction that stops the kitchen.
+
+    `quantity` arrives in PURCHASE units and `pack_size` and
+    `minimum_order_quantity` are read in the same units, because a supplier
+    quotes its pack and its minimum in whatever it sells -- six cans to a tray,
+    minimum two trays. For an ingredient bought in its stocking unit that is
+    the same number it always was, so nothing existing changes meaning.
     """
     if catalogue is None:
         return _qty(quantity)
@@ -317,20 +323,54 @@ async def build_suggestion(
         catalogue = await supplier_service.preferred_supplier_for(
             db, tenant_id, ingredient_id
         )
-        suggested = (
-            _round_to_pack(shortfall, catalogue) if shortfall > 0 else Decimal("0")
-        )
+
+        # Martin M8. Everything above this line is in STOCKING units, because
+        # that is what recipes spend and what stock counts. Everything below it
+        # is in PURCHASE units, because that is what a purchase order says and
+        # what the supplier charges for. This is the crossing point, and both
+        # the quantity and the price have to be on the same side of it.
+        #
+        # You cannot buy two thirds of a tomato can, so the shortfall is
+        # rounded UP to a whole purchase unit before pack sizes and minimum
+        # order quantities are applied on top -- 900 g short of a 400 g can is
+        # three cans, not 2.25.
+        order_unit, conversion = purchase_order_service.purchase_unit_of(ingredient)
+        if shortfall > 0:
+            in_purchase_units = shortfall / conversion
+            if conversion != 1:
+                in_purchase_units = in_purchase_units.to_integral_value(
+                    rounding=ROUND_CEILING
+                )
+            suggested = _round_to_pack(in_purchase_units, catalogue)
+        else:
+            suggested = Decimal("0")
+
+        # Both the catalogue price and the ingredient's own purchase price are
+        # per purchase unit, so the estimate multiplies like with like.
         unit_price = (
             Decimal(str(catalogue.last_price_minor))
             if catalogue is not None and Decimal(str(catalogue.last_price_minor)) > 0
-            else Decimal(str(ingredient.cost_per_unit))
+            else Decimal(
+                str(
+                    ingredient.purchase_cost_minor
+                    if ingredient.purchase_unit
+                    else ingredient.cost_per_unit
+                )
+            )
         )
 
         lines.append(
             {
                 "ingredient_id": ingredient_id,
                 "ingredient_name": ingredient.name,
+                # The stocking unit, which is what `required`, `on_hand`,
+                # `on_order` and `shortfall` are all counted in.
                 "unit": ingredient.unit,
+                # The purchase unit, which is what `suggested_quantity` and
+                # `unit_price_minor` are counted in. Equal to `unit` unless
+                # the ingredient is bought in something else.
+                "purchase_unit": order_unit,
+                "units_per_purchase_unit": conversion,
                 "required": _qty(required),
                 "on_hand": _qty(have),
                 "on_order": _qty(coming),

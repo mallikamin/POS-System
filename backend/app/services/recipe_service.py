@@ -26,6 +26,86 @@ from app.schemas.inventory import (
 # ---------------------------------------------------------------------------
 
 
+def cost_per_stocking_unit(
+    purchase_cost_minor: Decimal | float | int,
+    units_per_purchase_unit: Decimal | float | int,
+) -> Decimal:
+    """The price of one stocking unit, from the price of one purchase unit.
+
+    Martin (FZ LLC, 2026-09-04, item M8) buys tomatoes in cans and cooks in
+    grams: 8.50 AED a can, 400 g in a can, so 0.021 AED a gram. Quantised to
+    four decimal places because `Ingredient.cost_per_unit` is Numeric(10, 2) in
+    minor units and a gram of anything is worth a fraction of a fils -- the
+    rounding has to happen once, here, not differently in each caller.
+
+    A conversion of 1 makes this the identity, which is the whole point: an
+    ingredient bought in the unit it is stocked in behaves exactly as before.
+    """
+    conversion = Decimal(str(units_per_purchase_unit or 1))
+    if conversion <= 0:
+        raise ValueError(
+            "The number of stocking units in a purchase unit must be more than "
+            "zero. Say how many grams are in a can."
+        )
+    return (Decimal(str(purchase_cost_minor or 0)) / conversion).quantize(
+        Decimal("0.0001")
+    )
+
+
+def _apply_purchase_conversion(payload: dict, ingredient: Ingredient | None) -> None:
+    """Normalise the purchase-unit trio on a create/update payload, in place.
+
+    Three rules, and all three exist because the alternative is a screen that
+    lets someone type a cost that the next goods receipt silently overwrites:
+
+    * A blank `purchase_unit` means bought in the stocking unit. The conversion
+      is forced back to 1 and the purchase price is kept level with the typed
+      cost, so the two never disagree.
+    * With a purchase unit set, `cost_per_unit` is DERIVED and any incoming
+      value is dropped.
+    * A produced ingredient has no purchase unit at all. It is not bought.
+    """
+    is_produced = payload.get(
+        "is_produced", ingredient.is_produced if ingredient else False
+    )
+    if is_produced:
+        payload["purchase_unit"] = None
+        payload["units_per_purchase_unit"] = Decimal("1")
+        payload["purchase_cost_minor"] = Decimal("0")
+        return
+
+    def current(field: str, fallback):
+        if field in payload:
+            return payload[field]
+        return getattr(ingredient, field) if ingredient else fallback
+
+    purchase_unit = current("purchase_unit", None)
+    purchase_unit = purchase_unit.strip() if isinstance(purchase_unit, str) else None
+    purchase_unit = purchase_unit or None
+
+    if purchase_unit is None:
+        # Same unit in and out. Keep the purchase price shadowing the cost so
+        # switching a purchase unit on later starts from a sane number.
+        cost = Decimal(str(current("cost_per_unit", 0) or 0))
+        payload["purchase_unit"] = None
+        payload["units_per_purchase_unit"] = Decimal("1")
+        payload["purchase_cost_minor"] = cost
+        return
+
+    conversion = Decimal(str(current("units_per_purchase_unit", 1) or 1))
+    if conversion <= 0:
+        raise ValueError(
+            f"Say how many {current('unit', 'units')} are in one {purchase_unit}. "
+            "It has to be more than zero."
+        )
+    purchase_cost = Decimal(str(current("purchase_cost_minor", 0) or 0))
+
+    payload["purchase_unit"] = purchase_unit
+    payload["units_per_purchase_unit"] = conversion
+    payload["purchase_cost_minor"] = purchase_cost
+    payload["cost_per_unit"] = cost_per_stocking_unit(purchase_cost, conversion)
+
+
 async def create_ingredient(
     db: AsyncSession,
     tenant_id: uuid.UUID,
@@ -35,8 +115,12 @@ async def create_ingredient(
 
     A made-in-house ingredient (`is_produced`) starts at cost 0 whatever was
     sent: its cost is written by the recipe that produces it, once built.
+
+    A bought one may carry a purchase unit and a conversion (Martin M8). When
+    it does, the cost per stocking unit is computed here rather than accepted.
     """
     payload = data.model_dump()
+    _apply_purchase_conversion(payload, None)
     if payload.get("is_produced"):
         payload["cost_per_unit"] = Decimal("0")
     ingredient = Ingredient(
@@ -140,6 +224,22 @@ async def update_ingredient(
     will_be_produced = update_data.get("is_produced", ingredient.is_produced)
     if will_be_produced:
         update_data.pop("cost_per_unit", None)
+
+    # Martin M8. Only normalise the purchase trio when the caller actually
+    # touched one of its fields (or flipped is_produced, which clears it).
+    # A PATCH that only renames the ingredient must not restate its costing.
+    if not update_data.keys().isdisjoint(
+        {
+            "purchase_unit",
+            "units_per_purchase_unit",
+            "purchase_cost_minor",
+            "cost_per_unit",
+            "is_produced",
+        }
+    ):
+        _apply_purchase_conversion(update_data, ingredient)
+        if will_be_produced:
+            update_data.pop("cost_per_unit", None)
 
     for field, value in update_data.items():
         setattr(ingredient, field, value)
