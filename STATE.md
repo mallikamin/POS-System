@@ -1,10 +1,10 @@
 # STATE — Restaurant POS System
 
-**Last refreshed:** 2026-09-04 (Martin round-2 built). Top block: FZ LLC item M8, two units and a
-conversion on bought ingredients, BUILT and proven on Postgres, NOT deployed. The Chick Shack
-blocks below are unchanged.
+**Last refreshed:** 2026-09-04 (Martin round-2 deployed). Top block: FZ LLC item M8, two units and
+a conversion on bought ingredients, DEPLOYED at `218ac8e` and verified on the production
+database. UAT not started. The Chick Shack blocks below are unchanged.
 
-## 🟡 2026-09-04. MARTIN ROUND 2 (M8): TWO UNITS AND A CONVERSION. BUILT AND PROVEN ON POSTGRES. NOT DEPLOYED, NOT SEEN.
+## 🟢 2026-09-04. MARTIN ROUND 2 (M8): TWO UNITS AND A CONVERSION. DEPLOYED AT `218ac8e` AND VERIFIED ON THE PRODUCTION DATABASE. UAT NOT STARTED.
 
 Received on WhatsApp at 12:25-12:26 GST with a screenshot of the round-1 Create Ingredient
 modal. Verbatim text, the build write-up and the reply material live in
@@ -44,10 +44,22 @@ it in silently while the database held 400. Caught by reading the raw Postgres r
 API response and not by the test suite. Both new response fields are now required, with no
 default. Full entry in `ERROR_LOG.md`, 2026-09-04.
 
-🔴 **Not deployed and not seen.** Nothing has been clicked in a browser and nothing is
-on production. **The step-by-step UAT script covering M1-M8 is
+**DEPLOYED 2026-09-04, commit `218ac8e`.** "Deploy to Production" green in 7m38s. Verified
+directly on the production database, read-only:
+
+* `alembic_version` is **`e5f6a7b8c9d0`**, so the migration ran.
+* Every new column landed at the intended precision: `ingredients.cost_per_unit` and
+  `recipe_items.cost_per_unit_snapshot` are now `numeric(12,4)`, the three
+  `units_per_purchase_unit` columns are `numeric(12,4)`, `purchase_cost_minor` is
+  `numeric(12,2)`.
+* **Martin's tenant is untouched.** Tenant-filtered to `martin-fz`: 16 ingredients, all 16
+  with `purchase_unit` NULL and a conversion of 1, 13 with the purchase price seeded from the
+  existing cost (the other 3 are the made-in-house ones, correctly left at 0). Nothing moved.
+
+🔴 **NOT SEEN. Nothing has been clicked in a browser.** The database is right; the
+pixels are unproven. **The step-by-step UAT script covering M1-M8 is
 `_context/clients/fz-llc-uae/UAT_FZ_LLC_2026-09-04.md`** - walk it on production, on a laptop
-AND on a phone, before replying to Martin.
+AND on a phone, before replying to Martin. **UAT has not been started.**
 
 **Round 1 (M1-M7) remains DEPLOYED at `36ae70f`** and API-verified, unchanged by this.
 

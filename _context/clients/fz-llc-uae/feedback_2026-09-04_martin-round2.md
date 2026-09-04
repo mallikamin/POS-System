@@ -26,7 +26,7 @@ send u a detailed update once all is ready and tested"
 
 | # | Area | Martin's ask | Status |
 |---|------|--------------|--------|
-| M8 | Ingredients | A bought ingredient needs **two units and a conversion**: the purchase unit (can) and the stock/recipe unit (g). Purchase orders are placed in purchase units, recipes consume stock units, and the cost converts between them. | BUILT (local) |
+| M8 | Ingredients | A bought ingredient needs **two units and a conversion**: the purchase unit (can) and the stock/recipe unit (g). Purchase orders are placed in purchase units, recipes consume stock units, and the cost converts between them. | DEPLOYED `218ac8e` |
 
 ## What this actually means in the data
 
@@ -103,6 +103,13 @@ ingredient, that is a follow-up, not something this build handles.
   conversion field, and the schema's default of 1 filled it in silently while the database
   held 400. See `ERROR_LOG.md`, 2026-09-04.
 
-**Not verified: the pixels.** Nothing has been clicked in a browser, and nothing is on
-production. `UAT_FZ_LLC_2026-09-04.md` in this folder is the step-by-step script to walk
-after deploying, covering M1-M8.
+### Deployed 2026-09-04, commit `218ac8e`
+
+"Deploy to Production" green in 7m38s. Verified read-only on the production database:
+`alembic_version` is `e5f6a7b8c9d0`, every new column landed at the intended precision, and
+**Martin's tenant is untouched** - tenant-filtered to `martin-fz`, all 16 ingredients came out
+with no purchase unit and a conversion of 1.
+
+**Not verified: the pixels.** Nothing has been clicked in a browser. `UAT_FZ_LLC_2026-09-04.md`
+in this folder is the step-by-step script covering M1-M8. **UAT has not been started.**
+Do not reply to Martin until it is walked, on a laptop AND on a phone.
