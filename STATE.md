@@ -63,7 +63,26 @@ revenue beside real channel totals because "settled" means paid; US-style render
 a UAE client; `paid_on` defaulting to the invoice date; and a produced item keeping its recipe's
 saved cost when an ingredient's price moves.
 
-🔴 **The reply to Martin is now unblocked**, and test data from the walk is still on his tenant:
+🟢 **A client report was built and SENT to Martin on 2026-09-06**, covering every screen with the
+screenshot behind it: `_files/2026-09-06/uat-round3/UAT_FZ_LLC_2026-09-06.pdf`. It is generated
+by `build_report.py` in the same folder, so it is rebuilt rather than hand-edited. Malik stripped
+it to plain product language: no internal history, no fault analysis, one status, ending on a
+thank-you line. **The written reply confirming the build and answering the Dubai meeting is
+drafted but NOT yet sent.**
+
+📁 **Everything for this client is now filed tenant-wise** under
+`_context/clients/fz-llc-uae/`: `INDEX.md` says what is where, and `ERROR_LOG_FZ.md` holds every
+fault found on his tenant with its cause and fix. The three lessons that generalise are in the
+repo-root `ERROR_LOG.md`.
+
+❓ **Open question from Martin, 2026-09-06:** where his uploaded expense invoices are stored and
+how to give his accountant access. Answered factually: they are in the production PostgreSQL
+database in `media_files`, tenant-scoped, served only to a signed-in admin or manager, one at a
+time from the View link. **There is no accountant role and no bulk export.** Expenses are gated by
+role NAME (`require_role("admin", "manager")`), so a custom role would be refused. A read-only
+accountant role plus a period export is not built and not yet decided.
+
+🔴 **Test data from the walk is still on his tenant:**
 orders `#260906-002` to `-008`, two production runs, a draft PO, customer `Test UAT` and the
 expense category `Bank Charges`. Deliveroo stays.
 

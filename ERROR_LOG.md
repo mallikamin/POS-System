@@ -1604,3 +1604,56 @@ genuine defect with no human clicking anything.
   holds state, mounting it twice is not a rendering detail, it is two different states one of
   which is about to be thrown away. Grep for the children expression: seeing it twice in one
   component is the smell.
+
+---
+
+### [2026-09-06] — A build verified on the database and over the API, then clicked for the first time: eleven faults
+
+- **Error**: Martin's round 3 was deployed, verified read-only on the production database and
+  walked over the live API. Every check passed. The first browser walk, on a laptop and a real
+  phone, found **eleven faults**, three of them client-visible: the till pricing in rupees for a
+  UAE tenant, two order-channel tiles unreachable on a phone, and a call centre that could not
+  take an order on a phone.
+- **Context**: FZ LLC UAT, 2026-09-06. Per-tenant detail lives in
+  `_context/clients/fz-llc-uae/ERROR_LOG_FZ.md`; the screenshot-by-screenshot record is
+  `UAT_RESULTS_2026-09-06.md` in the same folder.
+- **Root Cause**: every one of the eleven was a rendering or layout fault. The database was
+  right, the API was right, the served bundle was right. **None of those layers can see a header
+  that paints over a button, a menu laid out off-screen, or a price that was formatted before its
+  currency arrived.**
+- **Fix**: all eleven fixed in `d95c0f4` and `f907239` and re-checked on production.
+- **Rule**: **"verified on the database and over the API" is not "verified".** A UI feature is
+  unproven until it has been clicked, on the devices the client uses. Budget the browser walk as
+  part of the build, not as an optional afterthought.
+- **Second rule**: **the phone is not a narrow laptop.** Three of the three worst faults appeared
+  only on a real phone, and one of them, the rupee prices, is a race that a fast laptop on wifi
+  wins every time. A resized desktop browser would have shown none of them.
+
+---
+
+### [2026-09-06] — A module-level variable is not reactive, so a screen that painted early stays wrong
+
+- **Error**: a UAE tenant's till priced items "Rs. 9". The same screen on a laptop, same minute,
+  same build, read "AED 9.00".
+- **Root Cause**: `formatMoney` reads `activeCode` in `frontend/src/utils/currency.ts`, a plain
+  module variable that starts at `"PKR"` and is corrected when the tenant config lands. It is not
+  React state, so **a component that has already painted a price never repaints it**. Whether the
+  price is right depends on whether the config request wins a race against the first paint.
+- **Fix**: the layouts now hold their children until the config resolves, with the error state as
+  an escape hatch so a failed call degrades rather than trapping the user.
+- **Rule**: F15 on 2026-08-28 was the same fault and was patched by ISSUING the config fetch from
+  one more layout. **Issuing a fetch earlier does not fix a race; waiting for it does.** When a
+  fix makes a bug rarer rather than impossible, it is not a fix.
+- **Second rule**: a value that decides how something is DISPLAYED must live where a change
+  re-renders. If it cannot, nothing may render until it is known.
+
+---
+
+### [2026-09-06] — Fixing the container when the content is the problem
+
+- **Error**: the cart showed one line of a three-line order. The floor was raised to 120px and it
+  still showed one line, because a cart line is about 100px tall.
+- **Root Cause**: measured the container, not the thing inside it. A 48px touch-target stepper on
+  every row is right on a phone and pure cost on a laptop.
+- **Rule**: when a "make it bigger" fix changes nothing, measure the child before raising the
+  parent again.
