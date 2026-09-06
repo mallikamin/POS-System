@@ -197,7 +197,17 @@ export default function IngredientManagementPage() {
   // Reset form
   function resetForm() {
     setName("");
-    setCategory("General");
+    /*
+     * 🔴 Open on a category the tenant actually HAS.
+     *
+     * Found in UAT on 2026-09-06: the form opened on the literal "General",
+     * which is not one of this tenant's categories, so saving without touching
+     * the field invented a ninth category on the very screen Martin asked for
+     * so that HE controls the list. The first real category is the honest
+     * default; "General" survives only for a tenant with no categories at all,
+     * where it is a genuine fallback rather than a fiction.
+     */
+    setCategory(categoryOptions[0]?.name ?? "General");
     setUnit("kg");
     setCostPerUnitRupees("");
     setHasPurchaseUnit(false);

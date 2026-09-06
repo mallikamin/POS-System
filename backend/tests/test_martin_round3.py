@@ -217,6 +217,45 @@ async def test_a_category_in_use_cannot_be_deleted(
     assert "1 ingredient" in refused.json()["detail"]
 
 
+async def test_a_deleted_ingredient_does_not_hold_its_category_hostage(
+    client: AsyncClient, admin_token: str, config
+) -> None:
+    """The fault found in UAT on 2026-09-06, in one test.
+
+    Deleting an ingredient is a SOFT delete: the row stays with `is_active`
+    False and keeps its category string. The in-use count read every row, so
+    the category went on reporting "1 ingredient" for something the user had
+    already deleted and could never be removed again, with nothing on screen to
+    explain why. Counting active rows only is the fix.
+    """
+    headers = _auth(admin_token)
+    ing = await _ingredient(client, headers, name="Foil Tray", category="Disposables")
+
+    listed = await client.get("/api/v1/inventory/ingredient-categories", headers=headers)
+    row = next(r for r in listed.json() if r["name"] == "Disposables")
+    assert row["ingredient_count"] == 1
+
+    deleted = await client.delete(
+        f"/api/v1/inventory/ingredients/{ing['id']}", headers=headers
+    )
+    assert deleted.status_code in (200, 204)
+
+    # The count the dialog shows must follow the list the user can see.
+    after = await client.get("/api/v1/inventory/ingredient-categories", headers=headers)
+    assert next(r for r in after.json() if r["name"] == "Disposables")["ingredient_count"] == 0
+
+    gone = await client.delete(
+        f"/api/v1/inventory/ingredient-categories/{row['id']}", headers=headers
+    )
+    assert gone.status_code == 204
+
+    # And it must not come back through the orphan self-heal, which rebuilds a
+    # category from any category string still in use. A soft-deleted row is not
+    # "in use".
+    final = await client.get("/api/v1/inventory/ingredient-categories", headers=headers)
+    assert "Disposables" not in {r["name"] for r in final.json()}
+
+
 async def test_an_unused_category_can_be_deleted(
     client: AsyncClient, admin_token: str, config
 ) -> None:

@@ -291,8 +291,14 @@ export function CartPanel({ waiterId, onOrderCreated }: CartPanelProps = {}) {
         </div>
       )}
 
-      {/* Cart Lines */}
-      <div className="flex-1 overflow-y-auto">
+      {/* Cart Lines.
+          `min-h` is the fix from UAT on 2026-09-06: this region is `flex-1`
+          between a header and a footer that has grown (customer, site and
+          channel, charges, three totals, the fulfilment switch, the action
+          button), and on a laptop window it collapsed to roughly one row while
+          the cart held three. The floor guarantees a readable list and the
+          visible scrollbar says there is more. */}
+      <div className="min-h-[7.5rem] flex-1 overflow-y-auto scrollbar-visible">
         {sentSuccess && (
           <div className="mx-4 mt-3 flex items-center gap-2 rounded-lg bg-success-50 px-3 py-2 text-sm text-success-700">
             <ChefHat className="h-4 w-4" />
@@ -433,6 +439,13 @@ export function CartPanel({ waiterId, onOrderCreated }: CartPanelProps = {}) {
           */}
           {!isPayFirst && (
             <div className="grid grid-cols-2 gap-1 rounded-lg bg-secondary-100 p-1">
+              {/* The switch chooses a MODE; the button below performs it. Both
+                  read "Send to kitchen" until UAT on 2026-09-06, where the
+                  screen appeared to offer the same command twice. The words
+                  differ now and the caption says what the control is for. */}
+              <p className="col-span-2 px-1 pt-0.5 text-[10px] font-semibold uppercase tracking-wide text-secondary-500">
+                How this order is handled
+              </p>
               <button
                 type="button"
                 onClick={() => setFulfilment("kitchen")}
@@ -443,7 +456,7 @@ export function CartPanel({ waiterId, onOrderCreated }: CartPanelProps = {}) {
                     : "text-secondary-600",
                 )}
               >
-                Send to kitchen
+                To kitchen
               </button>
               <button
                 type="button"
@@ -455,7 +468,7 @@ export function CartPanel({ waiterId, onOrderCreated }: CartPanelProps = {}) {
                     : "text-secondary-600",
                 )}
               >
-                Print &amp; deduct now
+                Print &amp; deduct
               </button>
               <p className="col-span-2 px-1 pb-0.5 text-[10px] leading-snug text-secondary-500">
                 {fulfilment === "kitchen"

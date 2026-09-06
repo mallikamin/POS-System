@@ -63,6 +63,18 @@ const channelLabels: Record<string, string> = {
   call_center: "Call Center",
 };
 
+/**
+ * The tenant's own word for the walk-in channel wins.
+ *
+ * Martin renamed Takeaway to "Pick up" in round 1 and the till honours it, but
+ * this report still printed "Takeaway" at close of day. Found in UAT on
+ * 2026-09-06. `takeaway_label` is the same config field the POS header reads.
+ */
+function channelLabel(channel: string, takeawayLabel?: string | null): string {
+  if (channel === "takeaway" && takeawayLabel) return takeawayLabel;
+  return channelLabels[channel] ?? channel;
+}
+
 function getToday(): string {
   return new Date().toISOString().split("T")[0] ?? "";
 }
@@ -282,7 +294,7 @@ function ZReportPage() {
                         className="flex items-center justify-between rounded-lg bg-secondary-50 px-3 py-2 print:rounded-none print:bg-transparent print:px-0 print:py-1 print:border-b print:border-gray-100"
                       >
                         <span className="font-medium">
-                          {channelLabels[ch.channel] ?? ch.channel}
+                          {channelLabel(ch.channel, config?.takeaway_label)}
                         </span>
                         <span>
                           {ch.orders} orders — {formatPKR(ch.revenue)}

@@ -120,6 +120,21 @@ function ProductionPage() {
   const [previewing, setPreviewing] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
 
+  /*
+   * 🔴 The preview carries the stock on hand, and stock changes underneath it.
+   *
+   * Found in UAT on 2026-09-06: after producing 2 kg, the panel still showed
+   * the pre-run balances, and Refresh did not help because it reloaded only the
+   * run history. That is not cosmetic. The shortfall warning is computed from
+   * these numbers, so running the same batch twice kept quoting the original
+   * stock and the "not enough on hand" note stopped appearing at exactly the
+   * point it became true.
+   *
+   * Bumping this is what re-runs the preview effect when nothing in the form
+   * has changed.
+   */
+  const [stockNonce, setStockNonce] = useState(0);
+
   const selectedRecipe = useMemo(
     () => subRecipes.find((r) => r.id === recipeId) ?? null,
     [subRecipes, recipeId],
@@ -206,7 +221,7 @@ function ProductionPage() {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [recipeId, locationId, batchesValue, canRun]);
+  }, [recipeId, locationId, batchesValue, canRun, stockNonce]);
 
   /**
    * Type the amount you want to make, and the batch count follows.
@@ -229,6 +244,9 @@ function ProductionPage() {
   async function handleRefresh() {
     setRefreshing(true);
     try {
+      // Both halves of the screen, not just the history: the stock on hand in
+      // the preview is the number an operator is actually checking.
+      setStockNonce((n) => n + 1);
       await loadRuns();
     } catch (err) {
       toast({
@@ -259,6 +277,8 @@ function ProductionPage() {
         variant: "success",
       });
       setReference("");
+      // The run just moved every balance shown in the preview. Re-read them.
+      setStockNonce((n) => n + 1);
       await loadRuns();
     } catch (err) {
       toast({

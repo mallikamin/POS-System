@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Outlet, Navigate, useNavigate, Link } from "react-router-dom";
-import { LogOut, User, ClipboardList, Settings } from "lucide-react";
+import { LogOut, User, ClipboardList, Settings, Loader2 } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { useUIStore } from "@/stores/uiStore";
 import { useConfigStore } from "@/stores/configStore";
@@ -33,6 +33,7 @@ function POSLayout() {
   const { currentChannel } = useUIStore();
   const { fetchConfig } = useConfigStore();
   const config = useConfigStore((s) => s.config);
+  const configError = useConfigStore((s) => s.error);
   const navigate = useNavigate();
   const salesChannels = useSaleAttributionStore((s) => s.channels);
   const salesChannelId = useSaleAttributionStore((s) => s.channelId);
@@ -46,6 +47,35 @@ function POSLayout() {
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
+  }
+
+  /*
+   * 🔴 Nothing under this layout may paint a price before the tenant config
+   * has landed.
+   *
+   * Found in UAT on 2026-09-06 on a real phone: the Pick up till priced a
+   * croissant "Rs. 9" for a UAE tenant. `formatMoney` reads the module-level
+   * `activeCode` in `utils/currency.ts`, which starts at "PKR" and is only
+   * corrected when `configStore.fetchConfig` calls `setActiveCurrency`. That
+   * variable is NOT reactive, so a component that has already painted a price
+   * never repaints it. The menu simply won the race against the config on a
+   * mobile connection; the same laptop reloaded the same screen as AED.
+   *
+   * F15 (2026-08-28) patched the same class of fault by making sure the fetch
+   * was ISSUED from AdminLayout too. Issuing it early is not enough, because
+   * the fetch still has to arrive. Waiting for it is.
+   *
+   * `error` is the deliberate escape hatch: if the config call fails outright
+   * we render the app rather than trapping the user behind a spinner, and the
+   * error toast already tells them. A wrong currency is bad; an unusable till
+   * is worse.
+   */
+  if (!config && !configError) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-secondary-50">
+        <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
+      </div>
+    );
   }
 
   const salesChannel = salesChannelId
@@ -74,9 +104,18 @@ function POSLayout() {
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-secondary-50">
       {/* Header */}
-      <header className="flex h-14 shrink-0 items-center justify-between border-b border-secondary-200 bg-white px-4 shadow-sm">
+      {/*
+        🔴 `h-14` is a FIXED height and the restaurant name inside it is free
+        text. Found in UAT on 2026-09-06: "FZ LLC — Bakery & Cafe (Demo)"
+        wrapped to three lines on a 360px phone, overflowed this 56px box and
+        painted over the channel tiles beneath it, so Pick up and Call Center
+        could not be tapped at all, in portrait or in landscape. The name is
+        now truncated (`min-w-0` on the flex child is what lets `truncate`
+        work) and the right-hand controls refuse to shrink.
+      */}
+      <header className="flex h-14 shrink-0 items-center justify-between gap-2 overflow-hidden border-b border-secondary-200 bg-white px-4 shadow-sm">
         {/* Left: Restaurant name + channel */}
-        <div className="flex items-center gap-3">
+        <div className="flex min-w-0 items-center gap-3">
           {/* The comment above said "Restaurant name" while the code said "POS
               System" for every tenant. The name has always been in the config
               response as `restaurant_name`; nothing read it. A client sitting in
@@ -85,13 +124,13 @@ function POSLayout() {
               frame before config lands. */}
           <Link
             to="/"
-            className="text-pos-lg font-bold text-secondary-800 hover:text-primary-600 transition-colors"
+            className="truncate text-pos-lg font-bold text-secondary-800 hover:text-primary-600 transition-colors"
           >
             {config?.restaurant_name ?? "POS System"}
           </Link>
           {channel && (
             <span
-              className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold text-white ${channel.color}`}
+              className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold text-white ${channel.color}`}
             >
               {channel.label}
             </span>
@@ -99,7 +138,7 @@ function POSLayout() {
         </div>
 
         {/* Right: Orders link, Clock, User, Logout */}
-        <div className="flex items-center gap-4">
+        <div className="flex shrink-0 items-center gap-2 sm:gap-4">
           <Link
             to="/orders"
             className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-secondary-600 hover:bg-secondary-100 hover:text-secondary-800 transition-colors"
@@ -114,10 +153,15 @@ function POSLayout() {
             <Settings className="h-4 w-4" />
             Admin
           </Link>
-          <Clock />
+          {/* The clock and the operator's name are the first things to go on a
+              phone: they are reassurance, not controls, and the tiles below
+              need the room more. */}
+          <span className="hidden sm:inline">
+            <Clock />
+          </span>
 
           {user && (
-            <div className="flex items-center gap-2 text-pos-sm text-secondary-600">
+            <div className="hidden items-center gap-2 text-pos-sm text-secondary-600 sm:flex">
               <User className="h-4 w-4" />
               <span>{user.full_name}</span>
             </div>

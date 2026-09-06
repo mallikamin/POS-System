@@ -30,6 +30,7 @@ import {
   FileSignature,
   PanelLeftClose,
   PanelLeftOpen,
+  Loader2,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { useUIStore } from "@/stores/uiStore";
@@ -81,6 +82,7 @@ function AdminLayout() {
   const { isAuthenticated, user, logout } = useAuthStore();
   const config = useConfigStore((s) => s.config);
   const fetchConfig = useConfigStore((s) => s.fetchConfig);
+  const configError = useConfigStore((s) => s.error);
   const {
     sidebarOpen,
     setSidebarOpen,
@@ -178,6 +180,22 @@ function AdminLayout() {
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
+  }
+
+  /*
+   * Wait for the config before any admin screen paints a price, for the same
+   * reason POSLayout does. The comment above explains why the fetch belongs
+   * here; UAT on 2026-09-06 showed that ISSUING it is not enough, because
+   * `activeCode` in `utils/currency.ts` is not reactive and a price painted
+   * before the response never corrects itself. `configError` is the escape
+   * hatch so a failed call degrades instead of trapping the user.
+   */
+  if (!config && !configError) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-secondary-50">
+        <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
+      </div>
+    );
   }
 
   // Role check: only manager and above can access admin

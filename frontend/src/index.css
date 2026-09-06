@@ -266,6 +266,36 @@
   .scrollbar-hidden::-webkit-scrollbar {
     display: none;
   }
+
+  /*
+   * A scroller the operator can SEE.
+   *
+   * The global bar is 6px on a transparent track, which is fine for a long page
+   * and useless for a short box. Found in UAT on 2026-09-06: with the new
+   * fulfilment switch making the cart footer taller, the line list was squeezed
+   * to about one row on a laptop and nothing on screen suggested there was more
+   * below it. A till is used at a glance, so the affordance has to be obvious.
+   */
+  .scrollbar-visible {
+    scrollbar-width: auto;
+    scrollbar-gutter: stable;
+  }
+
+  .scrollbar-visible::-webkit-scrollbar {
+    width: 10px;
+  }
+
+  .scrollbar-visible::-webkit-scrollbar-track {
+    @apply rounded-full bg-secondary-100;
+  }
+
+  .scrollbar-visible::-webkit-scrollbar-thumb {
+    @apply rounded-full bg-secondary-400;
+  }
+
+  .scrollbar-visible::-webkit-scrollbar-thumb:hover {
+    @apply bg-secondary-500;
+  }
 }
 
 /* ===== Print styles ===== */

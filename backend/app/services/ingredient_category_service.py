@@ -93,12 +93,27 @@ async def list_categories(
     behind it must not look like a free thing to delete, and one with zero is
     safe to remove.
     """
+    # 🔴 ACTIVE ingredients only, and the filter is the whole point.
+    #
+    # Deleting an ingredient is a soft delete (`recipe_service.delete_ingredient`
+    # sets `is_active = False` and the row keeps its category string). Counting
+    # every row meant a category went on reporting "1 ingredient" for an
+    # ingredient the user had already deleted, and, because `delete_category`
+    # reads the same map, that category could never be removed again. Found in
+    # UAT on 2026-09-06.
+    #
+    # The orphan self-heal below reads this map too, which is why the filter has
+    # to live here rather than at each call site: a category kept alive only by
+    # a deleted ingredient must not be resurrected after it is removed.
     counts = {
         (name or "").lower(): count
         for name, count in (
             await db.execute(
                 select(Ingredient.category, func.count(Ingredient.id))
-                .where(Ingredient.tenant_id == tenant_id)
+                .where(
+                    Ingredient.tenant_id == tenant_id,
+                    Ingredient.is_active.is_(True),
+                )
                 .group_by(Ingredient.category)
             )
         ).all()
@@ -243,7 +258,11 @@ async def rename_category(
         ingredient.category = clean
     row.name = clean
     await db.flush()
-    return row, len(affected)
+    # EVERY row is moved, including soft-deleted ones, or a deleted ingredient
+    # would keep a category name that no longer exists. Only the ACTIVE ones are
+    # counted back, because the number lands in a toast the user checks against
+    # the list in front of them.
+    return row, sum(1 for ingredient in affected if ingredient.is_active)
 
 
 async def delete_category(
@@ -256,10 +275,14 @@ async def delete_category(
     nobody asked for. The error names the count so the operator can decide.
     """
     row = await get_category(db, tenant_id, category_id)
+    # Active rows only: a soft-deleted ingredient is gone as far as the user is
+    # concerned, and counting it here made the category undeletable forever with
+    # no way to see why. Same reason as the count in `list_categories`.
     in_use = (
         await db.execute(
             select(func.count(Ingredient.id)).where(
                 Ingredient.tenant_id == tenant_id,
+                Ingredient.is_active.is_(True),
                 func.lower(Ingredient.category) == row.name.lower(),
             )
         )

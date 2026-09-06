@@ -11,6 +11,7 @@ import {
   MapPin,
   Clock,
   ShoppingBag,
+  ArrowLeft,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -333,7 +334,21 @@ function CallCenterPage() {
         {/* Left: Customer panel.
             M12: full width on a phone, where three fixed columns beside each
             other left the menu nothing. At `lg` it is the column it was. */}
-        <div className="flex w-full shrink-0 flex-col border-r border-secondary-200 bg-secondary-50 lg:w-80">
+        {/*
+          🔴 The panel has to GET OUT OF THE WAY on a phone, not merely stop
+          being three columns. Found in UAT on 2026-09-06: with `w-full
+          shrink-0` here and the menu as this element's flex-row sibling,
+          choosing a customer switched the menu to `block` and the browser laid
+          it out off-screen to the right, with no width left to give it. The
+          call centre could be searched on a phone but could not take an order.
+          Below `lg` the two now SWAP; at `lg` and up nothing changes.
+        */}
+        <div
+          className={cn(
+            "w-full shrink-0 flex-col border-r border-secondary-200 bg-secondary-50 lg:flex lg:w-80",
+            selectedCustomer ? "hidden" : "flex",
+          )}
+        >
           {/* Header */}
           <div className="border-b border-secondary-200 bg-white px-4 py-3">
             <div className="flex items-center gap-2 mb-3">
@@ -399,8 +414,17 @@ function CallCenterPage() {
               </div>
             )}
 
-            {/* No results */}
-            {debouncedPhone.length >= 3 && searchResults.length === 0 && !isSearching && (
+            {/* No results.
+                🔴 `!selectedCustomer` is load-bearing, not decoration. Choosing
+                a customer clears `searchResults` (see handleSelectCustomer) and
+                leaves the number in the box, so without this guard the panel
+                printed "No customer found" and a Create New Customer button
+                directly above the customer it had just found. Seen in UAT on
+                2026-09-06; the results block above has always had the guard. */}
+            {debouncedPhone.length >= 3 &&
+              searchResults.length === 0 &&
+              !isSearching &&
+              !selectedCustomer && (
               <div className="mt-2 text-center py-4">
                 <p className="text-sm text-secondary-500 mb-2">No customer found</p>
                 <Button
@@ -611,7 +635,31 @@ function CallCenterPage() {
           )}
         >
           {selectedCustomer ? (
-            <MenuGrid onAddToCart={handleAddToCart} />
+            <>
+              {/* The panel is hidden on a phone once a customer is chosen, so
+                  this is the only way back to the search. Desktop keeps both
+                  columns and does not need it. */}
+              <div className="mb-3 flex items-center justify-between gap-2 rounded-lg border border-secondary-200 bg-white px-3 py-2 lg:hidden">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-secondary-900">
+                    {selectedCustomer.name}
+                  </p>
+                  <p className="truncate text-xs text-secondary-500">
+                    {selectedCustomer.phone}
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0"
+                  onClick={() => selectCustomer(null)}
+                >
+                  <ArrowLeft className="mr-1 h-4 w-4" />
+                  Change
+                </Button>
+              </div>
+              <MenuGrid onAddToCart={handleAddToCart} />
+            </>
           ) : (
             <div className="flex flex-col items-center justify-center h-full gap-3">
               <Phone className="h-16 w-16 text-secondary-300" />

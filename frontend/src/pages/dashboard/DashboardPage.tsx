@@ -202,10 +202,17 @@ function DashboardPage() {
         Choose how you would like to take the order
       </p>
 
+      {/*
+        Two per row on a phone, not one.
+        With eight channels a one-per-row grid of 150px tiles meant scrolling
+        past three screens to reach KEETA, and the tile Martin taps most was
+        below the fold. Malik's note in UAT on 2026-09-06: smaller and leaner on
+        mobile. Nothing changes at `sm` and up.
+      */}
       <div
         className={cn(
-          "grid w-full max-w-5xl grid-cols-1 gap-4 sm:gap-6",
-          visibleChannels.length === 1 && "sm:max-w-sm sm:grid-cols-1",
+          "grid w-full max-w-5xl grid-cols-2 gap-3 sm:gap-6",
+          visibleChannels.length === 1 && "grid-cols-1 sm:max-w-sm sm:grid-cols-1",
           visibleChannels.length === 2 && "sm:max-w-2xl sm:grid-cols-2",
           visibleChannels.length >= 3 && "sm:grid-cols-3",
           visibleChannels.length >= 4 && "lg:grid-cols-4",
@@ -216,23 +223,30 @@ function DashboardPage() {
             key={channel.salesChannel?.id ?? channel.type}
             onClick={() => handleChannelSelect(channel)}
             className={cn(
-              "touch-feedback group flex flex-col items-center justify-center rounded-2xl p-6 text-white shadow-lg transition-all focus:outline-none focus:ring-4 focus:ring-white/30",
+              "touch-feedback group flex flex-col items-center justify-center rounded-xl p-4 text-center text-white shadow-lg transition-all focus:outline-none focus:ring-4 focus:ring-white/30 sm:rounded-2xl sm:p-6",
               visibleChannels.length <= 3 ? "sm:p-10" : "sm:p-8",
               channel.bgClass,
               channel.hoverClass,
             )}
             aria-label={`Open ${channel.label} channel`}
           >
+            {/* Leaner on a phone: a 64px icon on a half-width tile is
+                decoration, and it pushed the label off the first screen. */}
             <channel.icon
               className={cn(
-                "mb-4 opacity-90 transition-transform group-hover:scale-110",
-                visibleChannels.length <= 3 ? "h-16 w-16" : "h-12 w-12",
+                "mb-2 h-8 w-8 opacity-90 transition-transform group-hover:scale-110 sm:mb-4",
+                visibleChannels.length <= 3 ? "sm:h-16 sm:w-16" : "sm:h-12 sm:w-12",
               )}
             />
-            <span className={visibleChannels.length <= 3 ? "text-pos-2xl font-bold" : "text-pos-xl font-bold"}>
+            <span
+              className={cn(
+                "text-pos-base font-bold leading-tight",
+                visibleChannels.length <= 3 ? "sm:text-pos-2xl" : "sm:text-pos-xl",
+              )}
+            >
               {channel.label}
             </span>
-            <span className="mt-2 text-pos-sm opacity-80">
+            <span className="mt-1 text-xs opacity-80 sm:mt-2 sm:text-pos-sm">
               {channel.description}
             </span>
           </button>
