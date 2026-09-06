@@ -49,8 +49,23 @@ to end with a service charge printed on a receipt, the A4 receipt on paper, PO d
 instructions and additional comments on the supplier document, the back-office Customers screen,
 and a made-in-house ingredient showing its cost as read-only "Calculated from recipe".
 
-🔴 **STILL NOT DEPLOYED and the reply to Martin is still held** until these are live and the
-affected screens are re-walked on a phone.
+🟢 **DEPLOYED AND RE-WALKED.** `d95c0f4` carried the twelve fixes; `f907239` followed because the
+first cart fix raised the floor to 120px while a cart line was 100px tall, so it still showed one
+row. Shrinking the line itself at `lg` fixed it. Every fix was then re-checked on production, on
+the laptop AND the phone: the till prices in AED on a fresh phone load, all channel tiles are
+reachable, the call centre shows its menu after a customer is chosen, the panel no longer says
+"No customer found" above the customer, New purchase order is usable at 100% zoom, the production
+preview moves on its own after a run, the cart shows two rows with a visible scrollbar, and the
+Z-Report reads "Pick up, 6 orders, AED 155.10". The category delete worked on Martin's own tenant.
+
+🟠 **Four things stay open on purpose**, listed in the UAT record: the Z-Report showing zero
+revenue beside real channel totals because "settled" means paid; US-style rendered timestamps for
+a UAE client; `paid_on` defaulting to the invoice date; and a produced item keeping its recipe's
+saved cost when an ingredient's price moves.
+
+🔴 **The reply to Martin is now unblocked**, and test data from the walk is still on his tenant:
+orders `#260906-002` to `-008`, two production runs, a draft PO, customer `Test UAT` and the
+expense category `Bank Charges`. Deliveroo stays.
 
 ## 🟡 2026-09-06 (evening). UAT WALKED IN A BROWSER ON A LAPTOP AND A REAL PHONE. M9, M10 AND M13 PROVEN. **DO NOT REPLY TO MARTIN YET: THREE CLIENT-VISIBLE DEFECTS ARE OPEN.**
 

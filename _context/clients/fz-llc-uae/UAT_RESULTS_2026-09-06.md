@@ -1098,3 +1098,56 @@ proved the server drops a typed cost on such an item; this is the same rule visi
 ![Cost calculated from the recipe](../../../_files/2026-09-06/uat-round3/step61-cost-from-recipe.png)
 
 **All five items Malik asked about are now walked in a browser, not merely API-verified.**
+
+---
+
+# RE-VERIFICATION AFTER THE FIXES, on production at `d95c0f4`
+
+Deploy: "Deploy to Production" green on `d95c0f4`. The served entry bundle is byte-identical in
+name to the local build (`index-J-UhOo62.js`) and the cart chunk fetched from production contains
+`How this order is handled`, `To kitchen` and `scrollbar-visible`, so the new code is the code
+being served.
+
+* **Step 63, the category fix, PASS on production.** `Packaging & Disposables` now reads
+  **0 ingredients** with a live bin, and deleted. Before the fix it insisted on "1 ingredient"
+  for an ingredient already removed and could never be deleted. The list also shows
+  **Made In-House, 3 ingredients** after the rename away from "Produced".
+* **Step 64, the header fix, PASS on a real phone.** All channel tiles are visible, including
+  Pick up and Call Center, which could not be reached at all before.
+* **Step 65, the currency race, PASS on the phone.** The till prices read **AED** on a fresh
+  load. The fix is structural rather than lucky: the layout does not render its children until
+  the tenant config has resolved, so there is no window in which a price can paint in the wrong
+  currency.
+* **Step 66, the call centre on a phone, PASS.** Tapping the Call Center tile, searching the
+  number and selecting the customer now shows the menu.
+* **Step 67, the "No customer found" contradiction, PASS on the laptop.** Search box, customer
+  card, order history, menu and cart, with no empty-state message anywhere.
+* **Step 68, tall dialogs, PASS.** New purchase order is fully usable at 100% zoom; the Create
+  order button is reachable.
+* **Step 69, the production preview, PASS.** After producing 1 kg the panel moved on its own to
+  Butter 60.5, Flour 128.45, Milk 32.5, Mozzarella 18.75, exactly the predicted figures.
+* **Steps 70-71, the cart, PASS after a second fix.** The first attempt raised the floor to 120px
+  while a cart line was about 100px tall, so it still fitted one row. Shrinking the line itself at
+  `lg` (36px stepper, tighter padding) and raising the floor to 9.5rem shows **two full rows**
+  with the scrollbar visible. Deployed at `f907239`.
+* **Step 72, the Z-Report label, PASS.** Sales by Channel reads **"Pick up", 6 orders, AED
+  155.10**, alongside Call Center. His round-1 rename now reaches the report.
+
+## Still open, deliberately not fixed in this pass
+
+1. **The Z-Report reads zero revenue** beside channel totals of AED 164.10, because "settled"
+   means paid and nothing was paid. Either the summary explains itself or a direct sale records
+   a payment. Needs a decision, not a patch.
+2. **Rendered timestamps are US-style** (`9/6/2026`) for a UAE client. Native date INPUTS follow
+   the device and are not ours; the rendered ones are.
+3. **`paid_on` defaults to the invoice date**, not the day it was paid.
+4. **A produced item is valued at the recipe's saved cost**, and nothing recalculates it when an
+   ingredient's price changes. Real accounting behaviour for a client whose whole ask is cost
+   accuracy.
+
+## Test data left on `martin-fz`
+
+Orders `#260906-002` to `#260906-008`, two production runs (`UAT-2026-09-06` and
+`PROD-20260906175404`) with the stock they consumed, `PO-260906-001` as a draft, customer
+`Test UAT`, expense category `Bank Charges`, and the `Deliveroo` sales channel. Deliveroo is
+meant to stay. The rest is ours to clear before Martin looks.
