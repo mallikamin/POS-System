@@ -59,8 +59,15 @@ arrive through the storefront.
 🔴 **Two things to raise with Martin rather than silently fix:**
 - **Deliveroo is not set up.** He named it; it is the only one of his six missing. He adds it
   himself on the Sales Channels screen and it appears as a till tile at once.
-- **Every channel is on 0% commission.** That is data he enters, not a defect, but the
-  profitability report is meaningless until the real rates are in.
+- ~~**Every channel is on 0% commission.**~~ 🔴 **RETRACTED 2026-09-06 at UAT step 2. This was
+  false.** The Sales Channels screen, read on production in a browser, shows Careem, KEETA and
+  noon at 30.00%, Website (card) at 3.00% plus AED 1.00, WhatsApp / Direct at 3.00%, and B2B
+  Wholesale at 0% with a flat AED 30.00 per order. The rates are entered and the profitability
+  report has real inputs. Do not repeat the 0% claim to Martin. Screenshot:
+  `_files/2026-09-06/uat-round3/step02-sales-channels.png`.
+- ⚠️ **KEETA carries the code `talabat`**, because the seeded Talabat row was renamed and a code
+  is immutable once orders reference it. Reports read the name, so nothing is wrong, but a
+  future real Talabat channel needs a different code.
 
 **v / M5.** An order carries `delivery_fee` and `service_fee`, they are inside the order total,
 and the receipt and the payment preview are served the same numbers. A negative fee is refused

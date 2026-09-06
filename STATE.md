@@ -1,9 +1,91 @@
 # STATE — Restaurant POS System
 
-**Last refreshed:** 2026-09-06 (Martin round 3 deployed). Top block: FZ LLC items M9-M13,
+**Last refreshed:** 2026-09-06 (evening). UAT walked on a laptop and a real phone; three
+client-visible defects are open and the reply to Martin is HELD. Top block: FZ LLC items M9-M13,
 production, expenses, ingredient categories, the phone, and a direct sale at the till.
 **DEPLOYED at `b4505fa` and verified on the production database. UAT not started.** The M8
 block below is unchanged and still accurate. The Chick Shack blocks below it are unchanged.
+
+## 🟢 2026-09-06 (late). EVERY DEFECT THE UAT FOUND IS FIXED LOCALLY. TESTED, NOT YET DEPLOYED.
+
+Twelve fixes, in the order they matter. Frontend type-check clean, build clean, lint unchanged at
+its pre-existing 39 problems. Backend **1009 passed** with the same 11 failures and 2 errors that
+exist on a clean tree, plus **26 green** in `test_martin_round3.py` including a new one.
+
+1. **The PKR-on-a-UAE-till race.** `POSLayout` and `AdminLayout` now hold their children until the
+   tenant config has landed, with `configError` as the escape hatch so a failed call degrades
+   instead of trapping the user. Waiting for the fetch is the fix; F15 only made sure it was
+   ISSUED, which is why this came back.
+2. **The header that hid two channel tiles.** The name truncates, `min-w-0` on the flex child,
+   the controls are `shrink-0`, and the clock and operator name drop below `sm`.
+3. **The call centre on a phone.** The customer panel and the menu now SWAP below `lg` instead of
+   sharing a flex row the panel refused to give up, with a "Change" bar to get back to search.
+4. **"No customer found" above the found customer.** The missing `!selectedCustomer` guard.
+5. **A soft-deleted ingredient blocking its category forever.** Category counts are ACTIVE-only in
+   the guard, the display and the orphan self-heal; rename still moves every row but reports only
+   the active ones. New test `test_a_deleted_ingredient_does_not_hold_its_category_hostage`,
+   confirmed to FAIL without the service change.
+6. **The stale production preview.** A `stockNonce` re-runs the preview after a run and on Refresh,
+   so the shortfall warning stays true.
+7. **Tall dialogs cropped with unreachable buttons** (New purchase order was usable only at 67%
+   zoom). The shared `DialogContent` gains `max-h-[calc(100dvh-2rem)]`, `overflow-y-auto` and
+   `overscroll-contain`. One fix, every dialog in the product.
+8. **The cart showing one line at a time.** A `min-h` floor on the lines region plus a visible
+   `scrollbar-visible` utility.
+9. **Two controls reading "Send to kitchen".** The switch now reads "To kitchen / Print & deduct"
+   under a caption; the action button keeps the verb.
+10. **The ingredient form opening on a non-existent "General".** It opens on the tenant's first
+    real category.
+11. **The Z-Report saying "Takeaway"** where round 1 asked for "Pick up". It reads
+    `config.takeaway_label`.
+12. **Channel tiles on a phone**: two per row, 32px icons, tighter padding. Malik's design note.
+
+**Also:** the seeder wrote a category called "Produced" one letter from "Produce", the fresh-veg
+category. Renamed to "Made In-House" in the seeder; Martin's tenant was renamed in the UI, which
+moved its three ingredients with it.
+
+**Round-1 items re-walked in a browser, having only been API-verified before:** order charges end
+to end with a service charge printed on a receipt, the A4 receipt on paper, PO delivery
+instructions and additional comments on the supplier document, the back-office Customers screen,
+and a made-in-house ingredient showing its cost as read-only "Calculated from recipe".
+
+🔴 **STILL NOT DEPLOYED and the reply to Martin is still held** until these are live and the
+affected screens are re-walked on a phone.
+
+## 🟡 2026-09-06 (evening). UAT WALKED IN A BROWSER ON A LAPTOP AND A REAL PHONE. M9, M10 AND M13 PROVEN. **DO NOT REPLY TO MARTIN YET: THREE CLIENT-VISIBLE DEFECTS ARE OPEN.**
+
+Full record with 40 screenshots: `_context/clients/fz-llc-uae/UAT_RESULTS_2026-09-06.md`.
+Images in `_files/2026-09-06/uat-round3/`.
+
+**Proven on production, pixels included.** M9 production (preview, shortfall warning, run, stock
+moved to the gram), M10 expenses (VAT-inside guard, PDF attached and read back, drafts excluded,
+delete removes the file), M13 direct sale (kitchen mode moves no stock; direct mode prints,
+completes and deducts 0.12 kg of dough at the second the receipt appeared).
+
+🔴 **Three defects block the reply.**
+1. **The till prices in PKR on a UAE tenant** on a cold load. `MenuGrid` paints before the tenant
+   config sets the currency, and `activeCode` in `utils/currency.ts` is a non-reactive module
+   variable. A phone on mobile data loses that race; a laptop on wifi wins it, so our own testing
+   cannot see it. Same class as F15, which was patched per-screen rather than made reactive.
+2. **Pick up and Call Center are unreachable on a phone**, portrait and landscape. `POSLayout.tsx:77`
+   fixes the header at `h-14 shrink-0` and the untruncated restaurant name wraps to three lines and
+   paints over the first tiles.
+3. **The call centre cannot take an order on a phone.** The customer panel is `w-full shrink-0`
+   below `lg` and the menu is its flex sibling, so on selection the menu is laid out off-screen.
+
+🟠 **Seven more, all small:** a soft-deleted ingredient blocks its category forever (the in-use
+count ignores `is_active`); the production preview never refetches after a run so the shortfall
+warning goes stale; "No customer found" renders above the customer it found (one missing
+`!selectedCustomer`); the cart shows one line at a time; the mode switch and the action button
+both read "Send to kitchen"; the ingredient form defaults to a "General" category that does not
+exist; the Z-Report reads zero revenue beside AED 72.00 and still says "Takeaway".
+
+⚠️ **`API_VERIFICATION_2026-09-06.md`'s "every channel is on 0% commission" was FALSE** and is
+retracted below. Deliveroo was added during the walk, at 5% as demo data, deliberately.
+
+**Probe residue on `martin-fz`:** orders #260906-002 to -006, one production run `UAT-2026-09-06`,
+a soft-deleted `Takeaway Box` with its `Packaging & Disposables` category, an expense category
+`Bank Charges`, customer `Test UAT`, and the Deliveroo channel.
 
 ## 🟢 2026-09-06. MARTIN ROUND 3 (M9-M13). DEPLOYED AT `b4505fa` AND VERIFIED ON THE PRODUCTION DATABASE. UAT NOT STARTED.
 
@@ -74,9 +156,16 @@ and back live; a company customer stored its TRN; the production preview was pro
 nothing by comparing the stock position and run history before and after; an expense invoice
 attached, read back byte-for-byte and returned 401 to an anonymous reader.
 
-🔴 **Two things to raise with Martin, not to fix silently:** **Deliveroo is not set up** on his
-Sales Channels screen (the only one of his six missing), and **every channel is on 0%
-commission**, which makes the profitability report meaningless until he enters the real rates.
+🔴 **One thing to raise with Martin, not to fix silently:** **Deliveroo is not set up** on his
+Sales Channels screen (the only one of his six missing).
+
+🔴 **RETRACTED at UAT step 2, 2026-09-06: the "every channel is on 0% commission" line above was
+FALSE.** Read in a browser on production, the rates are entered: Careem, KEETA and noon at
+30.00%, Website (card) at 3.00% plus AED 1.00, WhatsApp / Direct at 3.00%, B2B Wholesale at 0%
+with a flat AED 30.00 per order. The profitability report has real inputs. The API harness that
+produced the 0% claim was wrong, the same class of fault as the eleven false failures already
+logged for that harness. ⚠️ Also seen: **KEETA carries the code `talabat`**, the seeded Talabat
+row having been renamed, and a code is immutable once orders reference it.
 
 ⚠️ **One probe customer had to be removed from the production database directly**, because
 there is no DELETE endpoint for a customer by design. `pg_dump` taken first to
