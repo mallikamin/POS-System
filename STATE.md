@@ -66,8 +66,25 @@ the production database and on the served files, read-only:
 * "Print & deduct now", "Print & Complete", "Send to kitchen", "New category" and
   "View order" are all in the shipped chunks.
 
-🔴 **NOT SEEN. Nothing has been clicked in a browser.** The database and the bundle are
-right; the pixels are unproven. The step-by-step UAT script covering M9-M13 is
+**ALL TWELVE OF MARTIN'S ASKS RE-CHECKED OVER THE REAL API ON PRODUCTION, 2026-09-06.**
+Full record in `_context/clients/fz-llc-uae/API_VERIFICATION_2026-09-06.md`. Every item
+passes at the API layer, including the ones from rounds 1 and 2. Highlights: a typed-over cost
+on a made-in-house item is still dropped by the server; the receipt format was switched to A4
+and back live; a company customer stored its TRN; the production preview was proven to write
+nothing by comparing the stock position and run history before and after; an expense invoice
+attached, read back byte-for-byte and returned 401 to an anonymous reader.
+
+🔴 **Two things to raise with Martin, not to fix silently:** **Deliveroo is not set up** on his
+Sales Channels screen (the only one of his six missing), and **every channel is on 0%
+commission**, which makes the profitability report meaningless until he enters the real rates.
+
+⚠️ **One probe customer had to be removed from the production database directly**, because
+there is no DELETE endpoint for a customer by design. `pg_dump` taken first to
+`/root/backups/pre_zzprobe_cleanup_20260906_102857.sql`. `martin-fz` is back to 0 customers and
+`chick-shack` still has its 215.
+
+🔴 **NOT SEEN. Nothing has been clicked in a browser.** The database, the API and the bundle
+are all right; the pixels are unproven. The step-by-step UAT script covering M9-M13 is
 `_context/clients/fz-llc-uae/UAT_FZ_LLC_2026-09-06.md`, 43 steps. **Walk it on a laptop AND
 on a phone before replying to Martin.**
 
