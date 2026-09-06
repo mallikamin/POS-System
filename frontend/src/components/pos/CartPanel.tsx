@@ -298,7 +298,7 @@ export function CartPanel({ waiterId, onOrderCreated }: CartPanelProps = {}) {
           button), and on a laptop window it collapsed to roughly one row while
           the cart held three. The floor guarantees a readable list and the
           visible scrollbar says there is more. */}
-      <div className="min-h-[7.5rem] flex-1 overflow-y-auto scrollbar-visible">
+      <div className="min-h-[7.5rem] flex-1 overflow-y-auto scrollbar-visible lg:min-h-[9.5rem]">
         {sentSuccess && (
           <div className="mx-4 mt-3 flex items-center gap-2 rounded-lg bg-success-50 px-3 py-2 text-sm text-success-700">
             <ChefHat className="h-4 w-4" />
@@ -450,7 +450,7 @@ export function CartPanel({ waiterId, onOrderCreated }: CartPanelProps = {}) {
                 type="button"
                 onClick={() => setFulfilment("kitchen")}
                 className={cn(
-                  "min-h-[44px] rounded-md px-2 text-xs font-medium transition-colors",
+                  "min-h-[44px] rounded-md px-2 text-xs font-medium transition-colors lg:min-h-[36px]",
                   fulfilment === "kitchen"
                     ? "bg-white text-secondary-900 shadow-sm"
                     : "text-secondary-600",
@@ -462,7 +462,7 @@ export function CartPanel({ waiterId, onOrderCreated }: CartPanelProps = {}) {
                 type="button"
                 onClick={() => setFulfilment("direct")}
                 className={cn(
-                  "min-h-[44px] rounded-md px-2 text-xs font-medium transition-colors",
+                  "min-h-[44px] rounded-md px-2 text-xs font-medium transition-colors lg:min-h-[36px]",
                   fulfilment === "direct"
                     ? "bg-white text-secondary-900 shadow-sm"
                     : "text-secondary-600",
@@ -571,8 +571,13 @@ interface CartLineItemProps {
 function CartLineItem({ line, onUpdateQty, onRemove }: CartLineItemProps) {
   const lineTotal = line.unitPrice * line.quantity;
 
+  /*
+   * Compact at `lg` and up. A 48px stepper is a touch target and a mouse does
+   * not need one; keeping it on a laptop cost about 100px per line, which is
+   * why a three-item cart showed a single row. Phones keep the full size.
+   */
   return (
-    <div className="px-4 py-3 space-y-2">
+    <div className="space-y-2 px-4 py-3 lg:space-y-1 lg:py-2">
       <div className="flex items-start gap-2">
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-secondary-900 leading-tight">
@@ -613,7 +618,7 @@ function CartLineItem({ line, onUpdateQty, onRemove }: CartLineItemProps) {
           <button
             onClick={() => onUpdateQty(line.quantity - 1)}
             aria-label="Decrease quantity"
-            className="flex h-12 w-12 items-center justify-center rounded-lg border border-secondary-200 text-secondary-600 hover:bg-secondary-50 active:bg-secondary-100 transition-colors"
+            className="flex h-12 w-12 items-center justify-center rounded-lg border border-secondary-200 text-secondary-600 transition-colors hover:bg-secondary-50 active:bg-secondary-100 lg:h-9 lg:w-9"
           >
             <Minus className="h-3.5 w-3.5" />
           </button>
@@ -623,7 +628,7 @@ function CartLineItem({ line, onUpdateQty, onRemove }: CartLineItemProps) {
           <button
             onClick={() => onUpdateQty(line.quantity + 1)}
             aria-label="Increase quantity"
-            className="flex h-12 w-12 items-center justify-center rounded-lg border border-secondary-200 text-secondary-600 hover:bg-secondary-50 active:bg-secondary-100 transition-colors"
+            className="flex h-12 w-12 items-center justify-center rounded-lg border border-secondary-200 text-secondary-600 transition-colors hover:bg-secondary-50 active:bg-secondary-100 lg:h-9 lg:w-9"
           >
             <Plus className="h-3.5 w-3.5" />
           </button>
