@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Minus, Plus, ShoppingCart, ChefHat, X, Loader2, CreditCard, User, Search, RotateCcw, Truck } from "lucide-react";
+import { Minus, Plus, Printer, ShoppingCart, ChefHat, X, Loader2, CreditCard, User, Search, RotateCcw, Truck } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { ReceiptModal } from "@/components/pos/ReceiptModal";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -73,6 +75,16 @@ export function CartPanel({ waiterId, onOrderCreated }: CartPanelProps = {}) {
    * typed strings so "2." survives while it is being typed; converted to minor
    * units once, through the currency module, when they are used.
    */
+  /*
+   * Martin M13. Per-order, not per-tenant: the same till takes a wholesale
+   * line that never sees a kitchen and a pick-up order that does. Defaults to
+   * "kitchen", which is what every client does today.
+   */
+  const [fulfilment, setFulfilment] = useState<"kitchen" | "direct">("kitchen");
+  const isDirect = !isPayFirst && fulfilment === "direct";
+  /** The order whose receipt is on screen after a direct sale. */
+  const [receiptOrderId, setReceiptOrderId] = useState<string | null>(null);
+
   const [chargesOpen, setChargesOpen] = useState(false);
   const [deliveryFeeInput, setDeliveryFeeInput] = useState("");
   const [serviceFeeInput, setServiceFeeInput] = useState("");
@@ -161,7 +173,8 @@ export function CartPanel({ waiterId, onOrderCreated }: CartPanelProps = {}) {
         custName,
         custPhone,
         waiterId,
-        { delivery_fee: deliveryFee, service_fee: serviceFee }
+        { delivery_fee: deliveryFee, service_fee: serviceFee },
+        isDirect ? "direct" : "kitchen"
       );
       // Charges belong to the order just sent, never to the next one.
       setDeliveryFeeInput("");
@@ -171,6 +184,16 @@ export function CartPanel({ waiterId, onOrderCreated }: CartPanelProps = {}) {
       if (isPayFirst) {
         // Pay-first: redirect to payment page
         navigate(`/payment/${order.id}`);
+      } else if (isDirect) {
+        /*
+         * Martin M13: "directly PRINT and deducted from stock". The stock is
+         * already off -- the server completed the order in the same request --
+         * so the only thing left is the paper. The same 80mm ReceiptModal the
+         * payment screens use, so the slip carries the tenant's own header and
+         * footer rather than a screenshot of the application (F23).
+         */
+        setReceiptOrderId(order.id);
+        setOrderNumber(order.order_number);
       } else {
         setOrderNumber(order.order_number);
         setSentSuccess(true);
@@ -395,6 +418,53 @@ export function CartPanel({ waiterId, onOrderCreated }: CartPanelProps = {}) {
             </div>
           </div>
 
+          {/*
+            How this order is fulfilled. Martin (FZ LLC, 2026-09-06, M13):
+
+              "Need to have option here to either send to kitchen / then ready
+               / then dispatched as it is now. And at that time is deducted
+               from inventory OR directly print and deducted from stock"
+
+            Hidden in pay-first mode, where the server refuses a direct sale:
+            there the money comes first and payment is what releases the order,
+            so completing it at the till would book stock against a sale nobody
+            has paid for. Offering a button that always errors is worse than
+            not offering it.
+          */}
+          {!isPayFirst && (
+            <div className="grid grid-cols-2 gap-1 rounded-lg bg-secondary-100 p-1">
+              <button
+                type="button"
+                onClick={() => setFulfilment("kitchen")}
+                className={cn(
+                  "min-h-[44px] rounded-md px-2 text-xs font-medium transition-colors",
+                  fulfilment === "kitchen"
+                    ? "bg-white text-secondary-900 shadow-sm"
+                    : "text-secondary-600",
+                )}
+              >
+                Send to kitchen
+              </button>
+              <button
+                type="button"
+                onClick={() => setFulfilment("direct")}
+                className={cn(
+                  "min-h-[44px] rounded-md px-2 text-xs font-medium transition-colors",
+                  fulfilment === "direct"
+                    ? "bg-white text-secondary-900 shadow-sm"
+                    : "text-secondary-600",
+                )}
+              >
+                Print &amp; deduct now
+              </button>
+              <p className="col-span-2 px-1 pb-0.5 text-[10px] leading-snug text-secondary-500">
+                {fulfilment === "kitchen"
+                  ? "Goes to the kitchen board. Stock comes off when the order is completed."
+                  : "No kitchen ticket. The order is completed and stock comes off straight away."}
+              </p>
+            </div>
+          )}
+
           {/* Action buttons */}
           <div className="space-y-2">
             <Button
@@ -407,10 +477,18 @@ export function CartPanel({ waiterId, onOrderCreated }: CartPanelProps = {}) {
                 <Loader2 className="h-5 w-5 animate-spin" />
               ) : isPayFirst ? (
                 <CreditCard className="h-5 w-5" />
+              ) : isDirect ? (
+                <Printer className="h-5 w-5" />
               ) : (
                 <ChefHat className="h-5 w-5" />
               )}
-              {isSending ? "Sending..." : isPayFirst ? "Pay & Send" : "Send to Kitchen"}
+              {isSending
+                ? "Sending..."
+                : isPayFirst
+                ? "Pay & Send"
+                : isDirect
+                ? "Print & Complete"
+                : "Send to Kitchen"}
             </Button>
             <Button
               variant="ghost"
@@ -443,6 +521,19 @@ export function CartPanel({ waiterId, onOrderCreated }: CartPanelProps = {}) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Martin M13: the receipt for a direct sale, opened as soon as the
+          order comes back completed. */}
+      {receiptOrderId && (
+        <ReceiptModal
+          orderId={receiptOrderId}
+          open
+          onClose={() => {
+            setReceiptOrderId(null);
+            setOrderNumber(null);
+          }}
+        />
+      )}
     </div>
   );
 }

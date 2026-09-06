@@ -584,92 +584,94 @@ function StockPage() {
             </p>
           ) : (
             <div className="max-h-[60vh] overflow-y-auto">
-              <table className="w-full text-pos-sm">
-                <thead className="sticky top-0 bg-white">
-                  <tr className="border-b border-secondary-200 text-left text-secondary-500">
-                    <th className="px-3 py-2 font-medium">When</th>
-                    <th className="px-3 py-2 font-medium">Type</th>
-                    <th className="px-3 py-2 text-right font-medium">Change</th>
-                    <th className="px-3 py-2 text-right font-medium">Balance</th>
-                    {/* F43: the price paid on each movement was stored and
-                        returned by the API all along, and shown nowhere. */}
-                    <th className="px-3 py-2 text-right font-medium">
-                      Unit price
-                    </th>
-                    <th className="px-3 py-2 text-right font-medium">Value</th>
-                    <th className="px-3 py-2 font-medium">Who</th>
-                    <th className="px-3 py-2 font-medium">Why</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {history.map((m) => {
-                    const delta = toNumber(m.quantity);
-                    return (
-                      <tr
-                        key={m.id}
-                        className="border-b border-secondary-100 align-top"
-                      >
-                        <td className="whitespace-nowrap px-3 py-2 text-secondary-600">
-                          {new Date(m.transaction_date).toLocaleString()}
-                        </td>
-                        <td className="px-3 py-2">
-                          <Badge variant="secondary">
-                            {m.transaction_type.replace(/_/g, " ")}
-                          </Badge>
-                        </td>
-                        {/* Signed and colour-coded: the single most-read number
-                            here is "did this go up or down". */}
-                        <td
-                          className={cn(
-                            "whitespace-nowrap px-3 py-2 text-right tabular-nums font-medium",
-                            delta < 0 ? "text-danger-600" : "text-success-600",
-                          )}
+              <div className="overflow-x-auto">
+                <table className="w-full text-pos-sm">
+                  <thead className="sticky top-0 bg-white">
+                    <tr className="border-b border-secondary-200 text-left text-secondary-500">
+                      <th className="px-3 py-2 font-medium">When</th>
+                      <th className="px-3 py-2 font-medium">Type</th>
+                      <th className="px-3 py-2 text-right font-medium">Change</th>
+                      <th className="px-3 py-2 text-right font-medium">Balance</th>
+                      {/* F43: the price paid on each movement was stored and
+                          returned by the API all along, and shown nowhere. */}
+                      <th className="px-3 py-2 text-right font-medium">
+                        Unit price
+                      </th>
+                      <th className="px-3 py-2 text-right font-medium">Value</th>
+                      <th className="px-3 py-2 font-medium">Who</th>
+                      <th className="px-3 py-2 font-medium">Why</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {history.map((m) => {
+                      const delta = toNumber(m.quantity);
+                      return (
+                        <tr
+                          key={m.id}
+                          className="border-b border-secondary-100 align-top"
                         >
-                          {delta > 0 ? "+" : ""}
-                          {formatQty(m.quantity)} {m.unit}
-                        </td>
-                        <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-secondary-700">
-                          {formatQty(m.balance_after)} {m.unit}
-                        </td>
-                        {/* What this movement was actually valued at, rather
-                            than what the ingredient costs today. A purchase
-                            made at 3.50 stays 3.50 here after a later delivery
-                            at 3.75. */}
-                        <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-secondary-700">
-                          {toNumber(m.unit_cost) > 0 ? (
-                            formatMoney(toNumber(m.unit_cost), currency)
-                          ) : (
-                            <span className="text-secondary-300">--</span>
-                          )}
-                        </td>
-                        <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-secondary-700">
-                          {toNumber(m.total_cost) > 0 ? (
-                            formatMoney(toNumber(m.total_cost), currency)
-                          ) : (
-                            <span className="text-secondary-300">--</span>
-                          )}
-                        </td>
-                        {/* A null performer is the system, not a gap in the
-                            record: consumption from an online order has no
-                            human behind it. Say so rather than showing a dash
-                            that reads as missing data. */}
-                        <td className="px-3 py-2 text-secondary-600">
-                          {m.performed_by_name ?? (
-                            <span className="italic text-secondary-400">
-                              System
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-3 py-2 text-secondary-600">
-                          {m.notes ?? m.reference_number ?? (
-                            <span className="text-secondary-300">--</span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                          <td className="whitespace-nowrap px-3 py-2 text-secondary-600">
+                            {new Date(m.transaction_date).toLocaleString()}
+                          </td>
+                          <td className="px-3 py-2">
+                            <Badge variant="secondary">
+                              {m.transaction_type.replace(/_/g, " ")}
+                            </Badge>
+                          </td>
+                          {/* Signed and colour-coded: the single most-read number
+                              here is "did this go up or down". */}
+                          <td
+                            className={cn(
+                              "whitespace-nowrap px-3 py-2 text-right tabular-nums font-medium",
+                              delta < 0 ? "text-danger-600" : "text-success-600",
+                            )}
+                          >
+                            {delta > 0 ? "+" : ""}
+                            {formatQty(m.quantity)} {m.unit}
+                          </td>
+                          <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-secondary-700">
+                            {formatQty(m.balance_after)} {m.unit}
+                          </td>
+                          {/* What this movement was actually valued at, rather
+                              than what the ingredient costs today. A purchase
+                              made at 3.50 stays 3.50 here after a later delivery
+                              at 3.75. */}
+                          <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-secondary-700">
+                            {toNumber(m.unit_cost) > 0 ? (
+                              formatMoney(toNumber(m.unit_cost), currency)
+                            ) : (
+                              <span className="text-secondary-300">--</span>
+                            )}
+                          </td>
+                          <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-secondary-700">
+                            {toNumber(m.total_cost) > 0 ? (
+                              formatMoney(toNumber(m.total_cost), currency)
+                            ) : (
+                              <span className="text-secondary-300">--</span>
+                            )}
+                          </td>
+                          {/* A null performer is the system, not a gap in the
+                              record: consumption from an online order has no
+                              human behind it. Say so rather than showing a dash
+                              that reads as missing data. */}
+                          <td className="px-3 py-2 text-secondary-600">
+                            {m.performed_by_name ?? (
+                              <span className="italic text-secondary-400">
+                                System
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2 text-secondary-600">
+                            {m.notes ?? m.reference_number ?? (
+                              <span className="text-secondary-300">--</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
 

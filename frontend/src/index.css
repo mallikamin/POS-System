@@ -173,6 +173,44 @@
     overscroll-behavior: none;
   }
 
+  /*
+   * Martin M12. This replaces the `user-scalable=no` that used to sit in the
+   * viewport meta (see index.html).
+   *
+   * `manipulation` means "pan and pinch-zoom are fine, double-tap zoom is
+   * not". That is exactly what the viewport lock was really for on a till: a
+   * fat-fingered double tap on a menu tile must not zoom the screen mid-
+   * service. Scoped to controls, so the page as a whole can still be pinched
+   * out to read a wide table -- which is what Martin could not do.
+   */
+  button,
+  [role="button"],
+  a,
+  input,
+  select,
+  textarea,
+  label {
+    touch-action: manipulation;
+  }
+
+  /*
+   * A table that is told to be exactly its container's width CANNOT overflow
+   * that container, so the `overflow-x-auto` wrapped around it does nothing and
+   * eight columns are squeezed into 360px of unreadable slivers. That is the
+   * second half of M12, and it was the pattern on most admin screens.
+   *
+   * Below `sm`, every admin table gets a readable minimum width and its nearest
+   * scrolling ancestor does the scrolling. Screens that render a proper card
+   * list on a phone hide their table entirely, so this never applies to them.
+   *
+   * Opt out on a table that is genuinely narrow with `class="table-fits"`.
+   */
+  @media (max-width: 639px) {
+    .overflow-x-auto table:not(.table-fits) {
+      min-width: 34rem;
+    }
+  }
+
   /* Prevent text selection on POS touch elements */
   .no-select {
     -webkit-user-select: none;
@@ -232,6 +270,22 @@
 
 /* ===== Print styles ===== */
 @media print {
+  /*
+   * A horizontal scroller is a screen affordance. On paper `overflow: auto`
+   * CLIPS whatever does not fit instead of scrolling it, so a Z-report table
+   * wider than the page would print with its right-hand columns missing. The
+   * min-width added for phones (M12) has to go the same way, or a narrow
+   * two-column summary is forced to 34rem on an A4 page.
+   */
+  .overflow-x-auto,
+  .overflow-auto {
+    overflow: visible !important;
+  }
+
+  table {
+    min-width: 0 !important;
+  }
+
   /* Hide app chrome: sidebar, header, nav */
   nav,
   aside,

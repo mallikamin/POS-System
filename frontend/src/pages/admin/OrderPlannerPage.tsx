@@ -462,65 +462,67 @@ function OrderPlannerPage() {
                       </div>
                     </div>
 
-                    <table className="mt-3 w-full text-sm">
-                      <thead className="text-left text-xs uppercase tracking-wide text-secondary-500">
-                        <tr>
-                          <th className="py-1">Item</th>
-                          <th className="py-1 text-right">Needed</th>
-                          <th className="py-1 text-right">In stock</th>
-                          <th className="py-1 text-right">On order</th>
-                          <th className="py-1 text-right">Order</th>
-                          <th className="py-1 text-right">Cost</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {basket.lines.map((line) => (
-                          <tr
-                            key={line.ingredient_id}
-                            className="border-t border-secondary-100"
-                          >
-                            <td className="py-2">
-                              {line.ingredient_name}
-                              {num(line.pack_size) > 0 && (
-                                <span className="ml-2 text-xs text-secondary-500">
-                                  {num(line.pack_size)} {line.purchase_unit} packs
-                                </span>
-                              )}
-                            </td>
-                            <td className="py-2 text-right">
-                              {num(line.required)} {line.unit}
-                            </td>
-                            <td className="py-2 text-right">
-                              {num(line.on_hand)}
-                            </td>
-                            <td className="py-2 text-right">
-                              {num(line.on_order)}
-                            </td>
-                            {/* M8: what to ORDER, so it is counted in the unit
-                                the supplier sells. The columns to its left
-                                are the kitchen's own units, and mixing the two
-                                in one row is exactly what Martin flagged. */}
-                            <td className="py-2 text-right font-medium">
-                              {num(line.suggested_quantity)} {line.purchase_unit}
-                              {line.purchase_unit !== line.unit && (
-                                <div className="text-[10px] font-normal text-secondary-400">
-                                  ={" "}
-                                  {num(line.suggested_quantity) *
-                                    num(line.units_per_purchase_unit)}{" "}
-                                  {line.unit}
-                                </div>
-                              )}
-                            </td>
-                            <td className="py-2 text-right">
-                              {formatMoney(
-                                minor(line.estimated_cost_minor),
-                                currency,
-                              )}
-                            </td>
+                    <div className="overflow-x-auto">
+                      <table className="mt-3 w-full text-sm">
+                        <thead className="text-left text-xs uppercase tracking-wide text-secondary-500">
+                          <tr>
+                            <th className="py-1">Item</th>
+                            <th className="py-1 text-right">Needed</th>
+                            <th className="py-1 text-right">In stock</th>
+                            <th className="py-1 text-right">On order</th>
+                            <th className="py-1 text-right">Order</th>
+                            <th className="py-1 text-right">Cost</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody>
+                          {basket.lines.map((line) => (
+                            <tr
+                              key={line.ingredient_id}
+                              className="border-t border-secondary-100"
+                            >
+                              <td className="py-2">
+                                {line.ingredient_name}
+                                {num(line.pack_size) > 0 && (
+                                  <span className="ml-2 text-xs text-secondary-500">
+                                    {num(line.pack_size)} {line.purchase_unit} packs
+                                  </span>
+                                )}
+                              </td>
+                              <td className="py-2 text-right">
+                                {num(line.required)} {line.unit}
+                              </td>
+                              <td className="py-2 text-right">
+                                {num(line.on_hand)}
+                              </td>
+                              <td className="py-2 text-right">
+                                {num(line.on_order)}
+                              </td>
+                              {/* M8: what to ORDER, so it is counted in the unit
+                                  the supplier sells. The columns to its left
+                                  are the kitchen's own units, and mixing the two
+                                  in one row is exactly what Martin flagged. */}
+                              <td className="py-2 text-right font-medium">
+                                {num(line.suggested_quantity)} {line.purchase_unit}
+                                {line.purchase_unit !== line.unit && (
+                                  <div className="text-[10px] font-normal text-secondary-400">
+                                    ={" "}
+                                    {num(line.suggested_quantity) *
+                                      num(line.units_per_purchase_unit)}{" "}
+                                    {line.unit}
+                                  </div>
+                                )}
+                              </td>
+                              <td className="py-2 text-right">
+                                {formatMoney(
+                                  minor(line.estimated_cost_minor),
+                                  currency,
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </CardContent>
                 </Card>
               ))}

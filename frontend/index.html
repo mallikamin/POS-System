@@ -2,7 +2,22 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <!--
+      Martin (FZ LLC, 2026-09-06, M12): "How it looks on the phone still bad."
+
+      🔴 `maximum-scale=1.0, user-scalable=no` used to be here. On a till it was
+      a deliberate choice: stop a double-tap zooming the button grid mid-service.
+      On the admin portal it was the single worst thing on the phone -- when a
+      table was too wide to read, the browser would not let him pinch out to
+      read it either. An accessibility failure as well as a usability one.
+
+      Zoom is allowed again. The double-tap behaviour the lock was really for is
+      handled by `touch-action: manipulation` on controls in index.css, which
+      suppresses the double-tap zoom WITHOUT taking pinch away. (iOS Safari has
+      ignored `user-scalable=no` since iOS 10 in any case, so the lock only ever
+      applied to Android.)
+    -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#1e293b" />
     <title>POS System</title>
   </head>

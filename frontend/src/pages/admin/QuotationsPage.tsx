@@ -517,80 +517,82 @@ function QuotationsPage() {
 
                   {isOpen && (
                     <div className="mt-4 space-y-3 border-t border-secondary-100 pt-4">
-                      <table className="w-full text-sm">
-                        <thead className="text-left text-xs uppercase tracking-wide text-secondary-500">
-                          <tr>
-                            <th className="py-1">Item</th>
-                            <th className="py-1 text-right">Qty</th>
-                            <th className="py-1 text-right">Price</th>
-                            <th className="py-1 text-right">Total</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {quote.items.map((item) => (
-                            <tr
-                              key={item.id}
-                              className="border-t border-secondary-100"
-                            >
-                              <td className="py-2">
-                                {item.name}
-                                {item.description && (
-                                  <div className="text-xs text-secondary-500">
-                                    {item.description}
-                                  </div>
-                                )}
-                              </td>
-                              <td className="py-2 text-right">
-                                {item.quantity}
-                              </td>
-                              <td className="py-2 text-right">
-                                {formatMoney(item.unit_price_minor, currency)}
-                              </td>
-                              <td className="py-2 text-right">
-                                {formatMoney(item.line_total_minor, currency)}
-                              </td>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead className="text-left text-xs uppercase tracking-wide text-secondary-500">
+                            <tr>
+                              <th className="py-1">Item</th>
+                              <th className="py-1 text-right">Qty</th>
+                              <th className="py-1 text-right">Price</th>
+                              <th className="py-1 text-right">Total</th>
                             </tr>
-                          ))}
-                        </tbody>
-                        <tfoot className="border-t border-secondary-200">
-                          <tr>
-                            <td colSpan={3} className="py-1 text-right">
-                              Subtotal
-                            </td>
-                            <td className="py-1 text-right">
-                              {formatMoney(quote.subtotal_minor, currency)}
-                            </td>
-                          </tr>
-                          {quote.discount_minor > 0 && (
+                          </thead>
+                          <tbody>
+                            {quote.items.map((item) => (
+                              <tr
+                                key={item.id}
+                                className="border-t border-secondary-100"
+                              >
+                                <td className="py-2">
+                                  {item.name}
+                                  {item.description && (
+                                    <div className="text-xs text-secondary-500">
+                                      {item.description}
+                                    </div>
+                                  )}
+                                </td>
+                                <td className="py-2 text-right">
+                                  {item.quantity}
+                                </td>
+                                <td className="py-2 text-right">
+                                  {formatMoney(item.unit_price_minor, currency)}
+                                </td>
+                                <td className="py-2 text-right">
+                                  {formatMoney(item.line_total_minor, currency)}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                          <tfoot className="border-t border-secondary-200">
                             <tr>
                               <td colSpan={3} className="py-1 text-right">
-                                Discount
+                                Subtotal
                               </td>
                               <td className="py-1 text-right">
-                                -{formatMoney(quote.discount_minor, currency)}
+                                {formatMoney(quote.subtotal_minor, currency)}
                               </td>
                             </tr>
-                          )}
-                          {quote.tax_rate_bps > 0 && (
-                            <tr className="text-secondary-500">
+                            {quote.discount_minor > 0 && (
+                              <tr>
+                                <td colSpan={3} className="py-1 text-right">
+                                  Discount
+                                </td>
+                                <td className="py-1 text-right">
+                                  -{formatMoney(quote.discount_minor, currency)}
+                                </td>
+                              </tr>
+                            )}
+                            {quote.tax_rate_bps > 0 && (
+                              <tr className="text-secondary-500">
+                                <td colSpan={3} className="py-1 text-right">
+                                  of which VAT {quote.tax_rate_bps / 100}%
+                                </td>
+                                <td className="py-1 text-right">
+                                  {formatMoney(quote.tax_minor, currency)}
+                                </td>
+                              </tr>
+                            )}
+                            <tr className="font-semibold">
                               <td colSpan={3} className="py-1 text-right">
-                                of which VAT {quote.tax_rate_bps / 100}%
+                                Total
                               </td>
                               <td className="py-1 text-right">
-                                {formatMoney(quote.tax_minor, currency)}
+                                {formatMoney(quote.total_minor, currency)}
                               </td>
                             </tr>
-                          )}
-                          <tr className="font-semibold">
-                            <td colSpan={3} className="py-1 text-right">
-                              Total
-                            </td>
-                            <td className="py-1 text-right">
-                              {formatMoney(quote.total_minor, currency)}
-                            </td>
-                          </tr>
-                        </tfoot>
-                      </table>
+                          </tfoot>
+                        </table>
+                      </div>
 
                       {quote.terms && (
                         <p className="rounded bg-secondary-50 p-3 text-sm text-secondary-600">

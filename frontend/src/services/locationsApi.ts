@@ -13,6 +13,8 @@ import type {
   LocationStockRow,
   StockMovementRow,
   LocationUpdate,
+  ProductionPreview,
+  ProductionRun,
   ProductionRunResult,
   ProfitabilityReport,
   SalesChannel,
@@ -155,6 +157,37 @@ export async function runProduction(body: {
   const { data } = await api.post<ProductionRunResult>(
     "/locations/production/run",
     body,
+  );
+  return data;
+}
+
+/**
+ * What a run WOULD do. Writes nothing.
+ *
+ * The arithmetic lives on the server (`production_service._consumed_quantity`
+ * and the recipe yield) so the preview and the run cannot disagree. Recomputing
+ * the waste factor here would give the number two chances to be wrong, and the
+ * one that moved stock would win silently.
+ */
+export async function previewProduction(body: {
+  recipe_id: string;
+  batches: number;
+  location_id?: string;
+}): Promise<ProductionPreview> {
+  const { data } = await api.post<ProductionPreview>(
+    "/locations/production/preview",
+    body,
+  );
+  return data;
+}
+
+export async function fetchProductionRuns(params?: {
+  location_id?: string;
+  limit?: number;
+}): Promise<ProductionRun[]> {
+  const { data } = await api.get<ProductionRun[]>(
+    "/locations/production/runs",
+    { params },
   );
   return data;
 }

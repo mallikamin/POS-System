@@ -32,6 +32,13 @@ export interface OrderCreateRequest {
   /** Charges added at the till, in minor units, outside the tax. */
   delivery_fee?: number;
   service_fee?: number;
+  /**
+   * Martin M13. "kitchen" (the server's default when omitted) sends the order
+   * to the kitchen and deducts stock when it is finally completed. "direct"
+   * completes it in the same request and deducts stock immediately, with no
+   * kitchen ticket. Refused by the server in pay-first mode.
+   */
+  fulfilment_mode?: "kitchen" | "direct";
 }
 
 export interface OrderItemModifierResponse {

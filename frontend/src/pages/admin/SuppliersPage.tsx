@@ -666,76 +666,78 @@ function SuppliersPage() {
           ) : (
             <div className="space-y-4">
               <div className="max-h-72 overflow-y-auto">
-                <table className="w-full text-sm">
-                  <thead className="sticky top-0 border-b border-secondary-200 bg-secondary-50 text-left text-xs uppercase tracking-wide text-secondary-500">
-                    <tr>
-                      <th className="px-3 py-2">Ingredient</th>
-                      {/* F38: the supplier SKU column is hidden. The field and
-                          the purchase-order document logic are intact -- see
-                          purchase_order_document.py, which prints "Flour [SKU]"
-                          when one is set. It was built speculatively, before
-                          the client had shared a single real supplier invoice,
-                          so it is not shown until his paperwork proves his
-                          suppliers actually quote codes. */}
-                      <th className="px-3 py-2 text-right">Last price</th>
-                      <th className="px-3 py-2 text-right">Pack</th>
-                      <th className="px-3 py-2" />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {catalogue.length === 0 && (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="sticky top-0 border-b border-secondary-200 bg-secondary-50 text-left text-xs uppercase tracking-wide text-secondary-500">
                       <tr>
-                        <td
-                          colSpan={4}
-                          className="px-3 py-6 text-center text-secondary-500"
-                        >
-                          Nothing listed for this supplier yet.
-                        </td>
+                        <th className="px-3 py-2">Ingredient</th>
+                        {/* F38: the supplier SKU column is hidden. The field and
+                            the purchase-order document logic are intact -- see
+                            purchase_order_document.py, which prints "Flour [SKU]"
+                            when one is set. It was built speculatively, before
+                            the client had shared a single real supplier invoice,
+                            so it is not shown until his paperwork proves his
+                            suppliers actually quote codes. */}
+                        <th className="px-3 py-2 text-right">Last price</th>
+                        <th className="px-3 py-2 text-right">Pack</th>
+                        <th className="px-3 py-2" />
                       </tr>
-                    )}
-                    {catalogue.map((item) => (
-                      <tr
-                        key={item.id}
-                        className="border-b border-secondary-100 last:border-0"
-                      >
-                        <td className="px-3 py-2">
-                          <Thumb
-                            src={item.ingredient_image_url}
-                            alt={item.ingredient_name}
-                            className="mr-2 align-middle"
-                          />
-                          <span className="font-medium text-secondary-900">
-                            {item.ingredient_name}
-                          </span>
-                          {item.is_preferred && (
-                            <Star className="ml-1 inline h-3 w-3 fill-warning-500 text-warning-500" />
-                          )}
-                          <span className="ml-1 text-xs text-secondary-500">
-                            per {item.unit}
-                          </span>
-                        </td>
-                        <td className="px-3 py-2 text-right">
-                          {formatMoney(minor(item.last_price_minor), currency)}
-                        </td>
-                        <td className="px-3 py-2 text-right">
-                          {Number(item.pack_size) > 0
-                            ? `${formatQty(item.pack_size)} ${item.unit}`
-                            : "-"}
-                        </td>
-                        <td className="px-3 py-2 text-right">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            disabled={saving}
-                            onClick={() => void removeItem(item)}
+                    </thead>
+                    <tbody>
+                      {catalogue.length === 0 && (
+                        <tr>
+                          <td
+                            colSpan={4}
+                            className="px-3 py-6 text-center text-secondary-500"
                           >
-                            <Trash2 className="h-4 w-4 text-danger-600" />
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                            Nothing listed for this supplier yet.
+                          </td>
+                        </tr>
+                      )}
+                      {catalogue.map((item) => (
+                        <tr
+                          key={item.id}
+                          className="border-b border-secondary-100 last:border-0"
+                        >
+                          <td className="px-3 py-2">
+                            <Thumb
+                              src={item.ingredient_image_url}
+                              alt={item.ingredient_name}
+                              className="mr-2 align-middle"
+                            />
+                            <span className="font-medium text-secondary-900">
+                              {item.ingredient_name}
+                            </span>
+                            {item.is_preferred && (
+                              <Star className="ml-1 inline h-3 w-3 fill-warning-500 text-warning-500" />
+                            )}
+                            <span className="ml-1 text-xs text-secondary-500">
+                              per {item.unit}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 text-right">
+                            {formatMoney(minor(item.last_price_minor), currency)}
+                          </td>
+                          <td className="px-3 py-2 text-right">
+                            {Number(item.pack_size) > 0
+                              ? `${formatQty(item.pack_size)} ${item.unit}`
+                              : "-"}
+                          </td>
+                          <td className="px-3 py-2 text-right">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              disabled={saving}
+                              onClick={() => void removeItem(item)}
+                            >
+                              <Trash2 className="h-4 w-4 text-danger-600" />
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
 
               <div className="rounded-lg border border-secondary-200 p-4">
@@ -822,38 +824,40 @@ function SuppliersPage() {
               Nothing has been ordered from this supplier yet.
             </p>
           ) : (
-            <table className="w-full text-sm">
-              <thead className="border-b border-secondary-200 text-left text-xs uppercase tracking-wide text-secondary-500">
-                <tr>
-                  <th className="px-3 py-2">Order</th>
-                  <th className="px-3 py-2">Location</th>
-                  <th className="px-3 py-2">Status</th>
-                  <th className="px-3 py-2 text-right">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {history.map((row) => (
-                  <tr
-                    key={row.id}
-                    className="border-b border-secondary-100 last:border-0"
-                  >
-                    <td className="px-3 py-2">
-                      <div className="font-medium">{row.po_number}</div>
-                      <div className="text-xs text-secondary-500">
-                        {new Date(row.created_at).toLocaleDateString()}
-                      </div>
-                    </td>
-                    <td className="px-3 py-2">{row.location_name}</td>
-                    <td className="px-3 py-2 capitalize">
-                      {row.status.replace("_", " ")}
-                    </td>
-                    <td className="px-3 py-2 text-right">
-                      {formatMoney(minor(row.total_minor), currency)}
-                    </td>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="border-b border-secondary-200 text-left text-xs uppercase tracking-wide text-secondary-500">
+                  <tr>
+                    <th className="px-3 py-2">Order</th>
+                    <th className="px-3 py-2">Location</th>
+                    <th className="px-3 py-2">Status</th>
+                    <th className="px-3 py-2 text-right">Total</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {history.map((row) => (
+                    <tr
+                      key={row.id}
+                      className="border-b border-secondary-100 last:border-0"
+                    >
+                      <td className="px-3 py-2">
+                        <div className="font-medium">{row.po_number}</div>
+                        <div className="text-xs text-secondary-500">
+                          {new Date(row.created_at).toLocaleDateString()}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2">{row.location_name}</td>
+                      <td className="px-3 py-2 capitalize">
+                        {row.status.replace("_", " ")}
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        {formatMoney(minor(row.total_minor), currency)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </DialogContent>
       </Dialog>

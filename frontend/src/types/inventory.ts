@@ -5,6 +5,24 @@
  */
 
 // ==========================================================================
+// INGREDIENT CATEGORY TYPES (Martin M11)
+// ==========================================================================
+
+export interface IngredientCategory {
+  /**
+   * Null for a category string that is in use on an ingredient but has no
+   * master row behind it. Those still appear in the dropdown so no value the
+   * data already contains can go missing, but they cannot be renamed or
+   * deleted until something writes them into the master list.
+   */
+  id: string | null;
+  name: string;
+  sort_order: number;
+  is_active: boolean;
+  ingredient_count: number;
+}
+
+// ==========================================================================
 // INGREDIENT TYPES
 // ==========================================================================
 

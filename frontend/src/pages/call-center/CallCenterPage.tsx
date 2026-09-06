@@ -25,6 +25,8 @@ import {
 } from "@/components/ui/dialog";
 import { MenuGrid } from "@/components/pos/MenuGrid";
 import { CartPanel } from "@/components/pos/CartPanel";
+import { MobileCartSheet } from "@/components/pos/MobileCartSheet";
+import { cn } from "@/lib/utils";
 import { OrderTicker } from "@/components/pos/OrderTicker";
 import { useCartStore } from "@/stores/cartStore";
 import { useUIStore } from "@/stores/uiStore";
@@ -328,8 +330,10 @@ function CallCenterPage() {
   return (
     <div className="flex h-full flex-col">
       <div className="flex flex-1 min-h-0">
-        {/* Left: Customer panel */}
-        <div className="w-80 shrink-0 border-r border-secondary-200 bg-secondary-50 flex flex-col">
+        {/* Left: Customer panel.
+            M12: full width on a phone, where three fixed columns beside each
+            other left the menu nothing. At `lg` it is the column it was. */}
+        <div className="flex w-full shrink-0 flex-col border-r border-secondary-200 bg-secondary-50 lg:w-80">
           {/* Header */}
           <div className="border-b border-secondary-200 bg-white px-4 py-3">
             <div className="flex items-center gap-2 mb-3">
@@ -598,8 +602,14 @@ function CallCenterPage() {
           )}
         </div>
 
-        {/* Center: Menu grid */}
-        <div className="flex-1 min-w-0 p-4">
+        {/* Center: Menu grid. Hidden on a phone until a customer is chosen, so
+            the search panel above has the whole screen to work in. */}
+        <div
+          className={cn(
+            "min-w-0 flex-1 p-3 pb-24 sm:p-4 lg:block lg:pb-4",
+            selectedCustomer ? "block" : "hidden",
+          )}
+        >
           {selectedCustomer ? (
             <MenuGrid onAddToCart={handleAddToCart} />
           ) : (
@@ -615,10 +625,11 @@ function CallCenterPage() {
           )}
         </div>
 
-        {/* Right: Cart panel */}
-        <div className="w-80 shrink-0 border-l border-secondary-200">
+        {/* Right: Cart panel. A column at `lg` and up, a bottom sheet on a
+            phone (M12). */}
+        <MobileCartSheet>
           <CartPanel onOrderCreated={handleOrderCreated} />
-        </div>
+        </MobileCartSheet>
       </div>
 
       {/* Bottom: Live order ticker */}

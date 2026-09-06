@@ -164,6 +164,58 @@ export interface TransferCreate {
   notes?: string | null;
 }
 
+/** One input line of a production preview: what is needed, what is on hand. */
+export interface ProductionPreviewLine {
+  ingredient_id: string;
+  ingredient_name: string;
+  unit: string;
+  quantity: number;
+  available: number;
+  shortfall: number;
+}
+
+/** What a run would consume and produce, computed server-side. */
+export interface ProductionPreview {
+  recipe_id: string;
+  recipe_name: string;
+  location_id: string;
+  location_name: string;
+  batches: number;
+  yield_per_batch: number;
+  produced_ingredient_id: string;
+  produced_ingredient_name: string;
+  produced_unit: string;
+  produced_quantity: number;
+  unit_cost: number;
+  total_cost: number;
+  consumes: ProductionPreviewLine[];
+  has_shortfall: boolean;
+}
+
+/** A run that already happened, rebuilt from its stock movements. */
+export interface ProductionRun {
+  reference_number: string | null;
+  produced_at: string;
+  produced_ingredient_id: string;
+  produced_ingredient_name: string;
+  unit: string;
+  quantity: number;
+  unit_cost: number;
+  total_cost: number;
+  balance_after: number;
+  location_id: string | null;
+  location_name: string | null;
+  performed_by_name: string | null;
+  notes: string | null;
+  consumed: {
+    ingredient_id: string;
+    ingredient_name: string;
+    unit: string;
+    quantity: number;
+    total_cost: number;
+  }[];
+}
+
 export interface ProductionRunResult {
   reference_number: string;
   recipe_id: string;

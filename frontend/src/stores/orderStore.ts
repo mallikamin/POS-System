@@ -29,7 +29,14 @@ interface OrderActions {
     customerName?: string,
     customerPhone?: string,
     waiterId?: string,
-    charges?: { delivery_fee?: number; service_fee?: number }
+    charges?: { delivery_fee?: number; service_fee?: number },
+    /**
+     * Martin M13. "kitchen" is the default and is exactly what every client
+     * sends today. "direct" completes the order on the spot and deducts stock
+     * there and then, for a counter or wholesale sale that never passes a
+     * kitchen.
+     */
+    fulfilmentMode?: "kitchen" | "direct"
   ) => Promise<OrderResponse>;
   transitionOrder: (id: string, status: string) => Promise<void>;
   voidOrder: (id: string, reason: string, authToken?: string) => Promise<void>;
@@ -77,7 +84,8 @@ export const useOrderStore = create<OrderStore>()((set, get) => ({
     customerName?: string,
     customerPhone?: string,
     waiterId?: string,
-    charges?: { delivery_fee?: number; service_fee?: number }
+    charges?: { delivery_fee?: number; service_fee?: number },
+    fulfilmentMode?: "kitchen" | "direct"
   ) => {
     set({ isSending: true, error: null });
     try {
@@ -126,6 +134,10 @@ export const useOrderStore = create<OrderStore>()((set, get) => ({
         // client sends is unchanged.
         ...(charges?.delivery_fee ? { delivery_fee: charges.delivery_fee } : {}),
         ...(charges?.service_fee ? { service_fee: charges.service_fee } : {}),
+        // Martin M13. Omitted unless it is "direct", so the payload an
+        // existing client sends stays byte-identical and the server's own
+        // default decides.
+        ...(fulfilmentMode === "direct" ? { fulfilment_mode: "direct" } : {}),
       };
 
       const order = await createOrder(payload);

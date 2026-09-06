@@ -51,6 +51,10 @@ const RecipeBuilderPage = lazy(() => import("@/pages/admin/RecipeBuilderPage"));
 const LocationsPage = lazy(() => import("@/pages/admin/LocationsPage"));
 const StockPage = lazy(() => import("@/pages/admin/StockPage"));
 const TransfersPage = lazy(() => import("@/pages/admin/TransfersPage"));
+// Martin round 3: production had no menu entry at all (M9), and operating
+// expenses had no home anywhere in the system (M10).
+const ProductionPage = lazy(() => import("@/pages/admin/ProductionPage"));
+const ExpensesPage = lazy(() => import("@/pages/admin/ExpensesPage"));
 const SuppliersPage = lazy(() => import("@/pages/admin/SuppliersPage"));
 const PurchaseOrdersPage = lazy(() => import("@/pages/admin/PurchaseOrdersPage"));
 const OrderPlannerPage = lazy(() => import("@/pages/admin/OrderPlannerPage"));
@@ -124,7 +128,9 @@ export function App() {
             <Route path="recipes" element={<RecipeBuilderPage />} />
             <Route path="locations" element={<LocationsPage />} />
             <Route path="stock" element={<StockPage />} />
+            <Route path="production" element={<ProductionPage />} />
             <Route path="transfers" element={<TransfersPage />} />
+            <Route path="expenses" element={<ExpensesPage />} />
             <Route path="suppliers" element={<SuppliersPage />} />
             <Route path="purchase-orders" element={<PurchaseOrdersPage />} />
             <Route path="order-planner" element={<OrderPlannerPage />} />

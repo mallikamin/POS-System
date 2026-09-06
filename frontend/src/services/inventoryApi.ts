@@ -6,6 +6,7 @@
 import api from "@/lib/axios";
 import type {
   Ingredient,
+  IngredientCategory,
   IngredientCreate,
   IngredientUpdate,
   Recipe,
@@ -14,6 +15,51 @@ import type {
   RecipeCostSimulationRequest,
   RecipeCostSimulationResult,
 } from "@/types/inventory";
+
+// ==========================================================================
+// INGREDIENT CATEGORIES (Martin M11)
+//
+// The category on an ingredient is still a plain string; this is the master
+// list that fills the dropdown. Saving an ingredient under a name that is not
+// on the list adds it, so the two cannot drift apart.
+// ==========================================================================
+
+export async function fetchIngredientCategories(
+  includeInactive = false,
+): Promise<IngredientCategory[]> {
+  const { data } = await api.get<IngredientCategory[]>(
+    "/inventory/ingredient-categories",
+    { params: { include_inactive: includeInactive } },
+  );
+  return data;
+}
+
+export async function createIngredientCategory(
+  name: string,
+): Promise<IngredientCategory> {
+  const { data } = await api.post<IngredientCategory>(
+    "/inventory/ingredient-categories",
+    { name },
+  );
+  return data;
+}
+
+/** Renames the category AND every ingredient filed under it, in one go. */
+export async function renameIngredientCategory(
+  id: string,
+  name: string,
+): Promise<IngredientCategory> {
+  const { data } = await api.patch<IngredientCategory>(
+    `/inventory/ingredient-categories/${id}`,
+    { name },
+  );
+  return data;
+}
+
+/** Refused by the server while ingredients are still filed under it. */
+export async function deleteIngredientCategory(id: string): Promise<void> {
+  await api.delete(`/inventory/ingredient-categories/${id}`);
+}
 
 // ==========================================================================
 // INGREDIENT API

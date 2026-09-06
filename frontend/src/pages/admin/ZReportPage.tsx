@@ -201,15 +201,17 @@ function ZReportPage() {
           {/* Print: compact summary table */}
           <div className="hidden print:block print-section">
             <h2 className="text-sm font-bold uppercase tracking-wide border-b border-gray-300 pb-1 mb-2">Summary</h2>
-            <table className="w-full text-sm">
-              <tbody>
-                <tr><td className="py-1">Settled Orders</td><td className="py-1 text-right font-semibold">{report.settled_orders}</td></tr>
-                <tr><td className="py-1">Fully Refunded Orders</td><td className="py-1 text-right font-semibold">{report.fully_refunded_orders}</td></tr>
-                <tr><td className="py-1">Net Revenue</td><td className="py-1 text-right font-semibold">{formatPKR(report.net_revenue)}</td></tr>
-                <tr><td className="py-1">Net Tax Collected</td><td className="py-1 text-right font-semibold">{formatPKR(report.net_tax)}</td></tr>
-                <tr><td className="py-1">Discounts</td><td className="py-1 text-right font-semibold">{formatPKR(report.total_discount)}</td></tr>
-              </tbody>
-            </table>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <tbody>
+                  <tr><td className="py-1">Settled Orders</td><td className="py-1 text-right font-semibold">{report.settled_orders}</td></tr>
+                  <tr><td className="py-1">Fully Refunded Orders</td><td className="py-1 text-right font-semibold">{report.fully_refunded_orders}</td></tr>
+                  <tr><td className="py-1">Net Revenue</td><td className="py-1 text-right font-semibold">{formatPKR(report.net_revenue)}</td></tr>
+                  <tr><td className="py-1">Net Tax Collected</td><td className="py-1 text-right font-semibold">{formatPKR(report.net_tax)}</td></tr>
+                  <tr><td className="py-1">Discounts</td><td className="py-1 text-right font-semibold">{formatPKR(report.total_discount)}</td></tr>
+                </tbody>
+              </table>
+            </div>
           </div>
 
           {/* ===== DETAIL SECTIONS ===== */}

@@ -14,6 +14,7 @@ import {
   AlertTriangle,
   ChefHat,
   ShoppingBag,
+  Tags,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -34,10 +35,39 @@ import { useToast } from "@/hooks/use-toast";
 import { ImageField } from "@/components/admin/ImageField";
 import { Thumb } from "@/components/admin/Thumb";
 
-import type { Ingredient, IngredientCreate, IngredientUpdate } from "@/types/inventory";
+import { CategoryField } from "@/components/admin/CategoryField";
+
+import type {
+  Ingredient,
+  IngredientCategory,
+  IngredientCreate,
+  IngredientUpdate,
+} from "@/types/inventory";
 import * as inventoryApi from "@/services/inventoryApi";
 import { formatPKR, paisaToRupees, rupeesToPaisa } from "@/utils/currency";
 import { useCurrencyCode } from "@/hooks/useCurrencyCode";
+
+/**
+ * The server's own message for a failed request, or `fallback`.
+ *
+ * Typed against `unknown` rather than `any` so a shape change in axios is a
+ * compile error here rather than a blank toast in front of a client.
+ */
+function detailOf(err: unknown, fallback: string): string {
+  if (typeof err !== "object" || err === null || !("response" in err)) {
+    return fallback;
+  }
+  const response = (err as { response?: unknown }).response;
+  if (typeof response !== "object" || response === null || !("data" in response)) {
+    return fallback;
+  }
+  const data = (response as { data?: unknown }).data;
+  if (typeof data !== "object" || data === null || !("detail" in data)) {
+    return fallback;
+  }
+  const detail = (data as { detail?: unknown }).detail;
+  return typeof detail === "string" && detail.length > 0 ? detail : fallback;
+}
 
 export default function IngredientManagementPage() {
   const currency = useCurrencyCode();
@@ -46,6 +76,15 @@ export default function IngredientManagementPage() {
   // Data state
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [loading, setLoading] = useState(true);
+  // Martin M11: the master category list, which fills every dropdown here.
+  const [categoryOptions, setCategoryOptions] = useState<IngredientCategory[]>(
+    [],
+  );
+  const [manageCategoriesOpen, setManageCategoriesOpen] = useState(false);
+  const [renameTarget, setRenameTarget] = useState<IngredientCategory | null>(
+    null,
+  );
+  const [renameValue, setRenameValue] = useState("");
 
   // Filter state
   const [search, setSearch] = useState("");
@@ -133,10 +172,27 @@ export default function IngredientManagementPage() {
     fetchIngredients();
   }, [fetchIngredients]);
 
-  // Extract unique categories for filter dropdown
-  const categories = Array.from(
-    new Set(ingredients.map((ing) => ing.category))
-  ).sort();
+  /*
+   * Martin M11. The filter used to be built from `ingredients`, which meant it
+   * listed only what happened to be on screen AFTER the filters had already
+   * been applied -- pick a category and the dropdown collapsed to that one
+   * entry. It now reads the master list, which is also what the create and edit
+   * forms offer.
+   */
+  const categories = categoryOptions.map((c) => c.name);
+
+  const reloadCategories = useCallback(async () => {
+    try {
+      setCategoryOptions(await inventoryApi.fetchIngredientCategories());
+    } catch {
+      // A missing category list must not take the screen down: the ingredient
+      // table is still readable, and the forms fall back to free text.
+    }
+  }, []);
+
+  useEffect(() => {
+    void reloadCategories();
+  }, [reloadCategories]);
 
   // Reset form
   function resetForm() {
@@ -280,6 +336,9 @@ export default function IngredientManagementPage() {
 
       setCreateOpen(false);
       await fetchIngredients();
+      // Martin M11: a category typed on this form joins the master list
+      // server-side, so the dropdown has to be re-read to show it.
+      await reloadCategories();
     } catch (err: any) {
       const msg =
         err.response?.data?.detail || "Failed to create ingredient";
@@ -344,6 +403,9 @@ export default function IngredientManagementPage() {
       setEditOpen(false);
       setEditTarget(null);
       await fetchIngredients();
+      // Martin M11: a category typed on this form joins the master list
+      // server-side, so the dropdown has to be re-read to show it.
+      await reloadCategories();
     } catch (err: any) {
       const msg =
         err.response?.data?.detail || "Failed to update ingredient";
@@ -382,18 +444,30 @@ export default function IngredientManagementPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+      {/* Header. Wraps on a phone (M12): a fixed row put the button off the
+          right edge of a 360px screen. */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <Package className="h-7 w-7 text-primary-600" />
-          <h1 className="text-pos-2xl font-bold text-secondary-900">
-            Ingredient Management
+          <Package className="h-6 w-6 shrink-0 text-primary-600 sm:h-7 sm:w-7" />
+          <h1 className="text-lg font-bold text-secondary-900 sm:text-pos-2xl">
+            Ingredients
           </h1>
         </div>
-        <Button onClick={openCreate} className="min-h-[48px] gap-2">
-          <Plus className="h-4 w-4" />
-          Add Ingredient
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => setManageCategoriesOpen(true)}
+            className="min-h-[48px] gap-2"
+          >
+            <Tags className="h-4 w-4" />
+            <span className="hidden sm:inline">Categories</span>
+          </Button>
+          <Button onClick={openCreate} className="min-h-[48px] gap-2">
+            <Plus className="h-4 w-4" />
+            <span className="hidden sm:inline">Add Ingredient</span>
+            <span className="sm:hidden">Add</span>
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -647,17 +721,14 @@ export default function IngredientManagementPage() {
               idPrefix="create-image"
             />
 
-            {/* Category */}
-            <div className="space-y-2">
-              <Label htmlFor="create-category">Category</Label>
-              <Input
-                id="create-category"
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                placeholder="e.g., Meat, Grains, Spices"
-                className="min-h-[48px]"
-              />
-            </div>
+            {/* Category. Martin M11: a real list with "+ New category",
+                not a free-text box that quietly forks "Dairy" and "dairy". */}
+            <CategoryField
+              idPrefix="create"
+              value={category}
+              onChange={setCategory}
+              categories={categoryOptions}
+            />
 
             {/* Unit. Relabelled with M8: it is the STOCKING unit, and calling
                 it that here is the only place the distinction can be taught. */}
@@ -843,15 +914,13 @@ export default function IngredientManagementPage() {
               idPrefix="edit-image"
             />
 
-            <div className="space-y-2">
-              <Label htmlFor="edit-category">Category</Label>
-              <Input
-                id="edit-category"
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                className="min-h-[48px]"
-              />
-            </div>
+            {/* Martin M11, same picker as the create form. */}
+            <CategoryField
+              idPrefix="edit"
+              value={category}
+              onChange={setCategory}
+              categories={categoryOptions}
+            />
 
             <div className="space-y-2">
               <Label htmlFor="edit-unit">Unit I store and cook in *</Label>
@@ -1036,6 +1105,172 @@ export default function IngredientManagementPage() {
               className="min-h-touch"
             >
               Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ==================================================================
+          Manage categories (Martin M11)
+
+          Renaming moves every ingredient filed under the old name with it,
+          in one transaction on the server. Deleting is refused while
+          anything still uses the category -- silently moving 12 ingredients
+          to "General" because someone tidied a dropdown is a data change
+          nobody asked for.
+          ================================================================== */}
+      <Dialog
+        open={manageCategoriesOpen}
+        onOpenChange={(open) => {
+          setManageCategoriesOpen(open);
+          if (!open) setRenameTarget(null);
+        }}
+      >
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Ingredient categories</DialogTitle>
+            <DialogDescription>
+              These fill the dropdown on every ingredient. Add a new one from
+              the ingredient form itself.
+            </DialogDescription>
+          </DialogHeader>
+
+          <ul className="divide-y divide-secondary-100">
+            {categoryOptions.length === 0 && (
+              <li className="py-3 text-pos-sm text-secondary-500">
+                No categories yet. The first ingredient you save creates one.
+              </li>
+            )}
+            {categoryOptions.map((cat) => (
+              <li key={cat.name} className="py-2">
+                {renameTarget?.name === cat.name ? (
+                  <div className="flex gap-2">
+                    <Input
+                      value={renameValue}
+                      onChange={(e) => setRenameValue(e.target.value)}
+                      autoFocus
+                      className="min-h-[44px]"
+                    />
+                    <Button
+                      size="sm"
+                      className="min-h-[44px]"
+                      onClick={() => {
+                        void (async () => {
+                          if (!renameTarget?.id) return;
+                          try {
+                            const saved =
+                              await inventoryApi.renameIngredientCategory(
+                                renameTarget.id,
+                                renameValue,
+                              );
+                            toast({
+                              title: `Renamed to "${saved.name}"`,
+                              description: `${saved.ingredient_count} ingredient(s) moved with it.`,
+                              variant: "success",
+                            });
+                            setRenameTarget(null);
+                            await reloadCategories();
+                            await fetchIngredients();
+                          } catch (err) {
+                            toast({
+                              variant: "destructive",
+                              title: "Not renamed",
+                              description: detailOf(
+                                err,
+                                "The category is unchanged.",
+                              ),
+                            });
+                          }
+                        })();
+                      }}
+                    >
+                      Save
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="min-h-[44px]"
+                      onClick={() => setRenameTarget(null)}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="truncate font-medium text-secondary-900">
+                        {cat.name}
+                      </p>
+                      <p className="text-xs text-secondary-500">
+                        {cat.ingredient_count} ingredient
+                        {cat.ingredient_count === 1 ? "" : "s"}
+                        {cat.id === null && " · not on the master list yet"}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 gap-1">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        disabled={cat.id === null}
+                        aria-label={`Rename ${cat.name}`}
+                        onClick={() => {
+                          setRenameTarget(cat);
+                          setRenameValue(cat.name);
+                        }}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-danger-600"
+                        disabled={cat.id === null || cat.ingredient_count > 0}
+                        aria-label={`Delete ${cat.name}`}
+                        title={
+                          cat.ingredient_count > 0
+                            ? "Move its ingredients elsewhere first"
+                            : undefined
+                        }
+                        onClick={() => {
+                          void (async () => {
+                            if (!cat.id) return;
+                            try {
+                              await inventoryApi.deleteIngredientCategory(
+                                cat.id,
+                              );
+                              toast({
+                                title: `"${cat.name}" removed`,
+                                variant: "success",
+                              });
+                              await reloadCategories();
+                            } catch (err) {
+                              toast({
+                                variant: "destructive",
+                                title: "Not removed",
+                                description: detailOf(
+                                  err,
+                                  "The category is still there.",
+                                ),
+                              });
+                            }
+                          })();
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setManageCategoriesOpen(false)}
+            >
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -18,6 +18,8 @@ import {
   ChefHat,
   Store,
   Boxes,
+  Factory,
+  Wallet,
   ArrowLeftRight,
   Percent,
   TrendingUp,
@@ -54,12 +56,21 @@ const baseNavItems = [
   { to: "/admin/recipes", label: "Recipes", icon: ChefHat, end: false },
   { to: "/admin/locations", label: "Locations", icon: Store, end: false },
   { to: "/admin/stock", label: "Stock", icon: Boxes, end: false },
+  // Martin (FZ LLC, 2026-09-06, M9): "There is no production menu". The engine
+  // existed; it was reachable only as a button on the Stock screen, and the
+  // word never appeared here. It sits after Stock because producing a batch is
+  // something you do TO stock.
+  { to: "/admin/production", label: "Production", icon: Factory, end: false },
   { to: "/admin/transfers", label: "Transfers", icon: ArrowLeftRight, end: false },
   // Procurement sits between holding stock and reporting on it: this is where
   // stock comes FROM.
   { to: "/admin/suppliers", label: "Suppliers", icon: Truck, end: false },
   { to: "/admin/purchase-orders", label: "Purchase Orders", icon: ClipboardList, end: false },
   { to: "/admin/order-planner", label: "Order Planner", icon: Sparkles, end: false },
+  // Martin M10. Sits beside procurement because it is the other half of what
+  // the business spends: ingredients come through purchase orders, everything
+  // else comes through here.
+  { to: "/admin/expenses", label: "Expenses", icon: Wallet, end: false },
   { to: "/admin/channels", label: "Sales Channels", icon: Percent, end: false },
   { to: "/admin/profitability", label: "Profitability", icon: TrendingUp, end: false },
   { to: "/admin/quotations", label: "Quotations", icon: FileSignature, end: false },

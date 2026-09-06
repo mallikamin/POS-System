@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { MenuGrid } from "@/components/pos/MenuGrid";
 import { CartPanel } from "@/components/pos/CartPanel";
+import { MobileCartSheet } from "@/components/pos/MobileCartSheet";
 import { FloorGrid } from "@/components/pos/FloorGrid";
 import { useCartStore } from "@/stores/cartStore";
 import { useFloorStore } from "@/stores/floorStore";
@@ -125,13 +126,19 @@ function DineInPage() {
   return (
     <div className="flex h-full flex-col">
       <div className="flex flex-1 min-h-0">
-        {/* Left: Floor plan with table selection */}
-        <div className="w-64 shrink-0 border-r border-secondary-200 bg-secondary-50">
+        {/* Left: Floor plan with table selection.
+            M12: below `lg` this was a 256px column beside a 320px cart on a
+            360px phone, which left the menu nothing at all. On a phone the
+            floor plan sits above the menu at full width instead. */}
+        <div className="hidden w-64 shrink-0 border-r border-secondary-200 bg-secondary-50 lg:block">
           <FloorGrid onTableSelect={handleTableSelect} />
         </div>
 
         {/* Center: Menu grid */}
-        <div className="flex-1 min-w-0 p-4">
+        <div className="min-w-0 flex-1 p-3 pb-24 sm:p-4 lg:pb-4">
+          <div className="mb-4 max-h-52 overflow-y-auto rounded-lg border border-secondary-200 bg-secondary-50 lg:hidden">
+            <FloorGrid onTableSelect={handleTableSelect} />
+          </div>
           {tableSelected ? (
             <MenuGrid onAddToCart={handleAddToCart} />
           ) : (
@@ -146,8 +153,9 @@ function DineInPage() {
           )}
         </div>
 
-        {/* Right: Cart panel + session bill */}
-        <div className="w-80 shrink-0 border-l border-secondary-200 flex flex-col">
+        {/* Right: Cart panel + session bill. A column at `lg` and up, a bottom
+            sheet below it (M12). */}
+        <MobileCartSheet>
           {/* Waiter selector / display */}
           {tableSelected && (
             <div className="border-b border-secondary-200 bg-blue-50 px-4 py-2">
@@ -205,7 +213,7 @@ function DineInPage() {
           <div className="flex-1 min-h-0">
             <CartPanel waiterId={selectedWaiterId || undefined} onOrderCreated={handleOrderCreated} />
           </div>
-        </div>
+        </MobileCartSheet>
       </div>
 
       {/* Bottom: Live order ticker */}

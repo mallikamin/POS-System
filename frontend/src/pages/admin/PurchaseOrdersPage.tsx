@@ -660,109 +660,111 @@ function PurchaseOrdersPage() {
 
                   {isOpen && (
                     <div className="mt-4 space-y-4 border-t border-secondary-100 pt-4">
-                      <table className="w-full text-sm">
-                        <thead className="text-left text-xs uppercase tracking-wide text-secondary-500">
-                          <tr>
-                            <th className="py-1">Item</th>
-                            <th className="py-1 text-right">Ordered</th>
-                            <th className="py-1 text-right">Received</th>
-                            <th className="py-1 text-right">Unit price</th>
-                            <th className="py-1 text-right">Line total</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {order.items.map((item) => (
-                            <tr
-                              key={item.id}
-                              className="border-t border-secondary-100"
-                            >
-                              <td className="py-2">
-                                <div className="flex items-center gap-2">
-                                  <Thumb
-                                    src={item.ingredient_image_url}
-                                    alt={item.ingredient_name}
-                                  />
-                                  <span>
-                                    {item.ingredient_name}
-                                    {item.supplier_sku && (
-                                      <span className="ml-2 text-xs text-secondary-500">
-                                        {item.supplier_sku}
-                                      </span>
-                                    )}
-                                  </span>
-                                </div>
-                              </td>
-                              <td className="py-2 text-right">
-                                {qty(item.quantity_ordered)} {item.unit}
-                                {/* M8: the same quantity in the unit the
-                                    kitchen counts, when the two differ. The
-                                    supplier is still asked for cans. */}
-                                {qty(item.units_per_purchase_unit) !== 1 &&
-                                  item.stock_unit && (
-                                    <div className="text-[10px] text-secondary-400">
-                                      ={" "}
-                                      {qty(item.quantity_ordered) *
-                                        qty(item.units_per_purchase_unit)}{" "}
-                                      {item.stock_unit}
-                                    </div>
-                                  )}
-                              </td>
-                              <td className="py-2 text-right">
-                                <span
-                                  className={
-                                    qty(item.quantity_received) >
-                                    qty(item.quantity_ordered)
-                                      ? "text-warning-600"
-                                      : undefined
-                                  }
-                                >
-                                  {qty(item.quantity_received)} {item.unit}
-                                </span>
-                              </td>
-                              <td className="py-2 text-right">
-                                {formatMoney(
-                                  minor(item.unit_price_minor),
-                                  currency,
-                                )}
-                              </td>
-                              <td className="py-2 text-right">
-                                {formatMoney(
-                                  minor(item.line_total_minor),
-                                  currency,
-                                )}
-                              </td>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead className="text-left text-xs uppercase tracking-wide text-secondary-500">
+                            <tr>
+                              <th className="py-1">Item</th>
+                              <th className="py-1 text-right">Ordered</th>
+                              <th className="py-1 text-right">Received</th>
+                              <th className="py-1 text-right">Unit price</th>
+                              <th className="py-1 text-right">Line total</th>
                             </tr>
-                          ))}
-                        </tbody>
-                        <tfoot className="border-t border-secondary-200">
-                          <tr>
-                            <td colSpan={4} className="py-1 text-right">
-                              Subtotal
-                            </td>
-                            <td className="py-1 text-right">
-                              {formatMoney(minor(order.subtotal_minor), currency)}
-                            </td>
-                          </tr>
-                          {order.tax_bps > 0 && (
+                          </thead>
+                          <tbody>
+                            {order.items.map((item) => (
+                              <tr
+                                key={item.id}
+                                className="border-t border-secondary-100"
+                              >
+                                <td className="py-2">
+                                  <div className="flex items-center gap-2">
+                                    <Thumb
+                                      src={item.ingredient_image_url}
+                                      alt={item.ingredient_name}
+                                    />
+                                    <span>
+                                      {item.ingredient_name}
+                                      {item.supplier_sku && (
+                                        <span className="ml-2 text-xs text-secondary-500">
+                                          {item.supplier_sku}
+                                        </span>
+                                      )}
+                                    </span>
+                                  </div>
+                                </td>
+                                <td className="py-2 text-right">
+                                  {qty(item.quantity_ordered)} {item.unit}
+                                  {/* M8: the same quantity in the unit the
+                                      kitchen counts, when the two differ. The
+                                      supplier is still asked for cans. */}
+                                  {qty(item.units_per_purchase_unit) !== 1 &&
+                                    item.stock_unit && (
+                                      <div className="text-[10px] text-secondary-400">
+                                        ={" "}
+                                        {qty(item.quantity_ordered) *
+                                          qty(item.units_per_purchase_unit)}{" "}
+                                        {item.stock_unit}
+                                      </div>
+                                    )}
+                                </td>
+                                <td className="py-2 text-right">
+                                  <span
+                                    className={
+                                      qty(item.quantity_received) >
+                                      qty(item.quantity_ordered)
+                                        ? "text-warning-600"
+                                        : undefined
+                                    }
+                                  >
+                                    {qty(item.quantity_received)} {item.unit}
+                                  </span>
+                                </td>
+                                <td className="py-2 text-right">
+                                  {formatMoney(
+                                    minor(item.unit_price_minor),
+                                    currency,
+                                  )}
+                                </td>
+                                <td className="py-2 text-right">
+                                  {formatMoney(
+                                    minor(item.line_total_minor),
+                                    currency,
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                          <tfoot className="border-t border-secondary-200">
                             <tr>
                               <td colSpan={4} className="py-1 text-right">
-                                VAT {order.tax_bps / 100}%
+                                Subtotal
                               </td>
                               <td className="py-1 text-right">
-                                {formatMoney(minor(order.tax_minor), currency)}
+                                {formatMoney(minor(order.subtotal_minor), currency)}
                               </td>
                             </tr>
-                          )}
-                          <tr className="font-semibold">
-                            <td colSpan={4} className="py-1 text-right">
-                              Total
-                            </td>
-                            <td className="py-1 text-right">
-                              {formatMoney(minor(order.total_minor), currency)}
-                            </td>
-                          </tr>
-                        </tfoot>
-                      </table>
+                            {order.tax_bps > 0 && (
+                              <tr>
+                                <td colSpan={4} className="py-1 text-right">
+                                  VAT {order.tax_bps / 100}%
+                                </td>
+                                <td className="py-1 text-right">
+                                  {formatMoney(minor(order.tax_minor), currency)}
+                                </td>
+                              </tr>
+                            )}
+                            <tr className="font-semibold">
+                              <td colSpan={4} className="py-1 text-right">
+                                Total
+                              </td>
+                              <td className="py-1 text-right">
+                                {formatMoney(minor(order.total_minor), currency)}
+                              </td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
 
                       {order.delivery_instructions && (
                         <div className="rounded bg-secondary-50 p-3 text-sm text-secondary-600">
@@ -1162,101 +1164,103 @@ function PurchaseOrdersPage() {
               </div>
             )}
 
-            <table className="w-full text-sm">
-              <thead className="text-left text-xs uppercase tracking-wide text-secondary-500">
-                <tr>
-                  <th className="py-1">Item</th>
-                  <th className="w-20 py-1 pr-3 text-right">Still owed</th>
-                  <th className="w-28 py-1 pr-3 text-right">Received now</th>
-                  <th className="w-28 py-1 text-right">Price paid</th>
-                </tr>
-              </thead>
-              <tbody>
-                {receiveFor?.items.map((item) => {
-                  const read = scan?.lines.find(
-                    (l) => l.purchase_order_item_id === item.id,
-                  );
-                  return (
-                  <tr key={item.id} className="border-t border-secondary-100">
-                    <td className="py-2">
-                      <div className="flex items-center gap-2">
-                        <Thumb
-                          src={item.ingredient_image_url}
-                          alt={item.ingredient_name}
-                          size="sm"
-                        />
-                        <span>
-                          {item.ingredient_name}
-                          <span className="ml-1 text-xs text-secondary-500">
-                            ({item.unit})
-                          </span>
-                          {/* M8: what this many cans will put on the shelf.
-                              Shown here because this is the moment stock
-                              actually moves, and the number that moves is not
-                              the number being typed. */}
-                          {qty(item.units_per_purchase_unit) !== 1 &&
-                            item.stock_unit &&
-                            Number(receiveQty[item.id]) > 0 && (
-                              <span className="ml-1 text-xs text-secondary-400">
-                                → {Number(receiveQty[item.id]) *
-                                  qty(item.units_per_purchase_unit)}{" "}
-                                {item.stock_unit} into stock
-                              </span>
-                            )}
-                        </span>
-                      </div>
-                      {read && (
-                        <div
-                          className={
-                            read.confidence === "high"
-                              ? "text-xs text-secondary-500"
-                              : "text-xs text-warning-700"
-                          }
-                        >
-                          read as &ldquo;{read.document_text}&rdquo;
-                          {read.confidence !== "high" &&
-                            ` · ${read.confidence} confidence, check this one`}
-                        </div>
-                      )}
-                    </td>
-                    <td className="py-2 pr-3 text-right tabular-nums">
-                      {qty(item.quantity_outstanding)}
-                    </td>
-                    <td className="py-2 pr-3 text-right">
-                      <Input
-                        className="w-full text-right tabular-nums"
-                        type="number"
-                        step="0.001"
-                        min={0}
-                        value={receiveQty[item.id] ?? ""}
-                        onChange={(e) =>
-                          setReceiveQty({
-                            ...receiveQty,
-                            [item.id]: e.target.value,
-                          })
-                        }
-                      />
-                    </td>
-                    <td className="py-2 text-right">
-                      <Input
-                        className="w-full text-right tabular-nums"
-                        type="number"
-                        step="0.01"
-                        min={0}
-                        value={receivePrice[item.id] ?? ""}
-                        onChange={(e) =>
-                          setReceivePrice({
-                            ...receivePrice,
-                            [item.id]: e.target.value,
-                          })
-                        }
-                      />
-                    </td>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="text-left text-xs uppercase tracking-wide text-secondary-500">
+                  <tr>
+                    <th className="py-1">Item</th>
+                    <th className="w-20 py-1 pr-3 text-right">Still owed</th>
+                    <th className="w-28 py-1 pr-3 text-right">Received now</th>
+                    <th className="w-28 py-1 text-right">Price paid</th>
                   </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {receiveFor?.items.map((item) => {
+                    const read = scan?.lines.find(
+                      (l) => l.purchase_order_item_id === item.id,
+                    );
+                    return (
+                    <tr key={item.id} className="border-t border-secondary-100">
+                      <td className="py-2">
+                        <div className="flex items-center gap-2">
+                          <Thumb
+                            src={item.ingredient_image_url}
+                            alt={item.ingredient_name}
+                            size="sm"
+                          />
+                          <span>
+                            {item.ingredient_name}
+                            <span className="ml-1 text-xs text-secondary-500">
+                              ({item.unit})
+                            </span>
+                            {/* M8: what this many cans will put on the shelf.
+                                Shown here because this is the moment stock
+                                actually moves, and the number that moves is not
+                                the number being typed. */}
+                            {qty(item.units_per_purchase_unit) !== 1 &&
+                              item.stock_unit &&
+                              Number(receiveQty[item.id]) > 0 && (
+                                <span className="ml-1 text-xs text-secondary-400">
+                                  → {Number(receiveQty[item.id]) *
+                                    qty(item.units_per_purchase_unit)}{" "}
+                                  {item.stock_unit} into stock
+                                </span>
+                              )}
+                          </span>
+                        </div>
+                        {read && (
+                          <div
+                            className={
+                              read.confidence === "high"
+                                ? "text-xs text-secondary-500"
+                                : "text-xs text-warning-700"
+                            }
+                          >
+                            read as &ldquo;{read.document_text}&rdquo;
+                            {read.confidence !== "high" &&
+                              ` · ${read.confidence} confidence, check this one`}
+                          </div>
+                        )}
+                      </td>
+                      <td className="py-2 pr-3 text-right tabular-nums">
+                        {qty(item.quantity_outstanding)}
+                      </td>
+                      <td className="py-2 pr-3 text-right">
+                        <Input
+                          className="w-full text-right tabular-nums"
+                          type="number"
+                          step="0.001"
+                          min={0}
+                          value={receiveQty[item.id] ?? ""}
+                          onChange={(e) =>
+                            setReceiveQty({
+                              ...receiveQty,
+                              [item.id]: e.target.value,
+                            })
+                          }
+                        />
+                      </td>
+                      <td className="py-2 text-right">
+                        <Input
+                          className="w-full text-right tabular-nums"
+                          type="number"
+                          step="0.01"
+                          min={0}
+                          value={receivePrice[item.id] ?? ""}
+                          onChange={(e) =>
+                            setReceivePrice({
+                              ...receivePrice,
+                              [item.id]: e.target.value,
+                            })
+                          }
+                        />
+                      </td>
+                    </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
 
             <p className="text-xs text-secondary-500">
               Leave a quantity blank for anything that did not arrive; the

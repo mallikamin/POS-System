@@ -322,42 +322,44 @@ function TaxInvoicesPage() {
               </div>
             </div>
 
-            <table className="mt-8 w-full text-sm">
-              <thead>
-                <tr className="border-y bg-secondary-50 text-left">
-                  <th className="py-2 pl-2 pr-4 font-semibold">Description</th>
-                  <th className="py-2 pr-4 text-right font-semibold">Qty</th>
-                  <th className="py-2 pr-4 text-right font-semibold">
-                    Unit price
-                  </th>
-                  <th className="py-2 pr-4 text-right font-semibold">Net</th>
-                  <th className="py-2 pr-4 text-right font-semibold">
-                    VAT {(invoice.vat_rate_bps / 100).toFixed(0)}%
-                  </th>
-                  <th className="py-2 pr-2 text-right font-semibold">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {invoice.lines.map((line, i) => (
-                  <tr key={`${line.description}-${i}`} className="border-b">
-                    <td className="py-2 pl-2 pr-4">{line.description}</td>
-                    <td className="py-2 pr-4 text-right">{line.quantity}</td>
-                    <td className="py-2 pr-4 text-right">
-                      {money(line.unit_price_net_minor)}
-                    </td>
-                    <td className="py-2 pr-4 text-right">
-                      {money(line.line_net_minor)}
-                    </td>
-                    <td className="py-2 pr-4 text-right">
-                      {money(line.vat_amount_minor)}
-                    </td>
-                    <td className="py-2 pr-2 text-right font-medium">
-                      {money(line.line_gross_minor)}
-                    </td>
+            <div className="overflow-x-auto">
+              <table className="mt-8 w-full text-sm">
+                <thead>
+                  <tr className="border-y bg-secondary-50 text-left">
+                    <th className="py-2 pl-2 pr-4 font-semibold">Description</th>
+                    <th className="py-2 pr-4 text-right font-semibold">Qty</th>
+                    <th className="py-2 pr-4 text-right font-semibold">
+                      Unit price
+                    </th>
+                    <th className="py-2 pr-4 text-right font-semibold">Net</th>
+                    <th className="py-2 pr-4 text-right font-semibold">
+                      VAT {(invoice.vat_rate_bps / 100).toFixed(0)}%
+                    </th>
+                    <th className="py-2 pr-2 text-right font-semibold">Total</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {invoice.lines.map((line, i) => (
+                    <tr key={`${line.description}-${i}`} className="border-b">
+                      <td className="py-2 pl-2 pr-4">{line.description}</td>
+                      <td className="py-2 pr-4 text-right">{line.quantity}</td>
+                      <td className="py-2 pr-4 text-right">
+                        {money(line.unit_price_net_minor)}
+                      </td>
+                      <td className="py-2 pr-4 text-right">
+                        {money(line.line_net_minor)}
+                      </td>
+                      <td className="py-2 pr-4 text-right">
+                        {money(line.vat_amount_minor)}
+                      </td>
+                      <td className="py-2 pr-2 text-right font-medium">
+                        {money(line.line_gross_minor)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
 
             <div className="mt-6 flex justify-end">
               <div className="w-72 space-y-1 text-sm">

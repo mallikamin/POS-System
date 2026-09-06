@@ -131,45 +131,47 @@ function RoleManagementPage() {
 
       {/* Roles Table */}
       <div className="rounded-lg border border-secondary-200 bg-white">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-secondary-200 bg-secondary-50">
-              <th className="px-4 py-3 text-left font-semibold text-secondary-700">Role</th>
-              <th className="px-4 py-3 text-left font-semibold text-secondary-700">Description</th>
-              <th className="px-4 py-3 text-left font-semibold text-secondary-700">Permissions</th>
-              <th className="px-4 py-3 text-right font-semibold text-secondary-700">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-secondary-100">
-            {roles.map((role) => (
-              <tr key={role.id} className="hover:bg-secondary-50">
-                <td className="px-4 py-3 font-medium text-secondary-900">{role.name}</td>
-                <td className="px-4 py-3 text-secondary-600">{role.description ?? "-"}</td>
-                <td className="px-4 py-3">
-                  <div className="flex flex-wrap gap-1">
-                    {role.permissions.length === 0 ? (
-                      <span className="text-secondary-400">None</span>
-                    ) : (
-                      role.permissions.map((p) => (
-                        <span
-                          key={p.id}
-                          className="rounded bg-blue-50 px-2 py-0.5 text-xs text-blue-700"
-                        >
-                          {p.code}
-                        </span>
-                      ))
-                    )}
-                  </div>
-                </td>
-                <td className="px-4 py-3 text-right">
-                  <Button size="sm" variant="outline" onClick={() => openEdit(role)}>
-                    Edit
-                  </Button>
-                </td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-secondary-200 bg-secondary-50">
+                <th className="px-4 py-3 text-left font-semibold text-secondary-700">Role</th>
+                <th className="px-4 py-3 text-left font-semibold text-secondary-700">Description</th>
+                <th className="px-4 py-3 text-left font-semibold text-secondary-700">Permissions</th>
+                <th className="px-4 py-3 text-right font-semibold text-secondary-700">Actions</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-secondary-100">
+              {roles.map((role) => (
+                <tr key={role.id} className="hover:bg-secondary-50">
+                  <td className="px-4 py-3 font-medium text-secondary-900">{role.name}</td>
+                  <td className="px-4 py-3 text-secondary-600">{role.description ?? "-"}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex flex-wrap gap-1">
+                      {role.permissions.length === 0 ? (
+                        <span className="text-secondary-400">None</span>
+                      ) : (
+                        role.permissions.map((p) => (
+                          <span
+                            key={p.id}
+                            className="rounded bg-blue-50 px-2 py-0.5 text-xs text-blue-700"
+                          >
+                            {p.code}
+                          </span>
+                        ))
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <Button size="sm" variant="outline" onClick={() => openEdit(role)}>
+                      Edit
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Create/Edit Dialog */}

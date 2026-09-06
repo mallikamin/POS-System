@@ -486,47 +486,49 @@ function ReportsPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="overflow-hidden rounded-lg border border-secondary-200">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-secondary-200 bg-secondary-50">
-                          <th className="px-4 py-2.5 text-left font-medium text-secondary-600">
-                            Method
-                          </th>
-                          <th className="px-4 py-2.5 text-right font-medium text-secondary-600">
-                            Payments
-                          </th>
-                          <th className="px-4 py-2.5 text-right font-medium text-secondary-600">
-                            Total
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-secondary-100">
-                        {pmReport.entries.map((entry) => (
-                          <tr key={entry.method_code} className="hover:bg-secondary-50">
-                            <td className="px-4 py-2.5 text-secondary-700">
-                              {entry.method}
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-secondary-200 bg-secondary-50">
+                            <th className="px-4 py-2.5 text-left font-medium text-secondary-600">
+                              Method
+                            </th>
+                            <th className="px-4 py-2.5 text-right font-medium text-secondary-600">
+                              Payments
+                            </th>
+                            <th className="px-4 py-2.5 text-right font-medium text-secondary-600">
+                              Total
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-secondary-100">
+                          {pmReport.entries.map((entry) => (
+                            <tr key={entry.method_code} className="hover:bg-secondary-50">
+                              <td className="px-4 py-2.5 text-secondary-700">
+                                {entry.method}
+                              </td>
+                              <td className="px-4 py-2.5 text-right text-secondary-800">
+                                {entry.count}
+                              </td>
+                              <td className="px-4 py-2.5 text-right font-medium text-secondary-900">
+                                {formatPKR(entry.total)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot>
+                          <tr className="border-t border-secondary-200 bg-secondary-50">
+                            <td className="px-4 py-2.5 font-medium text-secondary-700">
+                              Total Collected
                             </td>
-                            <td className="px-4 py-2.5 text-right text-secondary-800">
-                              {entry.count}
-                            </td>
-                            <td className="px-4 py-2.5 text-right font-medium text-secondary-900">
-                              {formatPKR(entry.total)}
+                            <td />
+                            <td className="px-4 py-2.5 text-right font-bold text-secondary-900">
+                              {formatPKR(pmReport.total_collected)}
                             </td>
                           </tr>
-                        ))}
-                      </tbody>
-                      <tfoot>
-                        <tr className="border-t border-secondary-200 bg-secondary-50">
-                          <td className="px-4 py-2.5 font-medium text-secondary-700">
-                            Total Collected
-                          </td>
-                          <td />
-                          <td className="px-4 py-2.5 text-right font-bold text-secondary-900">
-                            {formatPKR(pmReport.total_collected)}
-                          </td>
-                        </tr>
-                      </tfoot>
-                    </table>
+                        </tfoot>
+                      </table>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -640,69 +642,71 @@ function ReportsPage() {
               <CardContent>
                 {waiterReport.entries.length > 0 ? (
                   <div className="overflow-hidden rounded-lg border border-secondary-200">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-secondary-200 bg-secondary-50">
-                          <th className="px-4 py-2.5 text-left font-medium text-secondary-600">
-                            Waiter
-                          </th>
-                          <th className="px-4 py-2.5 text-right font-medium text-secondary-600">
-                            Orders
-                          </th>
-                          <th className="px-4 py-2.5 text-right font-medium text-secondary-600">
-                            Revenue
-                          </th>
-                          <th className="px-4 py-2.5 text-right font-medium text-secondary-600">
-                            Avg Order
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-secondary-100">
-                        {waiterReport.entries.map((entry) => (
-                          <tr key={entry.waiter_id} className="hover:bg-secondary-50">
-                            <td className="px-4 py-2.5 text-secondary-700">
-                              <div className="flex items-center gap-1.5">
-                                <UserCircle className="h-3.5 w-3.5 text-secondary-400" />
-                                {entry.waiter_name}
-                              </div>
-                            </td>
-                            <td className="px-4 py-2.5 text-right text-secondary-800">
-                              {entry.order_count}
-                            </td>
-                            <td className="px-4 py-2.5 text-right font-medium text-secondary-900">
-                              {formatPKR(entry.total_revenue)}
-                            </td>
-                            <td className="px-4 py-2.5 text-right text-secondary-700">
-                              {formatPKR(entry.avg_order_value)}
-                            </td>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-secondary-200 bg-secondary-50">
+                            <th className="px-4 py-2.5 text-left font-medium text-secondary-600">
+                              Waiter
+                            </th>
+                            <th className="px-4 py-2.5 text-right font-medium text-secondary-600">
+                              Orders
+                            </th>
+                            <th className="px-4 py-2.5 text-right font-medium text-secondary-600">
+                              Revenue
+                            </th>
+                            <th className="px-4 py-2.5 text-right font-medium text-secondary-600">
+                              Avg Order
+                            </th>
                           </tr>
-                        ))}
-                      </tbody>
-                      <tfoot>
-                        <tr className="border-t border-secondary-200 bg-secondary-50">
-                          <td className="px-4 py-2.5 font-medium text-secondary-700">
-                            Total (with waiter)
-                          </td>
-                          <td className="px-4 py-2.5 text-right font-bold text-secondary-900">
-                            {waiterReport.total_orders_with_waiter}
-                          </td>
-                          <td className="px-4 py-2.5 text-right font-bold text-secondary-900">
-                            {formatPKR(waiterReport.entries.reduce((s, e) => s + e.total_revenue, 0))}
-                          </td>
-                          <td />
-                        </tr>
-                        {waiterReport.total_orders_without_waiter > 0 && (
-                          <tr className="bg-secondary-50">
-                            <td className="px-4 py-2.5 text-secondary-500" colSpan={2}>
-                              Orders without waiter
+                        </thead>
+                        <tbody className="divide-y divide-secondary-100">
+                          {waiterReport.entries.map((entry) => (
+                            <tr key={entry.waiter_id} className="hover:bg-secondary-50">
+                              <td className="px-4 py-2.5 text-secondary-700">
+                                <div className="flex items-center gap-1.5">
+                                  <UserCircle className="h-3.5 w-3.5 text-secondary-400" />
+                                  {entry.waiter_name}
+                                </div>
+                              </td>
+                              <td className="px-4 py-2.5 text-right text-secondary-800">
+                                {entry.order_count}
+                              </td>
+                              <td className="px-4 py-2.5 text-right font-medium text-secondary-900">
+                                {formatPKR(entry.total_revenue)}
+                              </td>
+                              <td className="px-4 py-2.5 text-right text-secondary-700">
+                                {formatPKR(entry.avg_order_value)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot>
+                          <tr className="border-t border-secondary-200 bg-secondary-50">
+                            <td className="px-4 py-2.5 font-medium text-secondary-700">
+                              Total (with waiter)
                             </td>
-                            <td className="px-4 py-2.5 text-right text-secondary-500" colSpan={2}>
-                              {waiterReport.total_orders_without_waiter}
+                            <td className="px-4 py-2.5 text-right font-bold text-secondary-900">
+                              {waiterReport.total_orders_with_waiter}
                             </td>
+                            <td className="px-4 py-2.5 text-right font-bold text-secondary-900">
+                              {formatPKR(waiterReport.entries.reduce((s, e) => s + e.total_revenue, 0))}
+                            </td>
+                            <td />
                           </tr>
-                        )}
-                      </tfoot>
-                    </table>
+                          {waiterReport.total_orders_without_waiter > 0 && (
+                            <tr className="bg-secondary-50">
+                              <td className="px-4 py-2.5 text-secondary-500" colSpan={2}>
+                                Orders without waiter
+                              </td>
+                              <td className="px-4 py-2.5 text-right text-secondary-500" colSpan={2}>
+                                {waiterReport.total_orders_without_waiter}
+                              </td>
+                            </tr>
+                          )}
+                        </tfoot>
+                      </table>
+                    </div>
                   </div>
                 ) : (
                   <p className="text-center text-sm text-secondary-500 py-4">
@@ -760,41 +764,43 @@ function ReportsPage() {
 
                 {/* channel summary table */}
                 <div className="mt-6 overflow-hidden rounded-lg border border-secondary-200">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-secondary-200 bg-secondary-50">
-                        <th className="px-4 py-2.5 text-left font-medium text-secondary-600">
-                          Channel
-                        </th>
-                        <th className="px-4 py-2.5 text-right font-medium text-secondary-600">
-                          Orders
-                        </th>
-                        <th className="px-4 py-2.5 text-right font-medium text-secondary-600">
-                          Revenue
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-secondary-100">
-                      {channels.map((ch) => (
-                        <tr key={ch.key} className="hover:bg-secondary-50">
-                          <td className="px-4 py-2.5 text-secondary-700">
-                            <div className="flex items-center gap-2">
-                              <div
-                                className={`h-2.5 w-2.5 rounded-full ${ch.color}`}
-                              />
-                              {ch.label}
-                            </div>
-                          </td>
-                          <td className="px-4 py-2.5 text-right text-secondary-800">
-                            {getChannelOrders(ch).toLocaleString()}
-                          </td>
-                          <td className="px-4 py-2.5 text-right font-medium text-secondary-900">
-                            {formatPKR(getChannelRevenue(ch))}
-                          </td>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-secondary-200 bg-secondary-50">
+                          <th className="px-4 py-2.5 text-left font-medium text-secondary-600">
+                            Channel
+                          </th>
+                          <th className="px-4 py-2.5 text-right font-medium text-secondary-600">
+                            Orders
+                          </th>
+                          <th className="px-4 py-2.5 text-right font-medium text-secondary-600">
+                            Revenue
+                          </th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody className="divide-y divide-secondary-100">
+                        {channels.map((ch) => (
+                          <tr key={ch.key} className="hover:bg-secondary-50">
+                            <td className="px-4 py-2.5 text-secondary-700">
+                              <div className="flex items-center gap-2">
+                                <div
+                                  className={`h-2.5 w-2.5 rounded-full ${ch.color}`}
+                                />
+                                {ch.label}
+                              </div>
+                            </td>
+                            <td className="px-4 py-2.5 text-right text-secondary-800">
+                              {getChannelOrders(ch).toLocaleString()}
+                            </td>
+                            <td className="px-4 py-2.5 text-right font-medium text-secondary-900">
+                              {formatPKR(getChannelRevenue(ch))}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -893,59 +899,61 @@ function ReportsPage() {
                 <CardContent>
                   {itemPerf.top_items.length > 0 ? (
                     <div className="overflow-hidden rounded-lg border border-secondary-200">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="border-b border-secondary-200 bg-secondary-50">
-                            <th className="w-12 px-4 py-2.5 text-center font-medium text-secondary-600">
-                              #
-                            </th>
-                            <th className="px-4 py-2.5 text-left font-medium text-secondary-600">
-                              Item Name
-                            </th>
-                            <th className="px-4 py-2.5 text-right font-medium text-secondary-600">
-                              Qty Sold
-                            </th>
-                            <th className="px-4 py-2.5 text-right font-medium text-secondary-600">
-                              Revenue
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-secondary-100">
-                          {itemPerf.top_items
-                            .slice(0, 10)
-                            .map((item, index) => (
-                              <tr
-                                key={item.menu_item_id}
-                                className="hover:bg-secondary-50"
-                              >
-                                <td className="px-4 py-2.5 text-center">
-                                  <span
-                                    className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${
-                                      index === 0
-                                        ? "bg-warning-100 text-warning-700"
-                                        : index === 1
-                                          ? "bg-secondary-200 text-secondary-600"
-                                          : index === 2
-                                            ? "bg-amber-100 text-amber-700"
-                                            : "text-secondary-500"
-                                    }`}
-                                  >
-                                    {index + 1}
-                                  </span>
-                                </td>
-                                <td className="px-4 py-2.5 font-medium text-secondary-800">
-                                  {item.name}
-                                </td>
-                                <td className="px-4 py-2.5 text-right text-secondary-700">
-                                  {item.quantity_sold.toLocaleString()}
-                                </td>
-                                <td className="px-4 py-2.5 text-right font-medium text-secondary-900">
-                                  {formatPKR(item.revenue)}
-                                </td>
-                              </tr>
-                            ))}
-                        </tbody>
-                      </table>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b border-secondary-200 bg-secondary-50">
+                              <th className="w-12 px-4 py-2.5 text-center font-medium text-secondary-600">
+                                #
+                              </th>
+                              <th className="px-4 py-2.5 text-left font-medium text-secondary-600">
+                                Item Name
+                              </th>
+                              <th className="px-4 py-2.5 text-right font-medium text-secondary-600">
+                                Qty Sold
+                              </th>
+                              <th className="px-4 py-2.5 text-right font-medium text-secondary-600">
+                                Revenue
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-secondary-100">
+                            {itemPerf.top_items
+                              .slice(0, 10)
+                              .map((item, index) => (
+                                <tr
+                                  key={item.menu_item_id}
+                                  className="hover:bg-secondary-50"
+                                >
+                                  <td className="px-4 py-2.5 text-center">
+                                    <span
+                                      className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${
+                                        index === 0
+                                          ? "bg-warning-100 text-warning-700"
+                                          : index === 1
+                                            ? "bg-secondary-200 text-secondary-600"
+                                            : index === 2
+                                              ? "bg-amber-100 text-amber-700"
+                                              : "text-secondary-500"
+                                      }`}
+                                    >
+                                      {index + 1}
+                                    </span>
+                                  </td>
+                                  <td className="px-4 py-2.5 font-medium text-secondary-800">
+                                    {item.name}
+                                  </td>
+                                  <td className="px-4 py-2.5 text-right text-secondary-700">
+                                    {item.quantity_sold.toLocaleString()}
+                                  </td>
+                                  <td className="px-4 py-2.5 text-right font-medium text-secondary-900">
+                                    {formatPKR(item.revenue)}
+                                  </td>
+                                </tr>
+                              ))}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   ) : (
                     <p className="py-8 text-center text-sm text-secondary-400">
@@ -968,47 +976,49 @@ function ReportsPage() {
                 <CardContent>
                   {itemPerf.bottom_items.length > 0 ? (
                     <div className="overflow-hidden rounded-lg border border-secondary-200">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="border-b border-secondary-200 bg-secondary-50">
-                            <th className="w-12 px-4 py-2.5 text-center font-medium text-secondary-600">
-                              #
-                            </th>
-                            <th className="px-4 py-2.5 text-left font-medium text-secondary-600">
-                              Item Name
-                            </th>
-                            <th className="px-4 py-2.5 text-right font-medium text-secondary-600">
-                              Qty Sold
-                            </th>
-                            <th className="px-4 py-2.5 text-right font-medium text-secondary-600">
-                              Revenue
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-secondary-100">
-                          {itemPerf.bottom_items
-                            .slice(0, 5)
-                            .map((item, index) => (
-                              <tr
-                                key={item.menu_item_id}
-                                className="hover:bg-secondary-50"
-                              >
-                                <td className="px-4 py-2.5 text-center text-secondary-500">
-                                  {index + 1}
-                                </td>
-                                <td className="px-4 py-2.5 font-medium text-secondary-800">
-                                  {item.name}
-                                </td>
-                                <td className="px-4 py-2.5 text-right text-secondary-700">
-                                  {item.quantity_sold.toLocaleString()}
-                                </td>
-                                <td className="px-4 py-2.5 text-right font-medium text-secondary-900">
-                                  {formatPKR(item.revenue)}
-                                </td>
-                              </tr>
-                            ))}
-                        </tbody>
-                      </table>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b border-secondary-200 bg-secondary-50">
+                              <th className="w-12 px-4 py-2.5 text-center font-medium text-secondary-600">
+                                #
+                              </th>
+                              <th className="px-4 py-2.5 text-left font-medium text-secondary-600">
+                                Item Name
+                              </th>
+                              <th className="px-4 py-2.5 text-right font-medium text-secondary-600">
+                                Qty Sold
+                              </th>
+                              <th className="px-4 py-2.5 text-right font-medium text-secondary-600">
+                                Revenue
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-secondary-100">
+                            {itemPerf.bottom_items
+                              .slice(0, 5)
+                              .map((item, index) => (
+                                <tr
+                                  key={item.menu_item_id}
+                                  className="hover:bg-secondary-50"
+                                >
+                                  <td className="px-4 py-2.5 text-center text-secondary-500">
+                                    {index + 1}
+                                  </td>
+                                  <td className="px-4 py-2.5 font-medium text-secondary-800">
+                                    {item.name}
+                                  </td>
+                                  <td className="px-4 py-2.5 text-right text-secondary-700">
+                                    {item.quantity_sold.toLocaleString()}
+                                  </td>
+                                  <td className="px-4 py-2.5 text-right font-medium text-secondary-900">
+                                    {formatPKR(item.revenue)}
+                                  </td>
+                                </tr>
+                              ))}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   ) : (
                     <p className="py-8 text-center text-sm text-secondary-400">
