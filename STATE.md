@@ -1,8 +1,65 @@
 # STATE — Restaurant POS System
 
-**Last refreshed:** 2026-09-04 (Martin round-2 deployed). Top block: FZ LLC item M8, two units and
-a conversion on bought ingredients, DEPLOYED at `218ac8e` and verified on the production
-database. UAT not started. The Chick Shack blocks below are unchanged.
+**Last refreshed:** 2026-09-06 (Martin round 3 built). Top block: FZ LLC items M9-M13,
+production, expenses, ingredient categories, the phone, and a direct sale at the till. **BUILT
+AND COMMITTED, NOT DEPLOYED AND NOT SEEN.** The M8 block below is unchanged and still
+accurate. The Chick Shack blocks below it are unchanged.
+
+## 🟡 2026-09-06. MARTIN ROUND 3 (M9-M13). BUILT AT `80a3ad3` + `dc446a8`. NOT PUSHED, NOT DEPLOYED, NOT CLICKED IN A BROWSER.
+
+Four messages on WhatsApp, 12:56-13:10 GST. Verbatim text, the item table and the full build
+write-up live in `_context/clients/fz-llc-uae/feedback_2026-09-06_martin-round3.md`.
+
+| # | Ask | Built |
+|---|-----|-------|
+| M9 | "There is no production menu where I can produce subrecipes ... added as stock (+ sauce) and at same time the ingredient reduced (-tomato raw item)" | Production screen: menu entry, server-computed preview, run history |
+| M10 | "There is no expenses menu to attach the invoices of my expenses ... rent, salaries etc" | Expenses module: 4 tables, categories, PDF/photo attachments, period totals |
+| M11 | "Theres a fixed set of Categories. Don't see a menu ... where I can add a category" | Ingredient category master list, dropdown, add/rename/delete |
+| M12 | "How it looks on the phone still bad" | Zoom unlocked, 15 tables given scrollers, the till stacks on a phone |
+| M13 | "either send to kitchen ... OR directly print and deducted from stock" | `fulfilment_mode` on the order, a switch at the till |
+
+**M9 was a discoverability failure, not a missing engine.** `production_service.run_production`
+already consumed the inputs and added the output. It was reachable only as a button on the
+Stock screen and the word "Production" appeared nowhere in the admin menu. 🔴 **No
+`production_runs` table was added**: the stock movements ARE the fact, and a header row beside
+them would be a second version of it, free to disagree.
+
+**M11: `ingredients.category` deliberately stays a string.** The new `ingredient_categories`
+table is the master list behind the dropdown, not a foreign key. Converting the column would
+mean rewriting every ingredient row on every tenant to close a usability gap.
+
+**M12 was three real defects, not decoration.** The worst: `user-scalable=no` in the viewport
+meta meant that when a table was too wide to read on a phone, the phone would not let him
+pinch out to read it either. Second: `w-full` inside `overflow-x-auto` cannot overflow, so the
+scroller did nothing and the columns were crushed instead. Third: the till was a three-column
+desktop layout on a 360px screen, which is exactly what he photographed.
+
+**Migration `f6a7b8c9d0e1`, parented on production's head `e5f6a7b8c9d0`.** Four new tables,
+nothing existing altered. **Run against real Postgres 16 locally**: CHECK constraints landed,
+downgrade drops all four, re-upgrade backfills identically, all 16 local ingredients untouched.
+
+**Proof.** `backend/tests/test_martin_round3.py`, 25 route-level tests, green. 1009 green
+across the whole backend suite; the 11 failures and 2 errors that remain **reproduce
+identically on a clean worktree at HEAD**, so none are new. Frontend type-check clean, build
+clean, lint back at its pre-existing baseline. **And walked over the real API on Postgres**:
+the tomato-sauce example both ways with the preview proven to write nothing, a rent invoice
+with its VAT carved out and its PDF read back byte-for-byte and refused to an unauthenticated
+caller, and a direct sale completing and deducting stock on the spot while a normal order
+still landed in the kitchen. Every probe row was removed afterwards; the local database is
+back to 16 ingredients, 2 locations, 0 expenses.
+
+🔴 **NOT SEEN. Nothing has been clicked in a browser, and nothing has been pushed.**
+The step-by-step UAT script covering M9-M13 is
+`_context/clients/fz-llc-uae/UAT_FZ_LLC_2026-09-06.md`. Walk it on a laptop AND on a phone.
+**Deploying is `git push origin main`** and these two commits are still local.
+
+⚠️ **`backend/alembic/versions/b0c1d2e3f4a5_order_meta_pixel_fields.py` is still untracked
+local work** and has been re-parented onto `f6a7b8c9d0e1` again. It belongs to the Meta pixel
+session, not this one, and was deliberately not committed here.
+
+**Two commercial follow-ups remain open** and are now three rounds deep: Martin wants a demo
+for his partners, and his partners prefer **a meeting in the Dubai office rather than a call**.
+Answer the meeting in the same reply that confirms the build.
 
 ## 🟢 2026-09-04. MARTIN ROUND 2 (M8): TWO UNITS AND A CONVERSION. DEPLOYED AT `218ac8e` AND VERIFIED ON THE PRODUCTION DATABASE. UAT NOT STARTED.
 
