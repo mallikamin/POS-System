@@ -1,11 +1,11 @@
 # STATE — Restaurant POS System
 
-**Last refreshed:** 2026-09-06 (Martin round 3 built). Top block: FZ LLC items M9-M13,
-production, expenses, ingredient categories, the phone, and a direct sale at the till. **BUILT
-AND COMMITTED, NOT DEPLOYED AND NOT SEEN.** The M8 block below is unchanged and still
-accurate. The Chick Shack blocks below it are unchanged.
+**Last refreshed:** 2026-09-06 (Martin round 3 deployed). Top block: FZ LLC items M9-M13,
+production, expenses, ingredient categories, the phone, and a direct sale at the till.
+**DEPLOYED at `b4505fa` and verified on the production database. UAT not started.** The M8
+block below is unchanged and still accurate. The Chick Shack blocks below it are unchanged.
 
-## 🟡 2026-09-06. MARTIN ROUND 3 (M9-M13). BUILT AT `80a3ad3` + `dc446a8`. NOT PUSHED, NOT DEPLOYED, NOT CLICKED IN A BROWSER.
+## 🟢 2026-09-06. MARTIN ROUND 3 (M9-M13). DEPLOYED AT `b4505fa` AND VERIFIED ON THE PRODUCTION DATABASE. UAT NOT STARTED.
 
 Four messages on WhatsApp, 12:56-13:10 GST. Verbatim text, the item table and the full build
 write-up live in `_context/clients/fz-llc-uae/feedback_2026-09-06_martin-round3.md`.
@@ -48,10 +48,28 @@ caller, and a direct sale completing and deducting stock on the spot while a nor
 still landed in the kitchen. Every probe row was removed afterwards; the local database is
 back to 16 ingredients, 2 locations, 0 expenses.
 
-🔴 **NOT SEEN. Nothing has been clicked in a browser, and nothing has been pushed.**
-The step-by-step UAT script covering M9-M13 is
-`_context/clients/fz-llc-uae/UAT_FZ_LLC_2026-09-06.md`. Walk it on a laptop AND on a phone.
-**Deploying is `git push origin main`** and these two commits are still local.
+**DEPLOYED 2026-09-06, commit `b4505fa`.** "Deploy to Production" green. Verified directly on
+the production database and on the served files, read-only:
+
+* `alembic_version` is **`f6a7b8c9d0e1`**, so the migration ran.
+* **Martin's tenant is untouched.** Tenant-filtered to `martin-fz`: still 16 ingredients, and
+  the 8 backfilled `ingredient_categories` match the 8 distinct categories those 16 rows
+  already carried, one for one. Nothing moved.
+* **`expenses` and `expense_categories` are empty on every tenant**, which is correct: the
+  starter categories are seeded lazily on the first visit to the screen, so a tenant that
+  never opens it never gets ten rows it did not ask for.
+* `www/current` points at `releases/b4505fa...`, both new page chunks are present, and the
+  nav bundle carries "Production" and "Expenses".
+* The served `index.html` viewport is now
+  `width=device-width, initial-scale=1.0, viewport-fit=cover`. **The zoom lock is gone**,
+  which is the single biggest item in M12.
+* "Print & deduct now", "Print & Complete", "Send to kitchen", "New category" and
+  "View order" are all in the shipped chunks.
+
+🔴 **NOT SEEN. Nothing has been clicked in a browser.** The database and the bundle are
+right; the pixels are unproven. The step-by-step UAT script covering M9-M13 is
+`_context/clients/fz-llc-uae/UAT_FZ_LLC_2026-09-06.md`, 43 steps. **Walk it on a laptop AND
+on a phone before replying to Martin.**
 
 ⚠️ **`backend/alembic/versions/b0c1d2e3f4a5_order_meta_pixel_fields.py` is still untracked
 local work** and has been re-parented onto `f6a7b8c9d0e1` again. It belongs to the Meta pixel

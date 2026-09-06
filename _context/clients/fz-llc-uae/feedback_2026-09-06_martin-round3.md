@@ -41,16 +41,22 @@ Message 4, 13:10 GST, with a screenshot of the cart footer arrowed at the total 
 
 | # | Area | Martin's ask | Status |
 |---|------|--------------|--------|
-| M9 | Production | A production screen: make a sub-recipe batch, add the output to stock, deduct the inputs | BUILT |
-| M10 | Expenses | An expenses screen with invoice attachments, for non-supplier costs (rent, salaries) | BUILT |
-| M11 | Ingredients | Add and manage ingredient categories | BUILT |
-| M12 | Mobile | Admin portal AND the till still look bad on a phone, after M7 | BUILT |
-| M13 | POS checkout | A choice at the cart: run the kitchen flow as today, or print and deduct stock straight away | BUILT |
+| M9 | Production | A production screen: make a sub-recipe batch, add the output to stock, deduct the inputs | DEPLOYED `b4505fa` |
+| M10 | Expenses | An expenses screen with invoice attachments, for non-supplier costs (rent, salaries) | DEPLOYED `b4505fa` |
+| M11 | Ingredients | Add and manage ingredient categories | DEPLOYED `b4505fa` |
+| M12 | Mobile | Admin portal AND the till still look bad on a phone, after M7 | DEPLOYED `b4505fa` |
+| M13 | POS checkout | A choice at the cart: run the kitchen flow as today, or print and deduct stock straight away | DEPLOYED `b4505fa` |
 
-🔴 **BUILT, not DEPLOYED, and not seen.** Everything above is proven on a real Postgres
-locally and by 25 route-level tests. **Nothing has been clicked in a browser.** The
-step-by-step script is `UAT_FZ_LLC_2026-09-06.md` in this folder. Do not reply to Martin
-until it has been walked, on a laptop AND on a phone.
+**DEPLOYED 2026-09-06, commit `b4505fa`**, "Deploy to Production" green. Verified read-only on
+the production database and on the served files: `alembic_version` is `f6a7b8c9d0e1`; Martin's
+tenant still holds 16 ingredients and the 8 backfilled categories match the 8 those rows
+already carried, one for one; expenses are empty everywhere, which is correct because the
+starter categories seed lazily on first visit; `www/current` points at this commit and both new
+screens are in the bundle; and the served viewport no longer locks zoom.
+
+🔴 **NOT SEEN. Nothing has been clicked in a browser.** The step-by-step script is
+`UAT_FZ_LLC_2026-09-06.md` in this folder, 43 steps. Do not reply to Martin until it has been
+walked, on a laptop AND on a phone.
 
 ## What each one actually means against the code
 
