@@ -116,6 +116,79 @@ async def store_image(
     return media
 
 
+class InvalidDocument(ValueError):
+    """The upload is not a document this system accepts."""
+
+
+# A supplier or landlord sends a PDF; a phone sends a photograph of a paper
+# bill. Both are invoices, so both are accepted, and nothing else is.
+PDF_MAGIC = b"%PDF-"
+
+
+async def store_document(
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    data: bytes,
+    original_filename: str | None = None,
+) -> MediaFile:
+    """Store an invoice: a PDF as sent, an image normalised as usual.
+
+    Added for Martin's M10 (expense invoices). The split matters:
+
+    * **An image goes through `normalise_image`**, exactly like a menu
+      photograph, so a 6 MB phone original becomes a ~100 KB JPEG and the bytes
+      that reach the database are ones Pillow produced from pixels.
+    * **A PDF is stored byte-for-byte**, because re-encoding it would destroy
+      the document, and it is only ever served back with an explicit
+      `application/pdf` content type and never rendered as HTML.
+
+    🔴 The type is decided by the CONTENT, not by the filename or the browser's
+    `Content-Type` header. Both are attacker-controlled; the magic bytes are
+    not. Anything that is neither a PDF nor a decodable image is refused.
+    """
+    if not data:
+        raise InvalidDocument("empty upload")
+    if len(data) > MAX_UPLOAD_BYTES:
+        raise ImageTooLarge(f"upload exceeds {MAX_UPLOAD_BYTES} bytes")
+
+    if data[: len(PDF_MAGIC)] == PDF_MAGIC:
+        media = MediaFile(
+            tenant_id=tenant_id,
+            content_type="application/pdf",
+            data=data,
+            size_bytes=len(data),
+            # A PDF has pages, not pixels. Zero rather than a guess, and the
+            # columns are NOT NULL so they cannot simply be left out.
+            width=0,
+            height=0,
+            sha256=hashlib.sha256(data).hexdigest(),
+            original_filename=(original_filename or "")[:255] or None,
+        )
+        db.add(media)
+        await db.flush()
+        return media
+
+    try:
+        return await store_image(db, tenant_id, data, original_filename)
+    except InvalidImage as exc:
+        raise InvalidDocument(
+            f"that file is neither a PDF nor a usable image ({exc})"
+        ) from exc
+
+
+async def get_media_bytes(db: AsyncSession, media_id: uuid.UUID) -> MediaFile | None:
+    """Fetch one file with its bytes, for a caller that has already authorised it.
+
+    Same query as `get_media`; named apart so a reader can see at the call site
+    that the expense route is not reusing the deliberately unauthenticated
+    image path below.
+    """
+    result = await db.execute(
+        select(MediaFile).options(undefer(MediaFile.data)).where(MediaFile.id == media_id)
+    )
+    return result.scalar_one_or_none()
+
+
 async def get_media(db: AsyncSession, media_id: uuid.UUID) -> MediaFile | None:
     """Fetch one image with its bytes.
 

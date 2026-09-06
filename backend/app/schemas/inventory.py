@@ -36,6 +36,30 @@ Num = Annotated[
 
 
 # ---------------------------------------------------------------------------
+# INGREDIENT CATEGORY SCHEMAS (Martin M11)
+# ---------------------------------------------------------------------------
+
+
+class IngredientCategoryCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+
+
+class IngredientCategoryUpdate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+
+
+class IngredientCategoryResponse(BaseModel):
+    # Nullable because a category string in use with no master row behind it is
+    # still returned, so the dropdown can never be missing a value the data
+    # already contains. See `ingredient_category_service.list_categories`.
+    id: uuid.UUID | None
+    name: str
+    sort_order: int
+    is_active: bool
+    ingredient_count: int
+
+
+# ---------------------------------------------------------------------------
 # INGREDIENT SCHEMAS
 # ---------------------------------------------------------------------------
 

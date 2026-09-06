@@ -27,11 +27,13 @@ from app.models.delivery import DeliveryArea
 from app.models.audit import AuditLog
 from app.models.inventory import (
     Ingredient,
+    IngredientCategory,
     Recipe,
     RecipeItem,
     InventoryTransaction,
     StockCount,
 )
+from app.models.expense import Expense, ExpenseAttachment, ExpenseCategory
 from app.models.location import (
     Location,
     LocationStock,
@@ -89,6 +91,10 @@ __all__ = [
     "DeliveryArea",
     "AuditLog",
     "Ingredient",
+    "IngredientCategory",
+    "Expense",
+    "ExpenseAttachment",
+    "ExpenseCategory",
     "Recipe",
     "RecipeItem",
     "InventoryTransaction",

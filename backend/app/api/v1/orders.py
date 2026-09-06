@@ -68,10 +68,19 @@ async def create_order(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> OrderResponse:
-    """Create a new order from cart data. Auto-sends to kitchen."""
-    order = await order_service.create_order(
-        db, current_user.tenant_id, current_user.id, body
-    )
+    """Create an order from cart data.
+
+    Sends it to the kitchen by default. `fulfilment_mode="direct"` completes it
+    on the spot and deducts stock instead (Martin M13).
+    """
+    try:
+        order = await order_service.create_order(
+            db, current_user.tenant_id, current_user.id, body
+        )
+    except order_service.OrderRuleError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
     await audit_service.log_action(
         db,
         tenant_id=current_user.tenant_id,

@@ -51,6 +51,21 @@ class OrderCreate(BaseModel):
     # default to 0 so every existing client keeps sending exactly what it did.
     delivery_fee: int = Field(0, ge=0, le=1_000_000)
     service_fee: int = Field(0, ge=0, le=1_000_000)
+    # How this order is fulfilled (Martin, FZ LLC 2026-09-06, item M13):
+    #
+    # > "Need to have option here to either send to kitchen / then ready / then
+    # >  dispatched as it is now. And at that time is deducted from inventory OR
+    # >  directly print and deducted from stock"
+    #
+    # `kitchen` is the default and is byte-for-byte the behaviour every client
+    # has today: confirmed, straight to in_kitchen, a ticket on the KDS, stock
+    # deducted when the order is finally completed.
+    #
+    # `direct` is the counter sale: no kitchen ticket, the order is completed in
+    # the same request, and stock is deducted there and then. It exists because
+    # a B2B wholesale line does not pass a kitchen at all, and walking it
+    # through four statuses to reach the deduction is theatre.
+    fulfilment_mode: str = Field("kitchen", pattern=r"^(kitchen|direct)$")
 
     @model_validator(mode="after")
     def call_center_requires_phone(self) -> "OrderCreate":

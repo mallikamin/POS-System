@@ -12,6 +12,7 @@ from sqlalchemy.orm import selectinload
 
 from app.models.inventory import Ingredient, Recipe, RecipeItem
 from app.models.menu import MenuItem, Modifier
+from app.services import ingredient_category_service
 from app.schemas.inventory import (
     IngredientCreate,
     IngredientUpdate,
@@ -123,6 +124,14 @@ async def create_ingredient(
     _apply_purchase_conversion(payload, None)
     if payload.get("is_produced"):
         payload["cost_per_unit"] = Decimal("0")
+    # Martin M11. The category the ingredient is saved under joins the master
+    # list if it is not on it, and takes the stored spelling if it is, so
+    # "dairy" files under an existing "Dairy" instead of forking it.
+    canonical = await ingredient_category_service.canonical_name(
+        db, tenant_id, payload.get("category")
+    )
+    if canonical:
+        payload["category"] = canonical
     ingredient = Ingredient(
         tenant_id=tenant_id,
         **payload,
@@ -240,6 +249,15 @@ async def update_ingredient(
         _apply_purchase_conversion(update_data, ingredient)
         if will_be_produced:
             update_data.pop("cost_per_unit", None)
+
+    # Martin M11, same rule as create: only when the caller actually sent a
+    # category, so a PATCH that changes the reorder point does not re-file it.
+    if update_data.get("category"):
+        canonical = await ingredient_category_service.canonical_name(
+            db, ingredient.tenant_id, update_data["category"]
+        )
+        if canonical:
+            update_data["category"] = canonical
 
     for field, value in update_data.items():
         setattr(ingredient, field, value)

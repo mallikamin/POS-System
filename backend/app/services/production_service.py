@@ -176,6 +176,193 @@ async def run_production(
     }
 
 
+async def preview_production(
+    db: AsyncSession,
+    *,
+    tenant_id: uuid.UUID,
+    recipe_id: uuid.UUID,
+    batches: Decimal,
+    location_id: uuid.UUID | None = None,
+) -> dict:
+    """What a run WOULD do, without doing it.
+
+    Martin's M9 complaint was that he could not find production at all, and the
+    dialog he could not find asked for "batches" -- a chef thinks "make 5 kg of
+    sauce", not "run the recipe 2.5 times". Showing the exact grams in and grams
+    out before the button is pressed is what turns the number into something he
+    can check.
+
+    🔴 The arithmetic is `_consumed_quantity` and `yield_servings * batches`,
+    the same two lines `run_production` uses. Re-deriving it in TypeScript would
+    give the preview and the run two chances to disagree, and the one that moved
+    stock would win silently.
+
+    Nothing is written. `shortfall` is advisory: a run is still allowed to take
+    a balance negative, because a kitchen that has already made the sauce needs
+    the system to say so rather than refuse it.
+    """
+    batches = Decimal(str(batches))
+    if batches <= 0:
+        raise StockError("Batches must be greater than zero.")
+
+    recipe = await _load_recipe(db, tenant_id, recipe_id)
+    if recipe.produces_ingredient_id is None:
+        raise StockError(
+            "This recipe does not produce an ingredient, so it cannot be "
+            "produced into stock."
+        )
+    if not recipe.recipe_items:
+        raise StockError("This recipe has no ingredients, so nothing can be produced.")
+
+    location = await stock_service.resolve_location(db, tenant_id, location_id)
+
+    from app.models.inventory import Ingredient  # local: avoids a cycle
+
+    ingredient_ids = [item.ingredient_id for item in recipe.recipe_items]
+    ingredient_ids.append(recipe.produces_ingredient_id)
+    rows = (
+        await db.execute(
+            select(Ingredient).where(
+                Ingredient.tenant_id == tenant_id, Ingredient.id.in_(ingredient_ids)
+            )
+        )
+    ).scalars().all()
+    by_id = {row.id: row for row in rows}
+
+    on_hand = await stock_service.stock_on_hand(
+        db, tenant_id, location.id, ingredient_ids
+    )
+
+    consumes: list[dict] = []
+    for item in recipe.recipe_items:
+        used = _consumed_quantity(item.quantity, item.waste_factor, batches)
+        ingredient = by_id.get(item.ingredient_id)
+        available = on_hand.get(item.ingredient_id, Decimal("0"))
+        consumes.append(
+            {
+                "ingredient_id": item.ingredient_id,
+                "ingredient_name": ingredient.name if ingredient else "Unknown",
+                "unit": ingredient.unit if ingredient else "",
+                "quantity": used,
+                "available": available,
+                "shortfall": max(Decimal("0"), used - available),
+            }
+        )
+
+    produced = by_id.get(recipe.produces_ingredient_id)
+    produced_qty = (Decimal(str(recipe.yield_servings)) * batches).quantize(
+        Decimal("0.001")
+    )
+
+    return {
+        "recipe_id": recipe.id,
+        "recipe_name": _recipe_label(recipe),
+        "location_id": location.id,
+        "location_name": location.name,
+        "batches": batches,
+        "yield_per_batch": Decimal(str(recipe.yield_servings)),
+        "produced_ingredient_id": recipe.produces_ingredient_id,
+        "produced_ingredient_name": produced.name if produced else "Unknown",
+        "produced_unit": produced.unit if produced else "",
+        "produced_quantity": produced_qty,
+        "unit_cost": recipe.cost_per_serving,
+        "total_cost": (
+            Decimal(str(recipe.cost_per_serving)) * produced_qty
+        ).quantize(Decimal("0.01")),
+        "consumes": consumes,
+        "has_shortfall": any(line["shortfall"] > 0 for line in consumes),
+    }
+
+
+async def list_production_runs(
+    db: AsyncSession,
+    *,
+    tenant_id: uuid.UUID,
+    location_id: uuid.UUID | None = None,
+    limit: int = 50,
+) -> list[dict]:
+    """What was made, newest first, with what each run ate.
+
+    🔴 There is no `production_runs` table and this deliberately does not add
+    one. A run already writes one `production` movement and one `consumption`
+    movement per input, all sharing a `PROD-...` reference, and those rows are
+    the movements that actually changed the balances. A header table beside them
+    would be a second version of the same fact, free to disagree with the first.
+
+    So the header is reconstructed: every `production` movement is a run, and
+    the consumption rows carrying its reference are its inputs.
+    """
+    from app.models.inventory import Ingredient, InventoryTransaction
+    from app.models.location import Location
+    from app.models.user import User
+
+    stmt = (
+        select(InventoryTransaction, Ingredient, Location, User)
+        .join(Ingredient, Ingredient.id == InventoryTransaction.ingredient_id)
+        .outerjoin(Location, Location.id == InventoryTransaction.location_id)
+        .outerjoin(User, User.id == InventoryTransaction.performed_by)
+        .where(
+            InventoryTransaction.tenant_id == tenant_id,
+            InventoryTransaction.transaction_type == "production",
+        )
+    )
+    if location_id is not None:
+        stmt = stmt.where(InventoryTransaction.location_id == location_id)
+    stmt = stmt.order_by(InventoryTransaction.transaction_date.desc()).limit(limit)
+
+    headers = (await db.execute(stmt)).all()
+    if not headers:
+        return []
+
+    refs = [tx.reference_number for tx, _, _, _ in headers if tx.reference_number]
+    inputs: dict[str, list[dict]] = {}
+    if refs:
+        input_rows = (
+            await db.execute(
+                select(InventoryTransaction, Ingredient)
+                .join(Ingredient, Ingredient.id == InventoryTransaction.ingredient_id)
+                .where(
+                    InventoryTransaction.tenant_id == tenant_id,
+                    InventoryTransaction.transaction_type == "consumption",
+                    InventoryTransaction.reference_number.in_(refs),
+                )
+                .order_by(Ingredient.name)
+            )
+        ).all()
+        for tx, ingredient in input_rows:
+            inputs.setdefault(tx.reference_number or "", []).append(
+                {
+                    "ingredient_id": ingredient.id,
+                    "ingredient_name": ingredient.name,
+                    "unit": ingredient.unit,
+                    # Stored negative, because it left the shelf. Shown positive,
+                    # because "consumed -1.2 kg" reads as a return.
+                    "quantity": abs(Decimal(str(tx.quantity))),
+                    "total_cost": tx.total_cost,
+                }
+            )
+
+    return [
+        {
+            "reference_number": tx.reference_number,
+            "produced_at": tx.transaction_date,
+            "produced_ingredient_id": ingredient.id,
+            "produced_ingredient_name": ingredient.name,
+            "unit": tx.unit,
+            "quantity": tx.quantity,
+            "unit_cost": tx.unit_cost,
+            "total_cost": tx.total_cost,
+            "balance_after": tx.balance_after,
+            "location_id": tx.location_id,
+            "location_name": location.name if location is not None else None,
+            "performed_by_name": user.full_name if user is not None else None,
+            "notes": tx.notes,
+            "consumed": inputs.get(tx.reference_number or "", []),
+        }
+        for tx, ingredient, location, user in headers
+    ]
+
+
 async def consume_for_order(
     db: AsyncSession,
     *,

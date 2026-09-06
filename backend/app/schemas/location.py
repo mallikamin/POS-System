@@ -271,6 +271,73 @@ class ProductionRunResponse(BaseModel):
     consumed: list[ProductionConsumedLine]
 
 
+# --- Martin M9: the production screen -------------------------------------
+#
+# 🔴 Not one field here carries a default. A hand-built response model with
+# defaults substitutes a plausible wrong number for a field the builder forgot
+# to pass, which is exactly how the goods-receipt conversion silently reported
+# 1 while the database held 400 (ERROR_LOG, 2026-09-04).
+
+
+class ProductionPreviewRequest(BaseModel):
+    recipe_id: uuid.UUID
+    batches: Num = Field(..., gt=0)
+    location_id: uuid.UUID | None = None
+
+
+class ProductionPreviewLine(BaseModel):
+    """One input, what the run needs of it, and what is actually on the shelf."""
+
+    ingredient_id: uuid.UUID
+    ingredient_name: str
+    unit: str
+    quantity: Num
+    available: Num
+    shortfall: Num
+
+
+class ProductionPreviewResponse(BaseModel):
+    recipe_id: uuid.UUID
+    recipe_name: str
+    location_id: uuid.UUID
+    location_name: str
+    batches: Num
+    yield_per_batch: Num
+    produced_ingredient_id: uuid.UUID
+    produced_ingredient_name: str
+    produced_unit: str
+    produced_quantity: Num
+    unit_cost: Num
+    total_cost: Num
+    consumes: list[ProductionPreviewLine]
+    has_shortfall: bool
+
+
+class ProductionHistoryInput(BaseModel):
+    ingredient_id: uuid.UUID
+    ingredient_name: str
+    unit: str
+    quantity: Num
+    total_cost: Num
+
+
+class ProductionHistoryRow(BaseModel):
+    reference_number: str | None
+    produced_at: datetime
+    produced_ingredient_id: uuid.UUID
+    produced_ingredient_name: str
+    unit: str
+    quantity: Num
+    unit_cost: Num
+    total_cost: Num
+    balance_after: Num
+    location_id: uuid.UUID | None
+    location_name: str | None
+    performed_by_name: str | None
+    notes: str | None
+    consumed: list[ProductionHistoryInput]
+
+
 # ---------------------------------------------------------------------------
 # TRANSFERS
 # ---------------------------------------------------------------------------

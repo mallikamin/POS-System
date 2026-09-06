@@ -23,6 +23,18 @@ from app.services import customer_service, kitchen_service
 
 logger = logging.getLogger(__name__)
 
+
+class OrderRuleError(ValueError):
+    """The caller asked for something this restaurant's settings forbid.
+
+    Distinct from a bare `ValueError` on purpose. There is no global handler for
+    ValueError in `main.py`, so anything raised as one becomes a 500 -- correct
+    for "could not generate a unique order number after three retries", wrong
+    for "this restaurant takes payment first". The route catches this class and
+    answers 400; everything else keeps its old behaviour.
+    """
+
+
 # ---------------------------------------------------------------------------
 # State Machine
 # ---------------------------------------------------------------------------
@@ -510,7 +522,37 @@ async def create_order(
     # Check payment_flow config
     payment_flow = await _get_payment_flow(db, tenant_id)
 
-    if payment_flow == "pay_first":
+    # Martin M13. A counter sale that never passes a kitchen: complete it here
+    # and let the completion path deduct the stock, rather than walking a
+    # wholesale line through in_kitchen -> ready -> served to reach the same
+    # deduction.
+    #
+    # 🔴 Refused in pay-first mode rather than quietly reinterpreted. There the
+    # money comes first and `payment_service` is what releases the order, so
+    # completing it here would book the stock against a sale nobody has paid
+    # for. Raised as a ValueError, which the route already turns into a 400.
+    direct = data.fulfilment_mode == "direct"
+    if direct and payment_flow == "pay_first":
+        raise OrderRuleError(
+            "This restaurant takes payment before the order is released, so an "
+            "order cannot be completed straight from the till. Take the payment "
+            "first."
+        )
+
+    if direct:
+        order.status = "completed"
+        for item in order.items:
+            item.status = "served"
+        db.add(
+            OrderStatusLog(
+                tenant_id=tenant_id,
+                order_id=order.id,
+                from_status="confirmed",
+                to_status="completed",
+                changed_by=user_id,
+            )
+        )
+    elif payment_flow == "pay_first":
         # Pay-before-eat: keep order as confirmed, do NOT send to kitchen
         # Kitchen tickets created after payment in payment_service
         pass
@@ -529,17 +571,24 @@ async def create_order(
         )
         db.add(kitchen_log)
 
-    # For dine-in: mark table as occupied
-    if data.order_type == "dine_in" and data.table_id:
+    # For dine-in: mark table as occupied.
+    # Not for a direct sale: it is completed before it is written, so occupying
+    # the table would leave it occupied by an order that is already finished.
+    if data.order_type == "dine_in" and data.table_id and not direct:
         table = await _get_table(db, data.table_id, tenant_id)
         if table:
             table.status = "occupied"
 
     await db.flush()
 
-    if payment_flow != "pay_first":
+    if not direct and payment_flow != "pay_first":
         # Auto-create kitchen ticket: route all items to the first active station
         await _auto_create_kitchen_ticket(db, tenant_id, order)
+
+    if direct:
+        # The same call the completion path makes, so a direct sale and a
+        # kitchen sale deduct stock through one code path and cannot drift.
+        await _apply_inventory_and_commission(db, tenant_id, order)
 
     await _sync_customer_stats_for_order(db, tenant_id, order)
 

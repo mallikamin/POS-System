@@ -137,6 +137,33 @@ async def get_or_create_stock_row(
     return row
 
 
+async def stock_on_hand(
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    location_id: uuid.UUID,
+    ingredient_ids: list[uuid.UUID],
+) -> dict[uuid.UUID, Decimal]:
+    """Balances for these ingredients at this location. Read-only.
+
+    Deliberately NOT `get_or_create_stock_row` in a loop: this backs the
+    production preview, which must be able to answer "do we have enough" without
+    writing a single row. An ingredient with no balance row simply comes back
+    absent, which the caller reads as zero.
+    """
+    if not ingredient_ids:
+        return {}
+    rows = (
+        await db.execute(
+            select(LocationStock.ingredient_id, LocationStock.quantity).where(
+                LocationStock.tenant_id == tenant_id,
+                LocationStock.location_id == location_id,
+                LocationStock.ingredient_id.in_(ingredient_ids),
+            )
+        )
+    ).all()
+    return {ingredient_id: Decimal(str(qty)) for ingredient_id, qty in rows}
+
+
 async def _resync_ingredient_total(
     db: AsyncSession, ingredient: Ingredient
 ) -> None:

@@ -11,6 +11,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user, get_db, require_role
 from app.models.user import User
 from app.schemas.inventory import (
+    IngredientCategoryCreate,
+    IngredientCategoryResponse,
+    IngredientCategoryUpdate,
     IngredientCreate,
     IngredientResponse,
     IngredientUpdate,
@@ -20,7 +23,8 @@ from app.schemas.inventory import (
     RecipeResponse,
     RecipeUpdate,
 )
-from app.services import order_service, recipe_service
+from app.services import ingredient_category_service, order_service, recipe_service
+from app.services.ingredient_category_service import CategoryError
 from app.services.order_service import net_of_tax
 
 router = APIRouter(prefix="/inventory", tags=["inventory"])
@@ -79,6 +83,110 @@ def _enrich_recipe(recipe, tax_settings: tuple[int, bool]) -> RecipeResponse:
         response.produces_ingredient_name = recipe.produces_ingredient.name
 
     return response
+
+
+# ---------------------------------------------------------------------------
+# INGREDIENT CATEGORY ENDPOINTS (Martin M11)
+#
+# Declared BEFORE /ingredients/{ingredient_id} would not matter -- these sit on
+# their own path -- but they are kept together here so the category list, which
+# the ingredient form calls on every open, is easy to find.
+# ---------------------------------------------------------------------------
+
+
+def _category_bad_request(exc: CategoryError) -> HTTPException:
+    return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+
+@router.get(
+    "/ingredient-categories", response_model=list[IngredientCategoryResponse]
+)
+async def list_ingredient_categories(
+    include_inactive: bool = Query(False),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[IngredientCategoryResponse]:
+    """Every category, with how many ingredients carry it."""
+    rows = await ingredient_category_service.list_categories(
+        db, current_user.tenant_id, include_inactive
+    )
+    return [IngredientCategoryResponse(**row) for row in rows]
+
+
+@router.post(
+    "/ingredient-categories",
+    response_model=IngredientCategoryResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_role("admin"))],
+)
+async def create_ingredient_category(
+    data: IngredientCategoryCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> IngredientCategoryResponse:
+    try:
+        row = await ingredient_category_service.create_category(
+            db, current_user.tenant_id, data.name
+        )
+    except CategoryError as exc:
+        raise _category_bad_request(exc) from exc
+    await db.commit()
+    return IngredientCategoryResponse(
+        id=row.id,
+        name=row.name,
+        sort_order=row.sort_order,
+        is_active=row.is_active,
+        ingredient_count=0,
+    )
+
+
+@router.patch(
+    "/ingredient-categories/{category_id}",
+    response_model=IngredientCategoryResponse,
+    dependencies=[Depends(require_role("admin"))],
+)
+async def rename_ingredient_category(
+    category_id: uuid.UUID,
+    data: IngredientCategoryUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> IngredientCategoryResponse:
+    """Rename the category AND every ingredient filed under it, in one go."""
+    try:
+        row, moved = await ingredient_category_service.rename_category(
+            db, current_user.tenant_id, category_id, data.name
+        )
+    except CategoryError as exc:
+        raise _category_bad_request(exc) from exc
+    await db.commit()
+    return IngredientCategoryResponse(
+        id=row.id,
+        name=row.name,
+        sort_order=row.sort_order,
+        is_active=row.is_active,
+        ingredient_count=moved,
+    )
+
+
+@router.delete(
+    "/ingredient-categories/{category_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_role("admin"))],
+    response_model=None,
+)
+async def delete_ingredient_category(
+    category_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """Deactivate. Refused while ingredients are still filed under it."""
+    try:
+        await ingredient_category_service.delete_category(
+            db, current_user.tenant_id, category_id
+        )
+    except CategoryError as exc:
+        raise _category_bad_request(exc) from exc
+    await db.commit()
 
 
 # ---------------------------------------------------------------------------

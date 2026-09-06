@@ -34,6 +34,53 @@ if TYPE_CHECKING:
 
 
 # ---------------------------------------------------------------------------
+# INGREDIENT CATEGORIES
+# ---------------------------------------------------------------------------
+
+
+class IngredientCategory(BaseMixin, Base):
+    """The list of categories an ingredient may be filed under.
+
+    Martin Zubeldia (FZ LLC), 2026-09-06, item M11:
+
+    > "Ingredients. Theres a fixed set of Categories. Don't see a menu or
+    >  drop-down menu where I can add a category"
+
+    The literal claim was wrong -- `Ingredient.category` is free text and typing
+    a new value has always created one -- and the complaint was still correct.
+    There was no list anywhere, no dropdown, and nothing that could rename a
+    category, so a free-text box across forty ingredients was guaranteed to
+    produce "Dairy", "dairy" and "Diary" as three real categories.
+
+    🔴 **`Ingredient.category` deliberately stays a string.** Turning it into a
+    foreign key would mean rewriting every ingredient row on every tenant to
+    close one usability gap, and a null FK would then mean "uncategorised" where
+    today it means "General". This table is the *master list* that fills the
+    dropdown; the string on the ingredient stays the value.
+
+    The two are kept from drifting by two rules, both in `category_service`:
+    saving an ingredient under an unknown category creates the master row, and
+    the list endpoint returns the union of master rows and any string actually
+    in use. Renaming updates both sides inside one transaction.
+    """
+
+    __tablename__ = "ingredient_categories"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "name", name="uq_ingredient_category_tenant_name"),
+        Index("ix_ingredient_category_tenant_active", "tenant_id", "is_active"),
+    )
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("tenants.id"), nullable=False, index=True
+    )
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+    tenant: Mapped["Tenant"] = relationship("Tenant")
+
+
+# ---------------------------------------------------------------------------
 # INGREDIENTS
 # ---------------------------------------------------------------------------
 

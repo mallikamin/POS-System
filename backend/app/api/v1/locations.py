@@ -22,6 +22,9 @@ from app.schemas.location import (
     LocationStockRow,
     StockMovementRow,
     LocationUpdate,
+    ProductionHistoryRow,
+    ProductionPreviewRequest,
+    ProductionPreviewResponse,
     ProductionRunRequest,
     ProductionRunResponse,
     ProfitabilityResponse,
@@ -339,6 +342,54 @@ async def set_reorder_level(
 # ---------------------------------------------------------------------------
 # PRODUCTION
 # ---------------------------------------------------------------------------
+
+
+@router.post(
+    "/production/preview",
+    response_model=ProductionPreviewResponse,
+    dependencies=[Depends(require_role("admin", "manager"))],
+)
+async def preview_production(
+    data: ProductionPreviewRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ProductionPreviewResponse:
+    """What a run would consume and produce. Writes nothing."""
+    try:
+        result = await production_service.preview_production(
+            db,
+            tenant_id=current_user.tenant_id,
+            recipe_id=data.recipe_id,
+            batches=data.batches,
+            location_id=data.location_id,
+        )
+    except StockError as exc:
+        raise _bad_request(exc) from exc
+    # No commit on purpose. `resolve_location` and the balance read are both
+    # selects, so there is nothing to persist and a commit here would only make
+    # a preview look like a write.
+    return ProductionPreviewResponse(**result)
+
+
+@router.get(
+    "/production/runs",
+    response_model=list[ProductionHistoryRow],
+    dependencies=[Depends(require_role("admin", "manager"))],
+)
+async def list_production_runs(
+    location_id: uuid.UUID | None = Query(None),
+    limit: int = Query(50, ge=1, le=200),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[ProductionHistoryRow]:
+    """What has been made, newest first."""
+    rows = await production_service.list_production_runs(
+        db,
+        tenant_id=current_user.tenant_id,
+        location_id=location_id,
+        limit=limit,
+    )
+    return [ProductionHistoryRow(**row) for row in rows]
 
 
 @router.post(
