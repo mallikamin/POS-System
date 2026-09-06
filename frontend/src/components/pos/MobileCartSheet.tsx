@@ -11,9 +11,15 @@
  * exactly what he photographed.
  *
  * So below `lg` the right column stops being a column. The menu gets the whole
- * screen, and this renders a fixed bar at the bottom that opens the same panel
- * full height. At `lg` and up nothing changes at all -- the desktop and tablet
- * tills are untouched.
+ * screen, and this renders a fixed bar at the bottom that slides the same panel
+ * up over the page. At `lg` and up nothing changes at all -- the desktop and
+ * tablet tills are untouched.
+ *
+ * 🔴 `children` is rendered EXACTLY ONCE and is never unmounted. The first cut
+ * of this component rendered it twice, in a desktop column and again inside the
+ * sheet, which mounted two CartPanels at the same time and threw away anything
+ * typed into the sheet (a delivery fee, a customer name) the moment it closed.
+ * The panel is one instance whose POSITIONING changes; only CSS moves.
  *
  * 🔴 The bar shows an item COUNT and no money. The total on the cart can carry
  * a delivery fee and a service charge that this component knows nothing about,
@@ -39,8 +45,8 @@ export function MobileCartSheet({ children, className }: MobileCartSheetProps) {
   const [open, setOpen] = useState(false);
 
   // The sheet is a phone affordance. Rotating a tablet to landscape crosses
-  // `lg`, where the panel is on screen permanently; leaving the sheet open
-  // would then paint a second copy of it over the page.
+  // `lg`, where the panel is on screen permanently; leaving `open` set would
+  // then keep the backdrop painted over a page that no longer needs it.
   useEffect(() => {
     const query = window.matchMedia("(min-width: 1024px)");
     const close = () => {
@@ -51,7 +57,7 @@ export function MobileCartSheet({ children, className }: MobileCartSheetProps) {
     return () => query.removeEventListener("change", close);
   }, []);
 
-  // The body must not scroll behind an open sheet, or a flick on the backdrop
+  // The page must not scroll behind an open sheet, or a flick on the backdrop
   // scrolls the menu underneath it.
   useEffect(() => {
     if (!open) return;
@@ -64,18 +70,54 @@ export function MobileCartSheet({ children, className }: MobileCartSheetProps) {
 
   return (
     <>
-      {/* Desktop and landscape tablet: the column, exactly as before. */}
+      {/* Backdrop. Phone only, and only while the sheet is up. */}
+      {open && (
+        <div
+          className="fixed inset-0 z-40 bg-black/40 lg:hidden"
+          onClick={() => setOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* The panel itself. ONE instance.
+          At `lg`: a normal in-flow column, exactly as before.
+          Below `lg`: a fixed sheet, translated off the bottom until opened. */}
       <div
         className={cn(
-          "hidden shrink-0 border-l border-secondary-200 lg:flex lg:flex-col",
+          "flex flex-col border-secondary-200 bg-white",
+          // Phone: the sheet.
+          "fixed inset-x-0 bottom-0 top-10 z-50 overflow-hidden rounded-t-2xl shadow-2xl transition-transform duration-200",
+          !open && "translate-y-full",
+          // Laptop and landscape tablet: back into the row, untransformed.
+          "lg:static lg:z-auto lg:translate-y-0 lg:rounded-none lg:border-l lg:shadow-none",
+          "lg:shrink-0",
           className ?? "lg:w-80",
         )}
+        // A sheet that is slid off-screen is still in the DOM, so it has to be
+        // hidden from a screen reader and from tab order as well as from view.
+        // `inert` is not typed on React 18's JSX, hence the attribute form.
+        {...(!open ? { "aria-hidden": true } : {})}
       >
-        {children}
+        <div className="flex items-center justify-between border-b border-secondary-200 px-4 py-2 lg:hidden">
+          <span className="text-sm font-semibold text-secondary-800">
+            Current order
+          </span>
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            aria-label="Close order panel"
+            className="flex h-11 w-11 items-center justify-center rounded text-secondary-500"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto lg:overflow-visible">
+          {children}
+        </div>
       </div>
 
-      {/* Phone: a bar at the bottom. `pb-safe` keeps it clear of the iOS home
-          indicator, which otherwise sits on top of the button. */}
+      {/* Phone: the bar that opens it. `env(safe-area-inset-bottom)` keeps it
+          clear of the iOS home indicator, which otherwise sits on the button. */}
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-secondary-200 bg-white p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-2px_10px_rgba(0,0,0,0.06)] lg:hidden">
         <button
           type="button"
@@ -88,34 +130,6 @@ export function MobileCartSheet({ children, className }: MobileCartSheetProps) {
             : `View order · ${itemCount} item${itemCount === 1 ? "" : "s"}`}
         </button>
       </div>
-
-      {open && (
-        <div className="fixed inset-0 z-40 lg:hidden">
-          <div
-            className="absolute inset-0 bg-black/40"
-            onClick={() => setOpen(false)}
-            aria-hidden="true"
-          />
-          <div className="absolute inset-x-0 bottom-0 top-10 flex flex-col overflow-hidden rounded-t-2xl bg-white">
-            <div className="flex items-center justify-between border-b border-secondary-200 px-4 py-2">
-              <span className="text-sm font-semibold text-secondary-800">
-                Current order
-              </span>
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                aria-label="Close order panel"
-                className="flex h-11 w-11 items-center justify-center rounded text-secondary-500"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-              {children}
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 }
