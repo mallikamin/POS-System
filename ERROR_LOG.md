@@ -1554,3 +1554,53 @@ genuine defect with no human clicking anything.
   you were editing: `_po_out` was updated and `_receipt_out` was missed in the same file.
 - **Second rule**: this was caught by reading the DATABASE ROW, not the API response and not
   the test suite. When a value crosses a unit boundary, check the stored row at least once.
+
+---
+
+### [2026-09-06] — A verification harness that reads a schema proves the schema, not the server
+
+- **Error**: The first production verification of Martin's twelve asks reported **14 failures**
+  out of 48 checks. Eleven of them were false. Read at face value it said M2, M3, M5, M6, M8
+  and M13 were all broken on a build that had just been deployed and verified.
+- **Context**: Malik asked for the whole set to be confirmed over the API before UAT. The
+  script proved each contract by fetching `/openapi.json` and looking for the field in
+  `components.schemas`.
+- **Root Cause**: **Production does not expose the OpenAPI schema.** The SPA answers 200 with
+  `index.html` for any path it does not recognise, so the fetch "succeeded", `.json()` threw,
+  and `schemas` stayed an empty dict. Every `field_of(...)` check then returned False for the
+  same wrong reason. Three further failures were the same class of harness bug: a 422 body
+  echoes the request, so searching the whole response text for a field name always matches;
+  the charges live on the order DETAIL and never on the list row; and the customer address
+  field is `default_address`, not `address_line1`.
+- **Fix**: Rewrote every contract check to read the field off a **live response**, and to
+  probe the validator with a request the server rejects before writing anything (send
+  `fulfilment_mode: "bogus"` and assert a 422 that names the field; send a valid `direct` with
+  an empty basket and assert the only complaint is the basket). All twelve then passed.
+- **Rule**: **Verify against the running server's behaviour, not its description of itself.**
+  A schema check passes when the schema is right; a live response check passes when the thing
+  Malik will actually use is right. And when a check fails, ask whether the HARNESS is wrong
+  before reporting a defect: eleven identical failures across six unrelated features is a
+  signal about the test, not about six features.
+- **Second rule**: when a status check drives a decision, check the CONTENT TYPE too. A SPA
+  returns 200 and HTML for everything.
+
+---
+
+### [2026-09-06] — A "responsive" wrapper that renders its children twice mounts two components
+
+- **Error**: The new mobile cart sheet rendered `{children}` in a hidden desktop column AND
+  again inside the sheet. Two `CartPanel` instances were mounted at once, each with its own
+  local state, and because the sheet's copy unmounted on close, anything typed into it (a
+  delivery fee, a customer name, the new fulfilment choice) was silently discarded.
+- **Context**: Fixing Martin's M12, the till being unusable on a phone. Caught by reading the
+  component back before committing, not by a test.
+- **Root Cause**: The obvious way to write a "column on desktop, sheet on mobile" wrapper is
+  two branches with the same children in each. It type-checks, it builds, and it looks right
+  in both breakpoints.
+- **Fix**: One instance, never unmounted, whose POSITIONING changes: a fixed sheet translated
+  off the bottom below `lg`, a normal in-flow column at `lg` and up. `aria-hidden` while it is
+  slid away, since it stays in the DOM.
+- **Rule**: **A responsive wrapper must render its children exactly once.** If a component
+  holds state, mounting it twice is not a rendering detail, it is two different states one of
+  which is about to be thrown away. Grep for the children expression: seeing it twice in one
+  component is the smell.
