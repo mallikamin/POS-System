@@ -51,6 +51,8 @@ export default function Checkout({ onBack, onPlaced }: Props) {
   // ordering-unavailable copy.
   const orderingPaused = useMenu((s) => s.orderingPaused);
   const pausedMessage = useMenu((s) => s.pausedMessage);
+  // Closed, as opposed to paused for a rush: see CLOSURE_NOTICE.
+  const closed = orderingPaused && CLOSURE_NOTICE !== null;
   // OI-78. Reached straight from the store rather than threaded down as a prop:
   // App already owns the automatic retries, and this is the same `load`.
   const reloadMenu = useMenu((s) => s.load);
@@ -524,14 +526,28 @@ export default function Checkout({ onBack, onPlaced }: Props) {
         /* Either the shop has paused ordering during a rush, ordering is not
            switched on yet, or the menu never loaded. Never imply an order was
            placed — send them to the phone with their basket total in hand. */
-        <div className="card p-4 space-y-3 border-ember/40">
-          <p className="font-semibold text-ember">
-            {orderingPaused
-              ? "We're not taking online orders right now"
-              : "Your internet connection has dropped"}
+        <div
+          className={`card space-y-3 ${
+            closed
+              ? "p-5 text-center border-2 border-flame/60 bg-flame/10"
+              : "p-4 border-ember/40"
+          }`}
+        >
+          <p
+            className={
+              closed
+                ? "font-display text-2xl text-flame leading-tight"
+                : "font-semibold text-ember"
+            }
+          >
+            {closed
+              ? "Temporarily closed"
+              : orderingPaused
+                ? "We're not taking online orders right now"
+                : "Your internet connection has dropped"}
           </p>
-          <p className="text-sm text-cream/70">
-            {orderingPaused && CLOSURE_NOTICE ? (
+          <p className={closed ? "text-lg text-cream leading-snug" : "text-sm text-cream/70"}>
+            {closed ? (
               /* Closed, not busy: no phone number and no total to read out. */
               CLOSURE_NOTICE
             ) : orderingPaused ? (
@@ -567,7 +583,8 @@ export default function Checkout({ onBack, onPlaced }: Props) {
               {menuSource === "loading" ? "Trying again…" : "Retry"}
             </button>
           )}
-          <div className="grid gap-2">
+          {/* Nobody is in the shop to answer, so no Call buttons while closed. */}
+          <div className={closed ? "hidden" : "grid gap-2"}>
             {SHOP.phones.map((p) => (
               <a
                 key={p}
@@ -578,13 +595,13 @@ export default function Checkout({ onBack, onPlaced }: Props) {
               </a>
             ))}
           </div>
-          <p className="text-xs text-cream/45">
+          <p className={closed ? "hidden" : "text-xs text-cream/45"}>
             Open daily {SHOP.openTime}–{SHOP.closeTime}.
           </p>
         </div>
       )}
 
-      <div className="card p-3 text-xs text-cream/70">
+      <div className={closed ? "hidden" : "card p-3 text-xs text-cream/70"}>
         <p className="font-bold uppercase tracking-wide text-cream/90">
           Hours
         </p>
