@@ -103,3 +103,15 @@ export const DEFAULT_PAUSED_MESSAGE =
   "We are facing high demand at the moment, please directly call the " +
   "restaurant 07719 566 889 to place your order. We appreciate your " +
   "patience in this regard.";
+
+/**
+ * Temporary closure (Malik, 2026-09-21). While set, this replaces the paused
+ * wording everywhere, including the server-supplied one: the rush message
+ * tells people to phone, and nobody is there to answer. It only shows while
+ * ordering is paused on the POS, so resuming there reopens the site with no
+ * deploy. Set back to `null` once the shop reopens, or the next rush pause
+ * will announce a closure.
+ */
+export const CLOSURE_NOTICE: string | null =
+  "Due to unforeseen circumstances, we are temporarily closed. " +
+  "We'll be back soon.";

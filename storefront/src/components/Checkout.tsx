@@ -10,7 +10,12 @@ import {
 } from "../lib/delivery";
 import type { OrderTiming } from "../lib/delivery";
 import { orderLinesOf, subtotalOf, useCart } from "../store/cart";
-import { DEFAULT_PAUSED_MESSAGE, canOrder, useMenu } from "../store/menu";
+import {
+  CLOSURE_NOTICE,
+  DEFAULT_PAUSED_MESSAGE,
+  canOrder,
+  useMenu,
+} from "../store/menu";
 import { ApiError, createCheckoutSession, placeOrder } from "../lib/api";
 import type { ApiOrderResponse } from "../lib/api";
 import { savePendingOrder } from "../lib/pendingOrder";
@@ -526,7 +531,10 @@ export default function Checkout({ onBack, onPlaced }: Props) {
               : "Your internet connection has dropped"}
           </p>
           <p className="text-sm text-cream/70">
-            {orderingPaused ? (
+            {orderingPaused && CLOSURE_NOTICE ? (
+              /* Closed, not busy: no phone number and no total to read out. */
+              CLOSURE_NOTICE
+            ) : orderingPaused ? (
               /* Imran's own wording, server-supplied so it can be changed
                  without a storefront deploy. The basket total is still shown —
                  the customer is about to read it out over the phone. */

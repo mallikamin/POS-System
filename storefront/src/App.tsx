@@ -4,7 +4,7 @@ import { formatGBP } from "./lib/money";
 import { isOpenNow } from "./lib/delivery";
 import type { OrderTiming } from "./lib/delivery";
 import { itemCountOf, subtotalOf, useCart } from "./store/cart";
-import { DEFAULT_PAUSED_MESSAGE, useMenu } from "./store/menu";
+import { CLOSURE_NOTICE, DEFAULT_PAUSED_MESSAGE, useMenu } from "./store/menu";
 import type { ApiOrderResponse } from "./lib/api";
 import MenuBrowser from "./components/MenuBrowser";
 import CartPanel from "./components/CartPanel";
@@ -208,7 +208,7 @@ export default function App() {
                 notice below because it is the reason they cannot order at all. */}
             {orderingPaused ? (
               <p className="mt-4 card p-3 text-sm text-ember border-ember/40">
-                {pausedMessage ?? DEFAULT_PAUSED_MESSAGE}
+                {CLOSURE_NOTICE ?? pausedMessage ?? DEFAULT_PAUSED_MESSAGE}
               </p>
             ) : menuFailed ? (
               /* OI-78. Say it here, not at the checkout total. The old
