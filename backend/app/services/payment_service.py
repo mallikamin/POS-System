@@ -901,14 +901,24 @@ async def _sync_order_payment_status(
 
     # Auto-complete: a dine-in order that is "served" and fully paid is done.
     # This ensures the table is released without waiting for a manual transition.
-    if (
+    auto_completed = (
         order.payment_status == "paid"
         and order.status == "served"
         and order.order_type == "dine_in"
-    ):
+    )
+    if auto_completed:
         order.status = "completed"
 
     await db.flush()
+
+    # A completion is a completion however it is reached. This path used to
+    # skip the recipe deduction, so a dine-in order paid after being served
+    # never left the stock (found seeding Danny's, 2026-09-24). Same call the
+    # manual `completed` transition makes; a no-op for tenants without locations.
+    if auto_completed:
+        from app.services.order_service import _apply_inventory_and_commission
+
+        await _apply_inventory_and_commission(db, tenant_id, order)
 
     if order.customer_id is not None:
         customer = await customer_service.get_customer(db, order.customer_id, tenant_id)
