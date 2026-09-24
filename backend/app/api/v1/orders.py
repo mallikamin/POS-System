@@ -135,7 +135,8 @@ async def list_orders(
             table_label=o.table.label if o.table else None,
             waiter_id=o.waiter_id,
             waiter_name=o.waiter.full_name if getattr(o, "waiter", None) else None,
-            item_count=len(o.items),
+            # Portions, as the kitchen counts them: "2x Soup" is two items (D-23).
+            item_count=sum(i.quantity for i in o.items),
             total=o.total,
             sales_channel_id=o.sales_channel_id,
             sales_channel_name=(

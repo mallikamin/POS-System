@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { formatPKR, rupeesToPaisa, paisaToRupees } from "@/utils/currency";
+import { formatPKR, rupeesToPaisa, paisaToRupees, minorToInputString, snapToDue } from "@/utils/currency";
 import * as paymentsApi from "@/services/paymentsApi";
 import {
   fetchDiscountTypes,
@@ -151,8 +151,8 @@ function SessionPaymentPage() {
       if (s.due_amount > 0 && p) {
         const cashDue = Math.max(p.cash_total - s.paid_amount, 0);
         const cardDue = Math.max(p.card_total - s.paid_amount, 0);
-        setCashAmount(String(paisaToRupees(cashDue)));
-        setCardAmount(String(paisaToRupees(cardDue)));
+        setCashAmount(minorToInputString(cashDue));
+        setCardAmount(minorToInputString(cardDue));
         const postDiscountSubtotal = p.subtotal - (db?.total_discount ?? 0);
         const halfSubtotal = Math.round(postDiscountSubtotal / 2);
         setSplitCashBase(String(paisaToRupees(halfSubtotal)));
@@ -167,9 +167,9 @@ function SessionPaymentPage() {
   useEffect(() => {
     if (!summary || summary.due_amount <= 0) return;
     if (mode === "cash") {
-      setCashAmount(String(paisaToRupees(cashDueAmount)));
+      setCashAmount(minorToInputString(cashDueAmount));
     } else if (mode === "card") {
-      setCardAmount(String(paisaToRupees(cardDueAmount)));
+      setCardAmount(minorToInputString(cardDueAmount));
     }
   }, [mode, summary, cashDueAmount, cardDueAmount]);
 
@@ -181,12 +181,12 @@ function SessionPaymentPage() {
     try {
       const next = await paymentsApi.createSessionPayment(sessionId, {
         method_code: "cash",
-        amount: parseRupees(cashAmount) || cashDueAmount,
+        amount: snapToDue(parseRupees(cashAmount), cashDueAmount) || cashDueAmount,
         tendered_amount: parseRupees(cashTendered) || undefined,
       });
       setSummary(next);
       const tenderedPaisa = parseRupees(cashTendered);
-      const amountPaisa = parseRupees(cashAmount);
+      const amountPaisa = snapToDue(parseRupees(cashAmount), cashDueAmount) || cashDueAmount;
       if (tenderedPaisa > amountPaisa) {
         setSuccess(`Cash payment recorded. Change: ${formatPKR(tenderedPaisa - amountPaisa)}`);
       } else {
@@ -209,7 +209,7 @@ function SessionPaymentPage() {
     try {
       const next = await paymentsApi.createSessionPayment(sessionId, {
         method_code: "card",
-        amount: parseRupees(cardAmount) || cardDueAmount,
+        amount: snapToDue(parseRupees(cardAmount), cardDueAmount) || cardDueAmount,
         reference: cardReference || undefined,
       });
       setSummary(next);

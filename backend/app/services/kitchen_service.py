@@ -1,9 +1,9 @@
 """Kitchen service -- station CRUD, ticket queue, and ticket state machine."""
 
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -115,8 +115,14 @@ async def get_station_queue(
     station_id: uuid.UUID,
     tenant_id: uuid.UUID,
     active_only: bool = True,
+    served_within_minutes: int | None = None,
 ) -> list[KitchenTicket]:
-    """Get tickets for a station, optionally filtering to active only."""
+    """Get tickets for a station, optionally filtering to active only.
+
+    `served_within_minutes` keeps served tickets only while they are recent.
+    The kitchen board asked for everything ever served, so its SERVED column
+    would grow with every meal the restaurant had cooked.
+    """
     stmt = (
         select(KitchenTicket)
         .options(
@@ -132,6 +138,14 @@ async def get_station_queue(
     )
     if active_only:
         stmt = stmt.where(KitchenTicket.status.notin_(["served"]))
+    elif served_within_minutes is not None:
+        cutoff = datetime.now(timezone.utc) - timedelta(minutes=served_within_minutes)
+        stmt = stmt.where(
+            or_(
+                KitchenTicket.status != "served",
+                KitchenTicket.served_at >= cutoff,
+            )
+        )
     stmt = stmt.order_by(
         KitchenTicket.priority.desc(),
         KitchenTicket.created_at.asc(),
@@ -201,6 +215,57 @@ async def transition_ticket(
     tid = ticket.id
     db.expunge(ticket)
     return await get_ticket(db, tid, tenant_id)  # type: ignore[return-value]
+
+
+async def sync_order_from_tickets(
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    order_id: uuid.UUID,
+    user_id: uuid.UUID,
+) -> None:
+    """Move the order on when the kitchen has moved all of its tickets.
+
+    Ticket and order were separate state machines: the kitchen bumped a meal to
+    Served and the order stayed "In Kitchen" for ever, so paying never completed
+    it and its recipes never left stock (Danny's UAT D-21, 2026-09-25). Now every
+    ticket Ready makes the order Ready, every ticket Served makes it Served, and
+    a Served order that is already paid completes in `transition_order`.
+    """
+    from app.models.order import Order
+    from app.services import order_service  # local: order_service imports this module
+
+    order = (
+        await db.execute(
+            select(Order).where(Order.id == order_id, Order.tenant_id == tenant_id)
+        )
+    ).scalar_one_or_none()
+    if order is None or order.order_type not in order_service.KITCHEN_SYNCED_ORDER_TYPES:
+        return
+
+    statuses = (
+        await db.execute(
+            select(KitchenTicket.status).where(
+                KitchenTicket.tenant_id == tenant_id,
+                KitchenTicket.order_id == order_id,
+            )
+        )
+    ).scalars().all()
+    if not statuses:
+        return
+    if all(s == "served" for s in statuses):
+        target = "served"
+    elif all(s in ("ready", "served") for s in statuses):
+        target = "ready"
+    else:
+        return
+
+    steps = {
+        ("in_kitchen", "ready"): ["ready"],
+        ("in_kitchen", "served"): ["ready", "served"],
+        ("ready", "served"): ["served"],
+    }.get((order.status, target), [])
+    for step in steps:
+        await order_service.transition_order(db, order_id, tenant_id, user_id, step)
 
 
 # ---------------------------------------------------------------------------

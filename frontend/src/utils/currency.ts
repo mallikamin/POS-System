@@ -142,6 +142,33 @@ export function minorToMajor(minor: number, code: string = activeCode): number {
   return minor / 10 ** getCurrencyDef(code).minorExponent;
 }
 
+/**
+ * An amount as the cashier types it: rounded to what the currency shows.
+ *
+ * The payment box pre-filled "6893.88" for a bill every other line of the
+ * screen called Rs. 6,894 (Danny's UAT D-17). Rupees are shown whole, so the
+ * box is too. Pence and fils keep their decimals.
+ */
+export function minorToInputString(minor: number, code: string = activeCode): string {
+  const def = getCurrencyDef(code);
+  const major = minor / 10 ** def.minorExponent;
+  return String(Number(major.toFixed(def.displayDecimals)));
+}
+
+/**
+ * The amount to post when the cashier took the amount due as displayed.
+ *
+ * Typing the rounded Rs. 6,894 against 6,893.88 due would overpay by 12 paisa.
+ * Within half a displayed unit of the due, post the due itself; anything
+ * further away is a deliberate part payment or overpayment and is left alone.
+ */
+export function snapToDue(typedMinor: number, dueMinor: number, code: string = activeCode): number {
+  const def = getCurrencyDef(code);
+  const hiddenDigits = def.minorExponent - def.displayDecimals;
+  if (hiddenDigits <= 0 || typedMinor <= 0) return typedMinor;
+  return Math.abs(typedMinor - dueMinor) * 2 <= 10 ** hiddenDigits ? dueMinor : typedMinor;
+}
+
 /** @deprecated Use `majorToMinor`. */
 export function rupeesToPaisa(rupees: number): number {
   return majorToMinor(rupees);

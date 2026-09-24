@@ -91,6 +91,8 @@ function toTicketFromEvent(
     customer_name: existing?.customer_name,
     customer_phone: existing?.customer_phone,
     table_id: existing?.table_id,
+    table_label: evt.data.table_label ?? existing?.table_label ?? null,
+    waiter_name: evt.data.waiter_name ?? existing?.waiter_name ?? null,
     items: evt.data.items?.map((item) => ({
       id: item.order_item_id,
       order_item_id: item.order_item_id,

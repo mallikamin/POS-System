@@ -14,6 +14,8 @@ Event payload shape:
         "station_name": str,
         "order_number": str,
         "order_type": str,
+        "table_label": str | null,
+        "waiter_name": str | null,
         "status": str,
         "previous_status": str | null,
         "priority": int,
@@ -42,13 +44,18 @@ def _build_ticket_payload(ticket: KitchenTicket) -> dict:
                 "quantity": ti.quantity,
             }
         )
+    order = ticket.order
+    table = order.table if order else None
+    waiter = order.waiter if order else None
     return {
         "ticket_id": str(ticket.id),
         "order_id": str(ticket.order_id),
         "station_id": str(ticket.station_id),
         "station_name": ticket.station.name if ticket.station else None,
-        "order_number": ticket.order.order_number if ticket.order else None,
-        "order_type": ticket.order.order_type if ticket.order else None,
+        "order_number": order.order_number if order else None,
+        "order_type": order.order_type if order else None,
+        "table_label": (table.label or f"T{table.number}") if table else None,
+        "waiter_name": waiter.full_name if waiter else None,
         "status": ticket.status,
         "priority": ticket.priority,
         "items": items,

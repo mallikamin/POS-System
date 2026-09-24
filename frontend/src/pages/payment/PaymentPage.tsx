@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { formatPKR, rupeesToPaisa, paisaToRupees } from "@/utils/currency";
+import { formatPKR, rupeesToPaisa, paisaToRupees, minorToInputString, snapToDue } from "@/utils/currency";
 import * as paymentsApi from "@/services/paymentsApi";
 import { fetchOrder, fetchPaymentPreview, verifyPassword } from "@/services/ordersApi";
 import {
@@ -170,7 +170,7 @@ function PaymentPage() {
       setDiscountBreakdown(nextDiscBreakdown);
       // Auto-fill amount fields with due amount
       if (nextSummary.due_amount > 0) {
-        const dueRupees = String(paisaToRupees(nextSummary.due_amount));
+        const dueRupees = minorToInputString(nextSummary.due_amount);
         setCashAmount(dueRupees);
         setCardAmount(dueRupees);
         const postDiscountSubtotal = nextPreview.subtotal - (nextDiscBreakdown?.total_discount ?? 0);
@@ -193,13 +193,13 @@ function PaymentPage() {
       const next = await paymentsApi.createPayment({
         order_id: orderId,
         method_code: "cash",
-        amount: parseRupees(cashAmount),
+        amount: snapToDue(parseRupees(cashAmount), summary?.due_amount ?? 0),
         tendered_amount: parseRupees(cashTendered) || undefined,
       });
       setSummary(next);
       // Show change in success message if tendered > amount
       const tenderedPaisa = parseRupees(cashTendered);
-      const amountPaisa = parseRupees(cashAmount);
+      const amountPaisa = snapToDue(parseRupees(cashAmount), summary?.due_amount ?? 0);
       if (tenderedPaisa > amountPaisa) {
         setSuccess(`Cash payment recorded. Change due: ${formatPKR(tenderedPaisa - amountPaisa)}`);
       } else {
@@ -223,7 +223,7 @@ function PaymentPage() {
       const next = await paymentsApi.createPayment({
         order_id: orderId,
         method_code: "card",
-        amount: parseRupees(cardAmount),
+        amount: snapToDue(parseRupees(cardAmount), summary?.due_amount ?? 0),
         reference: cardReference || undefined,
       });
       setSummary(next);

@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { toLocalISODate } from "@/utils/localDate";
 import {
   fetchDashboardKpis,
   fetchLiveOperations,
@@ -313,7 +314,7 @@ function AdminDashboard() {
 
   const loadData = useCallback(async () => {
     try {
-      const today = new Date().toISOString().split("T")[0] ?? "";
+      const today = toLocalISODate();
       const [kpiData, liveData, hourlyData, itemData] = await Promise.all([
         fetchDashboardKpis(),
         fetchLiveOperations(),

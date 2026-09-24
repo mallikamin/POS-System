@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Minus, Plus, Printer, ShoppingCart, ChefHat, X, Loader2, CreditCard, User, Search, RotateCcw, Truck } from "lucide-react";
+import { Minus, Plus, Printer, ShoppingCart, ChefHat, X, Loader2, CreditCard, User, Search, RotateCcw, Truck, SlidersHorizontal, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ReceiptModal } from "@/components/pos/ReceiptModal";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,7 @@ import { useUIStore } from "@/stores/uiStore";
 import { useCustomerStore } from "@/stores/customerStore";
 import { useConfigStore } from "@/stores/configStore";
 import { SaleAttributionPicker } from "@/components/pos/SaleAttributionPicker";
+import { useSaleAttributionStore } from "@/stores/saleAttributionStore";
 import { searchCustomers } from "@/services/customerApi";
 import type { CustomerResponse } from "@/types/customer";
 
@@ -55,6 +56,15 @@ export function CartPanel({ waiterId, onOrderCreated }: CartPanelProps = {}) {
   const isPayFirst = paymentFlow === "pay_first";
 
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
+  /*
+   * Channel, charges and the kitchen/direct switch fold behind one row. Open,
+   * they took most of the panel's height and left the order lines a scroll box
+   * that showed two dishes of seven (Danny's UAT D-07, 2026-09-25). The row's
+   * summary always says what is set, so nothing changes out of sight.
+   */
+  const [optionsOpen, setOptionsOpen] = useState(false);
+  const attributionChannels = useSaleAttributionStore((s) => s.channels);
+  const attributionChannelId = useSaleAttributionStore((s) => s.channelId);
   const [sentSuccess, setSentSuccess] = useState(false);
   const [orderNumber, setOrderNumber] = useState<string | null>(null);
   const [displayError, setDisplayError] = useState<string | null>(null);
@@ -342,6 +352,32 @@ export function CartPanel({ waiterId, onOrderCreated }: CartPanelProps = {}) {
       {/* Totals + Actions */}
       {cart.lines.length > 0 && (
         <div className="border-t border-secondary-200 p-4 space-y-3">
+          <div className="rounded-lg border border-secondary-200">
+            <button
+              type="button"
+              onClick={() => setOptionsOpen(!optionsOpen)}
+              className="flex w-full items-center gap-2 px-3 py-2 text-xs font-medium text-secondary-700 hover:bg-secondary-50 transition-colors min-h-[44px]"
+              aria-expanded={optionsOpen}
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5 shrink-0 text-secondary-400" />
+              <span className="shrink-0">Order options</span>
+              <span className="min-w-0 flex-1 truncate text-right text-secondary-500">
+                {[
+                  attributionChannels.length > 0
+                    ? (attributionChannels.find((c) => c.id === attributionChannelId)?.name ?? "Direct")
+                    : null,
+                  chargesTotal > 0 ? `Charges ${formatPKR(chargesTotal)}` : null,
+                  !isPayFirst ? (fulfilment === "kitchen" ? "To kitchen" : "Print & deduct") : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </span>
+              <ChevronDown
+                className={cn("h-3.5 w-3.5 shrink-0 text-secondary-400 transition-transform", optionsOpen && "rotate-180")}
+              />
+            </button>
+            {optionsOpen && (
+              <div className="space-y-3 border-t border-secondary-100 p-3">
           {/* Which site made this sale, and through which channel. Renders
               nothing for a tenant with no locations configured. */}
           <SaleAttributionPicker />
@@ -391,37 +427,6 @@ export function CartPanel({ waiterId, onOrderCreated }: CartPanelProps = {}) {
                 </p>
               </div>
             )}
-          </div>
-
-          {/* Totals */}
-          <div className="space-y-1 text-sm">
-            <div className="flex justify-between text-secondary-600">
-              <span>Subtotal</span>
-              <span>{formatPKR(subtotal)}</span>
-            </div>
-            <div className="flex justify-between text-secondary-600">
-              <span>
-                {taxName(currency)} ({TAX_BPS / 100}%
-                {pricesIncludeTax ? ", included" : ""})
-              </span>
-              <span>{formatPKR(tax)}</span>
-            </div>
-            {deliveryFee > 0 && (
-              <div className="flex justify-between text-secondary-600">
-                <span>Delivery fee</span>
-                <span>{formatPKR(deliveryFee)}</span>
-              </div>
-            )}
-            {serviceFee > 0 && (
-              <div className="flex justify-between text-secondary-600">
-                <span>Service charge</span>
-                <span>{formatPKR(serviceFee)}</span>
-              </div>
-            )}
-            <div className="flex justify-between font-bold text-secondary-900 text-base pt-1 border-t border-secondary-100">
-              <span>Total</span>
-              <span>{formatPKR(total)}</span>
-            </div>
           </div>
 
           {/*
@@ -477,6 +482,41 @@ export function CartPanel({ waiterId, onOrderCreated }: CartPanelProps = {}) {
               </p>
             </div>
           )}
+
+              </div>
+            )}
+          </div>
+
+          {/* Totals */}
+          <div className="space-y-1 text-sm">
+            <div className="flex justify-between text-secondary-600">
+              <span>Subtotal</span>
+              <span>{formatPKR(subtotal)}</span>
+            </div>
+            <div className="flex justify-between text-secondary-600">
+              <span>
+                {taxName(currency)} ({TAX_BPS / 100}%
+                {pricesIncludeTax ? ", included" : ""})
+              </span>
+              <span>{formatPKR(tax)}</span>
+            </div>
+            {deliveryFee > 0 && (
+              <div className="flex justify-between text-secondary-600">
+                <span>Delivery fee</span>
+                <span>{formatPKR(deliveryFee)}</span>
+              </div>
+            )}
+            {serviceFee > 0 && (
+              <div className="flex justify-between text-secondary-600">
+                <span>Service charge</span>
+                <span>{formatPKR(serviceFee)}</span>
+              </div>
+            )}
+            <div className="flex justify-between font-bold text-secondary-900 text-base pt-1 border-t border-secondary-100">
+              <span>Total</span>
+              <span>{formatPKR(total)}</span>
+            </div>
+          </div>
 
           {/* Action buttons */}
           <div className="space-y-2">

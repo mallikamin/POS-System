@@ -36,8 +36,8 @@ from app.models.floor import Floor, Table
 from app.models.inventory import Ingredient, Recipe
 from app.models.kitchen import KitchenStation
 from app.models.location import Location, SalesChannel
-from app.models.menu import Category, MenuItem
-from app.models.order import Order, OrderItem
+from app.models.menu import Category, MenuItem, MenuItemModifierGroup, Modifier, ModifierGroup
+from app.models.order import Order, OrderItem, OrderItemModifier
 from app.models.payment import Payment, PaymentMethod
 from app.models.procurement import PurchaseOrder, Supplier
 from app.models.restaurant_config import RestaurantConfig
@@ -70,6 +70,10 @@ TENANT_NAME = "Danny's Restaurant Faisalabad (Demo)"
 # not confirmed with Danny's.
 TAX_BPS = 1600
 
+# The receipt already prints the restaurant's name above this; repeating it
+# printed "Danny's" twice (Danny's UAT D-19).
+RECEIPT_HEADER = "Sitara Villas, Canal Expressway, Faisalabad"
+
 USERS = [
     {"email": "admin@dannys-demo.com", "full_name": "Danny's Owner (Demo)",
      "password": "Dannys@2026", "pin": "2609", "role_name": "admin"},
@@ -95,19 +99,27 @@ LOCATION = {
 
 # Commission in basis points. Foodpanda's rate is a representative figure, not
 # Danny's contract rate.
+#
+# Aggregators only. A sales channel is a third party that takes a cut; a walk-in
+# or phone order is already an ORDER TYPE, and with no channel it reports as
+# "Direct / unassigned" at 0% commission. The first seed also created
+# "Walk-in / Dine-in" and "Phone Delivery" channels, which put duplicate tiles
+# on the POS home screen (Danny's UAT D-02); they are retired below.
 SALES_CHANNELS = [
-    {"name": "Walk-in / Dine-in", "code": "direct", "commission_bps": 0, "fixed_fee_minor": 0,
-     "notes": "Own customers, no commission."},
-    {"name": "Phone Delivery", "code": "phone", "commission_bps": 0, "fixed_fee_minor": 0,
-     "notes": "Call centre orders, own riders."},
     {"name": "Foodpanda", "code": "foodpanda", "commission_bps": 2500, "fixed_fee_minor": 0,
      "notes": "Representative aggregator rate. Confirm the real contract rate."},
 ]
+RETIRED_CHANNEL_CODES = ("direct", "phone")
 
+# Malik, 2026-09-25: "Danny's probably have 2 halls and 1 tree house" (D-05).
+# Table counts per area are still a guess until Danny's confirm them.
 FLOORS = [
-    {"name": "Main Hall", "tables": 10, "capacity": 4},
-    {"name": "Outdoor Terrace", "tables": 6, "capacity": 6},
+    {"name": "Hall 1", "tables": 10, "capacity": 4},
+    {"name": "Hall 2", "tables": 6, "capacity": 6},
+    {"name": "Tree House", "tables": 6, "capacity": 4},
 ]
+# The first seed's names, renamed in place so their tables and history stay.
+FLOOR_RENAMES = {"Main Hall": "Hall 1", "Outdoor Terrace": "Hall 2"}
 
 # ---------------------------------------------------------------------------
 # IMAGES (public Unsplash photos, generic, not Danny's own). Each one was looked
@@ -201,12 +213,10 @@ MENU_ITEMS: dict[str, tuple[str, int, str, str]] = {
     "Rib-eye Steak (Local)": ("Beef Steaks", 3299, "steak", "Local rib-eye cut"),
     "Tenderloin Steak (Local)": ("Beef Steaks", 3299, "steak", "Local tenderloin cut"),
     "Tenderloin Steak (Imported)": ("Beef Steaks", 5699, "steak", "Imported tenderloin cut"),
-    "Mutton Karahi (Half)": ("Pakistani", 2549, "mutton_karahi", "Black, white or red"),
-    "Mutton Karahi (Full)": ("Pakistani", 4199, "mutton_karahi", "Black, white or red"),
-    "Chicken Karahi (Half)": ("Pakistani", 1889, "karahi", "Black, white or red"),
-    "Chicken Karahi (Full)": ("Pakistani", 2849, "karahi", "Black, white or red"),
-    "Shahi Handi (Half)": ("Pakistani", 1549, "handi", "Boneless chicken in a creamy handi"),
-    "Shahi Handi (Full)": ("Pakistani", 2449, "handi", "Boneless chicken in a creamy handi"),
+    # Priced at the Half; Full is a portion choice on the dish (see PORTIONS).
+    "Mutton Karahi": ("Pakistani", 2549, "mutton_karahi", "Black, white or red. Half or full"),
+    "Chicken Karahi": ("Pakistani", 1889, "karahi", "Black, white or red. Half or full"),
+    "Shahi Handi": ("Pakistani", 1549, "handi", "Boneless chicken in a creamy handi. Half or full"),
     "Prawn Masala": ("Pakistani", 2799, "prawn_masala", "Prawns in a spiced masala"),
     "Chicken Tikkah Piece": ("BBQ", 499, "tikka", "Quarter chicken, charcoal grilled"),
     "Malai Boti (8 Pcs)": ("BBQ", 1349, "malai", "Creamy boneless boti"),
@@ -299,6 +309,30 @@ RAW_INGREDIENTS = [
     _ing("Oreo Biscuits", "Beverages", "kg", 1500, 4, 1, 3),
     _ing("Soft Drink Can", "Beverages", "pcs", 90, 240, 48, 240),
     _ing("Mineral Water (Small)", "Beverages", "pcs", 35, 240, 48, 240),
+    # Added 2026-09-25 so every dish on the menu has a recipe (D-29).
+    _ing("Chicken Wings", "Meat & Poultry", "kg", 650, 20, 5, 15),
+    _ing("Prawns", "Seafood", "kg", 3200, 10, 3, 8),
+    _ing("Fish Fillet", "Seafood", "kg", 2200, 12, 3, 10),
+    _ing("Beef Undercut (Local)", "Meat & Poultry", "kg", 2600, 12, 3, 10),
+    _ing("Beef Ribeye (Local)", "Meat & Poultry", "kg", 2800, 8, 2, 6),
+    _ing("Beef Tenderloin (Imported)", "Meat & Poultry", "kg", 9000, 5, 1, 4),
+    _ing("Breadcrumbs", "Dry Store", "kg", 400, 10, 2, 8),
+    _ing("Egg Noodles", "Dry Store", "kg", 600, 10, 3, 8),
+    _ing("Peanuts", "Dry Store", "kg", 1200, 4, 1, 3),
+    _ing("Honey", "Dry Store", "kg", 1800, 4, 1, 3),
+    _ing("Parmesan", "Dairy", "kg", 6000, 3, 1, 2),
+    _ing("Blue Cheese", "Dairy", "kg", 7000, 2, 0.5, 2),
+    _ing("Caramel Syrup", "Beverages", "L", 1500, 4, 1, 3),
+    _ing("Blue Curacao Syrup", "Beverages", "L", 1600, 3, 1, 3),
+    _ing("Pineapple Juice", "Beverages", "L", 450, 10, 3, 8),
+    _ing("Coconut Cream", "Beverages", "L", 900, 5, 1, 4),
+    _ing("Lotus Biscuits", "Beverages", "kg", 2500, 4, 1, 3),
+    # Desserts bought in from the bakery, one portion each.
+    _ing("Molten Lava Cake", "Bakery", "pcs", 220, 30, 10, 30),
+    _ing("Tiramisu Slice", "Bakery", "pcs", 260, 20, 6, 20),
+    _ing("Cheesecake Slice", "Bakery", "pcs", 260, 20, 6, 20),
+    _ing("Walnut Brownie Piece", "Bakery", "pcs", 280, 20, 6, 20),
+    _ing("Kunafa Portion", "Bakery", "pcs", 300, 15, 5, 15),
 ]
 
 # ---------------------------------------------------------------------------
@@ -417,20 +451,17 @@ def _karahi(meat: str, meat_kg: str, base_kg: str, butter_kg: str, cream_l: str)
 
 
 FINAL_RECIPES = {
-    "Chicken Karahi (Full)": ("Cook chicken in the karahi base on high flame, finish with "
-                              "butter, cream, julienne ginger and green chilli.",
-                              _karahi("Chicken (Karahi Cut)", "1", "0.35", "0.05", "0.05")),
-    "Chicken Karahi (Half)": ("As the full karahi, half portion.",
-                              _karahi("Chicken (Karahi Cut)", "0.5", "0.2", "0.03", "0.03")),
-    "Mutton Karahi (Full)": ("Cook mutton low and slow in the karahi base, finish on high flame.",
-                             _karahi("Mutton", "0.75", "0.35", "0.06", "0.05")),
-    "Mutton Karahi (Half)": ("As the full karahi, half portion.",
-                             _karahi("Mutton", "0.4", "0.2", "0.03", "0.03")),
-    "Shahi Handi (Full)": ("Boneless chicken in karahi base, finished with cream and butter.", [
-        ("Boneless Chicken", Decimal("0.6"), "kg", Decimal("0")),
-        ("Karahi Masala Base", Decimal("0.25"), "kg", Decimal("0")),
-        ("Fresh Cream", Decimal("0.15"), "L", Decimal("0")),
-        ("Butter", Decimal("0.04"), "kg", Decimal("0")),
+    # The HALF portion. The Full choice adds PORTIONS[dish]["extra"] on top.
+    "Chicken Karahi": ("Cook chicken in the karahi base on high flame, finish with "
+                       "butter, cream, julienne ginger and green chilli.",
+                       _karahi("Chicken (Karahi Cut)", "0.5", "0.2", "0.03", "0.03")),
+    "Mutton Karahi": ("Cook mutton low and slow in the karahi base, finish on high flame.",
+                      _karahi("Mutton", "0.4", "0.2", "0.03", "0.03")),
+    "Shahi Handi": ("Boneless chicken in karahi base, finished with cream and butter.", [
+        ("Boneless Chicken", Decimal("0.35"), "kg", Decimal("0")),
+        ("Karahi Masala Base", Decimal("0.15"), "kg", Decimal("0")),
+        ("Fresh Cream", Decimal("0.09"), "L", Decimal("0")),
+        ("Butter", Decimal("0.025"), "kg", Decimal("0")),
     ]),
     "Chicken Tikkah Piece": ("Marinate overnight, grill over charcoal.", [
         ("Chicken (Karahi Cut)", Decimal("0.25"), "kg", Decimal("5")),
@@ -544,7 +575,219 @@ FINAL_RECIPES = {
     "Water (Small)": ("Resale item: one bottle.", [
         ("Mineral Water (Small)", Decimal("1"), "pcs", Decimal("0")),
     ]),
+    # ---- Added 2026-09-25 so every dish carries a recipe (D-29) ----
+    "Hot & Sour Soup": ("Chicken broth, egg ribbons, soy and chilli, thickened.", [
+        ("Boneless Chicken", Decimal("0.06"), "kg", Decimal("5")),
+        ("Eggs", Decimal("1"), "pcs", Decimal("0")),
+        ("Cornflour", Decimal("0.02"), "kg", Decimal("0")),
+        ("Soy Sauce", Decimal("0.02"), "L", Decimal("0")),
+        ("Chilli Sauce", Decimal("0.02"), "L", Decimal("0")),
+    ]),
+    "Chicken Corn Soup": ("Chicken broth, creamed corn, egg, thickened.", [
+        ("Boneless Chicken", Decimal("0.06"), "kg", Decimal("5")),
+        ("Eggs", Decimal("1"), "pcs", Decimal("0")),
+        ("Cornflour", Decimal("0.02"), "kg", Decimal("0")),
+        ("Sugar", Decimal("0.01"), "kg", Decimal("0")),
+    ]),
+    "Thai Clear Soup": ("Light broth with chicken, lemon and chilli.", [
+        ("Boneless Chicken", Decimal("0.05"), "kg", Decimal("5")),
+        ("Lemon", Decimal("0.03"), "kg", Decimal("30")),
+        ("Green Chilli", Decimal("0.01"), "kg", Decimal("5")),
+        ("Capsicum", Decimal("0.03"), "kg", Decimal("10")),
+    ]),
+    "Caesar Salad": ("Romaine, grilled chicken, parmesan, dressing.", [
+        ("Lettuce", Decimal("0.15"), "kg", Decimal("15")),
+        ("Boneless Chicken", Decimal("0.12"), "kg", Decimal("5")),
+        ("Parmesan", Decimal("0.02"), "kg", Decimal("0")),
+        ("Mayonnaise", Decimal("0.04"), "kg", Decimal("0")),
+        ("Breadcrumbs", Decimal("0.02"), "kg", Decimal("0")),
+    ]),
+    "Chicken Nuggets (6 Pcs)": ("Crumb boneless chicken, fry golden.", [
+        ("Boneless Chicken", Decimal("0.15"), "kg", Decimal("5")),
+        ("Breadcrumbs", Decimal("0.03"), "kg", Decimal("0")),
+        ("Eggs", Decimal("1"), "pcs", Decimal("0")),
+        ("Cooking Oil", Decimal("0.04"), "L", Decimal("0")),
+    ]),
+    "Fish n Chips": ("Battered fish fillet, fries, tartare.", [
+        ("Fish Fillet", Decimal("0.2"), "kg", Decimal("5")),
+        ("Maida (Flour)", Decimal("0.05"), "kg", Decimal("0")),
+        ("Frozen Fries", Decimal("0.15"), "kg", Decimal("0")),
+        ("Mayonnaise", Decimal("0.03"), "kg", Decimal("0")),
+        ("Cooking Oil", Decimal("0.06"), "L", Decimal("0")),
+    ]),
+    "Prawn Tempura (5 Pcs)": ("Light tempura batter, fry crisp.", [
+        ("Prawns", Decimal("0.15"), "kg", Decimal("10")),
+        ("Maida (Flour)", Decimal("0.04"), "kg", Decimal("0")),
+        ("Cornflour", Decimal("0.02"), "kg", Decimal("0")),
+        ("Cooking Oil", Decimal("0.05"), "L", Decimal("0")),
+    ]),
+    "Peri Peri Wings": ("Marinate wings, flame-grill, peri peri glaze.", [
+        ("Chicken Wings", Decimal("0.35"), "kg", Decimal("5")),
+        ("Chilli Sauce", Decimal("0.04"), "L", Decimal("0")),
+        ("Lemon", Decimal("0.02"), "kg", Decimal("30")),
+        ("Garlic", Decimal("0.01"), "kg", Decimal("10")),
+    ]),
+    "Honey Chilli Wings": ("Fry wings, toss in honey chilli glaze.", [
+        ("Chicken Wings", Decimal("0.3"), "kg", Decimal("5")),
+        ("Honey", Decimal("0.03"), "kg", Decimal("0")),
+        ("Chilli Sauce", Decimal("0.03"), "L", Decimal("0")),
+        ("Cooking Oil", Decimal("0.05"), "L", Decimal("0")),
+    ]),
+    "Danny's Special Pasta": ("Fettuccine, white sauce, prawns and chicken.", [
+        ("Fettuccine Pasta", Decimal("0.15"), "kg", Decimal("0")),
+        ("White Sauce", Decimal("0.22"), "kg", Decimal("0")),
+        ("Prawns", Decimal("0.08"), "kg", Decimal("10")),
+        ("Boneless Chicken", Decimal("0.08"), "kg", Decimal("5")),
+        ("Parmesan", Decimal("0.01"), "kg", Decimal("0")),
+    ]),
+    "Cordon Bleu": ("Chicken breast rolled round cheese, crumbed, fried; fries.", [
+        ("Boneless Chicken", Decimal("0.25"), "kg", Decimal("5")),
+        ("Cheddar Slices", Decimal("0.04"), "kg", Decimal("0")),
+        ("Breadcrumbs", Decimal("0.04"), "kg", Decimal("0")),
+        ("Eggs", Decimal("1"), "pcs", Decimal("0")),
+        ("Frozen Fries", Decimal("0.15"), "kg", Decimal("0")),
+    ]),
+    "Lemon Butter Fish Steak": ("Pan-sear fish, lemon butter sauce.", [
+        ("Fish Fillet", Decimal("0.25"), "kg", Decimal("5")),
+        ("Butter", Decimal("0.03"), "kg", Decimal("0")),
+        ("Lemon", Decimal("0.04"), "kg", Decimal("30")),
+        ("Frozen Fries", Decimal("0.12"), "kg", Decimal("0")),
+    ]),
+    "Blue Cheese Beef": ("Beef patty, blue cheese, bun, fries.", [
+        ("Beef Mince", Decimal("0.18"), "kg", Decimal("3")),
+        ("Blue Cheese", Decimal("0.03"), "kg", Decimal("0")),
+        ("Burger Buns", Decimal("1"), "pcs", Decimal("0")),
+        ("Lettuce", Decimal("0.02"), "kg", Decimal("10")),
+        ("Frozen Fries", Decimal("0.15"), "kg", Decimal("0")),
+    ]),
+    "Rib-eye Steak (Local)": ("Grill to order, pepper sauce, fries.", [
+        ("Beef Ribeye (Local)", Decimal("0.3"), "kg", Decimal("5")),
+        ("Black Pepper Sauce", Decimal("0.08"), "kg", Decimal("0")),
+        ("Frozen Fries", Decimal("0.15"), "kg", Decimal("0")),
+        ("Butter", Decimal("0.02"), "kg", Decimal("0")),
+    ]),
+    "Tenderloin Steak (Local)": ("Grill to order, pepper sauce, fries.", [
+        ("Beef Undercut (Local)", Decimal("0.28"), "kg", Decimal("5")),
+        ("Black Pepper Sauce", Decimal("0.08"), "kg", Decimal("0")),
+        ("Frozen Fries", Decimal("0.15"), "kg", Decimal("0")),
+        ("Butter", Decimal("0.02"), "kg", Decimal("0")),
+    ]),
+    "Tenderloin Steak (Imported)": ("Imported cut, grill to order, pepper sauce, fries.", [
+        ("Beef Tenderloin (Imported)", Decimal("0.28"), "kg", Decimal("3")),
+        ("Black Pepper Sauce", Decimal("0.08"), "kg", Decimal("0")),
+        ("Frozen Fries", Decimal("0.15"), "kg", Decimal("0")),
+        ("Butter", Decimal("0.02"), "kg", Decimal("0")),
+    ]),
+    "Prawn Masala": ("Prawns in karahi base with cream.", [
+        ("Prawns", Decimal("0.35"), "kg", Decimal("10")),
+        ("Karahi Masala Base", Decimal("0.2"), "kg", Decimal("0")),
+        ("Fresh Cream", Decimal("0.05"), "L", Decimal("0")),
+    ]),
+    "Chicken Behari Boti (8 Pcs)": ("Behari-marinated boneless chicken, charcoal grilled.", [
+        ("Boneless Chicken", Decimal("0.35"), "kg", Decimal("5")),
+        ("Tikka Marinade", Decimal("0.08"), "kg", Decimal("0")),
+        ("Yogurt", Decimal("0.03"), "kg", Decimal("0")),
+    ]),
+    "Mutton Chops (6 Chops)": ("Marinated chops, charcoal grilled.", [
+        ("Mutton", Decimal("0.7"), "kg", Decimal("8")),
+        ("Tikka Marinade", Decimal("0.1"), "kg", Decimal("0")),
+    ]),
+    "Chicken Sheesh Tauq": ("Garlic-marinated chicken skewers, garlic mayo.", [
+        ("Boneless Chicken", Decimal("0.3"), "kg", Decimal("5")),
+        ("Garlic Mayo", Decimal("0.05"), "kg", Decimal("0")),
+        ("Lemon", Decimal("0.02"), "kg", Decimal("30")),
+    ]),
+    "Kung Pao Chicken": ("Wok chicken with peanuts, capsicum and dry chilli.", [
+        ("Boneless Chicken", Decimal("0.3"), "kg", Decimal("5")),
+        ("Peanuts", Decimal("0.03"), "kg", Decimal("0")),
+        ("Capsicum", Decimal("0.05"), "kg", Decimal("10")),
+        ("Soy Sauce", Decimal("0.03"), "L", Decimal("0")),
+        ("Cooking Oil", Decimal("0.04"), "L", Decimal("0")),
+    ]),
+    "Beef Chilli Dry": ("Wok-fried beef strips, capsicum, chilli.", [
+        ("Beef Undercut (Local)", Decimal("0.25"), "kg", Decimal("5")),
+        ("Capsicum", Decimal("0.06"), "kg", Decimal("10")),
+        ("Soy Sauce", Decimal("0.03"), "L", Decimal("0")),
+        ("Chilli Sauce", Decimal("0.03"), "L", Decimal("0")),
+        ("Cooking Oil", Decimal("0.04"), "L", Decimal("0")),
+    ]),
+    "Chicken Chowmein": ("Stir-fry egg noodles with chicken and vegetables.", [
+        ("Egg Noodles", Decimal("0.15"), "kg", Decimal("0")),
+        ("Boneless Chicken", Decimal("0.1"), "kg", Decimal("5")),
+        ("Capsicum", Decimal("0.04"), "kg", Decimal("10")),
+        ("Soy Sauce", Decimal("0.02"), "L", Decimal("0")),
+        ("Cooking Oil", Decimal("0.03"), "L", Decimal("0")),
+    ]),
+    "Molten Lava": ("Bought-in, warm and plate.", [
+        ("Molten Lava Cake", Decimal("1"), "pcs", Decimal("0")),
+        ("Vanilla Ice Cream", Decimal("0.05"), "L", Decimal("0")),
+    ]),
+    "Tiramisu": ("Bought-in portion, plate.", [("Tiramisu Slice", Decimal("1"), "pcs", Decimal("0"))]),
+    "Cheese Cake": ("Bought-in portion, plate.", [("Cheesecake Slice", Decimal("1"), "pcs", Decimal("0"))]),
+    "Walnut Brownie": ("Bought-in, warm and plate.", [
+        ("Walnut Brownie Piece", Decimal("1"), "pcs", Decimal("0")),
+        ("Vanilla Ice Cream", Decimal("0.05"), "L", Decimal("0")),
+    ]),
+    "Kunafa": ("Bought-in, bake and syrup.", [
+        ("Kunafa Portion", Decimal("1"), "pcs", Decimal("0")),
+        ("Sugar", Decimal("0.02"), "kg", Decimal("0")),
+    ]),
+    "Caramel Frappe": ("Blend espresso, milk, ice cream and caramel with ice.", [
+        ("Espresso Beans", Decimal("0.018"), "kg", Decimal("0")),
+        ("Milk", Decimal("0.18"), "L", Decimal("0")),
+        ("Vanilla Ice Cream", Decimal("0.06"), "L", Decimal("0")),
+        ("Caramel Syrup", Decimal("0.03"), "L", Decimal("0")),
+    ]),
+    "Blue Lightening": ("Blue curacao syrup, lemon, soda, ice.", [
+        ("Blue Curacao Syrup", Decimal("0.04"), "L", Decimal("0")),
+        ("Lemon", Decimal("0.03"), "kg", Decimal("30")),
+        ("Soft Drink Can", Decimal("1"), "pcs", Decimal("0")),
+    ]),
+    "Pina Colada": ("Pineapple juice, coconut cream, ice.", [
+        ("Pineapple Juice", Decimal("0.2"), "L", Decimal("0")),
+        ("Coconut Cream", Decimal("0.05"), "L", Decimal("0")),
+        ("Sugar", Decimal("0.01"), "kg", Decimal("0")),
+    ]),
+    "Lotus Shake": ("Blend ice cream, milk and Lotus biscuits.", [
+        ("Vanilla Ice Cream", Decimal("0.15"), "L", Decimal("0")),
+        ("Milk", Decimal("0.15"), "L", Decimal("0")),
+        ("Lotus Biscuits", Decimal("0.05"), "kg", Decimal("0")),
+    ]),
 }
+
+# ---------------------------------------------------------------------------
+# PORTIONS (D-08). One dish, a required Half / Full choice. The dish's own
+# recipe is the Half; choosing Full adds `extra` on top and the difference in
+# price. Recipes on modifiers are consumed with the order (OI-99).
+# ---------------------------------------------------------------------------
+
+PORTIONS = {
+    "Chicken Karahi": {"full_extra_pkr": 960, "extra": [
+        ("Chicken (Karahi Cut)", Decimal("0.5"), "kg", Decimal("0")),
+        ("Karahi Masala Base", Decimal("0.15"), "kg", Decimal("0")),
+        ("Butter", Decimal("0.02"), "kg", Decimal("0")),
+        ("Fresh Cream", Decimal("0.02"), "L", Decimal("0")),
+    ]},
+    "Mutton Karahi": {"full_extra_pkr": 1650, "extra": [
+        ("Mutton", Decimal("0.35"), "kg", Decimal("0")),
+        ("Karahi Masala Base", Decimal("0.15"), "kg", Decimal("0")),
+        ("Butter", Decimal("0.03"), "kg", Decimal("0")),
+        ("Fresh Cream", Decimal("0.02"), "L", Decimal("0")),
+    ]},
+    "Shahi Handi": {"full_extra_pkr": 900, "extra": [
+        ("Boneless Chicken", Decimal("0.25"), "kg", Decimal("0")),
+        ("Karahi Masala Base", Decimal("0.1"), "kg", Decimal("0")),
+        ("Fresh Cream", Decimal("0.06"), "L", Decimal("0")),
+        ("Butter", Decimal("0.015"), "kg", Decimal("0")),
+    ]},
+}
+
+# The first seed's separate Half / Full dishes. Hidden, not deleted: past
+# orders point at them.
+RETIRED_ITEMS = (
+    "Mutton Karahi (Half)", "Mutton Karahi (Full)", "Chicken Karahi (Half)",
+    "Chicken Karahi (Full)", "Shahi Handi (Half)", "Shahi Handi (Full)",
+)
 
 # ---------------------------------------------------------------------------
 # SUPPLIERS AND PURCHASING. Generic names, not real Faisalabad businesses.
@@ -591,7 +834,12 @@ async def get_or_create_config(db: AsyncSession, tenant: Tenant) -> None:
         await db.execute(select(RestaurantConfig).where(RestaurantConfig.tenant_id == tenant.id))
     ).scalar_one_or_none()
     if existing is not None:
-        print("  Config already exists, skipping.")
+        if existing.receipt_header != RECEIPT_HEADER:
+            existing.receipt_header = RECEIPT_HEADER
+            await db.flush()
+            print("  Receipt header updated (no repeated name).")
+        else:
+            print("  Config already exists, skipping.")
         return
     db.add(RestaurantConfig(
         tenant_id=tenant.id,
@@ -602,7 +850,7 @@ async def get_or_create_config(db: AsyncSession, tenant: Tenant) -> None:
         default_tax_rate=TAX_BPS,
         cash_tax_rate_bps=1600,
         card_tax_rate_bps=500,
-        receipt_header="Danny's Restaurant\nSitara Villas, Canal Expressway, Faisalabad",
+        receipt_header=RECEIPT_HEADER,
         receipt_footer="Thank you for dining at Danny's!",
     ))
     await db.flush()
@@ -816,6 +1064,98 @@ async def get_or_create_final_recipes(
         )
 
 
+async def get_or_create_portions(
+    db: AsyncSession, tenant: Tenant, admin: User, ing_map: dict[str, Ingredient],
+    menu_map: dict[str, MenuItem],
+) -> dict[str, dict[str, Modifier]]:
+    """A required Half / Full choice on each dish in PORTIONS (D-08).
+
+    Half costs nothing extra and uses the dish's own recipe; Full adds the price
+    difference and its own recipe for the extra meat and masala, which the order
+    consumes alongside the dish's.
+    """
+    out: dict[str, dict[str, Modifier]] = {}
+    for dish, spec in PORTIONS.items():
+        item = menu_map[dish]
+        group_name = f"Portion: {dish}"
+        group = (
+            await db.execute(
+                select(ModifierGroup).where(
+                    ModifierGroup.tenant_id == tenant.id, ModifierGroup.name == group_name
+                )
+            )
+        ).scalar_one_or_none()
+        if group is None:
+            group = ModifierGroup(
+                tenant_id=tenant.id, name=group_name, display_order=0,
+                required=True, min_selections=1, max_selections=1,
+            )
+            db.add(group)
+            await db.flush()
+            db.add(MenuItemModifierGroup(
+                tenant_id=tenant.id, menu_item_id=item.id, modifier_group_id=group.id
+            ))
+            await db.flush()
+
+        mods: dict[str, Modifier] = {}
+        for order, (label, price_pkr) in enumerate((("Half", 0), ("Full", spec["full_extra_pkr"]))):
+            mod = (
+                await db.execute(
+                    select(Modifier).where(Modifier.group_id == group.id, Modifier.name == label)
+                )
+            ).scalar_one_or_none()
+            if mod is None:
+                mod = Modifier(
+                    tenant_id=tenant.id, group_id=group.id, name=label,
+                    price_adjustment=price_pkr * 100, display_order=order,
+                )
+                db.add(mod)
+                await db.flush()
+            mods[label] = mod
+        out[dish] = mods
+
+        full = mods["Full"]
+        has_recipe = (
+            await db.execute(
+                select(Recipe.id).where(
+                    Recipe.tenant_id == tenant.id,
+                    Recipe.modifier_id == full.id,
+                    Recipe.is_active == True,  # noqa: E712
+                )
+            )
+        ).first()
+        if has_recipe is None:
+            recipe = await recipe_service.create_recipe(
+                db,
+                tenant.id,
+                RecipeCreate(
+                    modifier_id=full.id,
+                    yield_servings=Decimal("1"),
+                    recipe_items=[
+                        RecipeItemCreate(ingredient_id=ing_map[n].id, quantity=q, unit=u, waste_factor=w)
+                        for n, q, u, w in spec["extra"]
+                    ],
+                ),
+                admin.id,
+            )
+            print(
+                f"  Portion '{dish}': Full adds Rs {spec['full_extra_pkr']:,}, "
+                f"costs Rs {recipe.cost_per_serving/100:,.0f} more"
+            )
+
+    for name in RETIRED_ITEMS:
+        old = (
+            await db.execute(
+                select(MenuItem).where(MenuItem.tenant_id == tenant.id, MenuItem.name == name)
+            )
+        ).scalar_one_or_none()
+        if old is not None and old.is_available:
+            old.is_available = False
+            print(f"  '{name}' hidden; now a portion choice on the dish.")
+    await db.flush()
+    return out
+
+
 async def get_or_create_location(db: AsyncSession, tenant: Tenant) -> Location:
     loc = (
         await db.execute(
@@ -839,10 +1179,35 @@ async def get_or_create_channels(db: AsyncSession, tenant: Tenant) -> dict[str, 
         if ch is None:
             ch = await location_service.create_channel(db, tenant.id, dict(spec))
         out[spec["code"]] = ch
+
+    # Deactivated, not deleted: the first seed's orders point at them.
+    retired = (
+        await db.execute(
+            select(SalesChannel).where(
+                SalesChannel.tenant_id == tenant.id,
+                SalesChannel.code.in_(RETIRED_CHANNEL_CODES),
+                SalesChannel.is_active == True,  # noqa: E712
+            )
+        )
+    ).scalars().all()
+    for ch in retired:
+        ch.is_active = False
+        ch.pos_visible = False
+        print(f"  Channel '{ch.name}' retired (it duplicated an order type).")
+    await db.flush()
     return out
 
 
 async def get_or_create_floors_and_station(db: AsyncSession, tenant: Tenant) -> None:
+    for old_name, new_name in FLOOR_RENAMES.items():
+        floor = (
+            await db.execute(select(Floor).where(Floor.tenant_id == tenant.id, Floor.name == old_name))
+        ).scalar_one_or_none()
+        if floor is not None:
+            floor.name = new_name
+            print(f"  Floor '{old_name}' renamed to '{new_name}'.")
+    await db.flush()
+
     number = 1
     for order, spec in enumerate(FLOORS):
         floor = (
@@ -1005,7 +1370,8 @@ async def seed_production(
 
 async def seed_demo_orders(
     db: AsyncSession, tenant: Tenant, location: Location, channels: dict[str, SalesChannel],
-    menu_map: dict[str, MenuItem], methods: dict[str, PaymentMethod], admin: User,
+    menu_map: dict[str, MenuItem], methods: dict[str, PaymentMethod],
+    portions: dict[str, dict[str, Modifier]], admin: User,
 ) -> None:
     """A few days of completed sales. Each deducts stock through the same
     service a real completion uses, so the movement ledger is genuine."""
@@ -1013,21 +1379,22 @@ async def seed_demo_orders(
         print("  Demo orders already present, skipped.")
         return
 
-    # (days ago, hour in Karachi, order type, channel, [(item, qty)])
+    # (days ago, hour in Karachi, order type, channel or None for direct,
+    #  [("Dish" or "Dish:Portion", qty)])
     plan = [
-        (3, 13, "dine_in", "direct", [("Chicken Karahi (Full)", 1), ("Garlic Naan", 4), ("Soft Drink", 4)]),
-        (3, 20, "dine_in", "direct", [("Mutton Karahi (Half)", 1), ("Malai Boti (8 Pcs)", 1), ("Roti", 6)]),
-        (3, 21, "takeaway", "direct", [("Danny's Smash", 2), ("Fries", 1)]),
-        (2, 14, "call_center", "phone", [("Chicken Tikkah Piece", 4), ("Roghni Naan", 4)]),
-        (2, 20, "dine_in", "direct", [("Fettuccine Pasta", 2), ("Chicken Steak (Black Pepper)", 1),
-                                      ("Cappuccino", 2)]),
+        (3, 13, "dine_in", None, [("Chicken Karahi:Full", 1), ("Garlic Naan", 4), ("Soft Drink", 4)]),
+        (3, 20, "dine_in", None, [("Mutton Karahi:Half", 1), ("Malai Boti (8 Pcs)", 1), ("Roti", 6)]),
+        (3, 21, "takeaway", None, [("Danny's Smash", 2), ("Fries", 1)]),
+        (2, 14, "call_center", None, [("Chicken Tikkah Piece", 4), ("Roghni Naan", 4)]),
+        (2, 20, "dine_in", None, [("Fettuccine Pasta", 2), ("Chicken Steak (Black Pepper)", 1),
+                                  ("Cappuccino", 2)]),
         (2, 22, "takeaway", "foodpanda", [("Grilled Chicken Burger", 3), ("Fries", 2)]),
-        (1, 13, "dine_in", "direct", [("Chicken Manchurian", 1), ("Egg Fried Rice", 1), ("Water (Small)", 2)]),
-        (1, 20, "dine_in", "direct", [("Chicken Karahi (Half)", 1), ("Reshmi Kabab (4 Pcs)", 1),
-                                      ("Cheese Naan", 1), ("Roti", 4), ("Doodh Patti", 2)]),
+        (1, 13, "dine_in", None, [("Chicken Manchurian", 1), ("Egg Fried Rice", 1), ("Water (Small)", 2)]),
+        (1, 20, "dine_in", None, [("Chicken Karahi:Half", 1), ("Reshmi Kabab (4 Pcs)", 1),
+                                  ("Cheese Naan", 1), ("Roti", 4), ("Doodh Patti", 2)]),
         (1, 21, "takeaway", "foodpanda", [("Danny's Smash", 1), ("Oreo Pleasure", 1)]),
-        (0, 13, "dine_in", "direct", [("Shahi Handi (Full)", 1), ("Garlic Naan", 3), ("Latte", 2)]),
-        (0, 14, "call_center", "phone", [("Mutton Karahi (Full)", 1), ("Roti", 8)]),
+        (0, 13, "dine_in", None, [("Shahi Handi:Full", 1), ("Garlic Naan", 3), ("Latte", 2)]),
+        (0, 14, "call_center", None, [("Mutton Karahi:Full", 1), ("Roti", 8)]),
     ]
 
     pk = timezone(timedelta(hours=5))
@@ -1036,7 +1403,14 @@ async def seed_demo_orders(
         when = (today - timedelta(days=days_ago)).replace(hour=hour)
         if when > datetime.now(pk):
             when = datetime.now(pk) - timedelta(minutes=30)
-        subtotal = sum(menu_map[n].price * q for n, q in lines)
+        # "Dish:Full" -> the dish plus its Full portion modifier.
+        resolved = []
+        for spec, qty in lines:
+            dish, _, portion = spec.partition(":")
+            mod = portions[dish][portion] if portion else None
+            unit = menu_map[dish].price + (mod.price_adjustment if mod else 0)
+            resolved.append((menu_map[dish], mod, qty, unit))
+        subtotal = sum(unit * qty for _, _, qty, unit in resolved)
         tax = subtotal * TAX_BPS // 10000
         order = Order(
             tenant_id=tenant.id,
@@ -1050,19 +1424,25 @@ async def seed_demo_orders(
             total=subtotal + tax,
             created_by=admin.id,
             location_id=location.id,
-            sales_channel_id=channels[channel_code].id,
+            sales_channel_id=channels[channel_code].id if channel_code else None,
             customer_name="Walk-in" if order_type != "call_center" else "Phone customer",
             customer_phone="03000000000" if order_type == "call_center" else None,
             created_at=when,
         )
         db.add(order)
         await db.flush()
-        for name, qty in lines:
-            item = menu_map[name]
-            db.add(OrderItem(
+        for item, mod, qty, unit in resolved:
+            line = OrderItem(
                 tenant_id=tenant.id, order_id=order.id, menu_item_id=item.id, name=item.name,
-                quantity=qty, unit_price=item.price, total=item.price * qty,
-            ))
+                quantity=qty, unit_price=unit, total=unit * qty,
+            )
+            db.add(line)
+            if mod is not None:
+                await db.flush()
+                db.add(OrderItemModifier(
+                    tenant_id=tenant.id, order_item_id=line.id, modifier_id=mod.id,
+                    name=mod.name, price_adjustment=mod.price_adjustment,
+                ))
         db.add(Payment(
             tenant_id=tenant.id, order_id=order.id, method_id=methods["cash"].id, kind="payment",
             status="completed", amount=order.total, tendered_amount=order.total, change_amount=0,
@@ -1085,6 +1465,7 @@ async def seed() -> None:
         ing_map = await get_or_create_raw_ingredients(db, tenant)
         await get_or_create_sub_recipes(db, tenant, admin, ing_map)
         await get_or_create_final_recipes(db, tenant, admin, ing_map, menu_map)
+        portions = await get_or_create_portions(db, tenant, admin, ing_map, menu_map)
         location = await get_or_create_location(db, tenant)
         channels = await get_or_create_channels(db, tenant)
         await get_or_create_floors_and_station(db, tenant)
@@ -1092,7 +1473,7 @@ async def seed() -> None:
         await seed_opening_stock(db, tenant, location, ing_map, admin)
         await seed_suppliers_and_purchasing(db, tenant, location, ing_map, admin)
         await seed_production(db, tenant, location, ing_map, admin)
-        await seed_demo_orders(db, tenant, location, channels, menu_map, methods, admin)
+        await seed_demo_orders(db, tenant, location, channels, menu_map, methods, portions, admin)
         await db.commit()
         print(f"\nDone. Tenant slug '{TENANT_SLUG}'. Credentials are in the client folder, not here.")
 

@@ -53,9 +53,9 @@ function elapsedMinutes(createdAt: string, nowMs: number): number {
 }
 
 function elapsedToneClass(minutes: number): string {
-  if (minutes >= 20) return "text-danger-300";
-  if (minutes >= 10) return "text-warning-300";
-  return "text-success-300";
+  if (minutes >= 20) return "text-danger-600";
+  if (minutes >= 10) return "text-warning-600";
+  return "text-success-600";
 }
 
 function typeBadge(orderType: KitchenTicket["order_type"]): "default" | "success" | "warning" {
@@ -68,7 +68,6 @@ function nextStatusLabel(rawStatus: KitchenTicket["raw_status"]): string {
   if (rawStatus === "confirmed") return "Start";
   if (rawStatus === "in_kitchen") return "Bump Ready";
   if (rawStatus === "ready") return "Serve";
-  if (rawStatus === "served") return "Complete";
   return "Bump";
 }
 
@@ -179,13 +178,13 @@ function KitchenPage() {
   }
 
   return (
-    <div className="flex h-screen flex-col bg-secondary-950 text-white">
-      <header className="flex h-14 items-center justify-between border-b border-secondary-700 bg-secondary-900 px-4">
+    <div className="flex h-screen flex-col bg-secondary-100 text-secondary-900">
+      <header className="flex h-14 items-center justify-between border-b border-secondary-200 bg-white px-4">
         <div className="flex items-center gap-3">
-          <ChefHat className="h-5 w-5 text-warning-400" />
+          <ChefHat className="h-5 w-5 text-warning-500" />
           <div>
             <h1 className="text-lg font-bold">Kitchen Display</h1>
-            <p className="text-xs text-secondary-300">Live ticket operations board</p>
+            <p className="text-xs text-secondary-500">Live ticket operations board</p>
           </div>
         </div>
 
@@ -193,7 +192,7 @@ function KitchenPage() {
           <Select
             value={selectedStation}
             onChange={(e) => setStation(e.target.value as KitchenStationFilter)}
-            className="h-9 w-44 border-secondary-600 bg-secondary-800 text-secondary-100"
+            className="h-9 w-44 border-secondary-300 bg-white text-secondary-900"
             aria-label="Station filter"
           >
             <option value="all">All Stations</option>
@@ -213,7 +212,7 @@ function KitchenPage() {
             variant="outline"
             size="sm"
             onClick={() => setAudioEnabled(!audioEnabled)}
-            className="border-secondary-600 bg-secondary-800 text-secondary-100 hover:bg-secondary-700"
+            className="border-secondary-300 bg-white text-secondary-800 hover:bg-secondary-100"
           >
             {audioEnabled ? <Bell className="h-4 w-4" /> : <BellOff className="h-4 w-4" />}
             {audioEnabled ? "Audio On" : "Audio Off"}
@@ -222,7 +221,7 @@ function KitchenPage() {
             variant="outline"
             size="sm"
             onClick={() => void loadTickets(true)}
-            className="border-secondary-600 bg-secondary-800 text-secondary-100 hover:bg-secondary-700"
+            className="border-secondary-300 bg-white text-secondary-800 hover:bg-secondary-100"
           >
             <RefreshCw className="h-4 w-4" />
             Refresh
@@ -231,7 +230,7 @@ function KitchenPage() {
       </header>
 
       {error && (
-        <div className="flex items-center gap-2 border-b border-danger-700 bg-danger-900/70 px-4 py-2 text-sm text-danger-200">
+        <div className="flex items-center gap-2 border-b border-danger-200 bg-danger-50 px-4 py-2 text-sm text-danger-700">
           <AlertTriangle className="h-4 w-4" />
           {error}
         </div>
@@ -242,13 +241,13 @@ function KitchenPage() {
           {COLUMN_CONFIG.map((column) => (
             <section
               key={column.key}
-              className={`flex min-h-0 flex-col rounded-xl border ${column.border} bg-secondary-900/70`}
+              className={`flex min-h-0 flex-col rounded-xl border-2 ${column.border} bg-secondary-50`}
             >
-              <div className="flex items-center justify-between border-b border-secondary-700 px-3 py-2">
-                <h2 className="text-sm font-semibold uppercase tracking-wide text-secondary-200">
+              <div className="flex items-center justify-between border-b border-secondary-200 bg-white px-3 py-2">
+                <h2 className="text-base font-bold uppercase tracking-wide text-secondary-800">
                   {column.label}
                 </h2>
-                <Badge variant="outline" className="border-secondary-600 text-secondary-200">
+                <Badge variant="outline" className="border-secondary-300 text-secondary-800">
                   {ticketsByColumn[column.key].length}
                 </Badge>
               </div>
@@ -261,13 +260,13 @@ function KitchenPage() {
                   return (
                     <article
                       key={ticket.id}
-                      className={`rounded-lg border border-secondary-700 bg-secondary-800 p-3 ${
+                      className={`rounded-lg border border-secondary-200 bg-white p-3 shadow-sm ${
                         recalled ? "ring-2 ring-warning-500" : ""
                       }`}
                     >
                       <div className="mb-2 flex items-start justify-between gap-2">
                         <div>
-                          <p className="font-mono text-sm font-bold text-white">
+                          <p className="font-mono text-base font-bold text-secondary-900">
                             #{ticket.order_number}
                           </p>
                           <div className="mt-1 flex items-center gap-1.5">
@@ -280,24 +279,35 @@ function KitchenPage() {
                               </Badge>
                             )}
                           </div>
+                          {(ticket.table_label || ticket.waiter_name) && (
+                            <p className="mt-1 text-sm font-bold text-secondary-900">
+                              {ticket.table_label && <span>Table {ticket.table_label.replace(/^T/, "")}</span>}
+                              {ticket.table_label && ticket.waiter_name && (
+                                <span className="font-normal text-secondary-400"> · </span>
+                              )}
+                              {ticket.waiter_name && (
+                                <span className="font-medium text-secondary-600">{ticket.waiter_name}</span>
+                              )}
+                            </p>
+                          )}
                         </div>
 
                         <div className="text-right">
-                          <p className={`text-sm font-semibold ${elapsedToneClass(minutes)}`}>
+                          <p className={`text-lg font-bold ${elapsedToneClass(minutes)}`}>
                             {minutes}m
                           </p>
-                          <p className="text-[10px] text-secondary-400">
+                          <p className="text-xs text-secondary-500">
                             {ticket.item_count} item{ticket.item_count === 1 ? "" : "s"}
                           </p>
                         </div>
                       </div>
 
-                      <ul className="mb-2 space-y-0.5 text-xs text-secondary-200">
+                      <ul className="mb-2 space-y-1 text-sm text-secondary-800">
                         {ticket.items.map((item, idx) => (
                           <li key={idx} className="flex justify-between">
                             <span className="truncate">
                               {item.quantity > 1 && (
-                                <span className="font-semibold text-white">{item.quantity}x </span>
+                                <span className="font-bold text-secondary-900">{item.quantity}x </span>
                               )}
                               {item.item_name || "Unknown item"}
                             </span>
@@ -305,25 +315,31 @@ function KitchenPage() {
                         ))}
                       </ul>
 
-                      <div className="mb-2 text-xs text-secondary-300">
-                        <p className="font-medium text-secondary-100">{formatPKR(ticket.total)}</p>
+                      <div className="mb-2 text-xs text-secondary-500">
+                        <p className="font-medium text-secondary-700">{formatPKR(ticket.total)}</p>
                         {ticket.customer_name && (
                           <p className="truncate">{ticket.customer_name}</p>
                         )}
                       </div>
 
                       <div className="grid grid-cols-2 gap-2">
-                        <Button
-                          size="sm"
-                          className="h-8"
-                          onClick={() => void bumpTicket(ticket)}
-                        >
-                          {nextStatusLabel(ticket.raw_status)}
-                        </Button>
+                        {ticket.raw_status === "served" ? (
+                          <p className="flex h-9 items-center justify-center rounded-md bg-secondary-100 text-xs font-medium text-secondary-500">
+                            Served
+                          </p>
+                        ) : (
+                          <Button
+                            size="sm"
+                            className="h-9"
+                            onClick={() => void bumpTicket(ticket)}
+                          >
+                            {nextStatusLabel(ticket.raw_status)}
+                          </Button>
+                        )}
                         <Button
                           size="sm"
                           variant="outline"
-                          className="h-8 border-secondary-600 bg-secondary-800 text-secondary-100 hover:bg-secondary-700"
+                          className="h-9 border-secondary-300 bg-white text-secondary-800 hover:bg-secondary-100"
                           onClick={() => toggleRecall(ticket.id)}
                         >
                           <RotateCcw className="h-3.5 w-3.5" />
@@ -335,7 +351,7 @@ function KitchenPage() {
                         <Button
                           size="sm"
                           variant="ghost"
-                          className="h-7 text-[10px] text-secondary-300 hover:bg-secondary-700"
+                          className="h-8 text-xs font-medium text-secondary-700 hover:bg-secondary-100 disabled:text-secondary-300"
                           disabled={statusButtonDisabled(ticket.raw_status, "in_kitchen")}
                           onClick={() => void updateTicketStatus(ticket.ticket_id!, "preparing")}
                         >
@@ -344,7 +360,7 @@ function KitchenPage() {
                         <Button
                           size="sm"
                           variant="ghost"
-                          className="h-7 text-[10px] text-secondary-300 hover:bg-secondary-700"
+                          className="h-8 text-xs font-medium text-secondary-700 hover:bg-secondary-100 disabled:text-secondary-300"
                           disabled={statusButtonDisabled(ticket.raw_status, "ready")}
                           onClick={() => void updateTicketStatus(ticket.ticket_id!, "ready")}
                         >
@@ -353,7 +369,7 @@ function KitchenPage() {
                         <Button
                           size="sm"
                           variant="ghost"
-                          className="h-7 text-[10px] text-secondary-300 hover:bg-secondary-700"
+                          className="h-8 text-xs font-medium text-secondary-700 hover:bg-secondary-100 disabled:text-secondary-300"
                           disabled={statusButtonDisabled(ticket.raw_status, "served")}
                           onClick={() => void updateTicketStatus(ticket.ticket_id!, "served")}
                         >
@@ -365,8 +381,8 @@ function KitchenPage() {
                 })}
 
                 {ticketsByColumn[column.key].length === 0 && (
-                  <div className="flex h-28 items-center justify-center rounded-lg border border-dashed border-secondary-700 bg-secondary-900">
-                    <p className="text-xs text-secondary-500">No tickets</p>
+                  <div className="flex h-28 items-center justify-center rounded-lg border border-dashed border-secondary-300 bg-white">
+                    <p className="text-sm text-secondary-400">No tickets</p>
                   </div>
                 )}
               </div>
@@ -376,7 +392,7 @@ function KitchenPage() {
       </main>
 
       {isLoading && (
-        <div className="pointer-events-none absolute bottom-3 right-3 flex items-center gap-2 rounded-lg bg-secondary-800/90 px-3 py-2 text-xs text-secondary-200">
+        <div className="pointer-events-none absolute bottom-3 right-3 flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-xs text-secondary-700 shadow">
           <Loader2 className="h-3.5 w-3.5 animate-spin" />
           Syncing tickets
         </div>

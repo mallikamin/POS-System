@@ -15,9 +15,11 @@ from sqlalchemy.orm import selectinload
 
 from app.models.customer import Customer
 from app.models.floor import Table
+from app.models.kitchen import KitchenTicket
 from app.models.order import Order, OrderItem, OrderItemModifier, OrderStatusLog
 from app.models.restaurant_config import RestaurantConfig
 from app.models.table_session import TableSession
+from app.utils.tenant_time import local_now, tenant_timezone
 from app.schemas.order import OrderCreate, PaymentPreviewResponse
 from app.services import customer_service, kitchen_service
 
@@ -48,6 +50,11 @@ VALID_TRANSITIONS: dict[str, list[str]] = {
     "completed": [],
     "voided": [],
 }
+
+# Order types whose status and kitchen tickets are kept in step, both ways.
+# Online orders run their own accept / dispatch flow (public_order_service)
+# and are deliberately left out.
+KITCHEN_SYNCED_ORDER_TYPES = ("dine_in", "takeaway", "call_center")
 
 
 # ---------------------------------------------------------------------------
@@ -82,7 +89,9 @@ async def generate_order_number(
     takeaway, call centre) passes `None`, keeps the plain `YYMMDD-NNN`, and now
     runs its own sequence too.
     """
-    now = datetime.now(timezone.utc)
+    # The restaurant's own date, not UTC's: a Pakistani order at 01:59 on the
+    # 25th used to be numbered with the 24th (Danny's UAT D-18).
+    now = local_now(await tenant_timezone(db, tenant_id))
     date_prefix = now.strftime("%y%m%d")
     marker = SERVICE_TYPE_MARKERS.get((service_type or "").lower(), "")
 
@@ -740,12 +749,28 @@ async def transition_order(
 
     await db.flush()
 
+    if order.order_type in KITCHEN_SYNCED_ORDER_TYPES:
+        await _sync_tickets_to_order(db, tenant_id, order.id, new_status)
+
     if new_status == "completed":
         await _apply_inventory_and_commission(db, tenant_id, order)
     await _sync_customer_stats_for_order(db, tenant_id, order)
+
+    # Paid and served means done, whichever came last. Paying a served order
+    # completes it in payment_service; serving a paid order completes it here.
+    # Without this a paid meal waited for someone to press Complete, and its
+    # stock never moved until they did (Danny's UAT D-28).
+    auto_complete = (
+        new_status == "served"
+        and order.payment_status == "paid"
+        and order.order_type in KITCHEN_SYNCED_ORDER_TYPES
+    )
+
     # Force fresh load with all relationships by fetching anew
     order_id = order.id
     db.expunge(order)
+    if auto_complete:
+        return await transition_order(db, order_id, tenant_id, user_id, "completed")
     return await get_order(db, order_id, tenant_id)  # type: ignore[return-value]
 
 
@@ -829,6 +854,8 @@ async def void_order(
             table.status = "available"
 
     await db.flush()
+    if order.order_type in KITCHEN_SYNCED_ORDER_TYPES:
+        await _sync_tickets_to_order(db, tenant_id, order.id, "voided")
     await _sync_customer_stats_for_order(db, tenant_id, order)
     order_id = order.id
     db.expunge(order)
@@ -838,6 +865,46 @@ async def void_order(
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+async def _sync_tickets_to_order(
+    db: AsyncSession, tenant_id: uuid.UUID, order_id: uuid.UUID, order_status: str
+) -> None:
+    """Move this order's kitchen tickets to match the order.
+
+    The POS and the kitchen board each move a meal on. When the POS does it,
+    the tickets follow here; when the kitchen does it, the order follows in
+    `kitchen_service.sync_order_from_tickets`. Before this, a completed or
+    voided order left its ticket in NEW on the board for ever (Danny's UAT
+    D-13). Fields are set directly rather than through the ticket state
+    machine, so the two syncs cannot call each other in a loop.
+    """
+    if order_status == "ready":
+        from_statuses, target = ("new", "preparing"), "ready"
+    elif order_status in ("served", "completed", "voided"):
+        from_statuses, target = ("new", "preparing", "ready"), "served"
+    else:
+        return
+
+    tickets = (
+        await db.execute(
+            select(KitchenTicket).where(
+                KitchenTicket.tenant_id == tenant_id,
+                KitchenTicket.order_id == order_id,
+                KitchenTicket.status.in_(from_statuses),
+            )
+        )
+    ).scalars().all()
+    now = datetime.now(timezone.utc)
+    for ticket in tickets:
+        ticket.status = target
+        if target == "ready" and ticket.completed_at is None:
+            ticket.completed_at = now
+        if target == "served":
+            ticket.completed_at = ticket.completed_at or now
+            ticket.served_at = now
+    if tickets:
+        await db.flush()
 
 
 async def _auto_create_kitchen_ticket(

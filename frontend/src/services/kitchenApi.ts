@@ -25,6 +25,8 @@ type KitchenQueueTicketResponse = {
   order_total?: number;
   customer_name?: string;
   table_id?: string;
+  table_label: string | null;
+  waiter_name: string | null;
   items: KitchenQueueItemResponse[];
 };
 
@@ -54,6 +56,8 @@ function toTicket(
     station_name: station.name,
     customer_name: ticket.customer_name,
     table_id: ticket.table_id,
+    table_label: ticket.table_label,
+    waiter_name: ticket.waiter_name,
     items: ticket.items.map((item) => ({
       id: item.id ?? item.order_item_id,
       order_item_id: item.order_item_id,
@@ -74,7 +78,9 @@ export async function fetchKitchenStations(): Promise<KitchenStation[]> {
 async function fetchStationQueue(stationId: string): Promise<KitchenQueueTicketResponse[]> {
   const { data } = await api.get<KitchenQueueTicketResponse[]>(
     `/kitchen/stations/${stationId}/queue`,
-    { params: { active_only: false } }
+    // Served tickets stay on the board for 30 minutes, then drop off, so the
+    // SERVED column does not collect every meal ever cooked.
+    { params: { active_only: false, served_within_minutes: 30 } }
   );
   return data;
 }

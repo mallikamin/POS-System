@@ -901,10 +901,12 @@ async def _sync_order_payment_status(
 
     # Auto-complete: a dine-in order that is "served" and fully paid is done.
     # This ensures the table is released without waiting for a manual transition.
+    from app.services.order_service import KITCHEN_SYNCED_ORDER_TYPES
+
     auto_completed = (
         order.payment_status == "paid"
         and order.status == "served"
-        and order.order_type == "dine_in"
+        and order.order_type in KITCHEN_SYNCED_ORDER_TYPES
     )
     if auto_completed:
         order.status = "completed"
@@ -916,8 +918,12 @@ async def _sync_order_payment_status(
     # never left the stock (found seeding Danny's, 2026-09-24). Same call the
     # manual `completed` transition makes; a no-op for tenants without locations.
     if auto_completed:
-        from app.services.order_service import _apply_inventory_and_commission
+        from app.services.order_service import (
+            _apply_inventory_and_commission,
+            _sync_tickets_to_order,
+        )
 
+        await _sync_tickets_to_order(db, tenant_id, order.id, "completed")
         await _apply_inventory_and_commission(db, tenant_id, order)
 
     if order.customer_id is not None:

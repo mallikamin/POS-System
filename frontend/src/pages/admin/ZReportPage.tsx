@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { toLocalISODate } from "@/utils/localDate";
 import { currencyLocale } from "@/utils/currency";
 import {
   FileText,
@@ -76,7 +77,7 @@ function channelLabel(channel: string, takeawayLabel?: string | null): string {
 }
 
 function getToday(): string {
-  return new Date().toISOString().split("T")[0] ?? "";
+  return toLocalISODate();
 }
 
 function ZReportPage() {

@@ -91,7 +91,9 @@ export function MobileCartSheet({ children, className }: MobileCartSheetProps) {
           // Laptop and landscape tablet: back into the row, untransformed.
           "lg:static lg:z-auto lg:translate-y-0 lg:rounded-none lg:border-l lg:shadow-none",
           "lg:shrink-0",
-          className ?? "lg:w-80",
+          // Wider than the original w-80: the order is what the waiter reads
+          // most, and at 320px dish names wrapped and lines were cut (D-07).
+          className ?? "lg:w-96",
         )}
         // A sheet that is slid off-screen is still in the DOM, so it has to be
         // hidden from a screen reader and from tab order as well as from view.

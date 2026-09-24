@@ -45,6 +45,17 @@ interface OrderActions {
 
 type OrderStore = OrderState & OrderActions;
 
+type LoadParams = Parameters<OrderActions["loadOrders"]>[0];
+
+/*
+ * The filter of the last list load. A reload after Mark Ready / Served /
+ * Complete / Void used to pass no filter, fetch EVERY order and paint them
+ * under whichever tab was open until the next filtered refresh; on the
+ * Active tab that meant a flash of the whole day's completed orders after
+ * each tap (Danny's UAT D-27). Reloads now keep the filter they replace.
+ */
+let lastLoadParams: LoadParams;
+
 export const useOrderStore = create<OrderStore>()((set, get) => ({
   orders: [],
   total: 0,
@@ -60,6 +71,7 @@ export const useOrderStore = create<OrderStore>()((set, get) => ({
     // 10-second debounce
     if (state.lastFetched && Date.now() - state.lastFetched < 10_000) return;
 
+    lastLoadParams = params;
     set({ isLoading: true, error: null });
     try {
       const data: PaginatedOrders = await fetchOrders({
@@ -170,7 +182,7 @@ export const useOrderStore = create<OrderStore>()((set, get) => ({
       await transitionOrder(id, status);
       // Force refresh
       set({ lastFetched: null });
-      await get().loadOrders();
+      await get().loadOrders(lastLoadParams);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to update order";
       set({ error: message });
@@ -182,7 +194,7 @@ export const useOrderStore = create<OrderStore>()((set, get) => ({
     try {
       await voidOrder(id, reason, authToken);
       set({ lastFetched: null });
-      await get().loadOrders();
+      await get().loadOrders(lastLoadParams);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to void order";
       set({ error: message });

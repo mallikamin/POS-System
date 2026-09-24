@@ -1,5 +1,6 @@
 """Kitchen endpoints -- station CRUD, ticket queue, and ticket state transitions."""
 
+import logging
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -21,6 +22,8 @@ from app.schemas.kitchen import (
 )
 from app.services import kitchen_service
 from app.websockets.kitchen_events import emit_ticket_updated
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/kitchen", tags=["kitchen"])
 
@@ -131,6 +134,8 @@ def _ticket_to_response(ticket) -> TicketResponse:
             )
         )
     order = ticket.order
+    table = order.table if order else None
+    waiter = order.waiter if order else None
     return TicketResponse(
         id=ticket.id,
         order_id=ticket.order_id,
@@ -148,6 +153,8 @@ def _ticket_to_response(ticket) -> TicketResponse:
         order_total=order.total if order else None,
         customer_name=order.customer_name if order else None,
         table_id=order.table_id if order else None,
+        table_label=(table.label or f"T{table.number}") if table else None,
+        waiter_name=waiter.full_name if waiter else None,
         items=items,
     )
 
@@ -156,6 +163,7 @@ def _ticket_to_response(ticket) -> TicketResponse:
 async def get_station_queue(
     station_id: uuid.UUID,
     active_only: bool = Query(True),
+    served_within_minutes: int | None = Query(None, ge=1, le=1440),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[TicketResponse]:
@@ -167,6 +175,7 @@ async def get_station_queue(
         station_id,
         current_user.tenant_id,
         active_only=active_only,
+        served_within_minutes=served_within_minutes,
     )
     return [_ticket_to_response(t) for t in tickets]
 
@@ -206,6 +215,19 @@ async def transition_ticket(
             current_user.tenant_id,
             body.status,
         )
+        # The order follows the kitchen. In a savepoint: a problem moving the
+        # order must never stop the kitchen bumping its own ticket.
+        try:
+            async with db.begin_nested():
+                await kitchen_service.sync_order_from_tickets(
+                    db, current_user.tenant_id, ticket.order_id, current_user.id
+                )
+        except ValueError as sync_error:
+            logger.warning(
+                "Order %s did not follow its kitchen ticket: %s",
+                ticket.order_id,
+                sync_error,
+            )
         await db.commit()
     except ValueError as e:
         await db.rollback()

@@ -83,6 +83,10 @@ class TicketResponse(BaseModel):
     order_total: int | None = None
     customer_name: str | None = None
     table_id: uuid.UUID | None = None
+    # What the kitchen reads to know whose food it is (Danny's UAT D-14). No
+    # defaults on purpose: a forgotten field must fail loudly, not show blank.
+    table_label: str | None
+    waiter_name: str | None
     items: list[TicketItemResponse] = []
 
     model_config = {"from_attributes": True}

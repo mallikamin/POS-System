@@ -1,19 +1,26 @@
 """Dashboard service -- real-time KPIs and live operations."""
 
 import uuid
-from datetime import date, timedelta
+from datetime import timedelta
 
-from sqlalchemy import Date, case, func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.floor import Table
 from app.models.order import Order
+from app.utils.tenant_time import local_day_bounds_utc, local_today, tenant_timezone
 
 
 async def get_dashboard_kpis(db: AsyncSession, tenant_id: uuid.UUID) -> dict:
-    """Get today's dashboard KPI data."""
-    today = date.today()
-    yesterday = today - timedelta(days=1)
+    """Get today's dashboard KPI data.
+
+    "Today" is the restaurant's own day. A UTC date cast showed a Pakistani
+    owner the previous afternoon's takings as today's until 5 am (D-30).
+    """
+    tz_name = await tenant_timezone(db, tenant_id)
+    today = local_today(tz_name)
+    today_start, today_end = local_day_bounds_utc(tz_name, today)
+    yest_start, yest_end = local_day_bounds_utc(tz_name, today - timedelta(days=1))
 
     # Today's revenue and order count (non-voided)
     today_stats = await db.execute(
@@ -22,7 +29,8 @@ async def get_dashboard_kpis(db: AsyncSession, tenant_id: uuid.UUID) -> dict:
             func.count(Order.id).label("orders"),
         ).where(
             Order.tenant_id == tenant_id,
-            func.cast(Order.created_at, Date) == today,
+            Order.created_at >= today_start,
+            Order.created_at < today_end,
             Order.status != "voided",
         )
     )
@@ -36,7 +44,8 @@ async def get_dashboard_kpis(db: AsyncSession, tenant_id: uuid.UUID) -> dict:
             func.coalesce(func.sum(Order.total), 0),
         ).where(
             Order.tenant_id == tenant_id,
-            func.cast(Order.created_at, Date) == yesterday,
+            Order.created_at >= yest_start,
+            Order.created_at < yest_end,
             Order.status != "voided",
         )
     )
@@ -105,7 +114,7 @@ async def get_live_operations(db: AsyncSession, tenant_id: uuid.UUID) -> dict:
             "table_number": o.table.number if o.table else None,
             "customer_name": o.customer_name,
             "customer_phone": o.customer_phone,
-            "item_count": len(o.items),
+            "item_count": sum(i.quantity for i in o.items),
             "total": o.total,
             "created_at": o.created_at.isoformat(),
         }

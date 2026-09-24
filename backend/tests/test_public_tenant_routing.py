@@ -28,6 +28,7 @@ from httpx import AsyncClient
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.utils.tenant_time import local_now, tenant_timezone
 from app.models.menu import Category, MenuItem
 from app.models.order import Order
 from app.models.restaurant_config import RestaurantConfig
@@ -348,7 +349,9 @@ async def test_collection_and_delivery_each_run_their_own_counter(
     """
     from app.services.order_service import generate_order_number
 
-    today = datetime.now(timezone.utc).strftime("%y%m%d")
+    # The shop's own date, not UTC's: order numbers follow the tenant's
+    # timezone since 2026-09-25 (Danny's UAT D-18).
+    today = local_now(await tenant_timezone(db, tenant.id)).strftime("%y%m%d")
 
     assert await generate_order_number(db, tenant.id, "delivery") == f"{today}-D001"
 
@@ -382,7 +385,9 @@ async def test_switching_mid_day_never_re_issues_a_shared_counter_number(
     without rewriting a single existing number."""
     from app.services.order_service import generate_order_number
 
-    today = datetime.now(timezone.utc).strftime("%y%m%d")
+    # The shop's own date, not UTC's: order numbers follow the tenant's
+    # timezone since 2026-09-25 (Danny's UAT D-18).
+    today = local_now(await tenant_timezone(db, tenant.id)).strftime("%y%m%d")
 
     # A day issued under the shared counter: D001, C002, C003, D004.
     for issued in (f"{today}-D001", f"{today}-C002", f"{today}-C003", f"{today}-D004"):
@@ -399,7 +404,9 @@ async def test_till_orders_keep_the_plain_number_and_their_own_counter(
     run a sequence of their own -- a lettered number cannot bump it."""
     from app.services.order_service import generate_order_number
 
-    today = datetime.now(timezone.utc).strftime("%y%m%d")
+    # The shop's own date, not UTC's: order numbers follow the tenant's
+    # timezone since 2026-09-25 (Danny's UAT D-18).
+    today = local_now(await tenant_timezone(db, tenant.id)).strftime("%y%m%d")
     await _online_order(db, tenant.id, admin_user.id, f"{today}-C001")
 
     assert await generate_order_number(db, tenant.id) == f"{today}-001"

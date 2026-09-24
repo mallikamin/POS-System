@@ -1,9 +1,9 @@
 """Report service -- sales summaries, item performance, hourly breakdown."""
 
 import uuid
-from datetime import date
+from datetime import date, timezone
 
-from sqlalchemy import Date, func, select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.discount import OrderDiscount
@@ -11,6 +11,12 @@ from app.models.order import Order, OrderItem, OrderStatusLog
 from app.models.payment import Payment, PaymentMethod
 from app.models.user import User
 from app.services.order_visibility import is_real_order
+from app.utils.tenant_time import (
+    local_day_bounds_utc,
+    tenant_range_utc,
+    tenant_timezone,
+    zone,
+)
 
 
 async def get_sales_summary(
@@ -20,6 +26,7 @@ async def get_sales_summary(
     date_to: date,
 ) -> dict:
     """Aggregate sales data for a date range."""
+    range_start, range_end = await tenant_range_utc(db, tenant_id, date_from, date_to)
     base = select(
         func.coalesce(func.sum(Order.total), 0).label("revenue"),
         func.count(Order.id).label("orders"),
@@ -27,8 +34,8 @@ async def get_sales_summary(
         func.coalesce(func.sum(Order.discount_amount), 0).label("discount"),
     ).where(
         Order.tenant_id == tenant_id,
-        func.cast(Order.created_at, Date) >= date_from,
-        func.cast(Order.created_at, Date) <= date_to,
+        Order.created_at >= range_start,
+        Order.created_at < range_end,
         Order.status != "voided",
         # A card order Stripe never approved is not revenue -- no money exists.
         # Counting it overstated the client's own reports screen on 2026-08-04
@@ -47,8 +54,8 @@ async def get_sales_summary(
         )
         .where(
             Order.tenant_id == tenant_id,
-            func.cast(Order.created_at, Date) >= date_from,
-            func.cast(Order.created_at, Date) <= date_to,
+            Order.created_at >= range_start,
+            Order.created_at < range_end,
             Order.status != "voided",
             is_real_order(),
         )
@@ -69,8 +76,8 @@ async def get_sales_summary(
         .join(Order, OrderDiscount.order_id == Order.id)
         .where(
             OrderDiscount.tenant_id == tenant_id,
-            func.cast(Order.created_at, Date) >= date_from,
-            func.cast(Order.created_at, Date) <= date_to,
+            Order.created_at >= range_start,
+            Order.created_at < range_end,
             Order.status != "voided",
         )
         .group_by(OrderDiscount.source_type)
@@ -97,8 +104,8 @@ async def get_sales_summary(
             Payment.tenant_id == tenant_id,
             Payment.kind == "payment",
             Payment.status == "completed",
-            func.cast(Payment.created_at, Date) >= date_from,
-            func.cast(Payment.created_at, Date) <= date_to,
+            Payment.created_at >= range_start,
+            Payment.created_at < range_end,
         )
         .group_by(PaymentMethod.code)
     )
@@ -139,6 +146,7 @@ async def get_item_performance(
     date_to: date,
 ) -> dict:
     """Get top/bottom items and category breakdown."""
+    range_start, range_end = await tenant_range_utc(db, tenant_id, date_from, date_to)
     # Top items by revenue
     item_stats = await db.execute(
         select(
@@ -150,8 +158,8 @@ async def get_item_performance(
         .join(Order, OrderItem.order_id == Order.id)
         .where(
             Order.tenant_id == tenant_id,
-            func.cast(Order.created_at, Date) >= date_from,
-            func.cast(Order.created_at, Date) <= date_to,
+            Order.created_at >= range_start,
+            Order.created_at < range_end,
             Order.status != "voided",
         )
         .group_by(OrderItem.menu_item_id, OrderItem.name)
@@ -185,8 +193,8 @@ async def get_item_performance(
         .join(Category, MenuItem.category_id == Category.id)
         .where(
             Order.tenant_id == tenant_id,
-            func.cast(Order.created_at, Date) >= date_from,
-            func.cast(Order.created_at, Date) <= date_to,
+            Order.created_at >= range_start,
+            Order.created_at < range_end,
             Order.status != "voided",
         )
         .group_by(Category.name)
@@ -214,26 +222,32 @@ async def get_hourly_breakdown(
     tenant_id: uuid.UUID,
     target_date: date,
 ) -> dict:
-    """Get order count and revenue per hour for a given date."""
+    """Get order count and revenue per hour for a given date.
+
+    The day and the hours are the restaurant's own. A UTC date cast and UTC
+    `extract(hour)` put a 1 pm Faisalabad lunch in the 8 am bar, on the wrong
+    day after midnight (Danny's UAT D-30).
+    """
+    tz_name = await tenant_timezone(db, tenant_id)
+    day_start, day_end = local_day_bounds_utc(tz_name, target_date)
     result = await db.execute(
-        select(
-            func.extract("hour", Order.created_at).label("hour"),
-            func.count(Order.id).label("order_count"),
-            func.coalesce(func.sum(Order.total), 0).label("revenue"),
-        )
-        .where(
+        select(Order.created_at, Order.total).where(
             Order.tenant_id == tenant_id,
-            func.cast(Order.created_at, Date) == target_date,
+            Order.created_at >= day_start,
+            Order.created_at < day_end,
             Order.status != "voided",
         )
-        .group_by(func.extract("hour", Order.created_at))
-        .order_by(func.extract("hour", Order.created_at))
     )
 
-    hour_data = {
-        int(r.hour): {"order_count": r.order_count, "revenue": r.revenue}
-        for r in result.all()
-    }
+    tz = zone(tz_name)
+    hour_data: dict[int, dict[str, int]] = {}
+    for created_at, total in result.all():
+        if created_at.tzinfo is None:  # SQLite hands back naive UTC
+            created_at = created_at.replace(tzinfo=timezone.utc)
+        hour = created_at.astimezone(tz).hour
+        bucket = hour_data.setdefault(hour, {"order_count": 0, "revenue": 0})
+        bucket["order_count"] += 1
+        bucket["revenue"] += total or 0
 
     buckets = [
         {
@@ -254,6 +268,7 @@ async def get_void_report(
     date_to: date,
 ) -> dict:
     """Aggregate void data: counts, values, breakdown by reason and user."""
+    range_start, range_end = await tenant_range_utc(db, tenant_id, date_from, date_to)
     # Base: all voided orders in date range
     voided_orders = (
         select(
@@ -262,8 +277,8 @@ async def get_void_report(
         ).where(
             Order.tenant_id == tenant_id,
             Order.status == "voided",
-            func.cast(Order.created_at, Date) >= date_from,
-            func.cast(Order.created_at, Date) <= date_to,
+            Order.created_at >= range_start,
+            Order.created_at < range_end,
         )
     ).subquery()
 
@@ -288,8 +303,8 @@ async def get_void_report(
         .where(
             OrderStatusLog.tenant_id == tenant_id,
             OrderStatusLog.to_status == "voided",
-            func.cast(Order.created_at, Date) >= date_from,
-            func.cast(Order.created_at, Date) <= date_to,
+            Order.created_at >= range_start,
+            Order.created_at < range_end,
         )
         .group_by(reason_label)
         .order_by(func.count(OrderStatusLog.id).desc())
@@ -312,8 +327,8 @@ async def get_void_report(
         .where(
             OrderStatusLog.tenant_id == tenant_id,
             OrderStatusLog.to_status == "voided",
-            func.cast(Order.created_at, Date) >= date_from,
-            func.cast(Order.created_at, Date) <= date_to,
+            Order.created_at >= range_start,
+            Order.created_at < range_end,
         )
         .group_by(User.id, User.full_name)
         .order_by(func.count(OrderStatusLog.id).desc())
@@ -343,6 +358,7 @@ async def get_payment_method_report(
     date_to: date,
 ) -> dict:
     """Payment-mode daily sales: breakdown by payment method for a date range."""
+    range_start, range_end = await tenant_range_utc(db, tenant_id, date_from, date_to)
     result = await db.execute(
         select(
             PaymentMethod.display_name.label("method"),
@@ -355,8 +371,8 @@ async def get_payment_method_report(
             Payment.tenant_id == tenant_id,
             Payment.kind == "payment",
             Payment.status == "completed",
-            func.cast(Payment.created_at, Date) >= date_from,
-            func.cast(Payment.created_at, Date) <= date_to,
+            Payment.created_at >= range_start,
+            Payment.created_at < range_end,
         )
         .group_by(PaymentMethod.display_name, PaymentMethod.code)
         .order_by(func.sum(Payment.amount).desc())
@@ -383,6 +399,7 @@ async def get_waiter_performance(
     date_to: date,
 ) -> dict:
     """Waiter performance: orders, revenue, avg order value per waiter."""
+    range_start, range_end = await tenant_range_utc(db, tenant_id, date_from, date_to)
     # Orders with a waiter assigned
     result = await db.execute(
         select(
@@ -395,8 +412,8 @@ async def get_waiter_performance(
         .where(
             Order.tenant_id == tenant_id,
             Order.status != "voided",
-            func.cast(Order.created_at, Date) >= date_from,
-            func.cast(Order.created_at, Date) <= date_to,
+            Order.created_at >= range_start,
+            Order.created_at < range_end,
         )
         .group_by(User.id, User.full_name)
         .order_by(func.sum(Order.total).desc())
@@ -420,8 +437,8 @@ async def get_waiter_performance(
             Order.tenant_id == tenant_id,
             Order.status != "voided",
             Order.waiter_id.is_(None),
-            func.cast(Order.created_at, Date) >= date_from,
-            func.cast(Order.created_at, Date) <= date_to,
+            Order.created_at >= range_start,
+            Order.created_at < range_end,
         )
     )
     total_without = no_waiter_result.scalar_one()

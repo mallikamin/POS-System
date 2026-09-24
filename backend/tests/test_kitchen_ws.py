@@ -287,7 +287,8 @@ class TestKitchenEventEmitters:
         # Required top-level keys
         assert set(payload.keys()) == {
             "ticket_id", "order_id", "station_id", "station_name",
-            "order_number", "order_type", "status", "priority", "items",
+            "order_number", "order_type", "table_label", "waiter_name",
+            "status", "priority", "items",
         }
 
         # Item shape

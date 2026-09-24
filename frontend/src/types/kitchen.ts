@@ -34,6 +34,9 @@ export interface KitchenTicket {
   customer_name?: string;
   customer_phone?: string;
   table_id?: string;
+  /** "T4" or the table's own label; null when the order has no table. */
+  table_label?: string | null;
+  waiter_name?: string | null;
   items: KitchenTicketItem[];
 }
 
@@ -53,6 +56,8 @@ export interface KitchenTicketEvent {
     station_name?: string | null;
     order_number?: string | null;
     order_type?: "dine_in" | "takeaway" | "call_center" | null;
+    table_label?: string | null;
+    waiter_name?: string | null;
     status: "new" | "preparing" | "ready" | "served";
     previous_status?: "new" | "preparing" | "ready" | "served" | null;
     priority?: number;

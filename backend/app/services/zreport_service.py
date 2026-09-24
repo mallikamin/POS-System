@@ -3,12 +3,13 @@
 import uuid
 from datetime import date, datetime, timezone
 
-from sqlalchemy import Date, case, func, select
+from sqlalchemy import and_, case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.discount import OrderDiscount
 from app.models.order import Order, OrderItem
 from app.models.payment import CashDrawerSession, Payment, PaymentMethod
+from app.utils.tenant_time import tenant_range_utc
 
 
 async def generate_zreport(
@@ -17,8 +18,14 @@ async def generate_zreport(
     target_date: date,
     generated_by: str,
 ) -> dict:
-    """Assemble a complete Z-Report for a given date."""
-    date_filter = func.cast(Order.created_at, Date) == target_date
+    """Assemble a complete Z-Report for a given date.
+
+    The date is the restaurant's own day, midnight to midnight where it
+    stands. A UTC date cast put everything after local midnight on the
+    previous day's settlement (Danny's UAT D-30).
+    """
+    day_start, day_end = await tenant_range_utc(db, tenant_id, target_date, target_date)
+    date_filter = and_(Order.created_at >= day_start, Order.created_at < day_end)
 
     # --- Sales totals ---
     totals = (
@@ -94,7 +101,8 @@ async def generate_zreport(
                 Payment.tenant_id == tenant_id,
                 Payment.kind.in_(["payment", "refund"]),
                 Payment.status == "completed",
-                func.cast(Payment.created_at, Date) == target_date,
+                Payment.created_at >= day_start,
+                Payment.created_at < day_end,
             )
             .group_by(PaymentMethod.display_name)
             .order_by(PaymentMethod.display_name)
@@ -117,7 +125,8 @@ async def generate_zreport(
                 Payment.tenant_id == tenant_id,
                 Payment.status == "completed",
                 Payment.kind.in_(["payment", "refund"]),
-                func.cast(Payment.created_at, Date) == target_date,
+                Payment.created_at >= day_start,
+                Payment.created_at < day_end,
                 Order.tenant_id == tenant_id,
                 Order.status.notin_(["draft", "voided"]),
             )
@@ -186,7 +195,8 @@ async def generate_zreport(
         select(CashDrawerSession)
         .where(
             CashDrawerSession.tenant_id == tenant_id,
-            func.cast(CashDrawerSession.opened_at, Date) == target_date,
+            CashDrawerSession.opened_at >= day_start,
+            CashDrawerSession.opened_at < day_end,
         )
         .order_by(CashDrawerSession.opened_at.desc())
         .limit(1)

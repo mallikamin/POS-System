@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { toLocalISODate } from "@/utils/localDate";
 import {
   fetchSalesSummary,
   fetchItemPerformance,
@@ -40,20 +41,16 @@ import {
 
 /* ---------- date helpers ---------- */
 
-const today = new Date().toISOString().split("T")[0] ?? "";
-const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0] ?? "";
+const today = toLocalISODate();
+const yesterday = toLocalISODate(new Date(Date.now() - 86400000));
 const weekStart = (() => {
   const d = new Date();
   d.setDate(d.getDate() - d.getDay());
-  return d.toISOString().split("T")[0] ?? "";
+  return toLocalISODate(d);
 })();
-const monthStart = new Date(
-  new Date().getFullYear(),
-  new Date().getMonth(),
-  1
-)
-  .toISOString()
-  .split("T")[0] ?? "";
+const monthStart = toLocalISODate(
+  new Date(new Date().getFullYear(), new Date().getMonth(), 1)
+);
 
 interface DatePreset {
   label: string;

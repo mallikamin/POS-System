@@ -28,15 +28,19 @@ export function SaleAttributionPicker() {
     if (!loaded) void load();
   }, [loaded, load]);
 
-  if (locations.length === 0 && channels.length === 0) return null;
+  // One site means there is nothing to choose: the store already holds the
+  // default site and sends it. Showing a one-option box only took room from the
+  // order lines (Danny's UAT D-10).
+  const showSite = locations.length > 1;
+  if (!showSite && channels.length === 0) return null;
 
   const selectClass =
     "w-full h-11 rounded-md border border-secondary-200 bg-white px-2 text-sm " +
     "text-secondary-900 focus:outline-none focus:ring-2 focus:ring-primary-500";
 
   return (
-    <div className="grid grid-cols-2 gap-2">
-      {locations.length > 0 && (
+    <div className={`grid gap-2 ${showSite && channels.length > 0 ? "grid-cols-2" : "grid-cols-1"}`}>
+      {showSite && (
         <label className="space-y-1">
           <span className="flex items-center gap-1 text-xs font-medium text-secondary-500">
             <MapPin className="h-3 w-3" />
@@ -69,8 +73,10 @@ export function SaleAttributionPicker() {
           >
             {/* Deliberately offered: a sale that genuinely came through no
                 channel must be recordable as such, rather than silently
-                inheriting whatever the last order used. */}
-            <option value="">No channel</option>
+                inheriting whatever the last order used. It is the restaurant's
+                own sale, so it says so; "No channel" read as a missing value
+                (Danny's UAT D-09). Reports call it "Direct / unassigned". */}
+            <option value="">Direct (no commission)</option>
             {channels.map((channel) => (
               <option key={channel.id} value={channel.id}>
                 {channel.name}

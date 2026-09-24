@@ -310,6 +310,22 @@ export function OrderCard({ order, onTransition, onVoid }: OrderCardProps) {
                 />
                 {statusConfig.label}
               </Badge>
+
+              {/* Paid state on open orders. Without it the only hint a meal
+                  was settled was the Refund button (Danny's UAT D-24). */}
+              {order.status !== "completed" && order.status !== "voided" &&
+                (order.payment_status === "paid" || order.payment_status === "partial") && (
+                  <Badge
+                    className={cn(
+                      "border-transparent",
+                      order.payment_status === "paid"
+                        ? "bg-success-100 text-success-700"
+                        : "bg-warning-100 text-warning-700"
+                    )}
+                  >
+                    {order.payment_status === "paid" ? "Paid" : "Part paid"}
+                  </Badge>
+                )}
             </div>
           </div>
 
