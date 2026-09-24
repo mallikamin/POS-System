@@ -1,4 +1,4 @@
-# Danny's Restaurant Faisalabad — client index
+# Danny's Restaurant Faisalabad: client index
 
 Prospect, first contact 2026-09-24. Full-service restaurant, Sitara Villas, Canal Expressway,
 Faisalabad (Google: 4.2 stars, 271 reviews). Interested in the complete module, **inventory and
