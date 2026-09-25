@@ -5,6 +5,7 @@ import uuid
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+from sqlalchemy.orm.attributes import set_committed_value
 
 from app.models.menu import (
     Category,
@@ -354,9 +355,18 @@ async def get_full_menu(db: AsyncSession, tenant_id: uuid.UUID) -> list[Category
     )
     categories = list(result.scalars().unique().all())
 
-    # Filter to available items only (in-memory to avoid complex subquery)
+    # Filter to available items only (in-memory to avoid complex subquery).
+    # set_committed_value, not `cat.items = ...`: assigning the collection tells
+    # the ORM the hidden items left the category, and the request's commit then
+    # writes category_id = NULL for them (500 on Danny's, 2026-09-25).
     for cat in categories:
-        cat.items = [item for item in cat.items if item.is_available]
-        cat.items.sort(key=lambda i: (i.display_order, i.name))
+        set_committed_value(
+            cat,
+            "items",
+            sorted(
+                (item for item in cat.items if item.is_available),
+                key=lambda i: (i.display_order, i.name),
+            ),
+        )
 
     return categories
