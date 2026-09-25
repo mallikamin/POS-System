@@ -1550,6 +1550,15 @@ async def remove_in_house_production(
         )
         n += 1
 
+    # The old Half / Full dishes are off the menu; their recipes still used the
+    # in-house base. Nothing can order them, so their recipes are retired too.
+    for name in RETIRED_ITEMS:
+        dish = menu_map.get(name) or (
+            await db.execute(select(MenuItem).where(MenuItem.tenant_id == tenant.id, MenuItem.name == name))
+        ).scalar_one_or_none()
+        if dish is not None and (old := await active_recipe(menu_item_id=dish.id)) is not None:
+            old.is_active = False
+
     retired = 0
     for spec in SUB_RECIPES:
         produced = ing_map.get(spec["produces"])
