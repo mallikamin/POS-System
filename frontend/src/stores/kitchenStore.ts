@@ -98,6 +98,9 @@ function toTicketFromEvent(
       order_item_id: item.order_item_id,
       quantity: item.quantity,
       item_name: item.name,
+      modifiers: item.modifiers ?? [],
+      // The live event carries no notes; keep the ones the page load fetched.
+      item_notes: existing?.items.find((e) => e.order_item_id === item.order_item_id)?.item_notes,
     })) ?? existing?.items ?? [],
   };
 }

@@ -80,6 +80,29 @@ export function CartPanel({ waiterId, onOrderCreated }: CartPanelProps = {}) {
   const searchTimeout = useRef<ReturnType<typeof setTimeout>>();
 
   /*
+   * Bring the line just added into view and flash it (Danny's UAT D-34). Once
+   * the list was taller than its box, a tap on the menu added the dish below
+   * the fold: the count went up but the waiter saw no change and tapped again.
+   * Compares against the previous lines of the SAME cart, so switching tables
+   * scrolls nothing.
+   */
+  const [flashLineId, setFlashLineId] = useState<string | null>(null);
+  const lineRefs = useRef(new Map<string, HTMLDivElement>());
+  const prevLines = useRef<{ cartId: string; qty: Map<string, number> } | null>(null);
+  useEffect(() => {
+    const qty = new Map(cart.lines.map((l) => [l.lineId, l.quantity]));
+    const prev = prevLines.current;
+    prevLines.current = { cartId: activeCartId, qty };
+    if (!prev || prev.cartId !== activeCartId) return;
+    const changed = cart.lines.find((l) => l.quantity > (prev.qty.get(l.lineId) ?? 0));
+    if (!changed) return;
+    lineRefs.current.get(changed.lineId)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    setFlashLineId(changed.lineId);
+    const t = setTimeout(() => setFlashLineId(null), 1200);
+    return () => clearTimeout(t);
+  }, [cart.lines, activeCartId]);
+
+  /*
    * Charges added at the till. Martin (FZ LLC, 2026-09-02): "need to have
    * option to add charges (such as delivery fees for example)". Held as the
    * typed strings so "2." survives while it is being typed; converted to minor
@@ -338,12 +361,23 @@ export function CartPanel({ waiterId, onOrderCreated }: CartPanelProps = {}) {
         ) : (
           <div className="divide-y divide-secondary-100">
             {cart.lines.map((line) => (
-              <CartLineItem
+              <div
                 key={line.lineId}
-                line={line}
-                onUpdateQty={(qty) => updateQuantity(line.lineId, qty)}
-                onRemove={() => removeItem(line.lineId)}
-              />
+                ref={(el) => {
+                  if (el) lineRefs.current.set(line.lineId, el);
+                  else lineRefs.current.delete(line.lineId);
+                }}
+                className={cn(
+                  "transition-colors duration-700",
+                  flashLineId === line.lineId && "bg-primary-50"
+                )}
+              >
+                <CartLineItem
+                  line={line}
+                  onUpdateQty={(qty) => updateQuantity(line.lineId, qty)}
+                  onRemove={() => removeItem(line.lineId)}
+                />
+              </div>
             ))}
           </div>
         )}

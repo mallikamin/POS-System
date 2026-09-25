@@ -17,6 +17,8 @@ export interface KitchenTicketItem {
   quantity: number;
   item_name?: string;
   item_notes?: string;
+  /** Chosen modifiers, e.g. ["Full"]. The cook must see them (Danny's D-36). */
+  modifiers?: string[];
 }
 
 export interface KitchenTicket {
@@ -61,7 +63,7 @@ export interface KitchenTicketEvent {
     status: "new" | "preparing" | "ready" | "served";
     previous_status?: "new" | "preparing" | "ready" | "served" | null;
     priority?: number;
-    items?: Array<{ order_item_id: string; name: string; quantity: number }>;
+    items?: Array<{ order_item_id: string; name: string; quantity: number; modifiers?: string[] }>;
   };
 }
 

@@ -304,13 +304,25 @@ function KitchenPage() {
 
                       <ul className="mb-2 space-y-1 text-sm text-secondary-800">
                         {ticket.items.map((item, idx) => (
-                          <li key={idx} className="flex justify-between">
-                            <span className="truncate">
+                          <li key={idx}>
+                            <span className="block truncate">
                               {item.quantity > 1 && (
                                 <span className="font-bold text-secondary-900">{item.quantity}x </span>
                               )}
                               {item.item_name || "Unknown item"}
                             </span>
+                            {/* Portion and other choices, in bold: a Half cooked
+                                as a Full is the wrong food (Danny's D-36). */}
+                            {item.modifiers && item.modifiers.length > 0 && (
+                              <span className="block pl-3 text-sm font-bold text-primary-700">
+                                {item.modifiers.join(", ")}
+                              </span>
+                            )}
+                            {item.item_notes && (
+                              <span className="block pl-3 text-xs italic text-warning-700">
+                                {item.item_notes}
+                              </span>
+                            )}
                           </li>
                         ))}
                       </ul>

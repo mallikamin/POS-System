@@ -730,6 +730,19 @@ async def transition_order(
                     "go to the order and click Pay to proceed."
                 )
 
+    # A dine-in table is closed by paying for it. Completing an unpaid served
+    # meal freed the table and took the stock with no payment against it
+    # (Danny's D-37). Takeaway, call-centre and B2B orders are left alone: cash
+    # on delivery and credit sales can legitimately complete before payment.
+    if (
+        new_status == "completed"
+        and order.order_type == "dine_in"
+        and order.payment_status != "paid"
+    ):
+        raise ValueError(
+            "This table has not been paid. Settle the bill to complete the order."
+        )
+
     order.status = new_status
 
     log_entry = OrderStatusLog(

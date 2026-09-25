@@ -217,7 +217,14 @@ export function OrderCard({ order, onTransition, onVoid }: OrderCardProps) {
     ? { label: "Pending Payment", bg: "bg-amber-100", text: "text-amber-700", dot: "bg-amber-500" }
     : STATUS_CONFIG[order.status] ?? { label: "Unknown", bg: "bg-secondary-100", text: "text-secondary-600", dot: "bg-secondary-400" };
   // In pay-first mode, don't show "Send to Kitchen" for unpaid confirmed orders — show Pay instead
-  const transition = isOnline || isPendingPayment ? undefined : TRANSITION_ACTIONS[order.status];
+  // A served dine-in meal that has not been paid is settled, not completed:
+  // completing it freed the table with no payment (Danny's D-37). The backend
+  // refuses it too; here Pay becomes the main button instead.
+  const needsSettlement =
+    order.order_type === "dine_in" && order.status === "served" && order.payment_status !== "paid";
+  const primaryPay = isPendingPayment || needsSettlement;
+  const transition =
+    isOnline || isPendingPayment || needsSettlement ? undefined : TRANSITION_ACTIONS[order.status];
   const canVoid = !isOnline && permissionCodes.has("order.void") && VOIDABLE_STATUSES.has(order.status);
   const canPay = !isOnline && order.payment_status !== "paid" && order.status !== "voided" && order.status !== "draft";
   const canRefund =
@@ -400,13 +407,13 @@ export function OrderCard({ order, onTransition, onVoid }: OrderCardProps) {
             )}
             {canPay && (
               <Button
-                variant={isPendingPayment ? "default" : "outline"}
+                variant={primaryPay ? "default" : "outline"}
                 size="sm"
-                className={isPendingPayment ? "flex-1 gap-1.5" : "gap-1"}
+                className={primaryPay ? "flex-1 gap-1.5" : "gap-1"}
                 onClick={() => navigate(`/payment/${order.id}`)}
               >
                 <CreditCard className="h-3.5 w-3.5" />
-                {isPendingPayment ? "Pay Now" : "Pay"}
+                {isPendingPayment ? "Pay Now" : needsSettlement ? "Settle Bill" : "Pay"}
               </Button>
             )}
             {canRefund && (

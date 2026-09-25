@@ -20,7 +20,7 @@ Event payload shape:
         "previous_status": str | null,
         "priority": int,
         "items": [
-            {"order_item_id": str(uuid), "name": str, "quantity": int}
+            {"order_item_id": str(uuid), "name": str, "quantity": int, "modifiers": [str]}
         ],
     }
 }
@@ -42,6 +42,7 @@ def _build_ticket_payload(ticket: KitchenTicket) -> dict:
                 "order_item_id": str(ti.order_item_id),
                 "name": oi.name if oi else "Unknown",
                 "quantity": ti.quantity,
+                "modifiers": [m.name for m in oi.modifiers] if oi else [],
             }
         )
     order = ticket.order

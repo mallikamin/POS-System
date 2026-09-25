@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { formatMoney } from "@/utils/currency";
+import { useConfigStore } from "@/stores/configStore";
 import {
   fetchLocationOrders,
   fetchLocations,
@@ -28,6 +29,7 @@ import type {
  */
 function TaxInvoicesPage() {
   const { toast } = useToast();
+  const tenantCurrency = useConfigStore((s) => s.config?.currency);
 
   const [locations, setLocations] = useState<Location[]>([]);
   const [locationId, setLocationId] = useState<string>("");
@@ -98,7 +100,9 @@ function TaxInvoicesPage() {
     [locations, locationId],
   );
 
-  const currency = invoice?.currency ?? "AED";
+  // The tenant's currency until an invoice is open. This used to fall back to
+  // "AED", so a PKR restaurant's sales list read "AED 17,448.72" (Danny's D-39).
+  const currency = invoice?.currency ?? tenantCurrency ?? "PKR";
   const money = (minor: number) => formatMoney(minor, currency);
 
   if (loading) {

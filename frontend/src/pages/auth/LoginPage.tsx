@@ -7,6 +7,7 @@ import { NumberPad } from "@/components/pos/NumberPad";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getTenantSlug, setTenantSlug, tenantSlugFromUrl } from "@/lib/tenant";
+import { tenantBrand } from "@/lib/tenantBranding";
 
 /** Extract a human-readable message from an API error response. */
 function getErrorMessage(err: unknown, fallback: string): string {
@@ -54,6 +55,7 @@ function LoginPage() {
   );
   const [shop, setShop] = useState(getTenantSlug() ?? "");
   const [showShop, setShowShop] = useState(arrivedToChoose);
+  const brand = tenantBrand(shop);
 
   /*
    * If the user is already authenticated, redirect straight to the dashboard --
@@ -178,7 +180,14 @@ function LoginPage() {
       <div className="w-full max-w-md">
         {/* Logo / Title */}
         <div className="mb-8 text-center">
-          <h1 className="text-pos-3xl font-bold text-white">POS System</h1>
+          {brand && (
+            <img
+              src={brand.logo}
+              alt={brand.name}
+              className="mx-auto mb-4 h-28 w-28 rounded-full object-cover shadow-lg"
+            />
+          )}
+          <h1 className="text-pos-3xl font-bold text-white">{brand?.name ?? "POS System"}</h1>
           <p className="mt-2 text-pos-sm text-secondary-400">
             Restaurant Point of Sale
           </p>

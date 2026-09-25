@@ -31,52 +31,102 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Loader2,
+  ChevronDown,
+  type LucideIcon,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { useUIStore } from "@/stores/uiStore";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import api from "@/lib/axios";
-import { isModuleHidden } from "@/lib/modules";
+import { isModuleHidden, type UiModule } from "@/lib/modules";
 import { useConfigStore } from "@/stores/configStore";
 
-const baseNavItems = [
-  { to: "/admin", label: "Dashboard", icon: LayoutDashboard, end: true },
-  { to: "/admin/menu", label: "Menu", icon: UtensilsCrossed, end: false },
-  { to: "/admin/staff", label: "Staff", icon: Users, end: false },
-  { to: "/admin/customers", label: "Customers", icon: Contact, end: false },
-  { to: "/admin/settings", label: "Settings", icon: Settings, end: false },
-  { to: "/admin/reports", label: "Reports", icon: BarChart3, end: false },
-  { to: "/admin/z-report", label: "Z-Report", icon: FileText, end: false },
-  { to: "/admin/roles", label: "Roles", icon: Shield, end: false },
-  { to: "/admin/discounts", label: "Discounts", icon: Tag, end: false },
-  // Inventory, production and multi-location. Grouped in this order because it
-  // follows the actual workflow: define ingredients, build recipes, hold stock
-  // at a location, move it between locations, then read what it earned.
-  { to: "/admin/ingredients", label: "Ingredients", icon: Carrot, end: false },
-  { to: "/admin/recipes", label: "Recipes", icon: ChefHat, end: false },
-  { to: "/admin/locations", label: "Locations", icon: Store, end: false },
-  { to: "/admin/stock", label: "Stock", icon: Boxes, end: false },
-  // Martin (FZ LLC, 2026-09-06, M9): "There is no production menu". The engine
-  // existed; it was reachable only as a button on the Stock screen, and the
-  // word never appeared here. It sits after Stock because producing a batch is
-  // something you do TO stock.
-  { to: "/admin/production", label: "Production", icon: Factory, end: false },
-  { to: "/admin/transfers", label: "Transfers", icon: ArrowLeftRight, end: false },
-  // Procurement sits between holding stock and reporting on it: this is where
-  // stock comes FROM.
-  { to: "/admin/suppliers", label: "Suppliers", icon: Truck, end: false },
-  { to: "/admin/purchase-orders", label: "Purchase Orders", icon: ClipboardList, end: false },
-  { to: "/admin/order-planner", label: "Order Planner", icon: Sparkles, end: false },
-  // Martin M10. Sits beside procurement because it is the other half of what
-  // the business spends: ingredients come through purchase orders, everything
-  // else comes through here.
-  { to: "/admin/expenses", label: "Expenses", icon: Wallet, end: false },
-  { to: "/admin/channels", label: "Sales Channels", icon: Percent, end: false },
-  { to: "/admin/profitability", label: "Profitability", icon: TrendingUp, end: false },
-  { to: "/admin/quotations", label: "Quotations", icon: FileSignature, end: false },
-  { to: "/admin/tax-invoices", label: "Tax Invoices", icon: Receipt, end: false },
+type NavItem = {
+  to: string;
+  label: string;
+  icon: LucideIcon;
+  end: boolean;
+  /** Tenants can hide this entry through `hidden_ui_modules`. */
+  module?: UiModule;
+};
+
+type NavGroup = { key: string; label: string; icon: LucideIcon; items: NavItem[] };
+
+const dashboardItem: NavItem = { to: "/admin", label: "Dashboard", icon: LayoutDashboard, end: true };
+
+/*
+ * Grouped, collapsible sections (Danny's UAT, 2026-09-25: 25 flat entries read
+ * as a bloated product). Each group follows a job the restaurant does; the
+ * group holding the current screen opens by itself.
+ */
+const baseNavGroups: NavGroup[] = [
+  {
+    key: "sales",
+    label: "Sales & Reports",
+    icon: BarChart3,
+    items: [
+      { to: "/admin/reports", label: "Reports", icon: BarChart3, end: false },
+      { to: "/admin/z-report", label: "Z-Report", icon: FileText, end: false },
+      { to: "/admin/profitability", label: "Profitability", icon: TrendingUp, end: false },
+      { to: "/admin/channels", label: "Sales Channels", icon: Percent, end: false },
+    ],
+  },
+  {
+    // Workflow order: define ingredients, build recipes, hold stock, produce
+    // batches from it (Martin M9), move it between sites.
+    key: "inventory",
+    label: "Inventory",
+    icon: Boxes,
+    items: [
+      { to: "/admin/ingredients", label: "Ingredients", icon: Carrot, end: false },
+      { to: "/admin/recipes", label: "Recipes", icon: ChefHat, end: false },
+      { to: "/admin/stock", label: "Stock", icon: Boxes, end: false },
+      { to: "/admin/production", label: "Production", icon: Factory, end: false },
+      { to: "/admin/transfers", label: "Transfers", icon: ArrowLeftRight, end: false, module: "transfers" },
+    ],
+  },
+  {
+    // Where stock and spend come from: purchase orders, and everything else
+    // through Expenses (Martin M10).
+    key: "purchasing",
+    label: "Purchasing",
+    icon: Truck,
+    items: [
+      { to: "/admin/suppliers", label: "Suppliers", icon: Truck, end: false },
+      { to: "/admin/purchase-orders", label: "Purchase Orders", icon: ClipboardList, end: false },
+      { to: "/admin/order-planner", label: "Order Planner", icon: Sparkles, end: false, module: "order-planner" },
+      { to: "/admin/expenses", label: "Expenses", icon: Wallet, end: false },
+    ],
+  },
+  {
+    key: "invoicing",
+    label: "B2B Invoicing",
+    icon: Receipt,
+    items: [
+      { to: "/admin/quotations", label: "Quotations", icon: FileSignature, end: false, module: "quotations" },
+      { to: "/admin/tax-invoices", label: "Tax Invoices", icon: Receipt, end: false, module: "tax-invoices" },
+    ],
+  },
+  {
+    key: "settings",
+    label: "Settings",
+    icon: Settings,
+    items: [
+      { to: "/admin/settings", label: "General", icon: Settings, end: false },
+      { to: "/admin/menu", label: "Menu", icon: UtensilsCrossed, end: false },
+      { to: "/admin/staff", label: "Staff", icon: Users, end: false },
+      { to: "/admin/customers", label: "Customers", icon: Contact, end: false },
+      { to: "/admin/roles", label: "Roles", icon: Shield, end: false },
+      { to: "/admin/discounts", label: "Discounts", icon: Tag, end: false },
+      { to: "/admin/locations", label: "Locations", icon: Store, end: false },
+    ],
+  },
 ];
+
+function isItemActive(item: NavItem, pathname: string): boolean {
+  return item.end ? pathname === item.to : pathname === item.to || pathname.startsWith(`${item.to}/`);
+}
 
 function AdminLayout() {
   const { isAuthenticated, user, logout } = useAuthStore();
@@ -93,6 +143,8 @@ function AdminLayout() {
   const location = useLocation();
   const [qbConnectionType, setQbConnectionType] = useState<string | null>(null);
   const [qbLoaded, setQbLoaded] = useState(false);
+  // Groups the user opened or closed by hand; the rest follow the current page.
+  const [groupChoice, setGroupChoice] = useState<Record<string, boolean>>({});
 
   /*
    * Martin (FZ LLC, 2026-09-02): "On the phone you can't really enter the
@@ -162,21 +214,34 @@ function AdminLayout() {
   // module list answers "does this tenant want to see QuickBooks at all". A
   // client who has never bought an accounting integration should not be shown
   // two entries for one, which is what Martin saw in UAT on 2026-08-27.
-  const navItems = [...baseNavItems];
+  const qbItems: NavItem[] = [];
   if (qbLoaded) {
     if (
       (!qbConnectionType || qbConnectionType === "online") &&
       !isModuleHidden(config, "quickbooks-online")
     ) {
-      navItems.push({ to: "/admin/quickbooks", label: "QuickBooks Online", icon: BookOpen, end: false });
+      qbItems.push({ to: "/admin/quickbooks", label: "QuickBooks Online", icon: BookOpen, end: false });
     }
     if (
       (!qbConnectionType || qbConnectionType === "desktop") &&
       !isModuleHidden(config, "quickbooks-desktop")
     ) {
-      navItems.push({ to: "/admin/qb-desktop", label: "QB Desktop", icon: BookOpen, end: false });
+      qbItems.push({ to: "/admin/qb-desktop", label: "QB Desktop", icon: BookOpen, end: false });
     }
   }
+  const navGroups: NavGroup[] = [
+    ...baseNavGroups,
+    { key: "integrations", label: "Integrations", icon: BookOpen, items: qbItems },
+  ]
+    .map((g) => ({
+      ...g,
+      items: g.items.filter((i) => !i.module || !isModuleHidden(config, i.module)),
+    }))
+    .filter((g) => g.items.length > 0);
+
+  const activeGroup = navGroups.find((g) =>
+    g.items.some((i) => isItemActive(i, location.pathname)),
+  )?.key;
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
@@ -208,6 +273,29 @@ function AdminLayout() {
     logout();
     navigate("/login");
   };
+
+  const renderLink = (item: NavItem, nested = false) => (
+    <NavLink
+      key={item.to}
+      to={item.to}
+      end={item.end}
+      title={item.label}
+      onClick={() => setSidebarOpen(false)}
+      className={({ isActive }) =>
+        cn(
+          "flex min-h-[44px] items-center gap-3 rounded-lg px-3 py-2.5 text-pos-sm font-medium transition-colors",
+          nested && "pl-6",
+          collapsed && "lg:justify-center lg:px-0",
+          isActive
+            ? "bg-primary-50 text-primary-700"
+            : "text-secondary-600 hover:bg-secondary-100 hover:text-secondary-900"
+        )
+      }
+    >
+      <item.icon className="h-5 w-5 shrink-0" />
+      <span className={cn(collapsed && "lg:hidden")}>{item.label}</span>
+    </NavLink>
+  );
 
   return (
     <div className="flex h-screen overflow-hidden bg-secondary-50 print:block print:h-auto print:overflow-visible print:bg-white">
@@ -272,27 +360,34 @@ function AdminLayout() {
             2026-08-27 with 22 modules in the list, where Quotations and Tax
             Invoices could only be reached by zooming the browser out. */}
         <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto p-3">
-          {navItems.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.end}
-              title={item.label}
-              onClick={() => setSidebarOpen(false)}
-              className={({ isActive }) =>
-                cn(
-                  "flex min-h-[44px] items-center gap-3 rounded-lg px-3 py-2.5 text-pos-sm font-medium transition-colors",
-                  collapsed && "lg:justify-center lg:px-0",
-                  isActive
-                    ? "bg-primary-50 text-primary-700"
-                    : "text-secondary-600 hover:bg-secondary-100 hover:text-secondary-900"
-                )
-              }
-            >
-              <item.icon className="h-5 w-5 shrink-0" />
-              <span className={cn(collapsed && "lg:hidden")}>{item.label}</span>
-            </NavLink>
-          ))}
+          {renderLink(dashboardItem)}
+          {navGroups.map((group) => {
+            const open = groupChoice[group.key] ?? group.key === activeGroup;
+            return (
+              <div key={group.key} className="pt-1">
+                <button
+                  type="button"
+                  onClick={() => setGroupChoice((c) => ({ ...c, [group.key]: !open }))}
+                  aria-expanded={open}
+                  title={group.label}
+                  className={cn(
+                    "flex min-h-[40px] w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-pos-xs font-semibold uppercase tracking-wide text-secondary-500 hover:bg-secondary-100",
+                    // The icon rail shows every entry and no section headers.
+                    collapsed && "lg:hidden"
+                  )}
+                >
+                  <group.icon className="h-4 w-4 shrink-0" />
+                  <span className="flex-1">{group.label}</span>
+                  <ChevronDown
+                    className={cn("h-4 w-4 shrink-0 transition-transform", !open && "-rotate-90")}
+                  />
+                </button>
+                <div className={cn("space-y-1", !open && "hidden", collapsed && "lg:block")}>
+                  {group.items.map((item) => renderLink(item, true))}
+                </div>
+              </div>
+            );
+          })}
         </nav>
 
         {/* Sidebar footer */}

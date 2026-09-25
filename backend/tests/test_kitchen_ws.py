@@ -294,7 +294,7 @@ class TestKitchenEventEmitters:
         # Item shape
         assert len(payload["items"]) == 1
         item = payload["items"][0]
-        assert set(item.keys()) == {"order_item_id", "name", "quantity"}
+        assert set(item.keys()) == {"order_item_id", "name", "quantity", "modifiers"}
         assert item["name"] == "Seekh Kebab"
         assert item["quantity"] == 3
 

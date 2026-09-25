@@ -30,7 +30,11 @@ export type UiModule =
   | "takeaway"
   | "call-center"
   | "quickbooks-online"
-  | "quickbooks-desktop";
+  | "quickbooks-desktop"
+  | "transfers"
+  | "order-planner"
+  | "quotations"
+  | "tax-invoices";
 
 function hiddenSet(config: RestaurantConfig | null): Set<string> {
   if (!config?.hidden_ui_modules) return new Set();

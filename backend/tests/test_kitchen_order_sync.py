@@ -259,6 +259,57 @@ async def test_old_served_tickets_drop_off_the_board(client, db, admin_token, ki
     assert all(t["order_id"] != order["id"] for t in queue)
 
 
+async def test_unpaid_dine_in_cannot_be_completed(client, db, admin_token, table, kitchen_setup):
+    """D-37: Complete on a served, unpaid table freed it and took the stock with no payment."""
+    order = await _place(client, admin_token, kitchen_setup["karahi"], table)
+    for status in ("ready", "served"):
+        r = await client.patch(
+            f"/api/v1/orders/{order['id']}/status", json={"status": status}, headers=_auth(admin_token)
+        )
+        assert r.status_code == 200, r.text
+
+    r = await client.patch(
+        f"/api/v1/orders/{order['id']}/status", json={"status": "completed"}, headers=_auth(admin_token)
+    )
+    assert r.status_code in (400, 409), r.text
+    assert "Settle the bill" in r.text
+    assert (await _order(client, admin_token, order["id"]))["status"] == "served"
+    assert await _chicken_left(db, kitchen_setup) == Decimal("10")
+
+
+async def test_ticket_carries_the_portion(client, db, tenant, admin_token, table, kitchen_setup):
+    """D-36: the kitchen saw "Chicken Karahi" and could not tell Half from Full."""
+    from app.models.menu import MenuItemModifierGroup, Modifier, ModifierGroup
+
+    karahi = kitchen_setup["karahi"]
+    karahi_id, karahi_name, karahi_price = karahi.id, karahi.name, karahi.price
+    group = ModifierGroup(
+        tenant_id=tenant.id, name="Portion", display_order=0, required=True,
+        min_selections=1, max_selections=1,
+    )
+    db.add(group)
+    await db.flush()
+    full = Modifier(tenant_id=tenant.id, group_id=group.id, name="Full", price_adjustment=96000, display_order=1)
+    db.add_all([full, MenuItemModifierGroup(tenant_id=tenant.id, menu_item_id=karahi_id, modifier_group_id=group.id)])
+    await db.commit()
+
+    r = await client.post(
+        "/api/v1/orders",
+        json={
+            "order_type": "dine_in", "table_id": str(table.id),
+            "items": [{
+                "menu_item_id": str(karahi_id), "name": karahi_name, "quantity": 1,
+                "unit_price": karahi_price + 96000,
+                "modifiers": [{"modifier_id": str(full.id), "name": "Full", "price_adjustment": 96000}],
+            }],
+        },
+        headers=_auth(admin_token),
+    )
+    assert r.status_code == 201, r.text
+    ticket = await _ticket(client, admin_token, r.json()["id"])
+    assert ticket["items"][0]["modifiers"] == ["Full"]
+
+
 async def test_online_orders_are_not_driven_by_the_kitchen(db, tenant, admin_user, kitchen_setup):
     """Online orders keep their own accept / dispatch flow."""
     from app.services import kitchen_service

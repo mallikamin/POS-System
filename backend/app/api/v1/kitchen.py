@@ -131,6 +131,7 @@ def _ticket_to_response(ticket) -> TicketResponse:
                 quantity=ti.quantity,
                 item_name=oi.name if oi else None,
                 item_notes=oi.notes if oi else None,
+                modifiers=[m.name for m in oi.modifiers] if oi else [],
             )
         )
     order = ticket.order

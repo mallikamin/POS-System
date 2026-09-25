@@ -49,6 +49,9 @@ class TicketItemResponse(BaseModel):
     # Denormalized from order_item for display
     item_name: str | None = None
     item_notes: str | None = None
+    # The choices the cook must see, e.g. ["Full"] on a karahi (Danny's D-36).
+    # No default: a builder that forgets it must fail, not print a Half as a Full.
+    modifiers: list[str]
 
     model_config = {"from_attributes": True}
 

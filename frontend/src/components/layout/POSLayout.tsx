@@ -6,6 +6,7 @@ import { useUIStore } from "@/stores/uiStore";
 import { useConfigStore } from "@/stores/configStore";
 import { useSaleAttributionStore } from "@/stores/saleAttributionStore";
 import { Button } from "@/components/ui/button";
+import { tenantBrand } from "@/lib/tenantBranding";
 
 function Clock() {
   const [time, setTime] = useState(new Date());
@@ -37,6 +38,7 @@ function POSLayout() {
   const navigate = useNavigate();
   const salesChannels = useSaleAttributionStore((s) => s.channels);
   const salesChannelId = useSaleAttributionStore((s) => s.channelId);
+  const brand = tenantBrand(config?.tenant_slug);
 
   // Fetch restaurant config once after the user is authenticated
   useEffect(() => {
@@ -124,9 +126,16 @@ function POSLayout() {
               frame before config lands. */}
           <Link
             to="/"
-            className="truncate text-pos-lg font-bold text-secondary-800 hover:text-primary-600 transition-colors"
+            className="flex min-w-0 items-center gap-2 text-pos-lg font-bold text-secondary-800 hover:text-primary-600 transition-colors"
           >
-            {config?.restaurant_name ?? "POS System"}
+            {brand && (
+              <img
+                src={brand.logo}
+                alt=""
+                className="h-9 w-9 shrink-0 rounded-full object-cover"
+              />
+            )}
+            <span className="truncate">{config?.restaurant_name ?? "POS System"}</span>
           </Link>
           {channel && (
             <span

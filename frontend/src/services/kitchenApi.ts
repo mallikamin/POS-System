@@ -12,6 +12,7 @@ type KitchenQueueItemResponse = {
   quantity: number;
   item_name?: string;
   item_notes?: string;
+  modifiers: string[];
 };
 
 type KitchenQueueTicketResponse = {
@@ -64,6 +65,7 @@ function toTicket(
       quantity: item.quantity,
       item_name: item.item_name,
       item_notes: item.item_notes,
+      modifiers: item.modifiers,
     })),
   };
 }
