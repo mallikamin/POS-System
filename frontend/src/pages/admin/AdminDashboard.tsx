@@ -218,9 +218,12 @@ function HourlyChart({ data }: { data: HourlyBreakdown | null }) {
             const pct = (bucket.revenue / maxRevenue) * 100;
             const isCurrent = bucket.hour === currentHour;
             return (
+              // h-full + justify-end: the bar's % height needs a column with a
+              // height. Without it every bar collapsed to its 2px floor and the
+              // chart looked empty on a day with sales (Danny's D-40).
               <div
                 key={bucket.hour}
-                className="group relative flex flex-1 flex-col items-center"
+                className="group relative flex h-full flex-1 flex-col items-center justify-end"
               >
                 {/* tooltip on hover */}
                 <div className="pointer-events-none absolute -top-10 z-10 hidden whitespace-nowrap rounded bg-secondary-800 px-2 py-1 text-pos-xs text-white shadow group-hover:block">

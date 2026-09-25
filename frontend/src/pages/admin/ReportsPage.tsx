@@ -821,7 +821,8 @@ function ReportsPage() {
                         return (
                           <div
                             key={bucket.hour}
-                            className="group relative flex flex-1 flex-col items-center justify-end"
+                            // h-full: see AdminDashboard HourlyChart (D-40).
+                            className="group relative flex h-full flex-1 flex-col items-center justify-end"
                             onMouseEnter={() => setHoveredHour(bucket.hour)}
                             onMouseLeave={() => setHoveredHour(null)}
                           >
