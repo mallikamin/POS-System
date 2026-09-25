@@ -12,6 +12,7 @@ import type { OrderTiming } from "../lib/delivery";
 import { orderLinesOf, subtotalOf, useCart } from "../store/cart";
 import {
   CLOSURE_NOTICE,
+  CLOSURE_TITLE,
   DEFAULT_PAUSED_MESSAGE,
   canOrder,
   useMenu,
@@ -529,19 +530,19 @@ export default function Checkout({ onBack, onPlaced }: Props) {
         <div
           className={`card space-y-3 ${
             closed
-              ? "p-5 text-center border-2 border-flame/60 bg-flame/10"
+              ? "p-5 text-center border-2 border-ember/60 bg-ember/10"
               : "p-4 border-ember/40"
           }`}
         >
           <p
             className={
               closed
-                ? "font-display text-2xl text-flame leading-tight"
+                ? "font-display text-2xl text-ember leading-tight"
                 : "font-semibold text-ember"
             }
           >
             {closed
-              ? "Temporarily closed"
+              ? CLOSURE_TITLE
               : orderingPaused
                 ? "We're not taking online orders right now"
                 : "Your internet connection has dropped"}

@@ -113,5 +113,12 @@ export const DEFAULT_PAUSED_MESSAGE =
  * will announce a closure.
  */
 export const CLOSURE_NOTICE: string | null =
-  "Due to unforeseen circumstances, we are temporarily closed. " +
-  "We'll be back soon.";
+  "We reopen on Saturday 26 September at 4pm, our normal opening time. " +
+  "Thank you for your patience, see you then.";
+
+/**
+ * Headline and header badge for the closure (Imran, 2026-09-24: reopening
+ * Sat 26 Sep at 4pm). Clear these with CLOSURE_NOTICE on reopening.
+ */
+export const CLOSURE_TITLE = "Back Saturday at 4pm";
+export const CLOSURE_BADGE = "Reopening Sat 4pm";

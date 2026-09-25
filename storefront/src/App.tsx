@@ -4,7 +4,13 @@ import { formatGBP } from "./lib/money";
 import { isOpenNow } from "./lib/delivery";
 import type { OrderTiming } from "./lib/delivery";
 import { itemCountOf, subtotalOf, useCart } from "./store/cart";
-import { CLOSURE_NOTICE, DEFAULT_PAUSED_MESSAGE, useMenu } from "./store/menu";
+import {
+  CLOSURE_BADGE,
+  CLOSURE_NOTICE,
+  CLOSURE_TITLE,
+  DEFAULT_PAUSED_MESSAGE,
+  useMenu,
+} from "./store/menu";
 import type { ApiOrderResponse } from "./lib/api";
 import MenuBrowser from "./components/MenuBrowser";
 import CartPanel from "./components/CartPanel";
@@ -184,14 +190,14 @@ export default function App() {
             <span
               className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${
                 closed
-                  ? "border-flame/50 text-flame"
+                  ? "border-ember/50 text-ember"
                   : open
                     ? "border-emerald-500/40 text-emerald-400"
                     : "border-ink-line text-cream/50"
               }`}
             >
               {closed
-                ? "Temporarily closed"
+                ? CLOSURE_BADGE
                 : open
                   ? "Open now"
                   : `Opens ${SHOP.openTime}`}
@@ -217,9 +223,9 @@ export default function App() {
             {closed ? (
               /* A closure is the one thing on this page nobody may miss, so it
                  is sized like a headline, not like the rush notice below. */
-              <div className="mt-5 card p-5 sm:p-6 text-center border-2 border-flame/60 bg-flame/10">
-                <p className="font-display text-2xl sm:text-3xl text-flame leading-tight">
-                  Temporarily closed
+              <div className="mt-5 card p-5 sm:p-6 text-center border-2 border-ember/60 bg-ember/10">
+                <p className="font-display text-2xl sm:text-3xl text-ember leading-tight">
+                  {CLOSURE_TITLE}
                 </p>
                 <p className="mt-3 text-lg sm:text-xl text-cream leading-snug">
                   {CLOSURE_NOTICE}
