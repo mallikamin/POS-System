@@ -1398,6 +1398,77 @@ export default function RecipeBuilderPage() {
                   </Card>
                 )}
 
+                {/* Portions and add-ons on this dish (Danny's UAT, 2026-09-25:
+                    "where are the portions?"). The Full portion's recipe lived
+                    only on the Add-on tab, so the dish showed no sign of it. */}
+                {!isSubRecipe && !isModifier && selectedMenuItem &&
+                  (selectedMenuItem.modifier_groups ?? []).some((g) => g.modifiers.length > 0) && (
+                  <Card className="border-primary-100">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-pos-base">Portions and add-ons</CardTitle>
+                      <p className="text-pos-xs text-secondary-500">
+                        The recipe above is the base serving. A choice made at the till adds its
+                        own ingredients on top, and they come off stock with the order.
+                      </p>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {(selectedMenuItem.modifier_groups ?? []).map((group) => (
+                        <div key={group.id} className="space-y-2">
+                          <div className="flex items-center gap-2 text-pos-xs font-medium uppercase tracking-wide text-secondary-500">
+                            {group.name}
+                            {group.required && <Badge variant="outline">Required</Badge>}
+                          </div>
+                          {group.modifiers.map((mod) => {
+                            const modRecipe = activeRecipes.find((r) => r.modifier_id === mod.id);
+                            return (
+                              <div
+                                key={mod.id}
+                                className="flex flex-col gap-2 rounded-lg border border-secondary-200 p-3 sm:flex-row sm:items-start sm:justify-between"
+                              >
+                                <div className="min-w-0 space-y-1">
+                                  <p className="text-pos-sm font-semibold text-secondary-900">
+                                    {mod.name}
+                                    <span className="ml-2 font-normal text-secondary-500">
+                                      {mod.price_adjustment > 0
+                                        ? `+${formatPKR(mod.price_adjustment)} on the price`
+                                        : "no extra charge"}
+                                    </span>
+                                  </p>
+                                  {modRecipe ? (
+                                    <p className="text-pos-xs text-secondary-600">
+                                      Adds{" "}
+                                      {modRecipe.recipe_items
+                                        .map((ri) => `${ri.ingredient_name} ${Number(ri.quantity)} ${ri.unit}`)
+                                        .join(", ")}
+                                      . Extra cost {formatPKR(modRecipe.cost_per_serving)}.
+                                    </p>
+                                  ) : (
+                                    <p className="text-pos-xs text-secondary-500">
+                                      Nothing extra from stock: this is the base recipe above.
+                                    </p>
+                                  )}
+                                </div>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="shrink-0"
+                                  onClick={() => {
+                                    setTargetMode("modifier");
+                                    setTargetSearch("");
+                                    void loadRecipeForModifier(mod);
+                                  }}
+                                >
+                                  {modRecipe ? "Edit" : "Add recipe"}
+                                </Button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ))}
+                    </CardContent>
+                  </Card>
+                )}
+
                 {/* Instructions & Notes */}
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div className="space-y-2">
