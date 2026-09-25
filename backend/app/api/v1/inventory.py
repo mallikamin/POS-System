@@ -52,6 +52,14 @@ def _enrich_recipe(recipe, tax_settings: tuple[int, bool]) -> RecipeResponse:
     response = RecipeResponse.model_validate(recipe)
     rate_bps, prices_include_tax = tax_settings
 
+    # Each line is named by its ingredient. The schema declared the field from
+    # the start, but nothing filled it, so every screen that listed a recipe's
+    # lines by name showed "null" (Danny's D-44). Same guard as the group label
+    # below: an unloaded relationship is skipped, never lazy-loaded.
+    for line, line_response in zip(recipe.recipe_items, response.recipe_items):
+        if "ingredient" not in sa_inspect(line).unloaded and line.ingredient is not None:
+            line_response.ingredient_name = line.ingredient.name
+
     if recipe.menu_item is not None:
         response.menu_item_name = recipe.menu_item.name
         response.menu_item_price = recipe.menu_item.price

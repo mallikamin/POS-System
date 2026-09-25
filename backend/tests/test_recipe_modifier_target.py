@@ -639,3 +639,60 @@ class TestThroughTheApi:
         assert len(addons) == 1
         assert addons[0]["modifier_name"] == "Extra Cheese Sauce"
         assert addons[0]["modifier_group_name"] == "Extras"
+
+    async def test_every_recipe_response_names_its_ingredients(
+        self, client, admin_token, db: AsyncSession, tenant: Tenant,
+        extra_cheese: Modifier, cheese: Ingredient,
+    ):
+        """Danny's D-44: the dish's "Portions and add-ons" panel read
+        "Adds null 0.5 kg". `ingredient_name` was declared on every recipe line
+        and filled by no endpoint. Held on all four paths that answer with a
+        recipe, because the write paths re-fetch and could lose the join.
+        """
+        auth = {"Authorization": "Bearer " + admin_token}
+        items = [
+            {
+                "ingredient_id": str(cheese.id),
+                "quantity": 0.03,
+                "unit": "kg",
+                "waste_factor": 0,
+            }
+        ]
+        created = await client.post(
+            "/api/v1/inventory/recipes",
+            headers=auth,
+            json={
+                "modifier_id": str(extra_cheese.id),
+                "yield_servings": 1,
+                "recipe_items": items,
+            },
+        )
+        assert created.status_code == 201, created.text
+        assert [ri["ingredient_name"] for ri in created.json()["recipe_items"]] == [
+            "Cheese Sauce"
+        ]
+
+        items[0]["quantity"] = 0.06
+        edited = await client.patch(
+            "/api/v1/inventory/recipes/" + created.json()["id"],
+            headers=auth,
+            json={"recipe_items": items, "yield_servings": 1},
+        )
+        assert edited.status_code == 200, edited.text
+        recipe_id = edited.json()["id"]
+        assert [ri["ingredient_name"] for ri in edited.json()["recipe_items"]] == [
+            "Cheese Sauce"
+        ]
+
+        listed = await client.get(
+            "/api/v1/inventory/recipes", headers=auth, params={"is_active": "true"}
+        )
+        assert listed.status_code == 200, listed.text
+        (row,) = [r for r in listed.json() if r["id"] == recipe_id]
+        assert [ri["ingredient_name"] for ri in row["recipe_items"]] == ["Cheese Sauce"]
+
+        fetched = await client.get("/api/v1/inventory/recipes/" + recipe_id, headers=auth)
+        assert fetched.status_code == 200, fetched.text
+        assert [ri["ingredient_name"] for ri in fetched.json()["recipe_items"]] == [
+            "Cheese Sauce"
+        ]

@@ -1420,6 +1420,11 @@ export default function RecipeBuilderPage() {
                           </div>
                           {group.modifiers.map((mod) => {
                             const modRecipe = activeRecipes.find((r) => r.modifier_id === mod.id);
+                            // A no-charge choice with no recipe is the base serving
+                            // (Half): it takes nothing extra, so it does not invite a
+                            // recipe (Danny's D-45). A paid one without a recipe is a
+                            // gap and keeps its button.
+                            const isBaseServing = !modRecipe && mod.price_adjustment <= 0;
                             return (
                               <div
                                 key={mod.id}
@@ -1442,24 +1447,30 @@ export default function RecipeBuilderPage() {
                                         .join(", ")}
                                       . Extra cost {formatPKR(modRecipe.cost_per_serving)}.
                                     </p>
-                                  ) : (
+                                  ) : isBaseServing ? (
                                     <p className="text-pos-xs text-secondary-500">
                                       Nothing extra from stock: this is the base recipe above.
                                     </p>
+                                  ) : (
+                                    <p className="text-pos-xs text-amber-700">
+                                      No recipe yet: selling it takes nothing off stock and adds no cost.
+                                    </p>
                                   )}
                                 </div>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="shrink-0"
-                                  onClick={() => {
-                                    setTargetMode("modifier");
-                                    setTargetSearch("");
-                                    void loadRecipeForModifier(mod);
-                                  }}
-                                >
-                                  {modRecipe ? "Edit" : "Add recipe"}
-                                </Button>
+                                {!isBaseServing && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="shrink-0"
+                                    onClick={() => {
+                                      setTargetMode("modifier");
+                                      setTargetSearch("");
+                                      void loadRecipeForModifier(mod);
+                                    }}
+                                  >
+                                    {modRecipe ? "Edit" : "Add recipe"}
+                                  </Button>
+                                )}
                               </div>
                             );
                           })}

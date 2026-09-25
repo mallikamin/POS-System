@@ -456,7 +456,9 @@ async def get_recipe(
         # layer labels every recipe by whichever one it produces, and a lazy
         # load on an async session raises MissingGreenlet.
         .options(
-            selectinload(Recipe.recipe_items),
+            # `.ingredient` is chained because the API names each line by its
+            # ingredient (Danny's D-44: the portions panel read "null 0.5 kg").
+            selectinload(Recipe.recipe_items).selectinload(RecipeItem.ingredient),
             selectinload(Recipe.menu_item),
             selectinload(Recipe.produces_ingredient),
             # `.group` is chained because the API labels an add-on recipe with
@@ -483,7 +485,9 @@ async def get_recipe_by_menu_item(
         # layer labels every recipe by whichever one it produces, and a lazy
         # load on an async session raises MissingGreenlet.
         .options(
-            selectinload(Recipe.recipe_items),
+            # `.ingredient` is chained because the API names each line by its
+            # ingredient (Danny's D-44: the portions panel read "null 0.5 kg").
+            selectinload(Recipe.recipe_items).selectinload(RecipeItem.ingredient),
             selectinload(Recipe.menu_item),
             selectinload(Recipe.produces_ingredient),
             # `.group` is chained because the API labels an add-on recipe with
@@ -513,7 +517,9 @@ async def list_recipes(
         # layer labels every recipe by whichever one it produces, and a lazy
         # load on an async session raises MissingGreenlet.
         .options(
-            selectinload(Recipe.recipe_items),
+            # `.ingredient` is chained because the API names each line by its
+            # ingredient (Danny's D-44: the portions panel read "null 0.5 kg").
+            selectinload(Recipe.recipe_items).selectinload(RecipeItem.ingredient),
             selectinload(Recipe.menu_item),
             selectinload(Recipe.produces_ingredient),
             # `.group` is chained because the API labels an add-on recipe with
