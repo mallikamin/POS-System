@@ -340,7 +340,13 @@ async def get_location_stock(
         select(LocationStock, Ingredient, Location)
         .join(Ingredient, Ingredient.id == LocationStock.ingredient_id)
         .join(Location, Location.id == LocationStock.location_id)
-        .where(LocationStock.tenant_id == tenant_id)
+        .where(
+            LocationStock.tenant_id == tenant_id,
+            # A retired ingredient is not stock anyone manages. Danny's retired
+            # its in-house items (it buys everything) and they stayed on the
+            # Stock screen and in the low-stock list with their old balances.
+            Ingredient.is_active == True,  # noqa: E712
+        )
     )
     if location_id is not None:
         stmt = stmt.where(LocationStock.location_id == location_id)

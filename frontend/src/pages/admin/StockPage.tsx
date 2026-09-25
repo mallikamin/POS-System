@@ -8,6 +8,8 @@ import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { useConfigStore } from "@/stores/configStore";
+import { isModuleHidden } from "@/lib/modules";
 import {
   Dialog,
   DialogContent,
@@ -84,6 +86,7 @@ function errorMessage(err: unknown, fallback: string): string {
 
 function StockPage() {
   const { toast } = useToast();
+  const config = useConfigStore((s) => s.config);
   const currency = getActiveCurrency();
 
   const [locations, setLocations] = useState<Location[]>([]);
@@ -357,14 +360,17 @@ function StockPage() {
             />
             Refresh
           </Button>
-          <Button
-            onClick={openProduction}
-            disabled={subRecipes.length === 0}
-            className="gap-2 min-h-[48px]"
-          >
-            <Factory className="h-4 w-4" />
-            Run Production
-          </Button>
+          {/* Not offered to a tenant that makes nothing in-house (Danny's). */}
+          {!isModuleHidden(config, "production") && (
+            <Button
+              onClick={openProduction}
+              disabled={subRecipes.length === 0}
+              className="gap-2 min-h-[48px]"
+            >
+              <Factory className="h-4 w-4" />
+              Run Production
+            </Button>
+          )}
         </div>
       </div>
 

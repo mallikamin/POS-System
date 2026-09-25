@@ -82,7 +82,7 @@ const baseNavGroups: NavGroup[] = [
       { to: "/admin/ingredients", label: "Ingredients", icon: Carrot, end: false },
       { to: "/admin/recipes", label: "Recipes", icon: ChefHat, end: false },
       { to: "/admin/stock", label: "Stock", icon: Boxes, end: false },
-      { to: "/admin/production", label: "Production", icon: Factory, end: false },
+      { to: "/admin/production", label: "Production", icon: Factory, end: false, module: "production" },
       { to: "/admin/transfers", label: "Transfers", icon: ArrowLeftRight, end: false, module: "transfers" },
     ],
   },

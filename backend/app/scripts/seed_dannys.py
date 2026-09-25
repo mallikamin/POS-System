@@ -33,7 +33,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import async_session_factory
 from app.models.floor import Floor, Table
-from app.models.inventory import Ingredient, Recipe
+from app.models.inventory import Ingredient, Recipe, RecipeItem
 from app.models.kitchen import KitchenStation, KitchenTicket
 from app.models.location import Location, SalesChannel
 from app.models.menu import Category, MenuItem, MenuItemModifierGroup, Modifier, ModifierGroup
@@ -43,7 +43,7 @@ from app.models.procurement import PurchaseOrder, Supplier
 from app.models.restaurant_config import RestaurantConfig
 from app.models.tenant import Tenant
 from app.models.user import Permission, Role, RolePermission, User
-from app.schemas.inventory import RecipeCreate, RecipeItemCreate
+from app.schemas.inventory import RecipeCreate, RecipeItemCreate, RecipeUpdate
 from app.scripts.seed import ALL_PERMISSIONS, ROLE_DEFINITIONS
 try:
     # Untracked on purpose (it carries Malik's own credentials), so it exists
@@ -75,7 +75,10 @@ TAX_BPS = 1600
 RECEIPT_HEADER = "Sitara Villas, Canal Expressway, Faisalabad"
 # D-31: modules a single-site Pakistani restaurant does not use. Presentation only
 # (see frontend lib/modules.ts). Locations, Stock and Production stay.
-HIDDEN_UI_MODULES = "quickbooks-online,quickbooks-desktop,transfers,order-planner,quotations,tax-invoices"
+# "production": Danny's buys everything and makes nothing in-house (Malik, 2026-09-25).
+HIDDEN_UI_MODULES = (
+    "quickbooks-online,quickbooks-desktop,transfers,order-planner,quotations,tax-invoices,production"
+)
 
 USERS = [
     {"email": "admin@dannys-demo.com", "full_name": "Danny's Owner (Demo)",
@@ -820,6 +823,49 @@ PORTIONS = {
     ]},
 }
 
+
+# ---------------------------------------------------------------------------
+# NO IN-HOUSE PRODUCTION (Malik, 2026-09-25): Danny's buys everything; unlike
+# FZ LLC it produces nothing. The sub-recipes above stay only as the source for
+# this expansion: every dish and portion recipe lists the PURCHASED ingredients
+# the old in-house item was made of, in the same amounts. A direct line keeps
+# its waste %; an expanded amount already includes both wastes.
+# ---------------------------------------------------------------------------
+
+_SUB_BY_NAME = {s["produces"]: s for s in SUB_RECIPES}
+_Q3 = Decimal("0.001")
+
+
+def _flatten(items: list) -> list:
+    out: dict[str, list] = {}  # name -> [qty, unit, waste]
+
+    def add(name: str, effective: Decimal, unit: str, waste: Decimal) -> None:
+        if name in out:
+            line = out[name]
+            line[0] += effective / (1 + line[2] / 100)
+        else:
+            out[name] = [effective / (1 + waste / 100), unit, waste]
+
+    for name, qty, unit, waste in items:
+        sub = _SUB_BY_NAME.get(name)
+        if sub is None:
+            add(name, qty * (1 + waste / 100), unit, waste)
+            continue
+        scale = qty * (1 + waste / 100) / sub["yield_qty"]
+        for n2, q2, u2, w2 in sub["items"]:
+            add(n2, scale * q2 * (1 + w2 / 100), u2, w2)
+    flat = []
+    for name, (qty, unit, waste) in out.items():
+        q = qty.quantize(_Q3)
+        if q > 0:
+            flat.append((name, q, unit, waste))
+    return flat
+
+
+FINAL_RECIPES = {k: (ins, _flatten(items)) for k, (ins, items) in FINAL_RECIPES.items()}
+for _spec in PORTIONS.values():
+    _spec["extra"] = _flatten(_spec["extra"])
+
 # The first seed's separate Half / Full dishes. Hidden, not deleted: past
 # orders point at them.
 RETIRED_ITEMS = (
@@ -1025,60 +1071,6 @@ async def get_or_create_raw_ingredients(db: AsyncSession, tenant: Tenant) -> dic
         ing_map[spec["name"]] = ing
     print(f"  Raw ingredients: {len(RAW_INGREDIENTS)}.")
     return ing_map
-
-
-async def get_or_create_sub_recipes(
-    db: AsyncSession, tenant: Tenant, admin: User, ing_map: dict[str, Ingredient]
-) -> None:
-    await ingredient_category_service.ensure_category(db, tenant.id, "Made In-House")
-    for spec in SUB_RECIPES:
-        produced = (
-            await db.execute(
-                select(Ingredient).where(Ingredient.name == spec["produces"], Ingredient.tenant_id == tenant.id)
-            )
-        ).scalar_one_or_none()
-        if produced is None:
-            produced = Ingredient(
-                tenant_id=tenant.id, name=spec["produces"], category="Made In-House",
-                unit=spec["unit"], cost_per_unit=0, current_stock=0,
-                reorder_point=0, reorder_quantity=0, is_active=True, is_produced=True,
-            )
-            db.add(produced)
-            await db.flush()
-        ing_map[spec["produces"]] = produced
-
-        has_recipe = (
-            await db.execute(
-                select(Recipe.id).where(
-                    Recipe.tenant_id == tenant.id,
-                    Recipe.produces_ingredient_id == produced.id,
-                    Recipe.is_active == True,  # noqa: E712
-                )
-            )
-        ).first()
-        if has_recipe is not None:
-            continue
-
-        recipe = await recipe_service.create_recipe(
-            db,
-            tenant.id,
-            RecipeCreate(
-                produces_ingredient_id=produced.id,
-                yield_servings=spec["yield_qty"],
-                prep_time_minutes=spec["prep"],
-                cook_time_minutes=spec["cook"],
-                instructions=spec["instructions"],
-                recipe_items=[
-                    RecipeItemCreate(ingredient_id=ing_map[n].id, quantity=q, unit=u, waste_factor=w)
-                    for n, q, u, w in spec["items"]
-                ],
-            ),
-            admin.id,
-        )
-        print(
-            f"  Sub-recipe '{spec['produces']}': batch Rs {recipe.total_ingredient_cost/100:,.0f} "
-            f"-> Rs {recipe.cost_per_serving/100:,.2f}/{spec['unit']}"
-        )
 
 
 async def get_or_create_final_recipes(
@@ -1389,31 +1381,6 @@ async def seed_suppliers_and_purchasing(
     print(f"  PO {po3.po_number}: draft.")
 
 
-async def seed_production(
-    db: AsyncSession, tenant: Tenant, location: Location, ing_map: dict[str, Ingredient], admin: User
-) -> None:
-    """Make the in-house items, through the real production service."""
-    for spec in SUB_RECIPES:
-        produced = ing_map[spec["produces"]]
-        row = await stock_service.get_or_create_stock_row(db, tenant.id, location.id, produced.id)
-        if Decimal(str(row.quantity)) > 0:
-            continue
-        recipe = (
-            await db.execute(
-                select(Recipe).where(
-                    Recipe.tenant_id == tenant.id,
-                    Recipe.produces_ingredient_id == produced.id,
-                    Recipe.is_active == True,  # noqa: E712
-                )
-            )
-        ).scalar_one()
-        result = await production_service.run_production(
-            db, tenant_id=tenant.id, recipe_id=recipe.id, batches=spec["batches"],
-            location_id=location.id, performed_by=admin.id,
-        )
-        print(f"  Produced {result['produced_quantity']} {spec['unit']} of {result['recipe_name']}.")
-
-
 async def seed_demo_orders(
     db: AsyncSession, tenant: Tenant, location: Location, channels: dict[str, SalesChannel],
     menu_map: dict[str, MenuItem], methods: dict[str, PaymentMethod],
@@ -1529,6 +1496,74 @@ async def apply_item_photos(db: AsyncSession, tenant: Tenant) -> None:
     print(f"  Item photos set on {n} rows.")
 
 
+async def remove_in_house_production(
+    db: AsyncSession, tenant: Tenant, admin: User, menu_map: dict[str, MenuItem],
+    portions: dict[str, dict[str, Modifier]],
+) -> None:
+    """Danny's buys everything (Malik, 2026-09-25). On a tenant seeded before
+    that, re-version every dish and portion recipe that still uses an in-house
+    item, then retire the sub-recipes and the in-house items. Deactivated, not
+    deleted: past orders and stock movements refer to them.
+    """
+    ing_map = {
+        i.name: i
+        for i in (await db.execute(select(Ingredient).where(Ingredient.tenant_id == tenant.id))).scalars()
+    }
+
+    async def uses_in_house(recipe_id) -> bool:
+        return (
+            await db.execute(
+                select(RecipeItem.id)
+                .join(Ingredient, Ingredient.id == RecipeItem.ingredient_id)
+                .where(RecipeItem.recipe_id == recipe_id, Ingredient.is_produced == True)  # noqa: E712
+            )
+        ).first() is not None
+
+    async def active_recipe(**target) -> Recipe | None:
+        (key, value), = target.items()
+        return (
+            await db.execute(
+                select(Recipe).where(
+                    Recipe.tenant_id == tenant.id, getattr(Recipe, key) == value,
+                    Recipe.is_active == True,  # noqa: E712
+                )
+            )
+        ).scalar_one_or_none()
+
+    targets = [(active_recipe(menu_item_id=menu_map[n].id), items) for n, (_, items) in FINAL_RECIPES.items()]
+    targets += [
+        (active_recipe(modifier_id=portions[dish]["Full"].id), spec["extra"])
+        for dish, spec in PORTIONS.items()
+    ]
+    n = 0
+    for pending, items in targets:
+        recipe = await pending
+        if recipe is None or not await uses_in_house(recipe.id):
+            continue
+        await recipe_service.update_recipe(
+            db, recipe,
+            RecipeUpdate(recipe_items=[
+                RecipeItemCreate(ingredient_id=ing_map[nm].id, quantity=q, unit=u, waste_factor=w)
+                for nm, q, u, w in items
+            ]),
+            admin.id,
+        )
+        n += 1
+
+    retired = 0
+    for spec in SUB_RECIPES:
+        produced = ing_map.get(spec["produces"])
+        if produced is None or not produced.is_active:
+            continue
+        sub = await active_recipe(produces_ingredient_id=produced.id)
+        if sub is not None:
+            sub.is_active = False
+        produced.is_active = False
+        retired += 1
+    await db.flush()
+    print(f"  No in-house production: {n} recipes now list bought ingredients, {retired} in-house items retired.")
+
+
 async def close_stale_kitchen_tickets(db: AsyncSession, tenant: Tenant) -> None:
     """Take tickets off the board whose order is already finished (D-13 residue).
 
@@ -1562,16 +1597,16 @@ async def seed() -> None:
         admin = await get_or_create_users(db, tenant)
         menu_map = await get_or_create_menu(db, tenant)
         ing_map = await get_or_create_raw_ingredients(db, tenant)
-        await get_or_create_sub_recipes(db, tenant, admin, ing_map)
+        # No get_or_create_sub_recipes / seed_production: Danny's buys everything.
         await get_or_create_final_recipes(db, tenant, admin, ing_map, menu_map)
         portions = await get_or_create_portions(db, tenant, admin, ing_map, menu_map)
+        await remove_in_house_production(db, tenant, admin, menu_map, portions)
         location = await get_or_create_location(db, tenant)
         channels = await get_or_create_channels(db, tenant)
         await get_or_create_floors_and_station(db, tenant)
         methods = await get_or_create_payment_methods(db, tenant)
         await seed_opening_stock(db, tenant, location, ing_map, admin)
         await seed_suppliers_and_purchasing(db, tenant, location, ing_map, admin)
-        await seed_production(db, tenant, location, ing_map, admin)
         await seed_demo_orders(db, tenant, location, channels, menu_map, methods, portions, admin)
         await apply_item_photos(db, tenant)
         await close_stale_kitchen_tickets(db, tenant)

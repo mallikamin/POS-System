@@ -32,6 +32,7 @@ export type UiModule =
   | "quickbooks-online"
   | "quickbooks-desktop"
   | "transfers"
+  | "production"
   | "order-planner"
   | "quotations"
   | "tax-invoices";

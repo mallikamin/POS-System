@@ -62,6 +62,7 @@ import * as inventoryApi from "@/services/inventoryApi";
 import { formatPKR, taxName } from "@/utils/currency";
 import { netOfTax } from "@/utils/tax";
 import { useConfigStore } from "@/stores/configStore";
+import { isModuleHidden } from "@/lib/modules";
 
 type TargetMode = "menu_item" | "sub_recipe" | "modifier";
 
@@ -161,6 +162,10 @@ export default function RecipeBuilderPage() {
   // settings (Admin > Settings), not constants, so a rate change is a settings
   // change. Defaults match the config column defaults until the config loads.
   const taxRateBps = useConfigStore((s) => s.config?.default_tax_rate) ?? 0;
+  // A tenant that buys everything and makes nothing in-house (Danny's) is not
+  // offered sub-recipes at all; its recipes list bought ingredients only.
+  const productionHidden = isModuleHidden(useConfigStore((s) => s.config), "production");
+  const [showHiddenDishes, setShowHiddenDishes] = useState(false);
   const pricesIncludeTax =
     useConfigStore((s) => s.config?.tax_inclusive) ?? true;
 
@@ -458,7 +463,13 @@ export default function RecipeBuilderPage() {
       return a.name.localeCompare(b.name);
     });
 
-  const visibleMenuItems = menuItems.filter((item) => matchesSearch(item.name));
+  // Dishes taken off the menu stay out of the list unless asked for. Danny's
+  // retired "Chicken Karahi (Half)" / "(Full)" when the portion became a
+  // choice on one dish, and the builder still offered all three (UAT, 2026-09-25).
+  const hiddenDishCount = menuItems.filter((item) => !item.is_available).length;
+  const visibleMenuItems = menuItems.filter(
+    (item) => (showHiddenDishes || item.is_available) && matchesSearch(item.name),
+  );
 
   // Groups with no matching add-on are dropped entirely, so a search never
   // leaves a heading standing over an empty list.
@@ -756,28 +767,30 @@ export default function RecipeBuilderPage() {
               <ChefHat className="h-4 w-4" />
               Menu item recipe
             </Button>
-            <Button
-              variant={isSubRecipe ? "default" : "outline"}
-              onClick={() => handleModeChange("sub_recipe")}
-              className="min-h-[48px] gap-2"
-            >
-              <Layers className="h-4 w-4" />
-              Sub-recipe (produces an ingredient)
-            </Button>
+            {!productionHidden && (
+              <Button
+                variant={isSubRecipe ? "default" : "outline"}
+                onClick={() => handleModeChange("sub_recipe")}
+                className="min-h-[48px] gap-2"
+              >
+                <Layers className="h-4 w-4" />
+                Sub-recipe (produces an ingredient)
+              </Button>
+            )}
             <Button
               variant={isModifier ? "default" : "outline"}
               onClick={() => handleModeChange("modifier")}
               className="min-h-[48px] gap-2"
             >
               <PlusCircle className="h-4 w-4" />
-              Add-on (modifier)
+              Add-on or portion (modifier)
             </Button>
           </div>
           <p className="text-pos-xs text-secondary-500 sm:ml-auto sm:max-w-xs">
             {isSubRecipe
               ? "An in-house ingredient such as dough, a sauce, or a stuffing, which other recipes then use as an input line."
               : isModifier
-                ? "A paid extra the customer chooses at the till. What it is made of is deducted from stock and costed on top of the line it is added to."
+                ? "A choice made at the till, such as an extra or a Full portion. What it adds is deducted from stock and costed on top of the dish's own recipe."
                 : "A sellable item on the menu, priced and ordered by customers."}
           </p>
         </CardContent>
@@ -846,6 +859,18 @@ export default function RecipeBuilderPage() {
                   </option>
                 ))}
               </Select>
+            )}
+
+            {targetMode === "menu_item" && hiddenDishCount > 0 && (
+              <label className="flex cursor-pointer items-center gap-2 text-pos-xs text-secondary-600">
+                <input
+                  type="checkbox"
+                  checked={showHiddenDishes}
+                  onChange={(e) => setShowHiddenDishes(e.target.checked)}
+                  className="h-4 w-4"
+                />
+                Show dishes taken off the menu ({hiddenDishCount})
+              </label>
             )}
 
             {/* Target list */}
