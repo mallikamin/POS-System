@@ -19,22 +19,81 @@ import { formatPKR } from "@/utils/currency";
 import { useConfigStore } from "@/stores/configStore";
 import api from "@/lib/axios";
 
-interface DrawerSummary {
+/*
+ * D-60 daily summary sections. Ingredient quantities and costs arrive as
+ * JSON numbers; costs are MINOR units (possibly fractional), so they go
+ * through formatPKR like every other amount on this page.
+ */
+interface InventoryUsedRow {
+  ingredient_id: string;
+  ingredient_name: string;
+  unit: string;
+  sold_quantity: number;
+  sold_cost: number;
+  production_quantity: number;
+  production_cost: number;
+  waste_quantity: number;
+  waste_cost: number;
+  adjustment_quantity: number;
+  adjustment_cost: number;
+  used_cost: number;
+  costed_at_current_price: boolean;
+}
+
+interface InventoryUsed {
+  rows: InventoryUsedRow[];
+  total_sold_cost: number;
+  total_production_cost: number;
+  total_waste_cost: number;
+  total_adjustment_cost: number;
+  total_cost_of_goods_used: number;
+}
+
+interface StockLeftRow {
+  location_id: string;
+  location_name: string;
+  ingredient_id: string;
+  ingredient_name: string;
+  unit: string;
+  closing_quantity: number;
+  reorder_point: number;
+  is_low: boolean;
+}
+
+interface StockLeft {
+  as_of: string;
+  multiple_locations: boolean;
+  low_count: number;
+  rows: StockLeftRow[];
+}
+
+interface DrawerPosition {
+  session_status: string;
+  opened_at: string;
+  closed_at: string | null;
   opening_float: number;
-  cash_in: number;
-  cash_out_change: number;
-  cash_out_refund: number;
-  expected_balance: number;
-  counted_balance: number | null;
-  variance: number | null;
-  session_status: string | null;
+  cash_taken: number;
+  cash_refunds: number;
+  cash_paid_out: number;
+  expected_in_drawer: number;
+  counted_closing: number | null;
+  over_short: number | null;
+}
+
+interface CashPosition {
+  cash_taken: number;
+  cash_refunds: number;
+  cash_paid_out: number;
+  cash_expenses: { payee: string; payment_method: string; amount: number }[];
+  net_cash: number;
+  drawer_opened: boolean;
+  drawers: DrawerPosition[];
 }
 
 interface ZReport {
   date: string;
   generated_at: string;
   generated_by: string;
-  drawer: DrawerSummary | null;
   total_orders: number;
   total_revenue: number;
   total_tax: number;
@@ -56,7 +115,26 @@ interface ZReport {
   }[];
   by_status: { status: string; count: number }[];
   top_items: { name: string; quantity: number; revenue: number }[];
+  inventory_used: InventoryUsed;
+  stock_left: StockLeft;
+  cash_position: CashPosition;
 }
+
+function formatQty(qty: number): string {
+  return qty.toLocaleString(currencyLocale(), { maximumFractionDigits: 3 });
+}
+
+function formatTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString(currencyLocale(), {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+const sectionTitle =
+  "font-semibold text-secondary-800 print:text-sm print:font-bold print:uppercase print:tracking-wide print:border-b print:border-gray-300 print:pb-1";
+const printCard =
+  "print:border print:border-gray-300 print:shadow-none print:rounded-none";
 
 const channelLabels: Record<string, string> = {
   dine_in: "Dine-In",
@@ -229,55 +307,8 @@ function ZReportPage() {
 
           {/* ===== DETAIL SECTIONS ===== */}
           <div className="grid gap-6 lg:grid-cols-2 print:grid-cols-2 print:gap-4">
-            {/* Cash Drawer */}
-            {report.drawer && (
-              <Card className="print:border print:border-gray-300 print:shadow-none print:rounded-none">
-                <CardContent className="space-y-3 pt-6 print:pt-3 print:px-3">
-                  <h2 className="font-semibold text-secondary-800 print:text-sm print:font-bold print:uppercase print:tracking-wide print:border-b print:border-gray-300 print:pb-1">
-                    Cash Drawer
-                    {report.drawer.session_status && (
-                      <Badge
-                        className={`ml-2 print:hidden ${
-                          report.drawer.session_status === "open"
-                            ? "bg-green-100 text-green-800"
-                            : "bg-secondary-100 text-secondary-600"
-                        }`}
-                      >
-                        {report.drawer.session_status}
-                      </Badge>
-                    )}
-                    <span className="hidden print:inline ml-2 text-xs font-normal">
-                      ({report.drawer.session_status})
-                    </span>
-                  </h2>
-                  <div className="space-y-1 text-pos-sm print:text-xs">
-                    <Row label="Opening Float" value={formatPKR(report.drawer.opening_float)} />
-                    <Row label="Cash In (Sales)" value={formatPKR(report.drawer.cash_in)} />
-                    <Row label="Cash Out (Change)" value={`-${formatPKR(report.drawer.cash_out_change)}`} />
-                    <Row label="Cash Out (Refunds)" value={`-${formatPKR(report.drawer.cash_out_refund)}`} />
-                    <div className="border-t pt-1" />
-                    <Row label="Expected Balance" value={formatPKR(report.drawer.expected_balance)} bold />
-                    {report.drawer.counted_balance != null && (
-                      <>
-                        <Row label="Counted Balance" value={formatPKR(report.drawer.counted_balance)} />
-                        <Row
-                          label="Variance"
-                          value={formatPKR(report.drawer.variance ?? 0)}
-                          bold
-                          variant={
-                            (report.drawer.variance ?? 0) === 0
-                              ? "neutral"
-                              : (report.drawer.variance ?? 0) > 0
-                                ? "positive"
-                                : "negative"
-                          }
-                        />
-                      </>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
+            {/* Cash Position (replaces the old Cash Drawer card, D-60) */}
+            <CashPositionCard cash={report.cash_position} />
 
             {/* By Channel */}
             <Card className="print:border print:border-gray-300 print:shadow-none print:rounded-none">
@@ -403,6 +434,10 @@ function ZReportPage() {
             </Card>
           )}
 
+          {/* Inventory used + stock left (D-60) */}
+          <InventoryUsedCard used={report.inventory_used} />
+          <StockLeftCard left={report.stock_left} />
+
           {/* Print footer */}
           <div className="hidden print:block print:mt-6 print:pt-3 print:border-t print:border-gray-300 print:text-center print:text-xs print:text-gray-400">
             End of Z-Report — {selectedDate}
@@ -410,6 +445,257 @@ function ZReportPage() {
         </div>
       )}
     </div>
+  );
+}
+
+/* ---------- D-60 daily summary sections ---------- */
+
+function overShortVariant(v: number): "neutral" | "positive" | "negative" {
+  if (v === 0) return "neutral";
+  return v > 0 ? "positive" : "negative";
+}
+
+function CashPositionCard({ cash }: { cash: CashPosition }) {
+  return (
+    <Card className={printCard}>
+      <CardContent className="space-y-3 pt-6 print:pt-3 print:px-3">
+        <h2 className={sectionTitle}>Cash Position</h2>
+        <div className="space-y-1 text-pos-sm print:text-xs">
+          <Row label="Cash taken (sales)" value={formatPKR(cash.cash_taken)} />
+          <Row label="Cash refunds" value={`-${formatPKR(cash.cash_refunds)}`} />
+          <Row label="Cash paid out (expenses)" value={`-${formatPKR(cash.cash_paid_out)}`} />
+          {cash.cash_expenses.map((e, i) => (
+            <div
+              key={i}
+              className="flex justify-between pl-4 text-xs text-secondary-500 print:text-gray-600"
+            >
+              <span>
+                {e.payee} ({e.payment_method})
+              </span>
+              <span>-{formatPKR(e.amount)}</span>
+            </div>
+          ))}
+          <div className="border-t pt-1" />
+          <Row label="Net cash for the day" value={formatPKR(cash.net_cash)} bold />
+        </div>
+
+        {!cash.drawer_opened ? (
+          <p className="rounded-md bg-amber-50 px-3 py-2 text-pos-sm text-amber-800 print:bg-transparent print:px-0 print:text-xs print:text-black">
+            No cash drawer was opened this day, so there is no opening float or
+            counted amount to compare against.
+          </p>
+        ) : (
+          cash.drawers.map((d, i) => (
+            <div
+              key={i}
+              className="space-y-1 border-t pt-2 text-pos-sm print:text-xs"
+            >
+              <div className="flex items-center justify-between">
+                <span className="font-semibold">
+                  Drawer {formatTime(d.opened_at)}
+                  {d.closed_at ? ` to ${formatTime(d.closed_at)}` : ""}
+                </span>
+                <Badge
+                  className={`print:hidden ${
+                    d.session_status === "open"
+                      ? "bg-green-100 text-green-800"
+                      : "bg-secondary-100 text-secondary-600"
+                  }`}
+                >
+                  {d.session_status}
+                </Badge>
+                <span className="hidden print:inline">({d.session_status})</span>
+              </div>
+              <Row label="Opening float" value={formatPKR(d.opening_float)} />
+              <Row label="Cash taken" value={formatPKR(d.cash_taken)} />
+              <Row label="Cash refunds" value={`-${formatPKR(d.cash_refunds)}`} />
+              <Row label="Cash paid out" value={`-${formatPKR(d.cash_paid_out)}`} />
+              <Row
+                label="Should be in drawer"
+                value={formatPKR(d.expected_in_drawer)}
+                bold
+              />
+              {d.counted_closing != null && d.over_short != null ? (
+                <>
+                  <Row label="Counted at close" value={formatPKR(d.counted_closing)} />
+                  <Row
+                    label={d.over_short >= 0 ? "Over" : "Short"}
+                    value={formatPKR(Math.abs(d.over_short))}
+                    bold
+                    variant={overShortVariant(d.over_short)}
+                  />
+                </>
+              ) : (
+                <p className="text-xs text-secondary-500">Not counted yet.</p>
+              )}
+            </div>
+          ))
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function InventoryUsedCard({ used }: { used: InventoryUsed }) {
+  const showProduction = used.rows.some((r) => r.production_quantity !== 0);
+  const showWaste = used.rows.some((r) => r.waste_quantity !== 0);
+  const showAdjust = used.rows.some((r) => r.adjustment_quantity !== 0);
+  const anyCurrentPrice = used.rows.some((r) => r.costed_at_current_price);
+
+  return (
+    <Card className={`${printCard} print-section`}>
+      <CardContent className="pt-6 print:pt-3 print:px-3">
+        <h2 className={`mb-3 print:mb-2 ${sectionTitle}`}>Inventory Used</h2>
+        {used.rows.length === 0 ? (
+          <p className="text-pos-sm text-secondary-500">
+            No stock was used this day.
+          </p>
+        ) : (
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-pos-sm print:text-xs">
+                <thead>
+                  <tr className="border-b text-secondary-500 print:text-gray-600">
+                    <th className="pb-2 font-medium print:pb-1">Ingredient</th>
+                    <th className="pb-2 font-medium text-right print:pb-1">Sold</th>
+                    {showProduction && (
+                      <th className="pb-2 font-medium text-right print:pb-1">Production</th>
+                    )}
+                    {showWaste && (
+                      <th className="pb-2 font-medium text-right print:pb-1">Waste</th>
+                    )}
+                    {showAdjust && (
+                      <th className="pb-2 font-medium text-right print:pb-1">Adjusted</th>
+                    )}
+                    <th className="pb-2 font-medium text-right print:pb-1">Cost</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {used.rows.map((r) => (
+                    <tr key={r.ingredient_id} className="border-b last:border-0">
+                      <td className="py-2 font-medium print:py-1">
+                        {r.ingredient_name}
+                        {r.costed_at_current_price ? " *" : ""}
+                      </td>
+                      <td className="py-2 text-right print:py-1">
+                        {formatQty(r.sold_quantity)} {r.unit}
+                      </td>
+                      {showProduction && (
+                        <td className="py-2 text-right print:py-1">
+                          {formatQty(r.production_quantity)} {r.unit}
+                        </td>
+                      )}
+                      {showWaste && (
+                        <td className="py-2 text-right print:py-1">
+                          {formatQty(r.waste_quantity)} {r.unit}
+                        </td>
+                      )}
+                      {showAdjust && (
+                        <td className="py-2 text-right print:py-1">
+                          {r.adjustment_quantity > 0 ? "+" : ""}
+                          {formatQty(r.adjustment_quantity)} {r.unit}
+                        </td>
+                      )}
+                      <td className="py-2 text-right print:py-1">
+                        {formatPKR(r.used_cost)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="mt-3 space-y-1 border-t pt-2 text-pos-sm print:text-xs">
+              <Row label="Cost of goods sold" value={formatPKR(used.total_sold_cost)} />
+              {showWaste && (
+                <Row label="Waste" value={formatPKR(used.total_waste_cost)} />
+              )}
+              <Row
+                label="Total cost of goods used"
+                value={formatPKR(used.total_cost_of_goods_used)}
+                bold
+              />
+              {showProduction && (
+                <Row
+                  label="Used making in-house items (not in total)"
+                  value={formatPKR(used.total_production_cost)}
+                />
+              )}
+              {showAdjust && (
+                <Row
+                  label="Manual adjustments (not in total)"
+                  value={formatPKR(used.total_adjustment_cost)}
+                />
+              )}
+            </div>
+            <p className="mt-2 text-xs text-secondary-500 print:text-gray-600">
+              Sales are counted on the day the order completed.
+              {showAdjust ? " Row cost excludes manual adjustments." : ""}
+              {anyCurrentPrice
+                ? " * No cost was recorded when this stock moved; priced at today's cost."
+                : ""}
+            </p>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function StockLeftCard({ left }: { left: StockLeft }) {
+  return (
+    <Card className={`${printCard} print-section`}>
+      <CardContent className="pt-6 print:pt-3 print:px-3">
+        <h2 className={`mb-3 print:mb-2 ${sectionTitle}`}>
+          Stock Left at Close
+          {left.low_count > 0 && (
+            <span className="ml-2 text-pos-sm font-normal text-red-600 print:text-xs print:text-black">
+              ({left.low_count} at or below reorder point)
+            </span>
+          )}
+        </h2>
+        {left.rows.length === 0 ? (
+          <p className="text-pos-sm text-secondary-500">No stock is tracked.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-pos-sm print:text-xs">
+              <thead>
+                <tr className="border-b text-secondary-500 print:text-gray-600">
+                  {left.multiple_locations && (
+                    <th className="pb-2 font-medium print:pb-1">Location</th>
+                  )}
+                  <th className="pb-2 font-medium print:pb-1">Ingredient</th>
+                  <th className="pb-2 font-medium text-right print:pb-1">Left</th>
+                  <th className="pb-2 font-medium text-right print:pb-1">Reorder at</th>
+                  <th className="pb-2 font-medium text-right print:pb-1" />
+                </tr>
+              </thead>
+              <tbody>
+                {left.rows.map((r) => (
+                  <tr
+                    key={`${r.location_id}-${r.ingredient_id}`}
+                    className={`border-b last:border-0 ${r.is_low ? "bg-red-50 print:bg-transparent" : ""}`}
+                  >
+                    {left.multiple_locations && (
+                      <td className="py-2 print:py-1">{r.location_name}</td>
+                    )}
+                    <td className="py-2 font-medium print:py-1">{r.ingredient_name}</td>
+                    <td className="py-2 text-right print:py-1">
+                      {formatQty(r.closing_quantity)} {r.unit}
+                    </td>
+                    <td className="py-2 text-right text-secondary-500 print:py-1 print:text-gray-600">
+                      {r.reorder_point > 0 ? `${formatQty(r.reorder_point)} ${r.unit}` : "-"}
+                    </td>
+                    <td className="py-2 text-right font-semibold text-red-600 print:py-1 print:text-black">
+                      {r.is_low ? "LOW" : ""}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

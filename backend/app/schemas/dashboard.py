@@ -11,6 +11,11 @@ class DashboardKpis(BaseModel):
     yesterday_revenue: int  # paisa
     today_orders: int
     avg_order_value: int  # paisa
+    # D-55: yesterday up to the same clock time, the like-for-like comparison.
+    yesterday_same_time_revenue: int  # paisa
+    yesterday_same_time_orders: int
+    yesterday_same_time_avg_order_value: int  # paisa
+    compared_until: str | None  # yesterday's local cut-off, "2026-09-25T02:27"
     table_utilization: float  # 0.0 - 1.0
     active_orders: int
     pending_kitchen: int
@@ -28,6 +33,24 @@ class LiveOrderItem(BaseModel):
     item_count: int
     total: int  # paisa
     created_at: datetime
+
+
+class ActivityEvent(BaseModel):
+    """One line of the owner's live feed (D-57). No defaults: every field is
+    read from a recorded status change or payment."""
+
+    id: str
+    at: str  # ISO instant
+    kind: str  # placed | in_kitchen | ready | served | completed | voided | paid | settled | refund
+    where: str  # "Tree House, Table 1" or "Takeaway #260926-004"
+    text: str  # "settled the bill, Cash"
+    amount: int | None  # paisa, when the event carries money
+    order_number: str
+
+
+class ActivityFeed(BaseModel):
+    date: str  # the restaurant's day the feed covers
+    events: list[ActivityEvent]
 
 
 class LiveOperations(BaseModel):

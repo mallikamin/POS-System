@@ -55,6 +55,7 @@ import type {
   SupplierPurchaseRow,
 } from "@/types/procurement";
 import type { Ingredient } from "@/types/inventory";
+import { formatDate } from "@/utils/localDate";
 
 /** Money arrives as a decimal string in minor units. */
 function minor(value: string | null | undefined): number {
@@ -433,7 +434,7 @@ function SuppliersPage() {
                     <td className="px-4 py-3">{supplier.payment_terms || "-"}</td>
                     <td className="px-4 py-3 text-right">
                       {supplier.lead_time_days
-                        ? `${supplier.lead_time_days} days`
+                        ? `${supplier.lead_time_days} ${supplier.lead_time_days === 1 ? "day" : "days"}`
                         : "-"}
                     </td>
                     <td className="px-4 py-3 text-right">
@@ -843,7 +844,7 @@ function SuppliersPage() {
                       <td className="px-3 py-2">
                         <div className="font-medium">{row.po_number}</div>
                         <div className="text-xs text-secondary-500">
-                          {new Date(row.created_at).toLocaleDateString()}
+                          {formatDate(row.created_at)}
                         </div>
                       </td>
                       <td className="px-3 py-2">{row.location_name}</td>

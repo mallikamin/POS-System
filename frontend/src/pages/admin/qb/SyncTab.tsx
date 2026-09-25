@@ -19,6 +19,7 @@ import { Label } from "@/components/ui/label";
 import { useQuickBooksStore } from "@/stores/quickbooksStore";
 import * as qbApi from "@/services/quickbooksApi";
 import type { QBSyncJob, QBSyncLog } from "@/types/quickbooks";
+import { formatDateTime } from "@/utils/localDate";
 
 const SYNC_TYPES = [
   { value: "sync_orders", label: "Sync Orders", description: "Sync completed orders as SalesReceipts" },
@@ -129,7 +130,7 @@ export function SyncTab({ isConnected }: SyncTabProps) {
 
   function formatDate(iso: string) {
     try {
-      return new Date(iso).toLocaleString();
+      return formatDateTime(iso);
     } catch {
       return iso;
     }

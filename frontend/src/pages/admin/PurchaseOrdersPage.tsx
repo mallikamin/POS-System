@@ -63,6 +63,7 @@ import type {
 } from "@/types/procurement";
 import type { Location } from "@/types/location";
 import type { Ingredient } from "@/types/inventory";
+import { formatDate, formatDateTime } from "@/utils/localDate";
 
 type StatusFilter = "all" | PurchaseOrderStatus;
 
@@ -599,11 +600,14 @@ function PurchaseOrdersPage() {
                         {order.supplier_name} &rarr; {order.location_name}
                       </div>
                       <div className="text-xs text-secondary-500">
-                        Raised {new Date(order.created_at).toLocaleDateString()}
+                        Raised {formatDate(order.created_at)}
                         {order.expected_date &&
-                          ` · due ${new Date(order.expected_date).toLocaleDateString()}`}
+                          ` · due ${formatDate(order.expected_date)}`}
+                        {/* Only a PO the supplier has can owe anything: a
+                            draft read "2 lines still owed" (Danny's D-48). */}
                         {outstanding > 0 &&
-                          order.status !== "cancelled" &&
+                          (order.status === "sent" ||
+                            order.status === "partially_received") &&
                           ` · ${outstanding} ${outstanding === 1 ? "line" : "lines"} still owed`}
                       </div>
                     </button>
@@ -799,9 +803,9 @@ function PurchaseOrdersPage() {
                             {order.receipts.map((receipt) => (
                               <li key={receipt.id}>
                                 {receipt.receipt_number} ·{" "}
-                                {new Date(
+                                {formatDateTime(
                                   receipt.received_at,
-                                ).toLocaleString()}
+                                )}
                                 {receipt.document_reference &&
                                   ` · note ${receipt.document_reference}`}
                                 {receipt.source === "ocr" && " · scanned"}

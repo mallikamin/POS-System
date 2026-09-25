@@ -5,34 +5,50 @@ import type {
   HourlyBreakdown,
   VoidReport,
   PaymentMethodReport,
+  TableSizeReport,
   WaiterPerformanceReport,
 } from "@/types/order";
 
+/** `compare` adds the previous period's figures (D-55). */
 export async function fetchSalesSummary(
   dateFrom: string,
-  dateTo: string
+  dateTo: string,
+  compare = false
 ): Promise<SalesSummary> {
   const { data } = await api.get<SalesSummary>("/reports/sales-summary", {
-    params: { date_from: dateFrom, date_to: dateTo },
+    params: { date_from: dateFrom, date_to: dateTo, compare },
   });
   return data;
 }
 
 export async function fetchItemPerformance(
   dateFrom: string,
-  dateTo: string
+  dateTo: string,
+  compare = false
 ): Promise<ItemPerformance> {
   const { data } = await api.get<ItemPerformance>("/reports/item-performance", {
+    params: { date_from: dateFrom, date_to: dateTo, compare },
+  });
+  return data;
+}
+
+/** The whole range, summed by hour of day (D-53: it used to take one date). */
+export async function fetchHourlyBreakdown(
+  dateFrom: string,
+  dateTo: string
+): Promise<HourlyBreakdown> {
+  const { data } = await api.get<HourlyBreakdown>("/reports/hourly-breakdown", {
     params: { date_from: dateFrom, date_to: dateTo },
   });
   return data;
 }
 
-export async function fetchHourlyBreakdown(
-  date: string
-): Promise<HourlyBreakdown> {
-  const { data } = await api.get<HourlyBreakdown>("/reports/hourly-breakdown", {
-    params: { date },
+export async function fetchTableSizeReport(
+  dateFrom: string,
+  dateTo: string
+): Promise<TableSizeReport> {
+  const { data } = await api.get<TableSizeReport>("/reports/table-size", {
+    params: { date_from: dateFrom, date_to: dateTo },
   });
   return data;
 }

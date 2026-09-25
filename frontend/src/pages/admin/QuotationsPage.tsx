@@ -51,6 +51,7 @@ import type {
   QuotationDisplayStatus,
 } from "@/types/quotation";
 import type { Location } from "@/types/location";
+import { formatDate, formatDateTime } from "@/utils/localDate";
 
 type StatusFilter = "all" | QuotationDisplayStatus;
 
@@ -450,9 +451,9 @@ function QuotationsPage() {
                       </div>
                       <div className="text-xs text-secondary-500">
                         Issued{" "}
-                        {new Date(quote.issue_date).toLocaleDateString()} ·
+                        {formatDate(quote.issue_date)} ·
                         valid until{" "}
-                        {new Date(quote.valid_until).toLocaleDateString()}
+                        {formatDate(quote.valid_until)}
                       </div>
                     </button>
 
@@ -611,7 +612,7 @@ function QuotationsPage() {
                       )}
                       {decided && quote.decided_at && (
                         <p className="text-xs text-secondary-500">
-                          Decided {new Date(quote.decided_at).toLocaleString()}
+                          Decided {formatDateTime(quote.decided_at)}
                         </p>
                       )}
                     </div>

@@ -8,6 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.floor import Table
 from app.models.order import Order
+from app.services import report_service
+from app.services.report_service import comparison_periods
 from app.utils.tenant_time import local_day_bounds_utc, local_today, tenant_timezone
 
 
@@ -19,39 +21,20 @@ async def get_dashboard_kpis(db: AsyncSession, tenant_id: uuid.UUID) -> dict:
     """
     tz_name = await tenant_timezone(db, tenant_id)
     today = local_today(tz_name)
-    today_start, today_end = local_day_bounds_utc(tz_name, today)
-    yest_start, yest_end = local_day_bounds_utc(tz_name, today - timedelta(days=1))
 
-    # Today's revenue and order count (non-voided)
-    today_stats = await db.execute(
-        select(
-            func.coalesce(func.sum(Order.total), 0).label("revenue"),
-            func.count(Order.id).label("orders"),
-        ).where(
-            Order.tenant_id == tenant_id,
-            Order.created_at >= today_start,
-            Order.created_at < today_end,
-            Order.status != "voided",
-        )
-    )
-    row = today_stats.one()
+    # Same query and same "real order" rule as the Reports page, so the two
+    # screens cannot show different takings for the same day.
+    periods = comparison_periods(tz_name, today, today)
+    row = await report_service.sales_totals(db, tenant_id, *periods["current"])
     today_revenue = row.revenue
     today_orders = row.orders
-
-    # Yesterday's revenue
-    yest_stats = await db.execute(
-        select(
-            func.coalesce(func.sum(Order.total), 0),
-        ).where(
-            Order.tenant_id == tenant_id,
-            Order.created_at >= yest_start,
-            Order.created_at < yest_end,
-            Order.status != "voided",
-        )
-    )
-    yesterday_revenue = yest_stats.scalar_one()
-
     avg_order_value = today_revenue // today_orders if today_orders > 0 else 0
+
+    # D-55: yesterday up to the same clock time, not all of yesterday, so at
+    # 2 am the card does not read "down 100%".
+    same = await report_service.sales_totals(db, tenant_id, *periods["previous"])
+    yest_start, yest_end = local_day_bounds_utc(tz_name, today - timedelta(days=1))
+    yesterday_revenue = (await report_service.sales_totals(db, tenant_id, yest_start, yest_end)).revenue
 
     # Table utilization
     table_counts = await db.execute(
@@ -83,6 +66,10 @@ async def get_dashboard_kpis(db: AsyncSession, tenant_id: uuid.UUID) -> dict:
         "yesterday_revenue": yesterday_revenue,
         "today_orders": today_orders,
         "avg_order_value": avg_order_value,
+        "yesterday_same_time_revenue": same.revenue,
+        "yesterday_same_time_orders": same.orders,
+        "yesterday_same_time_avg_order_value": same.revenue // same.orders if same.orders else 0,
+        "compared_until": periods["previous_cut_at"],
         "table_utilization": round(utilization, 2),
         "active_orders": a_row.active,
         "pending_kitchen": a_row.kitchen,

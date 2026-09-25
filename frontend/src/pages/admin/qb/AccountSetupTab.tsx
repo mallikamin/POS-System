@@ -36,6 +36,7 @@ import type {
   QBMatchApplyResult,
   QBHealthCheckResult,
 } from "@/types/quickbooks";
+import { formatDateTime } from "@/utils/localDate";
 
 interface AccountSetupTabProps {
   isConnected: boolean;
@@ -595,7 +596,7 @@ function HealthCheckResultCard({ result }: { result: QBHealthCheckResult }) {
           </p>
           <p className="text-xs text-secondary-400">
             {result.total_mappings} mappings checked at{" "}
-            {new Date(result.checked_at).toLocaleString()}
+            {formatDateTime(result.checked_at)}
           </p>
         </div>
       </div>

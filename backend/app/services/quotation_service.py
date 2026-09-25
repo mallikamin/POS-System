@@ -37,6 +37,7 @@ from app.models.menu import MenuItem
 from app.models.quotation import Quotation, QuotationItem
 from app.models.restaurant_config import RestaurantConfig
 from app.services.tax_invoice_service import split_vat_inclusive
+from app.utils.tenant_time import local_now, tenant_timezone
 
 logger = logging.getLogger(__name__)
 
@@ -68,8 +69,11 @@ def display_status(quotation: Quotation, today: date | None = None) -> str:
 
 
 async def _next_quote_number(db: AsyncSession, tenant_id: uuid.UUID) -> str:
-    """Sequential per tenant, date-stamped: QUO-260826-003."""
-    today = datetime.now(timezone.utc)
+    """Sequential per tenant, date-stamped: QUO-260826-003.
+
+    Restaurant's own day, not UTC's (Danny's D-51), same as order numbers.
+    """
+    today = local_now(await tenant_timezone(db, tenant_id))
     prefix = f"QUO-{today:%y%m%d}-"
     count = (
         await db.execute(

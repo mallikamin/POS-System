@@ -1,9 +1,10 @@
 import { useEffect, useState, useCallback } from "react";
-import { toLocalISODate } from "@/utils/localDate";
+import { formatDate, toLocalISODate } from "@/utils/localDate";
 import {
   fetchSalesSummary,
   fetchItemPerformance,
   fetchHourlyBreakdown,
+  fetchTableSizeReport,
   fetchVoidReport,
   fetchPaymentMethodReport,
   fetchWaiterPerformance,
@@ -13,11 +14,14 @@ import type {
   SalesSummary,
   ItemPerformance,
   HourlyBreakdown,
+  TableSizeReport,
   VoidReport,
   PaymentMethodReport,
   WaiterPerformanceReport,
 } from "@/types/order";
 import { formatPKR } from "@/utils/currency";
+import { Thumb } from "@/components/admin/Thumb";
+import { PeriodDelta } from "@/components/admin/PeriodDelta";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -113,6 +117,7 @@ function ReportsPage() {
   const [voidReport, setVoidReport] = useState<VoidReport | null>(null);
   const [pmReport, setPmReport] = useState<PaymentMethodReport | null>(null);
   const [waiterReport, setWaiterReport] = useState<WaiterPerformanceReport | null>(null);
+  const [tableSize, setTableSize] = useState<TableSizeReport | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -123,20 +128,25 @@ function ReportsPage() {
     setLoading(true);
     setError(null);
     try {
-      const [summaryData, itemData, hourlyData, voidData, pmData, waiterData] = await Promise.all([
-        fetchSalesSummary(dateFrom, dateTo),
-        fetchItemPerformance(dateFrom, dateTo),
-        fetchHourlyBreakdown(dateFrom),
-        fetchVoidReport(dateFrom, dateTo),
-        fetchPaymentMethodReport(dateFrom, dateTo),
-        fetchWaiterPerformance(dateFrom, dateTo),
-      ]);
+      // Every block follows the chosen range, the hourly chart included (it
+      // used to get the start date only: D-53).
+      const [summaryData, itemData, hourlyData, voidData, pmData, waiterData, tableData] =
+        await Promise.all([
+          fetchSalesSummary(dateFrom, dateTo, true),
+          fetchItemPerformance(dateFrom, dateTo, true),
+          fetchHourlyBreakdown(dateFrom, dateTo),
+          fetchVoidReport(dateFrom, dateTo),
+          fetchPaymentMethodReport(dateFrom, dateTo),
+          fetchWaiterPerformance(dateFrom, dateTo),
+          fetchTableSizeReport(dateFrom, dateTo),
+        ]);
       setSummary(summaryData);
       setItemPerf(itemData);
       setHourly(hourlyData);
       setVoidReport(voidData);
       setPmReport(pmData);
       setWaiterReport(waiterData);
+      setTableSize(tableData);
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Failed to load report data";
@@ -170,6 +180,35 @@ function ReportsPage() {
 
   const isActivePreset = (preset: DatePreset) =>
     dateFrom === preset.from && dateTo === preset.to;
+
+  /* period comparison wording (D-55): what the previous figures are */
+  const prev = summary?.previous ?? null;
+  const against = (() => {
+    if (!prev) return "";
+    const active = presets.find(isActivePreset)?.label;
+    if (active === "Today") return "yesterday";
+    if (active === "Yesterday") return "the day before";
+    if (active === "This Week") return "last week";
+    if (active === "This Month") return "last month";
+    return prev.date_from === prev.date_to
+      ? formatDate(prev.date_from)
+      : `${formatDate(prev.date_from)} to ${formatDate(prev.date_to)}`;
+  })();
+  // "to 14:00" (one day) or "to Sat 14:00" (a week or month): the previous
+  // period was cut at the same point as "so far".
+  const until = (() => {
+    if (!prev?.cut_at) return "";
+    const hhmm = prev.cut_at.slice(11, 16);
+    if (prev.date_from === prev.date_to) return ` to ${hhmm}`;
+    const spanDays =
+      (new Date(prev.date_to).getTime() - new Date(prev.date_from).getTime()) / 86400000;
+    const day = new Date(prev.cut_at).toLocaleDateString(
+      "en-GB",
+      spanDays < 7 ? { weekday: "short" } : { day: "numeric", month: "short" }
+    );
+    return ` to ${day}, ${hhmm}`;
+  })();
+  const count = (n: number) => n.toLocaleString();
 
   /* hourly chart helpers */
   const maxHourlyRevenue =
@@ -314,6 +353,16 @@ function ReportsPage() {
                 <p className="text-2xl font-bold text-secondary-900">
                   {formatPKR(summary.total_revenue)}
                 </p>
+                {prev && (
+                  <PeriodDelta
+                    className="mt-1"
+                    current={summary.total_revenue}
+                    previous={prev.total_revenue}
+                    against={against}
+                    until={until}
+                    format={formatPKR}
+                  />
+                )}
               </CardContent>
             </Card>
 
@@ -328,6 +377,16 @@ function ReportsPage() {
                 <p className="text-2xl font-bold text-secondary-900">
                   {summary.total_orders.toLocaleString()}
                 </p>
+                {prev && (
+                  <PeriodDelta
+                    className="mt-1"
+                    current={summary.total_orders}
+                    previous={prev.total_orders}
+                    against={against}
+                    until={until}
+                    format={count}
+                  />
+                )}
               </CardContent>
             </Card>
 
@@ -342,6 +401,16 @@ function ReportsPage() {
                 <p className="text-2xl font-bold text-secondary-900">
                   {formatPKR(summary.avg_order_value)}
                 </p>
+                {prev && (
+                  <PeriodDelta
+                    className="mt-1"
+                    current={summary.avg_order_value}
+                    previous={prev.avg_order_value}
+                    against={against}
+                    until={until}
+                    format={formatPKR}
+                  />
+                )}
               </CardContent>
             </Card>
 
@@ -387,6 +456,16 @@ function ReportsPage() {
                 <p className="text-2xl font-bold text-success-700">
                   {formatPKR(summary.net_revenue)}
                 </p>
+                {prev && (
+                  <PeriodDelta
+                    className="mt-1"
+                    current={summary.net_revenue}
+                    previous={prev.net_revenue}
+                    against={against}
+                    until={until}
+                    format={formatPKR}
+                  />
+                )}
               </CardContent>
             </Card>
 
@@ -806,7 +885,11 @@ function ReportsPage() {
             <Card>
               <CardHeader>
                 <CardTitle className="text-base text-secondary-800">
-                  Hourly Revenue ({hourly?.date ?? dateFrom})
+                  Hourly Revenue (
+                  {hourly && hourly.date !== hourly.date_to
+                    ? `${formatDate(hourly.date)} to ${formatDate(hourly.date_to)}, by hour of day`
+                    : formatDate(hourly?.date ?? dateFrom)}
+                  )
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -913,6 +996,14 @@ function ReportsPage() {
                               <th className="px-4 py-2.5 text-right font-medium text-secondary-600">
                                 Revenue
                               </th>
+                              {prev && (
+                                <th
+                                  className="px-4 py-2.5 text-right font-medium text-secondary-600"
+                                  title={`Revenue against ${against}${until}`}
+                                >
+                                  vs {against}
+                                </th>
+                              )}
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-secondary-100">
@@ -939,7 +1030,10 @@ function ReportsPage() {
                                     </span>
                                   </td>
                                   <td className="px-4 py-2.5 font-medium text-secondary-800">
-                                    {item.name}
+                                    <div className="flex items-center gap-2">
+                                      <Thumb src={item.image_url} alt={item.name} size="md" />
+                                      {item.name}
+                                    </div>
                                   </td>
                                   <td className="px-4 py-2.5 text-right text-secondary-700">
                                     {item.quantity_sold.toLocaleString()}
@@ -947,6 +1041,18 @@ function ReportsPage() {
                                   <td className="px-4 py-2.5 text-right font-medium text-secondary-900">
                                     {formatPKR(item.revenue)}
                                   </td>
+                                  {prev && (
+                                    <td className="px-4 py-2.5 text-right">
+                                      <PeriodDelta
+                                        compact
+                                        current={item.revenue}
+                                        previous={item.previous_revenue ?? 0}
+                                        against={against}
+                                        until={until}
+                                        format={formatPKR}
+                                      />
+                                    </td>
+                                  )}
                                 </tr>
                               ))}
                           </tbody>
@@ -1004,7 +1110,10 @@ function ReportsPage() {
                                     {index + 1}
                                   </td>
                                   <td className="px-4 py-2.5 font-medium text-secondary-800">
-                                    {item.name}
+                                    <div className="flex items-center gap-2">
+                                      <Thumb src={item.image_url} alt={item.name} size="md" />
+                                      {item.name}
+                                    </div>
                                   </td>
                                   <td className="px-4 py-2.5 text-right text-secondary-700">
                                     {item.quantity_sold.toLocaleString()}
@@ -1020,12 +1129,75 @@ function ReportsPage() {
                     </div>
                   ) : (
                     <p className="py-8 text-center text-sm text-secondary-400">
-                      No underperforming items to show
+                      {/* D-54: drawn only from items outside the top 10. */}
+                      {itemPerf.top_items.length === 0
+                        ? "No item data for this period"
+                        : "Fewer than 11 items sold in this period, so every item is already in the top 10."}
                     </p>
                   )}
                 </CardContent>
               </Card>
             </div>
+          )}
+
+          {/* dine-in by table size (D-56): real counts, no pattern from a tiny sample */}
+          {tableSize && tableSize.sizes.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base text-secondary-800">
+                  Dine-In by Table Size
+                </CardTitle>
+                <p className="text-xs text-secondary-500">
+                  A visit is one table's sitting, however many rounds it ordered.
+                  What each size orders is shown once it has at least{" "}
+                  {tableSize.min_visits} visits.
+                </p>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                  {tableSize.sizes.map((size) => (
+                    <div
+                      key={size.capacity}
+                      className="rounded-lg border border-secondary-200 p-4"
+                    >
+                      <div className="flex items-baseline justify-between">
+                        <p className="font-semibold text-secondary-900">
+                          {size.capacity}-seater tables
+                        </p>
+                        <p className="text-xs text-secondary-500">
+                          {size.visits} visit{size.visits !== 1 ? "s" : ""}
+                        </p>
+                      </div>
+                      <p className="mt-2 text-2xl font-bold text-secondary-900">
+                        {formatPKR(size.avg_per_visit)}
+                      </p>
+                      <p className="text-xs text-secondary-500">
+                        average bill per visit, {formatPKR(size.revenue)} in total
+                      </p>
+                      {size.enough_data ? (
+                        <ul className="mt-3 space-y-1.5 text-sm">
+                          {size.top_items.map((dish) => (
+                            <li key={dish.name} className="flex items-center justify-between gap-2">
+                              <span className="text-secondary-700">{dish.name}</span>
+                              <span className="whitespace-nowrap text-xs text-secondary-500">
+                                <span className="font-semibold text-secondary-800">
+                                  {dish.share_pct}%
+                                </span>{" "}
+                                of visits ({dish.visits_with}/{size.visits})
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="mt-3 text-xs text-secondary-400">
+                          Too few visits to show what this size tends to order.
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
           )}
         </>
       )}

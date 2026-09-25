@@ -1,22 +1,139 @@
 """Report service -- sales summaries, item performance, hourly breakdown."""
 
+import calendar
 import uuid
-from datetime import date, timezone
+from datetime import date, datetime, time, timedelta, timezone
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.discount import OrderDiscount
+from app.models.floor import Table
+from app.models.menu import MenuItem
 from app.models.order import Order, OrderItem, OrderStatusLog
 from app.models.payment import Payment, PaymentMethod
 from app.models.user import User
 from app.services.order_visibility import is_real_order
 from app.utils.tenant_time import (
-    local_day_bounds_utc,
+    local_now,
+    local_range_bounds_utc,
     tenant_range_utc,
     tenant_timezone,
     zone,
 )
+
+
+def _sold(tenant_id: uuid.UUID, start: datetime, end: datetime) -> list:
+    """The orders every sales figure counts: this tenant, this window, not
+    voided, and real (a card order Stripe never approved is not revenue; counting
+    it overstated the client's own reports screen on 2026-08-04, £98.96 shown,
+    £36.04 taken). One definition so the cards, the item tables and the hourly
+    chart cannot disagree; item performance and the hourly chart used to skip
+    `is_real_order()`."""
+    return [
+        Order.tenant_id == tenant_id,
+        Order.created_at >= start,
+        Order.created_at < end,
+        Order.status != "voided",
+        is_real_order(),
+    ]
+
+
+# ---------------------------------------------------------------------------
+# PERIOD COMPARISON (Danny's D-55)
+# ---------------------------------------------------------------------------
+
+
+def _is_whole_month_view(date_from: date, date_to: date, today: date) -> bool:
+    """1st of a month to its last day, or to today (month to date)."""
+    if date_from.day != 1 or (date_from.year, date_from.month) != (date_to.year, date_to.month):
+        return False
+    last = calendar.monthrange(date_to.year, date_to.month)[1]
+    return date_to.day == last or date_to == today
+
+
+def comparison_periods(
+    tz_name: str | None, date_from: date, date_to: date, now: datetime | None = None
+) -> dict:
+    """The range asked for, and the one to compare it with, as UTC bounds.
+
+    The previous period is the one just before, of the same shape: yesterday
+    for a day, the same weekdays a week earlier for a week so far, the month
+    before for a month, and for any other range the same number of days
+    immediately before it.
+
+    Like for like: when the range runs to today, the day is not over, so the
+    previous period is cut at the same clock time on its own last day. Without
+    that, 2 am today against all of yesterday reads "down 100%", and a Monday
+    against all of last week reads "down 85%".
+
+    `now` is the restaurant's local time (tests pass it; callers leave it out).
+    """
+    tz = zone(tz_name)
+    now = now or local_now(tz_name)
+    today = now.date()
+
+    cur_start, cur_end = local_range_bounds_utc(tz_name, date_from, date_to)
+
+    if _is_whole_month_view(date_from, date_to, today):
+        prev_month_end = date_from - timedelta(days=1)
+        prev_from = prev_month_end.replace(day=1)
+        prev_to = prev_month_end.replace(
+            day=min(date_to.day, prev_month_end.day)
+            if date_to == today
+            else prev_month_end.day
+        )
+    else:
+        span = (date_to - date_from).days + 1
+        # A week so far (2 to 7 days ending today) goes back a whole week, to
+        # the same weekdays: Sun-Sat so far against last Sun-Sat, not against
+        # the six days just before it, which would pair Saturday with Friday.
+        shift = 7 if 1 < span <= 7 and date_to >= today else span
+        prev_from = date_from - timedelta(days=shift)
+        prev_to = date_to - timedelta(days=shift)
+
+    prev_start, prev_end = local_range_bounds_utc(tz_name, prev_from, prev_to)
+    cut_at = None
+    if date_to >= today:
+        # Same clock time on the previous period's last day.
+        elapsed = now.replace(tzinfo=None) - datetime.combine(today, time.min)
+        cut = datetime.combine(prev_to, time.min, tzinfo=tz) + elapsed
+        prev_end = min(prev_end, cut.astimezone(timezone.utc))
+        cut_at = cut.replace(tzinfo=None).isoformat(timespec="minutes")
+
+    return {
+        "current": (cur_start, cur_end),
+        "previous": (prev_start, prev_end),
+        "previous_from": prev_from,
+        "previous_to": prev_to,
+        "previous_cut_at": cut_at,
+    }
+
+
+async def sales_totals(db: AsyncSession, tenant_id: uuid.UUID, start: datetime, end: datetime):
+    """Revenue, orders, tax, discount for a window. The one query both the
+    range and its comparison use, so they are measured the same way."""
+    return (
+        await db.execute(
+            select(
+                func.coalesce(func.sum(Order.total), 0).label("revenue"),
+                func.count(Order.id).label("orders"),
+                func.coalesce(func.sum(Order.tax_amount), 0).label("tax"),
+                func.coalesce(func.sum(Order.discount_amount), 0).label("discount"),
+            ).where(*_sold(tenant_id, start, end))
+        )
+    ).one()
+
+
+def _headline(row) -> dict:
+    return {
+        "total_revenue": row.revenue,
+        "total_orders": row.orders,
+        "avg_order_value": row.revenue // row.orders if row.orders > 0 else 0,
+        "total_tax": row.tax,
+        "total_discount": row.discount,
+        "net_revenue": row.revenue - row.discount,
+    }
 
 
 async def get_sales_summary(
@@ -24,26 +141,27 @@ async def get_sales_summary(
     tenant_id: uuid.UUID,
     date_from: date,
     date_to: date,
+    compare: bool = False,
 ) -> dict:
-    """Aggregate sales data for a date range."""
-    range_start, range_end = await tenant_range_utc(db, tenant_id, date_from, date_to)
-    base = select(
-        func.coalesce(func.sum(Order.total), 0).label("revenue"),
-        func.count(Order.id).label("orders"),
-        func.coalesce(func.sum(Order.tax_amount), 0).label("tax"),
-        func.coalesce(func.sum(Order.discount_amount), 0).label("discount"),
-    ).where(
-        Order.tenant_id == tenant_id,
-        Order.created_at >= range_start,
-        Order.created_at < range_end,
-        Order.status != "voided",
-        # A card order Stripe never approved is not revenue -- no money exists.
-        # Counting it overstated the client's own reports screen on 2026-08-04
-        # (£98.96 shown, £36.04 actually taken). Same rule the tablet uses.
-        is_real_order(),
-    )
+    """Aggregate sales data for a date range.
 
-    total_row = (await db.execute(base)).one()
+    With `compare`, `previous` carries the same headline figures for the
+    comparison period (see `comparison_periods`); otherwise it is None.
+    """
+    tz_name = await tenant_timezone(db, tenant_id)
+    range_start, range_end = local_range_bounds_utc(tz_name, date_from, date_to)
+    total_row = await sales_totals(db, tenant_id, range_start, range_end)
+
+    previous = None
+    if compare:
+        periods = comparison_periods(tz_name, date_from, date_to)
+        prev_row = await sales_totals(db, tenant_id, *periods["previous"])
+        previous = {
+            **_headline(prev_row),
+            "date_from": periods["previous_from"].isoformat(),
+            "date_to": periods["previous_to"].isoformat(),
+            "cut_at": periods["previous_cut_at"],
+        }
 
     # Per-channel breakdown
     channel_result = await db.execute(
@@ -52,13 +170,7 @@ async def get_sales_summary(
             func.coalesce(func.sum(Order.total), 0).label("revenue"),
             func.count(Order.id).label("orders"),
         )
-        .where(
-            Order.tenant_id == tenant_id,
-            Order.created_at >= range_start,
-            Order.created_at < range_end,
-            Order.status != "voided",
-            is_real_order(),
-        )
+        .where(*_sold(tenant_id, range_start, range_end))
         .group_by(Order.order_type)
     )
     channels = {
@@ -114,16 +226,9 @@ async def get_sales_summary(
     card_revenue = pm_map.get("card", 0)
     other_revenue = sum(v for k, v in pm_map.items() if k not in ("cash", "card"))
 
-    total_orders = total_row.orders
-    total_revenue = total_row.revenue
-    total_discount = total_row.discount
     return {
-        "total_revenue": total_revenue,
-        "total_orders": total_orders,
-        "avg_order_value": total_revenue // total_orders if total_orders > 0 else 0,
-        "total_tax": total_row.tax,
-        "total_discount": total_discount,
-        "net_revenue": total_revenue - total_discount,
+        **_headline(total_row),
+        "previous": previous,
         "cash_revenue": cash_revenue,
         "card_revenue": card_revenue,
         "other_revenue": other_revenue,
@@ -144,43 +249,83 @@ async def get_item_performance(
     tenant_id: uuid.UUID,
     date_from: date,
     date_to: date,
+    compare: bool = False,
 ) -> dict:
-    """Get top/bottom items and category breakdown."""
-    range_start, range_end = await tenant_range_utc(db, tenant_id, date_from, date_to)
-    # Top items by revenue
-    item_stats = await db.execute(
-        select(
-            OrderItem.menu_item_id,
-            OrderItem.name,
-            func.sum(OrderItem.quantity).label("qty"),
-            func.sum(OrderItem.total).label("revenue"),
+    """Get top/bottom items and category breakdown.
+
+    Each item carries its menu photo (D-52) and, with `compare`, what it sold
+    in the comparison period (D-55; None without `compare`, 0 when it sold
+    nothing then).
+
+    Bottom 5 is drawn only from items OUTSIDE the top 10 (D-54): on a quiet day
+    with 13 items sold, Hot & Sour Soup was listed as a top AND a bottom
+    performer. With 10 items or fewer there is no bottom list at all.
+    """
+    tz_name = await tenant_timezone(db, tenant_id)
+    range_start, range_end = local_range_bounds_utc(tz_name, date_from, date_to)
+
+    async def per_item(start: datetime, end: datetime) -> list:
+        return (
+            await db.execute(
+                select(
+                    OrderItem.menu_item_id,
+                    OrderItem.name,
+                    func.sum(OrderItem.quantity).label("qty"),
+                    func.sum(OrderItem.total).label("revenue"),
+                )
+                .join(Order, OrderItem.order_id == Order.id)
+                .where(*_sold(tenant_id, start, end))
+                .group_by(OrderItem.menu_item_id, OrderItem.name)
+                # Name breaks ties so the order is the same on every load.
+                .order_by(func.sum(OrderItem.total).desc(), OrderItem.name)
+            )
+        ).all()
+
+    rows = await per_item(range_start, range_end)
+
+    previous: dict[str, tuple[int, int]] | None = None
+    if compare:
+        periods = comparison_periods(tz_name, date_from, date_to)
+        previous = {}
+        for r in await per_item(*periods["previous"]):
+            qty, rev = previous.get(str(r.menu_item_id), (0, 0))
+            previous[str(r.menu_item_id)] = (qty + r.qty, rev + r.revenue)
+
+    ids = {r.menu_item_id for r in rows if r.menu_item_id is not None}
+    images = (
+        dict(
+            (
+                await db.execute(
+                    select(MenuItem.id, MenuItem.image_url).where(
+                        MenuItem.tenant_id == tenant_id, MenuItem.id.in_(ids)
+                    )
+                )
+            ).all()
         )
-        .join(Order, OrderItem.order_id == Order.id)
-        .where(
-            Order.tenant_id == tenant_id,
-            Order.created_at >= range_start,
-            Order.created_at < range_end,
-            Order.status != "voided",
-        )
-        .group_by(OrderItem.menu_item_id, OrderItem.name)
-        .order_by(func.sum(OrderItem.total).desc())
+        if ids
+        else {}
     )
-    all_items = [
-        {
-            "menu_item_id": str(r.menu_item_id),
+
+    def entry(r) -> dict:
+        key = str(r.menu_item_id)
+        prev = None if previous is None else previous.get(key, (0, 0))
+        return {
+            "menu_item_id": key,
             "name": r.name,
+            "image_url": images.get(r.menu_item_id),
             "quantity_sold": r.qty,
             "revenue": r.revenue,
+            "previous_quantity": None if prev is None else prev[0],
+            "previous_revenue": None if prev is None else prev[1],
         }
-        for r in item_stats.all()
-    ]
 
+    all_items = [entry(r) for r in rows]
     top_items = all_items[:10]
-    bottom_items = list(reversed(all_items[-5:])) if len(all_items) > 5 else []
+    bottom_items = list(reversed(all_items[10:][-5:]))
 
     # Category breakdown (using denormalized item names won't work for categories,
     # so we join through menu_items → categories)
-    from app.models.menu import Category, MenuItem
+    from app.models.menu import Category
 
     cat_stats = await db.execute(
         select(
@@ -191,12 +336,7 @@ async def get_item_performance(
         .join(Order, OrderItem.order_id == Order.id)
         .join(MenuItem, OrderItem.menu_item_id == MenuItem.id)
         .join(Category, MenuItem.category_id == Category.id)
-        .where(
-            Order.tenant_id == tenant_id,
-            Order.created_at >= range_start,
-            Order.created_at < range_end,
-            Order.status != "voided",
-        )
+        .where(*_sold(tenant_id, range_start, range_end))
         .group_by(Category.name)
         .order_by(func.sum(OrderItem.total).desc())
     )
@@ -220,23 +360,23 @@ async def get_item_performance(
 async def get_hourly_breakdown(
     db: AsyncSession,
     tenant_id: uuid.UUID,
-    target_date: date,
+    date_from: date,
+    date_to: date | None = None,
 ) -> dict:
-    """Get order count and revenue per hour for a given date.
+    """Order count and revenue per hour of the day, summed over a date range.
 
     The day and the hours are the restaurant's own. A UTC date cast and UTC
     `extract(hour)` put a 1 pm Faisalabad lunch in the 8 am bar, on the wrong
     day after midnight (Danny's UAT D-30).
+
+    The range used to be one day only: the Reports page passed the start date
+    alone, so "This Week" charted Monday and titled it as the week (D-53).
     """
+    date_to = date_to or date_from
     tz_name = await tenant_timezone(db, tenant_id)
-    day_start, day_end = local_day_bounds_utc(tz_name, target_date)
+    day_start, day_end = local_range_bounds_utc(tz_name, date_from, date_to)
     result = await db.execute(
-        select(Order.created_at, Order.total).where(
-            Order.tenant_id == tenant_id,
-            Order.created_at >= day_start,
-            Order.created_at < day_end,
-            Order.status != "voided",
-        )
+        select(Order.created_at, Order.total).where(*_sold(tenant_id, day_start, day_end))
     )
 
     tz = zone(tz_name)
@@ -258,7 +398,103 @@ async def get_hourly_breakdown(
         for h in range(24)
     ]
 
-    return {"date": target_date.isoformat(), "buckets": buckets}
+    return {
+        "date": date_from.isoformat(),
+        "date_to": date_to.isoformat(),
+        "buckets": buckets,
+    }
+
+
+# Below this many visits a size's "what they order" is noise, not a pattern.
+TABLE_SIZE_MIN_VISITS = 5
+
+
+async def get_table_size_report(
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    date_from: date,
+    date_to: date,
+) -> dict:
+    """Dine-in by table size (Danny's D-56): 4-seaters against 6-seaters.
+
+    The unit is a VISIT (one table session), not an order: a table that orders
+    starters, then mains, then dessert is one party spending one bill, and
+    counting it as three orders would make every big table look cheap. An order
+    with no session counts as its own visit.
+
+    "What they order" is the share of visits that included each dish, with the
+    counts behind it. Real figures only: below TABLE_SIZE_MIN_VISITS visits a
+    size gets no item list (`enough_data` false), because two visits cannot
+    show what 4-seaters "tend to" order.
+    """
+    tz_name = await tenant_timezone(db, tenant_id)
+    start, end = local_range_bounds_utc(tz_name, date_from, date_to)
+    visit_key = func.coalesce(Order.table_session_id, Order.id)
+    where = [*_sold(tenant_id, start, end), Order.order_type == "dine_in", Order.table_id.is_not(None)]
+
+    visits = (
+        await db.execute(
+            select(
+                Table.capacity,
+                func.count(func.distinct(visit_key)).label("visits"),
+                func.count(Order.id).label("orders"),
+                func.coalesce(func.sum(Order.total), 0).label("revenue"),
+            )
+            .join(Table, Order.table_id == Table.id)
+            .where(*where)
+            .group_by(Table.capacity)
+            .order_by(Table.capacity)
+        )
+    ).all()
+
+    dishes = (
+        await db.execute(
+            select(
+                Table.capacity,
+                OrderItem.name,
+                func.count(func.distinct(visit_key)).label("visits_with"),
+                func.sum(OrderItem.quantity).label("qty"),
+            )
+            .join(Order, OrderItem.order_id == Order.id)
+            .join(Table, Order.table_id == Table.id)
+            .where(*where)
+            .group_by(Table.capacity, OrderItem.name)
+        )
+    ).all()
+
+    by_size: dict[int, list] = {}
+    for d in dishes:
+        by_size.setdefault(d.capacity, []).append(d)
+
+    sizes = []
+    for v in visits:
+        enough = v.visits >= TABLE_SIZE_MIN_VISITS
+        top = sorted(
+            by_size.get(v.capacity, []), key=lambda d: (-d.visits_with, -d.qty, d.name)
+        )[:5]
+        sizes.append(
+            {
+                "capacity": v.capacity,
+                "visits": v.visits,
+                "orders": v.orders,
+                "revenue": v.revenue,
+                "avg_per_visit": v.revenue // v.visits if v.visits else 0,
+                "enough_data": enough,
+                "top_items": [
+                    {
+                        "name": d.name,
+                        "visits_with": d.visits_with,
+                        "quantity": d.qty,
+                        "share_pct": round(d.visits_with * 100 / v.visits),
+                    }
+                    for d in top
+                ]
+                if enough
+                else [],
+            }
+        )
+
+    return {"min_visits": TABLE_SIZE_MIN_VISITS, "sizes": sizes}
 
 
 async def get_void_report(

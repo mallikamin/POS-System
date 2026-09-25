@@ -53,6 +53,7 @@ import type {
   ProductionRun,
 } from "@/types/location";
 import type { Recipe } from "@/types/inventory";
+import { formatDateTime } from "@/utils/localDate";
 
 function toNumber(value: string | number | null | undefined): number {
   const parsed = Number(value);
@@ -549,7 +550,7 @@ function ProductionPage() {
                       </span>
                     </div>
                     <p className="text-xs text-secondary-500">
-                      {new Date(run.produced_at).toLocaleString()} &middot;{" "}
+                      {formatDateTime(run.produced_at)} &middot;{" "}
                       {run.location_name ?? "No site"}
                       {run.performed_by_name && ` · ${run.performed_by_name}`}
                     </p>
@@ -590,7 +591,7 @@ function ProductionPage() {
                     {runs.map((run) => (
                       <tr key={`${run.reference_number}-${run.produced_at}`}>
                         <td className="whitespace-nowrap px-4 py-3 text-secondary-600">
-                          {new Date(run.produced_at).toLocaleString()}
+                          {formatDateTime(run.produced_at)}
                         </td>
                         <td className="px-4 py-3 font-medium text-secondary-900">
                           {run.produced_ingredient_name}

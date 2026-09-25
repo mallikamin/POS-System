@@ -124,9 +124,30 @@ export interface DashboardKpis {
   yesterday_revenue: number;
   today_orders: number;
   avg_order_value: number;
+  /** D-55: yesterday up to the same clock time (like for like). */
+  yesterday_same_time_revenue: number;
+  yesterday_same_time_orders: number;
+  yesterday_same_time_avg_order_value: number;
+  compared_until: string | null;
   table_utilization: number;
   active_orders: number;
   pending_kitchen: number;
+}
+
+/** One line of the owner's live feed (D-57). */
+export interface ActivityEvent {
+  id: string;
+  at: string;
+  kind: string;
+  where: string;
+  text: string;
+  amount: number | null;
+  order_number: string;
+}
+
+export interface ActivityFeed {
+  date: string;
+  events: ActivityEvent[];
 }
 
 export interface LiveOrderItem {
@@ -178,13 +199,33 @@ export interface SalesSummary {
   online_revenue: number;
   online_orders: number;
   discount_breakdown: DiscountBreakdownEntry[];
+  /** Only when fetched with compare. */
+  previous: PeriodHeadline | null;
+}
+
+/** The comparison period's figures (D-55). */
+export interface PeriodHeadline {
+  total_revenue: number;
+  total_orders: number;
+  avg_order_value: number;
+  total_tax: number;
+  total_discount: number;
+  net_revenue: number;
+  date_from: string;
+  date_to: string;
+  /** Local time the previous period was cut at, when the range runs to now. */
+  cut_at: string | null;
 }
 
 export interface ItemPerformanceEntry {
   menu_item_id: string;
   name: string;
+  image_url: string | null;
   quantity_sold: number;
   revenue: number;
+  /** null when not compared; 0 when it sold nothing in the previous period. */
+  previous_quantity: number | null;
+  previous_revenue: number | null;
 }
 
 export interface CategoryBreakdown {
@@ -207,7 +248,31 @@ export interface HourlyBucket {
 
 export interface HourlyBreakdown {
   date: string;
+  date_to: string;
   buckets: HourlyBucket[];
+}
+
+/** Dine-in by table size (D-56). */
+export interface TableSizeItem {
+  name: string;
+  visits_with: number;
+  quantity: number;
+  share_pct: number;
+}
+
+export interface TableSizeEntry {
+  capacity: number;
+  visits: number;
+  orders: number;
+  revenue: number;
+  avg_per_visit: number;
+  enough_data: boolean;
+  top_items: TableSizeItem[];
+}
+
+export interface TableSizeReport {
+  min_visits: number;
+  sizes: TableSizeEntry[];
 }
 
 /* Void Report types */

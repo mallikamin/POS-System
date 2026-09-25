@@ -16,6 +16,7 @@ from app.schemas.report import (
     ItemPerformance,
     PaymentMethodReport,
     SalesSummary,
+    TableSizeReport,
     VoidReport,
     WaiterPerformanceReport,
 )
@@ -23,6 +24,7 @@ from app.schemas.zreport import ZReport
 from app.services import public_order_service
 from app.services import report_service
 from app.services import zreport_service
+from app.utils.tenant_time import local_today, tenant_timezone
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
@@ -33,12 +35,13 @@ _admin = require_role("admin")
 async def get_sales_summary(
     date_from: date = Query(...),
     date_to: date = Query(...),
+    compare: bool = Query(False),
     current_user: User = Depends(_admin),
     db: AsyncSession = Depends(get_db),
 ) -> SalesSummary:
-    """Get sales summary for a date range."""
+    """Get sales summary for a date range; `compare` adds the previous period."""
     data = await report_service.get_sales_summary(
-        db, current_user.tenant_id, date_from, date_to
+        db, current_user.tenant_id, date_from, date_to, compare=compare
     )
     return SalesSummary(**data)
 
@@ -47,27 +50,52 @@ async def get_sales_summary(
 async def get_item_performance(
     date_from: date = Query(...),
     date_to: date = Query(...),
+    compare: bool = Query(False),
     current_user: User = Depends(_admin),
     db: AsyncSession = Depends(get_db),
 ) -> ItemPerformance:
     """Get top/bottom items and category breakdown for a date range."""
     data = await report_service.get_item_performance(
-        db, current_user.tenant_id, date_from, date_to
+        db, current_user.tenant_id, date_from, date_to, compare=compare
     )
     return ItemPerformance(**data)
 
 
 @router.get("/hourly-breakdown", response_model=HourlyBreakdown)
 async def get_hourly_breakdown(
-    target_date: date = Query(default_factory=date.today, alias="date"),
+    date_from: date | None = Query(None),
+    date_to: date | None = Query(None),
+    single_date: date | None = Query(None, alias="date"),
     current_user: User = Depends(_admin),
     db: AsyncSession = Depends(get_db),
 ) -> HourlyBreakdown:
-    """Get hourly order/revenue breakdown for a specific date."""
+    """Hourly order/revenue breakdown over a date range (D-53).
+
+    `?date=` (one day) still works for older clients. With nothing given it is
+    the restaurant's today, not the server's: `date.today` was the container's
+    UTC day, yesterday in Pakistan until 5 am.
+    """
+    start = date_from or single_date
+    if start is None:
+        start = local_today(await tenant_timezone(db, current_user.tenant_id))
     data = await report_service.get_hourly_breakdown(
-        db, current_user.tenant_id, target_date
+        db, current_user.tenant_id, start, date_to or start
     )
     return HourlyBreakdown(**data)
+
+
+@router.get("/table-size", response_model=TableSizeReport)
+async def get_table_size_report(
+    date_from: date = Query(...),
+    date_to: date = Query(...),
+    current_user: User = Depends(_admin),
+    db: AsyncSession = Depends(get_db),
+) -> TableSizeReport:
+    """Dine-in visits, spend and dishes by table size (D-56)."""
+    data = await report_service.get_table_size_report(
+        db, current_user.tenant_id, date_from, date_to
+    )
+    return TableSizeReport(**data)
 
 
 @router.get("/sales-summary/csv")

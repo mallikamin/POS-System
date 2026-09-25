@@ -25,6 +25,7 @@ import {
 import { useQuickBooksStore } from "@/stores/quickbooksStore";
 import * as qbApi from "@/services/quickbooksApi";
 import type { QBSnapshotLatest } from "@/types/quickbooks";
+import { formatDateTime } from "@/utils/localDate";
 
 export function ConnectionTab() {
   const connectionStatus = useQuickBooksStore((s) => s.connectionStatus);
@@ -186,7 +187,7 @@ export function ConnectionTab() {
                     <div>
                       <p className="text-secondary-500">Connected At</p>
                       <p className="text-secondary-700">
-                        {new Date(connectionStatus.connected_at).toLocaleString()}
+                        {formatDateTime(connectionStatus.connected_at)}
                       </p>
                     </div>
                   </div>
@@ -196,7 +197,7 @@ export function ConnectionTab() {
                   <div>
                     <p className="text-secondary-500">Last Sync</p>
                     <p className="text-secondary-700">
-                      {new Date(connectionStatus.last_sync_at).toLocaleString()}
+                      {formatDateTime(connectionStatus.last_sync_at)}
                       {connectionStatus.last_sync_status && (
                         <Badge
                           variant={connectionStatus.last_sync_status === "success" ? "success" : "destructive"}
@@ -297,7 +298,7 @@ export function ConnectionTab() {
                     <div>
                       <p className="text-secondary-500">Captured At</p>
                       <p className="text-secondary-700">
-                        {new Date(snapshots.backup.fetched_at).toLocaleString()}
+                        {formatDateTime(snapshots.backup.fetched_at)}
                       </p>
                     </div>
                   </div>

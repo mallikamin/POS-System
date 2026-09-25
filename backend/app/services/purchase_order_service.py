@@ -54,6 +54,7 @@ from app.models.procurement import (
 )
 from app.services import stock_service, supplier_service
 from app.services.supplier_service import ProcurementError
+from app.utils.tenant_time import local_now, tenant_timezone
 
 logger = logging.getLogger(__name__)
 
@@ -91,8 +92,11 @@ async def _next_po_number(db: AsyncSession, tenant_id: uuid.UUID) -> str:
 
     Same shape as `TRF-` transfer numbers, deliberately: an operator reading a
     stock movement log should not have to learn two numbering schemes.
+
+    The date is the restaurant's own day, like order numbers: a delivery booked
+    at 1 am in Faisalabad was numbered with yesterday's UTC date (Danny's D-51).
     """
-    today = datetime.now(timezone.utc)
+    today = local_now(await tenant_timezone(db, tenant_id))
     prefix = f"PO-{today:%y%m%d}-"
     count = (
         await db.execute(
@@ -106,8 +110,11 @@ async def _next_po_number(db: AsyncSession, tenant_id: uuid.UUID) -> str:
 
 
 async def _next_receipt_number(db: AsyncSession, tenant_id: uuid.UUID) -> str:
-    """GRN-260826-003. Goods Received Note, the term every supplier uses."""
-    today = datetime.now(timezone.utc)
+    """GRN-260826-003. Goods Received Note, the term every supplier uses.
+
+    Restaurant's own day, same as `_next_po_number`.
+    """
+    today = local_now(await tenant_timezone(db, tenant_id))
     prefix = f"GRN-{today:%y%m%d}-"
     count = (
         await db.execute(

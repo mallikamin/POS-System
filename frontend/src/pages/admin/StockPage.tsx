@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Factory, Loader2, Package, RefreshCw } from "lucide-react";
+import { Factory, Loader2, Package, RefreshCw, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -37,6 +37,7 @@ import type {
   StockMovementRow,
 } from "@/types/location";
 import type { Ingredient, Recipe } from "@/types/inventory";
+import { formatDateTime } from "@/utils/localDate";
 
 /** Decimals arrive as strings from the API. Anything unparseable reads as 0. */
 /**
@@ -100,6 +101,8 @@ function StockPage() {
 
   const [locationFilter, setLocationFilter] = useState("");
   const [lowOnly, setLowOnly] = useState(false);
+  // Find one ingredient in a 70-row list without scrolling (Danny's D-49).
+  const [search, setSearch] = useState("");
 
   // Adjust dialog
   const [adjustRow, setAdjustRow] = useState<LocationStockRow | null>(null);
@@ -331,6 +334,11 @@ function StockPage() {
     }
   }
 
+  const needle = search.trim().toLowerCase();
+  const visibleRows = needle
+    ? rows.filter((row) => row.ingredient_name.toLowerCase().includes(needle))
+    : rows;
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -376,6 +384,20 @@ function StockPage() {
 
       <Card>
         <CardContent className="flex flex-wrap items-end gap-6 pt-4">
+          <div className="space-y-2 min-w-[240px] flex-1 sm:max-w-sm">
+            <Label htmlFor="stock-search">Search</Label>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-secondary-400" />
+              <Input
+                id="stock-search"
+                type="search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Ingredient name"
+                className="pl-9"
+              />
+            </div>
+          </div>
           <div className="space-y-2 min-w-[240px]">
             <Label>Location</Label>
             <Select
@@ -397,10 +419,12 @@ function StockPage() {
         </CardContent>
       </Card>
 
-      {rows.length === 0 ? (
+      {visibleRows.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center text-secondary-400">
-            {lowOnly
+            {needle && rows.length > 0
+              ? `No ingredient matches "${search.trim()}".`
+              : lowOnly
               ? "Nothing is below its reorder point right now."
               : "No stock records for this selection."}
           </CardContent>
@@ -424,7 +448,7 @@ function StockPage() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row) => (
+                {visibleRows.map((row) => (
                   <tr
                     key={`${row.location_id}:${row.ingredient_id}`}
                     className="border-b border-secondary-100 last:border-0"
@@ -617,7 +641,7 @@ function StockPage() {
                           className="border-b border-secondary-100 align-top"
                         >
                           <td className="whitespace-nowrap px-3 py-2 text-secondary-600">
-                            {new Date(m.transaction_date).toLocaleString()}
+                            {formatDateTime(m.transaction_date)}
                           </td>
                           <td className="px-3 py-2">
                             <Badge variant="secondary">

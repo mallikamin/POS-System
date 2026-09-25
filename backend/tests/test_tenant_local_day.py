@@ -85,6 +85,20 @@ async def test_zreport_day_is_the_restaurants_day(db, tenant, admin_user, karach
     assert z24["total_orders"] == 0
 
 
+async def test_stock_paperwork_numbers_carry_the_restaurants_date(db, tenant, karachi):
+    """D-51: a delivery booked in at ~01:00 on the 26th was GRN-260925-001.
+    Every document number shares the order number's day, not UTC's."""
+    from app.services import purchase_order_service, quotation_service, transfer_service
+
+    numbers = [
+        await purchase_order_service._next_po_number(db, tenant.id),
+        await purchase_order_service._next_receipt_number(db, tenant.id),
+        await transfer_service._next_transfer_number(db, tenant.id),
+        await quotation_service._next_quote_number(db, tenant.id),
+    ]
+    assert numbers == ["PO-260925-001", "GRN-260925-001", "TRF-260925-001", "QUO-260925-001"]
+
+
 async def test_tenant_without_a_timezone_keeps_utc(db, tenant):
     number = await order_service.generate_order_number(db, tenant.id)
     assert number.startswith("260924-"), number

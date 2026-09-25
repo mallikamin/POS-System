@@ -39,6 +39,7 @@ import { formatPKR } from "@/utils/currency";
 import type { CartItem } from "@/types/cart";
 import type { MenuItem } from "@/types/menu";
 import type { SelectedModifier } from "@/types/cart";
+import { formatDate } from "@/utils/localDate";
 
 // Debounce hook
 function useDebounce<T>(value: T, delay: number): T {
@@ -565,7 +566,7 @@ function CallCenterPage() {
                               #{order.order_number}
                             </div>
                             <div className="text-xs text-secondary-500">
-                              {new Date(order.created_at).toLocaleDateString()}
+                              {formatDate(order.created_at)}
                             </div>
                           </div>
                           <div className="text-right space-y-1">

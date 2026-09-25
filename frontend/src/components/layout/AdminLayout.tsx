@@ -35,6 +35,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
+import { useTenantTab } from "@/lib/tenantBranding";
 import { useUIStore } from "@/stores/uiStore";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -131,6 +132,7 @@ function isItemActive(item: NavItem, pathname: string): boolean {
 function AdminLayout() {
   const { isAuthenticated, user, logout } = useAuthStore();
   const config = useConfigStore((s) => s.config);
+  useTenantTab(config?.tenant_slug);
   const fetchConfig = useConfigStore((s) => s.fetchConfig);
   const configError = useConfigStore((s) => s.error);
   const {
@@ -359,7 +361,7 @@ function AdminLayout() {
             unreachable with no scrollbar to reveal them. Found in UAT on
             2026-08-27 with 22 modules in the list, where Quotations and Tax
             Invoices could only be reached by zooming the browser out. */}
-        <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto p-3">
+        <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto p-3 scrollbar-visible">
           {renderLink(dashboardItem)}
           {navGroups.map((group) => {
             const open = groupChoice[group.key] ?? group.key === activeGroup;
@@ -450,7 +452,9 @@ function AdminLayout() {
         </header>
 
         {/* Content */}
-        <main className="flex-1 overflow-auto p-3 sm:p-6 print:overflow-visible print:p-0">
+        {/* `scrollbar-visible`: the global 6px bar on a clear track was too
+            faint to notice on a long stock list (Danny's D-50). */}
+        <main className="flex-1 overflow-auto p-3 sm:p-6 scrollbar-visible print:overflow-visible print:p-0">
           <Outlet />
         </main>
       </div>

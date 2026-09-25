@@ -24,6 +24,7 @@ Idempotent: safe to re-run, skips anything that already exists.
 """
 
 import asyncio
+import secrets
 import uuid
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
@@ -87,6 +88,16 @@ USERS = [
      "password": "Cashier@2026", "pin": "3690", "role_name": "cashier"},
     {"email": "kitchen@dannys-demo.com", "full_name": "Danny's Kitchen (Demo)",
      "password": "Kitchen@2026", "pin": "4710", "role_name": "kitchen"},
+]
+
+# Floor staff for the dine-in waiter picker (Danny's D-58: the picker offered
+# only the owner and the cashier, so no demo order had a waiter and Waiter
+# Performance stayed empty). Names on the picker, not logins: no PIN, and a
+# random password generated at seed time and never recorded. Placeholder names.
+WAITERS = [
+    {"email": "waiter.waqas@dannys-demo.com", "full_name": "Waqas (Waiter)"},
+    {"email": "waiter.bilal@dannys-demo.com", "full_name": "Bilal (Waiter)"},
+    {"email": "waiter.asad@dannys-demo.com", "full_name": "Asad (Waiter)"},
 ]
 
 LOCATION = {
@@ -999,6 +1010,25 @@ async def get_or_create_users(db: AsyncSession, tenant: Tenant) -> User:
             print(f"  Created user '{spec['email']}' ({spec['role_name']}).")
         if spec["role_name"] == "admin":
             admin = user
+
+    for spec in WAITERS:
+        exists = (
+            await db.execute(select(User).where(User.email == spec["email"], User.tenant_id == tenant.id))
+        ).scalar_one_or_none()
+        if exists is None:
+            db.add(
+                User(
+                    tenant_id=tenant.id,
+                    email=spec["email"],
+                    full_name=spec["full_name"],
+                    hashed_password=hash_password(secrets.token_urlsafe(24)),
+                    pin_code=None,
+                    role_id=role_map["cashier"].id,
+                    is_active=True,
+                )
+            )
+            await db.flush()
+            print(f"  Created waiter '{spec['full_name']}' (no login).")
 
     if ensure_system_admin is not None:
         await ensure_system_admin(db, tenant, role_map["admin"])

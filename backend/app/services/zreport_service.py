@@ -2,13 +2,17 @@
 
 import uuid
 from datetime import date, datetime, timezone
+from decimal import ROUND_HALF_UP, Decimal
 
 from sqlalchemy import and_, case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.discount import OrderDiscount
+from app.models.expense import Expense
+from app.models.inventory import Ingredient, InventoryTransaction
 from app.models.order import Order, OrderItem
 from app.models.payment import CashDrawerSession, Payment, PaymentMethod
+from app.services import stock_service
 from app.utils.tenant_time import tenant_range_utc
 
 
@@ -315,6 +319,369 @@ async def generate_zreport(
             }
             for r in disc_rows
         ],
+        "inventory_used": await _inventory_used(db, tenant_id, day_start, day_end),
+        "stock_left": await _stock_left(db, tenant_id, day_end),
+        "cash_position": await _cash_position(
+            db, tenant_id, target_date, day_start, day_end
+        ),
+    }
+
+
+# ---------------------------------------------------------------------------
+# D-60 daily summary: inventory used, stock left, cash position
+# ---------------------------------------------------------------------------
+#
+# Danny's owner asked for one daily page: what we sold, cash vs card, how much
+# stock was used, what is left, and the cash position. The first two were
+# already here, so the rest is added to this report rather than to a second
+# screen whose numbers could drift from these.
+
+_QTY = Decimal("0.001")
+_MONEY = Decimal("0.01")
+_ZERO = Decimal("0")
+
+
+def _dec(value) -> Decimal:
+    return Decimal(str(value if value is not None else 0))
+
+
+async def _inventory_used(
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    day_start: datetime,
+    day_end: datetime,
+) -> dict:
+    """What left the shelves during the day, per ingredient, from the movement log.
+
+    Source is `inventory_transactions`, which `stock_service.move_stock` writes
+    for every stock change. Classification:
+
+    * `consumption` WITH an order_id: a sale (`consume_for_order`).
+    * `consumption` WITHOUT an order_id: an input to a production run
+      (`production_service.produce`), shown separately.
+    * `waste`: waste. The type exists but no screen writes it today; a waste
+      recorded through the adjust screen arrives as an adjustment.
+    * `adjustment`: manual corrections, kept SIGNED and separate.
+    Purchases, production output and transfers add or move stock and are not
+    usage, so they are left out.
+
+    A sale is deducted when the order completes, so its movement lands on the
+    day it completed, which is the day it is counted here.
+
+    Cost of a movement = |quantity| x the unit_cost recorded ON THE MOVEMENT
+    (move_stock stores the ingredient's cost_per_unit at that moment, or the
+    explicit cost it was given). Only when the movement recorded a cost of zero
+    do we fall back to the ingredient's CURRENT cost_per_unit, and the row is
+    flagged `costed_at_current_price` so the page can say so.
+
+    The day's total cost of goods used is sold + waste. Production inputs are
+    excluded because the in-house item they became carries their cost when it
+    is itself sold or wasted; adding both would count the same flour twice.
+    """
+    rows = (
+        await db.execute(
+            select(
+                InventoryTransaction.ingredient_id,
+                InventoryTransaction.transaction_type,
+                InventoryTransaction.order_id,
+                InventoryTransaction.quantity,
+                InventoryTransaction.unit_cost,
+                Ingredient.name,
+                Ingredient.unit,
+                Ingredient.cost_per_unit,
+            )
+            .join(Ingredient, Ingredient.id == InventoryTransaction.ingredient_id)
+            .where(
+                InventoryTransaction.tenant_id == tenant_id,
+                Ingredient.tenant_id == tenant_id,
+                InventoryTransaction.transaction_type.in_(
+                    ["consumption", "waste", "adjustment"]
+                ),
+                InventoryTransaction.transaction_date >= day_start,
+                InventoryTransaction.transaction_date < day_end,
+            )
+        )
+    ).all()
+
+    by_ingredient: dict[uuid.UUID, dict] = {}
+    for r in rows:
+        entry = by_ingredient.setdefault(
+            r.ingredient_id,
+            {
+                "ingredient_id": r.ingredient_id,
+                "ingredient_name": r.name,
+                "unit": r.unit,
+                "sold_quantity": _ZERO,
+                "sold_cost": _ZERO,
+                "production_quantity": _ZERO,
+                "production_cost": _ZERO,
+                "waste_quantity": _ZERO,
+                "waste_cost": _ZERO,
+                "adjustment_quantity": _ZERO,
+                "adjustment_cost": _ZERO,
+                "costed_at_current_price": False,
+            },
+        )
+        qty = _dec(r.quantity)
+        unit_cost = _dec(r.unit_cost)
+        if unit_cost == 0:
+            unit_cost = _dec(r.cost_per_unit)
+            if unit_cost != 0:
+                entry["costed_at_current_price"] = True
+
+        if r.transaction_type == "adjustment":
+            entry["adjustment_quantity"] += qty
+            entry["adjustment_cost"] += qty * unit_cost
+            continue
+
+        # Consumption and waste are stored negative (they left the shelf) and
+        # reported positive. abs() rather than negation so a stray positive
+        # row cannot turn into negative usage.
+        used = abs(qty)
+        if r.transaction_type == "waste":
+            key = "waste"
+        elif r.order_id is not None:
+            key = "sold"
+        else:
+            key = "production"
+        entry[f"{key}_quantity"] += used
+        entry[f"{key}_cost"] += used * unit_cost
+
+    out_rows = []
+    for entry in by_ingredient.values():
+        for k in ("sold", "production", "waste", "adjustment"):
+            entry[f"{k}_quantity"] = entry[f"{k}_quantity"].quantize(_QTY)
+            entry[f"{k}_cost"] = entry[f"{k}_cost"].quantize(_MONEY)
+        entry["used_cost"] = (
+            entry["sold_cost"] + entry["production_cost"] + entry["waste_cost"]
+        )
+        out_rows.append(entry)
+    out_rows.sort(key=lambda e: (-e["used_cost"], e["ingredient_name"].lower()))
+
+    total_sold = sum((e["sold_cost"] for e in out_rows), _ZERO)
+    total_production = sum((e["production_cost"] for e in out_rows), _ZERO)
+    total_waste = sum((e["waste_cost"] for e in out_rows), _ZERO)
+    total_adjustment = sum((e["adjustment_cost"] for e in out_rows), _ZERO)
+    return {
+        "rows": out_rows,
+        "total_sold_cost": total_sold,
+        "total_production_cost": total_production,
+        "total_waste_cost": total_waste,
+        "total_adjustment_cost": total_adjustment,
+        "total_cost_of_goods_used": total_sold + total_waste,
+    }
+
+
+async def _stock_left(
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    day_end: datetime,
+) -> dict:
+    """Closing stock per location and ingredient at the end of the day.
+
+    Closing = the balance now minus every movement recorded after the day
+    ended. For today (or a future date) nothing is after the end yet, so this
+    is simply the current balance.
+
+    This is only true because every stock change goes through
+    `stock_service.move_stock`, which writes the balance and the movement
+    together (checked 2026-09-26: no other runtime code writes
+    `location_stock.quantity`, `Ingredient.current_stock` or an
+    `InventoryTransaction`; only seed scripts do). Movements with no
+    location_id predate locations and cannot be placed on a row; they are not
+    backed out.
+
+    The rows come from `stock_service.get_location_stock`, the same query as
+    the Stock screen, so retired ingredients are skipped the same way. The
+    reorder point is today's setting; history of reorder points is not kept.
+    """
+    current = await stock_service.get_location_stock(db, tenant_id)
+
+    later = (
+        await db.execute(
+            select(
+                InventoryTransaction.ingredient_id,
+                InventoryTransaction.location_id,
+                func.coalesce(func.sum(InventoryTransaction.quantity), 0),
+            )
+            .where(
+                InventoryTransaction.tenant_id == tenant_id,
+                InventoryTransaction.transaction_date >= day_end,
+                InventoryTransaction.location_id.is_not(None),
+            )
+            .group_by(
+                InventoryTransaction.ingredient_id, InventoryTransaction.location_id
+            )
+        )
+    ).all()
+    after_end = {(ing, loc): _dec(total) for ing, loc, total in later}
+    rows = []
+    for r in current:
+        closing = (
+            _dec(r["quantity"])
+            - after_end.get((r["ingredient_id"], r["location_id"]), _ZERO)
+        ).quantize(_QTY)
+        reorder_point = _dec(r["reorder_point"])
+        rows.append(
+            {
+                "location_id": r["location_id"],
+                "location_name": r["location_name"],
+                "ingredient_id": r["ingredient_id"],
+                "ingredient_name": r["ingredient_name"],
+                "unit": r["unit"],
+                "closing_quantity": closing,
+                "reorder_point": reorder_point,
+                # Same rule as the Stock screen's is_low, applied to the
+                # closing quantity instead of the live one.
+                "is_low": reorder_point > 0 and closing <= reorder_point,
+            }
+        )
+
+    return {
+        "as_of": day_end,
+        "multiple_locations": len({r["location_id"] for r in rows}) > 1,
+        "low_count": sum(1 for r in rows if r["is_low"]),
+        "rows": rows,
+    }
+
+
+async def _cash_sums(
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    start: datetime,
+    end: datetime | None,
+) -> tuple[int, int]:
+    """(cash taken, cash refunded) between start and end, in minor units.
+
+    `Payment.amount` is what was applied to the bill; change handed back is
+    the part of `tendered_amount` above it and never entered `amount`. So cash
+    taken is the sum of `amount`, with nothing subtracted for change.
+    """
+    conditions = [
+        Payment.tenant_id == tenant_id,
+        PaymentMethod.code == "cash",
+        Payment.status == "completed",
+        Payment.kind.in_(["payment", "refund"]),
+        Payment.created_at >= start,
+    ]
+    if end is not None:
+        conditions.append(Payment.created_at < end)
+    rows = (
+        await db.execute(
+            select(Payment.kind, func.coalesce(func.sum(Payment.amount), 0))
+            .join(PaymentMethod, Payment.method_id == PaymentMethod.id)
+            .where(*conditions)
+            .group_by(Payment.kind)
+        )
+    ).all()
+    sums = {kind: int(total) for kind, total in rows}
+    return sums.get("payment", 0), sums.get("refund", 0)
+
+
+async def _cash_position(
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    target_date: date,
+    day_start: datetime,
+    day_end: datetime,
+) -> dict:
+    """Cash in and out for the day, and each drawer opened that day.
+
+    Cash paid out = expenses marked paid, paid on this date, whose payment
+    method mentions cash. `Expense.payment_method` is FREE TEXT on the
+    Expenses screen (placeholder "Bank transfer, cash, cheque"), and on
+    2026-09-26 no stored rows existed to learn the real spellings from, so any
+    value containing "cash" in any case counts ("Cash", "petty cash"). Every
+    expense counted is returned in `cash_expenses`, so the page shows exactly
+    what was deducted and a mis-typed method is visible, not silent.
+
+    An expense has a date and no time, so the day's cash expenses are charged
+    to the LAST drawer opened that day. Expense amounts are Numeric minor
+    units; each is rounded to whole minor units to sit beside the integer
+    payment figures.
+
+    No drawer opened that day means `drawers` is empty: no float is invented.
+    """
+    cash_taken, cash_refunds = await _cash_sums(db, tenant_id, day_start, day_end)
+
+    expense_rows = (
+        await db.execute(
+            select(Expense.payee, Expense.payment_method, Expense.amount_minor)
+            .where(
+                Expense.tenant_id == tenant_id,
+                Expense.status == "paid",
+                Expense.paid_on == target_date,
+                func.lower(Expense.payment_method).contains("cash"),
+            )
+            .order_by(Expense.payee)
+        )
+    ).all()
+    cash_expenses = [
+        {
+            "payee": r.payee,
+            "payment_method": r.payment_method,
+            "amount": int(_dec(r.amount_minor).quantize(Decimal("1"), ROUND_HALF_UP)),
+        }
+        for r in expense_rows
+    ]
+    cash_paid_out = sum(e["amount"] for e in cash_expenses)
+
+    sessions = (
+        (
+            await db.execute(
+                select(CashDrawerSession)
+                .where(
+                    CashDrawerSession.tenant_id == tenant_id,
+                    CashDrawerSession.opened_at >= day_start,
+                    CashDrawerSession.opened_at < day_end,
+                )
+                .order_by(CashDrawerSession.opened_at)
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+    # THE CASH FORMULA, in one place:
+    #     day:    net_cash = cash_taken - cash_refunds - cash_paid_out
+    #     drawer: expected = opening_float + taken - refunds - paid_out
+    # Not built yet, logged for the next batch, deliberately NOT faked here:
+    #   * other cash in (a module for non-sale cash received): add it to both
+    #     lines below as `+ other_cash_in`, with its own schema field.
+    #   * an opening cash balance for days with no drawer: it would go into
+    #     `net_cash`'s line as the starting figure. Until then the ONLY
+    #     opening figure shown is a drawer session's own `opening_float`.
+    net_cash = cash_taken - cash_refunds - cash_paid_out
+
+    drawers = []
+    for i, s in enumerate(sessions):
+        taken, refunds = await _cash_sums(db, tenant_id, s.opened_at, s.closed_at)
+        paid_out = cash_paid_out if i == len(sessions) - 1 else 0
+        expected = s.opening_float + taken - refunds - paid_out
+        counted = s.closing_balance_counted
+        drawers.append(
+            {
+                "session_status": s.status,
+                "opened_at": s.opened_at,
+                "closed_at": s.closed_at,
+                "opening_float": s.opening_float,
+                "cash_taken": taken,
+                "cash_refunds": refunds,
+                "cash_paid_out": paid_out,
+                "expected_in_drawer": expected,
+                "counted_closing": counted,
+                "over_short": (counted - expected) if counted is not None else None,
+            }
+        )
+
+    return {
+        "cash_taken": cash_taken,
+        "cash_refunds": cash_refunds,
+        "cash_paid_out": cash_paid_out,
+        "cash_expenses": cash_expenses,
+        "net_cash": net_cash,
+        "drawer_opened": bool(drawers),
+        "drawers": drawers,
     }
 
 

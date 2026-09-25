@@ -23,11 +23,15 @@ from app.models.inventory import Ingredient
 from app.models.location import StockTransfer, StockTransferItem
 from app.services import stock_service
 from app.services.stock_service import StockError
+from app.utils.tenant_time import local_now, tenant_timezone
 
 
 async def _next_transfer_number(db: AsyncSession, tenant_id: uuid.UUID) -> str:
-    """Sequential per tenant, date-stamped: TRF-260826-003."""
-    today = datetime.now(timezone.utc)
+    """Sequential per tenant, date-stamped: TRF-260826-003.
+
+    Restaurant's own day, not UTC's (Danny's D-51), same as order numbers.
+    """
+    today = local_now(await tenant_timezone(db, tenant_id))
     prefix = f"TRF-{today:%y%m%d}-"
     result = await db.execute(
         select(func.count(StockTransfer.id)).where(

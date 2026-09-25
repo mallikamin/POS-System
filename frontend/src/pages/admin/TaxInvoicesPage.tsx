@@ -18,6 +18,7 @@ import type {
   LocationOrderRow,
   TaxInvoiceData,
 } from "@/types/location";
+import { formatDate } from "@/utils/localDate";
 
 /**
  * A4 VAT tax invoices for a location's sales.
@@ -196,7 +197,7 @@ function TaxInvoicesPage() {
                       <tr key={o.id} className="border-b last:border-0">
                         <td className="py-2 pr-4 font-mono">{o.order_number}</td>
                         <td className="py-2 pr-4">
-                          {new Date(o.created_at).toLocaleDateString()}
+                          {formatDate(o.created_at)}
                         </td>
                         <td className="py-2 pr-4">{o.customer_name ?? "-"}</td>
                         <td className="py-2 pr-4">{o.channel_name ?? "Direct"}</td>
@@ -269,7 +270,7 @@ function TaxInvoicesPage() {
                 <p>
                   Date of issue:{" "}
                   <span className="font-semibold">
-                    {new Date(invoice.issue_date).toLocaleDateString()}
+                    {formatDate(invoice.issue_date)}
                   </span>
                 </p>
                 <p className="mt-1">Currency: {invoice.currency}</p>

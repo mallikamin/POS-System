@@ -19,7 +19,11 @@ import { formatPKR } from "@/utils/currency";
 import { isModuleHidden } from "@/lib/modules";
 import { cn } from "@/lib/utils";
 import { useConfigStore } from "@/stores/configStore";
+import { useAuthStore } from "@/stores/authStore";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ActivityFeedCard } from "@/components/admin/ActivityFeedCard";
+import { PeriodDelta } from "@/components/admin/PeriodDelta";
+import { Thumb } from "@/components/admin/Thumb";
 import {
   DollarSign,
   ShoppingCart,
@@ -73,6 +77,7 @@ function KpiCard({
   iconBg,
   iconColor,
   trend,
+  footer,
 }: {
   title: string;
   value: string;
@@ -81,6 +86,7 @@ function KpiCard({
   iconBg: string;
   iconColor: string;
   trend?: { direction: "up" | "down" | "flat"; label: string };
+  footer?: React.ReactNode;
 }) {
   return (
     <Card>
@@ -115,6 +121,7 @@ function KpiCard({
             </span>
           </p>
         )}
+        {footer && <div className="mt-1">{footer}</div>}
         {subtitle && (
           <p className="mt-1 text-pos-xs text-secondary-400">{subtitle}</p>
         )}
@@ -279,7 +286,8 @@ function TopItemsChart({ data }: { data: ItemPerformance | null }) {
           {items.map((item, idx) => (
             <div key={item.menu_item_id}>
               <div className="mb-1 flex items-center justify-between">
-                <span className="text-pos-xs font-medium text-secondary-700">
+                <span className="flex items-center gap-2 text-pos-xs font-medium text-secondary-700">
+                  <Thumb src={item.image_url} alt={item.name} size="sm" />
                   {idx + 1}. {item.name}
                 </span>
                 <span className="text-pos-xs text-secondary-500">
@@ -307,6 +315,7 @@ function TopItemsChart({ data }: { data: ItemPerformance | null }) {
 function AdminDashboard() {
   const config = useConfigStore((s) => s.config);
   const hideDineIn = isModuleHidden(config, "dine-in");
+  const isAdmin = useAuthStore((s) => s.user?.role.name.toLowerCase() === "admin");
   const [kpis, setKpis] = useState<DashboardKpis | null>(null);
   const [live, setLive] = useState<LiveOperations | null>(null);
   const [hourly, setHourly] = useState<HourlyBreakdown | null>(null);
@@ -321,7 +330,7 @@ function AdminDashboard() {
       const [kpiData, liveData, hourlyData, itemData] = await Promise.all([
         fetchDashboardKpis(),
         fetchLiveOperations(),
-        fetchHourlyBreakdown(today),
+        fetchHourlyBreakdown(today, today),
         fetchItemPerformance(today, today),
       ]);
       setKpis(kpiData);
@@ -344,23 +353,19 @@ function AdminDashboard() {
     return () => clearInterval(interval);
   }, [loadData]);
 
-  /* Revenue trend calculation */
-  const revenueTrend = (() => {
-    if (!kpis) return undefined;
-    if (kpis.yesterday_revenue === 0) {
-      if (kpis.today_revenue === 0) return { direction: "flat" as const, label: "No sales yet" };
-      return { direction: "up" as const, label: "First sales today" };
-    }
-    const pctChange =
-      ((kpis.today_revenue - kpis.yesterday_revenue) / kpis.yesterday_revenue) *
-      100;
-    const direction: "up" | "down" | "flat" =
-      pctChange > 0 ? "up" : pctChange < 0 ? "down" : "flat";
-    return {
-      direction,
-      label: `${Math.abs(pctChange).toFixed(1)}% vs yesterday`,
-    };
-  })();
+  /* D-55: today so far against yesterday up to the same time. It used to
+     divide by all of yesterday, so every morning read as a collapse. */
+  const until = kpis?.compared_until ? ` to ${kpis.compared_until.slice(11, 16)}` : "";
+  const vsYesterday = (current: number, previous: number, format: (n: number) => string) =>
+    kpis ? (
+      <PeriodDelta
+        current={current}
+        previous={previous}
+        against="yesterday"
+        until={until}
+        format={format}
+      />
+    ) : undefined;
 
   /* utilization progress bar width */
   const utilPct = kpis ? Math.min(kpis.table_utilization, 100) : 0;
@@ -411,7 +416,7 @@ function AdminDashboard() {
           icon={DollarSign}
           iconBg="bg-success-50"
           iconColor="text-success-500"
-          trend={revenueTrend}
+          footer={kpis && vsYesterday(kpis.today_revenue, kpis.yesterday_same_time_revenue, formatPKR)}
         />
         <KpiCard
           title="Orders Today"
@@ -419,6 +424,10 @@ function AdminDashboard() {
           icon={ShoppingCart}
           iconBg="bg-primary-50"
           iconColor="text-primary-500"
+          footer={
+            kpis &&
+            vsYesterday(kpis.today_orders, kpis.yesterday_same_time_orders, (n) => n.toLocaleString())
+          }
           subtitle={
             kpis
               ? `${kpis.active_orders} active, ${kpis.pending_kitchen} in kitchen`
@@ -431,6 +440,14 @@ function AdminDashboard() {
           icon={TrendingUp}
           iconBg="bg-accent-50"
           iconColor="text-accent-500"
+          footer={
+            kpis &&
+            vsYesterday(
+              kpis.avg_order_value,
+              kpis.yesterday_same_time_avg_order_value,
+              formatPKR,
+            )
+          }
         />
         {/* Table utilisation is a dine-in metric and reads as a broken gauge in
             a business with no tables: a permanent 0% with an empty bar. Hidden
@@ -459,6 +476,14 @@ function AdminDashboard() {
             </CardContent>
           </Card>
         )}
+      </div>
+
+      {/* Owner's live feed (D-57) beside today's sales, above the queues.
+          Admin only, like its endpoint: a manager would get a 403 toast on
+          every 10-second refresh. */}
+      <div className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {isAdmin && <ActivityFeedCard />}
+        <HourlyChart data={hourly} />
       </div>
 
       {/* Live Operations */}
@@ -503,7 +528,6 @@ function AdminDashboard() {
 
       {/* Charts */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <HourlyChart data={hourly} />
         <TopItemsChart data={topItems} />
       </div>
     </div>

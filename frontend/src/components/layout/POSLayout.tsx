@@ -6,7 +6,7 @@ import { useUIStore } from "@/stores/uiStore";
 import { useConfigStore } from "@/stores/configStore";
 import { useSaleAttributionStore } from "@/stores/saleAttributionStore";
 import { Button } from "@/components/ui/button";
-import { tenantBrand } from "@/lib/tenantBranding";
+import { tenantBrand, useTenantTab } from "@/lib/tenantBranding";
 
 function Clock() {
   const [time, setTime] = useState(new Date());
@@ -39,6 +39,7 @@ function POSLayout() {
   const salesChannels = useSaleAttributionStore((s) => s.channels);
   const salesChannelId = useSaleAttributionStore((s) => s.channelId);
   const brand = tenantBrand(config?.tenant_slug);
+  useTenantTab(config?.tenant_slug);
 
   // Fetch restaurant config once after the user is authenticated
   useEffect(() => {

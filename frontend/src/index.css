@@ -279,10 +279,13 @@
   .scrollbar-visible {
     scrollbar-width: auto;
     scrollbar-gutter: stable;
+    /* Firefox ignores ::-webkit-scrollbar; thumb then track. */
+    scrollbar-color: theme("colors.secondary.400") theme("colors.secondary.100");
   }
 
   .scrollbar-visible::-webkit-scrollbar {
     width: 10px;
+    height: 10px;
   }
 
   .scrollbar-visible::-webkit-scrollbar-track {

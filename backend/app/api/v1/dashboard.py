@@ -3,13 +3,24 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, require_role
 from app.database import get_db
 from app.models.user import User
-from app.schemas.dashboard import DashboardKpis, LiveOperations
-from app.services import dashboard_service
+from app.schemas.dashboard import ActivityFeed, DashboardKpis, LiveOperations
+from app.services import activity_feed_service, dashboard_service
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
+
+
+@router.get("/activity", response_model=ActivityFeed)
+async def get_activity_feed(
+    current_user: User = Depends(require_role("admin")),
+    db: AsyncSession = Depends(get_db),
+) -> ActivityFeed:
+    """Today's live feed for the owner, newest first (D-57). Admin only: it
+    carries every bill's amount."""
+    data = await activity_feed_service.get_activity_feed(db, current_user.tenant_id)
+    return ActivityFeed(**data)
 
 
 @router.get("/kpis", response_model=DashboardKpis)

@@ -7,7 +7,7 @@ import { NumberPad } from "@/components/pos/NumberPad";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getTenantSlug, setTenantSlug, tenantSlugFromUrl } from "@/lib/tenant";
-import { tenantBrand } from "@/lib/tenantBranding";
+import { tenantBrand, useTenantTab } from "@/lib/tenantBranding";
 
 /** Extract a human-readable message from an API error response. */
 function getErrorMessage(err: unknown, fallback: string): string {
@@ -56,6 +56,7 @@ function LoginPage() {
   const [shop, setShop] = useState(getTenantSlug() ?? "");
   const [showShop, setShowShop] = useState(arrivedToChoose);
   const brand = tenantBrand(shop);
+  useTenantTab(shop);
 
   /*
    * If the user is already authenticated, redirect straight to the dashboard --
