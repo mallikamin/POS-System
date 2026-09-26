@@ -11,7 +11,12 @@ from app.models.discount import OrderDiscount
 from app.models.expense import Expense
 from app.models.inventory import Ingredient, InventoryTransaction
 from app.models.order import Order, OrderItem
-from app.models.payment import CashDrawerSession, Payment, PaymentMethod
+from app.models.payment import (
+    CashDrawerAttachment,
+    CashDrawerSession,
+    Payment,
+    PaymentMethod,
+)
 from app.services import other_income_service, stock_service
 from app.utils.tenant_time import (
     local_day_bounds_utc,
@@ -748,6 +753,28 @@ async def _drawers_for_day(
         .all()
     )
 
+    # D-78: files pinned at close, one query for all of the day's drawers.
+    files: dict[uuid.UUID, list[dict]] = {}
+    if sessions:
+        rows = (
+            await db.execute(
+                select(CashDrawerAttachment)
+                .where(
+                    CashDrawerAttachment.tenant_id == tenant_id,
+                    CashDrawerAttachment.session_id.in_([s.id for s in sessions]),
+                )
+                .order_by(CashDrawerAttachment.created_at)
+            )
+        ).scalars().all()
+        for a in rows:
+            files.setdefault(a.session_id, []).append(
+                {
+                    "id": a.id,
+                    "filename": a.filename,
+                    "url": f"/api/v1/payments/drawer/{a.session_id}/attachments/{a.id}",
+                }
+            )
+
     drawers = []
     for i, s in enumerate(sessions):
         taken, refunds = await _cash_sums(db, tenant_id, s.opened_at, s.closed_at)
@@ -770,6 +797,8 @@ async def _drawers_for_day(
                 "expected_in_drawer": expected,
                 "counted_closing": counted,
                 "over_short": (counted - expected) if counted is not None else None,
+                "note": s.note,
+                "attachments": files.get(s.id, []),
             }
         )
     return drawers

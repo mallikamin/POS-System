@@ -145,5 +145,29 @@ class CashDrawerSession(BaseMixin, Base):
     )
 
 
+class CashDrawerAttachment(BaseMixin, Base):
+    """A file pinned to a drawer session at close: a photo of the count, a
+    petty-cash slip (Danny's D-78). Same shape as `ExpenseAttachment`; the
+    bytes live in `media_files`."""
+
+    __tablename__ = "cash_drawer_attachments"
+    __table_args__ = (
+        Index("ix_cash_drawer_attachment_session", "session_id"),
+    )
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("tenants.id"), nullable=False, index=True
+    )
+    session_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("cash_drawer_sessions.id", ondelete="CASCADE"), nullable=False
+    )
+    media_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("media_files.id", ondelete="CASCADE"), nullable=False
+    )
+    filename: Mapped[str | None] = mapped_column(String(255))
+    content_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    size_bytes: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+
 from app.models.order import Order  # noqa: E402, F401
 from app.models.user import User  # noqa: E402, F401

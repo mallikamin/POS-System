@@ -4,6 +4,7 @@ import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -42,7 +43,7 @@ type View =
   | { kind: "loading" }
   | { kind: "closed" }
   | { kind: "open"; summary: CashDrawerSummary }
-  | { kind: "result"; session: CashDrawerSessionResponse };
+  | { kind: "result"; session: CashDrawerSessionResponse; attached: number };
 
 function errorDetail(err: unknown): string {
   const detail = isAxiosError(err) ? err.response?.data?.detail : undefined;
@@ -84,6 +85,8 @@ export function CashDrawerDialog({ open, onClose, onChanged }: CashDrawerDialogP
   const symbol = getCurrencyDef().symbol.trim();
   const [view, setView] = useState<View>({ kind: "loading" });
   const [amount, setAmount] = useState("");
+  const [note, setNote] = useState("");
+  const [files, setFiles] = useState<File[]>([]);
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -91,6 +94,8 @@ export function CashDrawerDialog({ open, onClose, onChanged }: CashDrawerDialogP
     if (!open) return;
     setView({ kind: "loading" });
     setAmount("");
+    setNote("");
+    setFiles([]);
     setConfirming(false);
     paymentsApi
       .fetchDrawerSummary()
@@ -126,8 +131,26 @@ export function CashDrawerDialog({ open, onClose, onChanged }: CashDrawerDialogP
     if (value === null) return;
     setBusy(true);
     try {
-      const session = await paymentsApi.closeDrawer({ closing_balance_counted: majorToMinor(value) });
-      setView({ kind: "result", session });
+      const session = await paymentsApi.closeDrawer({
+        closing_balance_counted: majorToMinor(value),
+        note: note.trim() || undefined,
+      });
+      // Files go up after the close, against the session id. Each failure is
+      // reported on its own: one bad file must not undo a drawer that closed.
+      let attached = 0;
+      for (const file of files) {
+        try {
+          await paymentsApi.uploadDrawerAttachment(session.id, file);
+          attached += 1;
+        } catch (err) {
+          toast({
+            title: `${file.name} not attached`,
+            description: errorDetail(err),
+            variant: "destructive",
+          });
+        }
+      }
+      setView({ kind: "result", session, attached });
       onChanged();
     } catch (err) {
       setConfirming(false);
@@ -222,6 +245,34 @@ export function CashDrawerDialog({ open, onClose, onChanged }: CashDrawerDialogP
             {value !== null && (
               <Difference diff={majorToMinor(value) - view.summary.expected_in_drawer} />
             )}
+            <div className="space-y-1">
+              <Label htmlFor="drawer-note">Note or reason (optional)</Label>
+              <Textarea
+                id="drawer-note"
+                rows={2}
+                maxLength={500}
+                placeholder="e.g. Rs 50 short: change given to a regular"
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="drawer-files">Attach a photo or PDF (optional)</Label>
+              <Input
+                id="drawer-files"
+                type="file"
+                multiple
+                accept="image/*,application/pdf"
+                className="min-h-[48px] py-2"
+                onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
+              />
+              {files.length > 0 && (
+                <p className="text-xs text-secondary-500">
+                  {files.length === 1 ? "1 file" : `${files.length} files`} will be attached when
+                  the drawer closes.
+                </p>
+              )}
+            </div>
             {confirming && (
               <p className="text-sm text-secondary-600">
                 Closing cannot be undone. Close with {formatMoney(majorToMinor(value ?? 0))} counted?
@@ -273,6 +324,17 @@ export function CashDrawerDialog({ open, onClose, onChanged }: CashDrawerDialogP
                 (view.session.closing_balance_expected ?? 0)
               }
             />
+            {view.session.note && (
+              <p className="whitespace-pre-wrap break-words text-sm text-secondary-700">
+                <span className="font-medium">Note: </span>
+                {view.session.note}
+              </p>
+            )}
+            {view.attached > 0 && (
+              <p className="text-sm text-secondary-600">
+                {view.attached === 1 ? "1 file" : `${view.attached} files`} attached.
+              </p>
+            )}
             <DialogFooter>
               <Button onClick={onClose} className="min-h-[48px]">
                 Done

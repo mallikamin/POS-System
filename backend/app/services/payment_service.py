@@ -8,7 +8,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.order import Order
-from app.models.payment import CashDrawerSession, Payment, PaymentMethod
+from app.models.payment import (
+    CashDrawerAttachment,
+    CashDrawerSession,
+    Payment,
+    PaymentMethod,
+)
 from app.models.user import User
 from app.schemas.payment import (
     CashDrawerCloseRequest,
@@ -319,6 +324,67 @@ async def close_drawer_session(
     session.note = data.note or session.note
     await db.flush()
     return session
+
+
+async def add_drawer_attachment(
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    session_id: uuid.UUID,
+    media,
+    filename: str | None,
+) -> CashDrawerAttachment:
+    """Pin a stored file to a drawer session of THIS tenant (D-78). Open or
+    closed: the screen uploads right after closing."""
+    session = await get_drawer_session_by_id(db, tenant_id, session_id)
+    row = CashDrawerAttachment(
+        tenant_id=tenant_id,
+        session_id=session.id,
+        media_id=media.id,
+        filename=(filename or "")[:255] or None,
+        content_type=media.content_type,
+        size_bytes=media.size_bytes,
+    )
+    db.add(row)
+    await db.flush()
+    return row
+
+
+async def get_drawer_session_by_id(
+    db: AsyncSession, tenant_id: uuid.UUID, session_id: uuid.UUID
+) -> CashDrawerSession:
+    session = (
+        await db.execute(
+            select(CashDrawerSession).where(
+                CashDrawerSession.id == session_id,
+                CashDrawerSession.tenant_id == tenant_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if session is None:
+        raise ValueError("No such cash drawer session")
+    return session
+
+
+async def get_drawer_attachment(
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    session_id: uuid.UUID,
+    attachment_id: uuid.UUID,
+) -> CashDrawerAttachment:
+    """Scoped to the tenant AND the session, as expense attachments are, so an
+    id from one drawer cannot be served under another's URL."""
+    row = (
+        await db.execute(
+            select(CashDrawerAttachment).where(
+                CashDrawerAttachment.id == attachment_id,
+                CashDrawerAttachment.session_id == session_id,
+                CashDrawerAttachment.tenant_id == tenant_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if row is None:
+        raise ValueError("No such attachment on this drawer")
+    return row
 
 
 async def get_drawer_summary(
@@ -947,7 +1013,15 @@ async def _sync_order_payment_status(
 async def _maybe_close_session(
     db: AsyncSession, session_id: uuid.UUID, tenant_id: uuid.UUID
 ) -> None:
-    """Close a table session if every order in it is paid or completed/voided."""
+    """Close a table session, freeing the table, once every order in it is
+    paid AND done (completed), or voided.
+
+    Paid alone is not enough: guests who pay up front are still at the table
+    while the kitchen cooks, and closing on payment put the table back on the
+    floor plan as free with the food still in the kitchen (Danny's D-79,
+    2026-09-27). A paid order completes when it is served (order_service), and
+    that completion calls this again.
+    """
     from app.models.table_session import TableSession
 
     result = await db.execute(
@@ -962,10 +1036,10 @@ async def _maybe_close_session(
     for o in session.orders:
         if o.status == "voided":
             continue
-        if o.payment_status != "paid":
-            return  # at least one unpaid order — don't close
+        if o.payment_status != "paid" or o.status != "completed":
+            return  # unpaid, or still being cooked or eaten: the table stays
 
-    # All orders paid or voided — close the session
+    # All orders paid and completed, or voided: close the session
     from app.services import table_session_service
 
     await table_session_service.close_session(

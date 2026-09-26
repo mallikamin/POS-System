@@ -754,13 +754,26 @@ async def transition_order(
     )
     db.add(log_entry)
 
-    # On completion: free the table
-    if new_status == "completed" and order.order_type == "dine_in" and order.table_id:
+    # On completion: free the table. An order on a table session frees it
+    # through the session, which waits for EVERY order on the table to be paid
+    # and done (D-79); freeing it here left the session open and the table
+    # "available" while another order on it was still unpaid.
+    if (
+        new_status == "completed"
+        and order.order_type == "dine_in"
+        and order.table_id
+        and not order.table_session_id
+    ):
         table = await _get_table(db, order.table_id, tenant_id)
         if table:
             table.status = "available"
 
     await db.flush()
+
+    if new_status == "completed" and order.table_session_id:
+        from app.services.payment_service import _maybe_close_session
+
+        await _maybe_close_session(db, order.table_session_id, tenant_id)
 
     if order.order_type in KITCHEN_SYNCED_ORDER_TYPES:
         await _sync_tickets_to_order(db, tenant_id, order.id, new_status)

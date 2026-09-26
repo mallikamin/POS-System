@@ -170,7 +170,7 @@ function POSLayout() {
             type="button"
             onClick={() => setDrawerDialog(true)}
             aria-label={drawerOpen ? "Cash drawer (open)" : "Cash drawer (closed)"}
-            className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-secondary-600 hover:bg-secondary-100 hover:text-secondary-800 transition-colors"
+            className="flex min-h-[44px] items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-secondary-600 hover:bg-secondary-100 hover:text-secondary-800 transition-colors"
           >
             <span className="relative">
               <Wallet className="h-4 w-4" />
@@ -186,14 +186,14 @@ function POSLayout() {
           </button>
           <Link
             to="/orders"
-            className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-secondary-600 hover:bg-secondary-100 hover:text-secondary-800 transition-colors"
+            className="flex min-h-[44px] items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-secondary-600 hover:bg-secondary-100 hover:text-secondary-800 transition-colors"
           >
             <ClipboardList className="h-4 w-4" />
             Orders
           </Link>
           <Link
             to="/admin"
-            className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-secondary-600 hover:bg-secondary-100 hover:text-secondary-800 transition-colors"
+            className="flex min-h-[44px] items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-secondary-600 hover:bg-secondary-100 hover:text-secondary-800 transition-colors"
           >
             <Settings className="h-4 w-4" />
             Admin

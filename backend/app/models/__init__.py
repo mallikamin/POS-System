@@ -18,7 +18,12 @@ from app.models.quickbooks import (
     QBSyncJob,
     QBSyncLog,
 )
-from app.models.payment import PaymentMethod, Payment, CashDrawerSession
+from app.models.payment import (
+    CashDrawerAttachment,
+    CashDrawerSession,
+    Payment,
+    PaymentMethod,
+)
 from app.models.customer import Customer
 from app.models.kitchen import KitchenStation, KitchenTicket, KitchenTicketItem
 from app.models.table_session import TableSession
@@ -82,6 +87,7 @@ __all__ = [
     "PaymentMethod",
     "Payment",
     "CashDrawerSession",
+    "CashDrawerAttachment",
     "Customer",
     "KitchenStation",
     "KitchenTicket",

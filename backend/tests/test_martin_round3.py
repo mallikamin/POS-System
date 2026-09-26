@@ -608,8 +608,11 @@ async def test_marking_an_expense_paid_dates_it(
     )
     expense_id = created.json()["id"]
 
+    # A paid expense must say how it was paid (Danny's D-77, 2026-09-27).
     paid = await client.patch(
-        f"/api/v1/expenses/{expense_id}", json={"status": "paid"}, headers=headers
+        f"/api/v1/expenses/{expense_id}",
+        json={"status": "paid", "payment_method": "Bank"},
+        headers=headers,
     )
     assert paid.json()["paid_on"] == "2026-09-01"
 
@@ -636,6 +639,8 @@ async def test_the_summary_excludes_drafts(
                 "payee": "Someone",
                 "amount_minor": amount,
                 "status": status_value,
+                # A paid expense must say how (D-77); harmless on the others.
+                "payment_method": "Bank",
             },
             headers=headers,
         )

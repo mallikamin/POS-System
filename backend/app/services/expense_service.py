@@ -352,6 +352,13 @@ async def _validate(
             + ", ".join(EXPENSE_STATUSES)
         )
 
+    # A paid expense says how it was paid. With no method, cash that left the
+    # till was silently left out of the drawer and the Z-Report, which count
+    # only cash (Danny's D-77, 2026-09-27). Values stay free text here so older
+    # rows ("Bank transfer", "petty cash") still save; the screen offers a list.
+    if status == "paid" and not (data.get("payment_method") or "").strip():
+        raise ExpenseError("Choose how this expense was paid: Cash, Bank or Cheque.")
+
     category_id = data.get("category_id")
     if category_id is not None:
         await get_category(db, tenant_id, category_id)
@@ -416,6 +423,7 @@ async def update_expense(
         "location_id": data.get("location_id", expense.location_id),
         "amount_minor": data.get("amount_minor", expense.amount_minor),
         "tax_minor": data.get("tax_minor", expense.tax_minor),
+        "payment_method": data.get("payment_method", expense.payment_method),
     }
     await _validate(db, tenant_id, merged)
 

@@ -172,6 +172,16 @@ class CashDrawerSessionResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class CashDrawerAttachmentResponse(BaseModel):
+    """A file pinned to a drawer at close (D-78). Built by hand: no defaults."""
+
+    id: uuid.UUID
+    filename: str | None
+    content_type: str
+    size_bytes: int
+    url: str
+
+
 class CashDrawerSummary(BaseModel):
     """The open drawer and what should be in it now (D-73). Built by hand in
     `payment_service.get_drawer_summary`, so no field has a default: a

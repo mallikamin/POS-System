@@ -74,6 +74,9 @@ import type {
 } from "@/types/expense";
 import type { Location } from "@/types/location";
 
+/** How an expense was paid (D-77). "Cash" is what the drawer and Z-Report count. */
+const PAYMENT_METHODS: string[] = ["Cash", "Bank", "Cheque"];
+
 const STATUS_STYLES: Record<ExpenseStatus, string> = {
   draft: "bg-secondary-100 text-secondary-600",
   unpaid: "bg-warning-100 text-warning-800",
@@ -248,6 +251,7 @@ function ExpensesPage() {
   const amountMinor = majorToMinor(toNumber(amount), currency);
   const taxMinor = majorToMinor(toNumber(tax), currency);
   const formValid =
+    (statusValue !== "paid" || paymentMethod !== "") &&
     payee.trim().length > 0 &&
     expenseDate.length > 0 &&
     amountMinor >= 0 &&
@@ -832,14 +836,34 @@ function ExpensesPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="f-method">Paid by</Label>
-                <Input
+                <Label htmlFor="f-method">
+                  Paid by{statusValue === "paid" ? " *" : ""}
+                </Label>
+                {/* A list, not free text: a paid expense left blank, or spelt
+                    so that it did not say "cash", never reached the drawer
+                    (Danny's D-77). An older free-text value stays selectable
+                    so editing that expense does not silently change it. */}
+                <Select
                   id="f-method"
                   value={paymentMethod}
                   onChange={(e) => setPaymentMethod(e.target.value)}
-                  placeholder="Bank transfer, cash, cheque"
                   className="min-h-[48px]"
-                />
+                >
+                  <option value="">Choose...</option>
+                  {PAYMENT_METHODS.map((m) => (
+                    <option key={m} value={m}>
+                      {m}
+                    </option>
+                  ))}
+                  {paymentMethod && !PAYMENT_METHODS.includes(paymentMethod) && (
+                    <option value={paymentMethod}>{paymentMethod}</option>
+                  )}
+                </Select>
+                {statusValue === "paid" && !paymentMethod && (
+                  <p className="text-xs text-danger-600">
+                    Choose how it was paid. Only cash counts in the drawer.
+                  </p>
+                )}
               </div>
             </div>
 

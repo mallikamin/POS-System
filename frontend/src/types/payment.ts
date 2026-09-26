@@ -79,6 +79,15 @@ export interface CashDrawerSessionResponse {
   note?: string;
 }
 
+/** A file pinned to a drawer session at close (D-78). */
+export interface CashDrawerAttachment {
+  id: string;
+  filename: string | null;
+  content_type: string;
+  size_bytes: number;
+  url: string;
+}
+
 /** The open drawer and what should be in it now (D-73). Same figure the
  *  Z-Report shows for this drawer (D-68). */
 export interface CashDrawerSummary {

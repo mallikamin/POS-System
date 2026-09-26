@@ -2,7 +2,7 @@
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,6 +10,7 @@ from app.api.deps import get_current_user, require_permission
 from app.database import get_db
 from app.models.user import User
 from app.schemas.payment import (
+    CashDrawerAttachmentResponse,
     CashDrawerCloseRequest,
     CashDrawerOpenRequest,
     CashDrawerSessionResponse,
@@ -24,7 +25,8 @@ from app.schemas.payment import (
     SessionSplitPaymentCreate,
     SplitPaymentCreate,
 )
-from app.services import payment_service
+from app.services import media_service, payment_service
+from app.services.media_service import ImageTooLarge, InvalidDocument, MAX_UPLOAD_BYTES
 
 router = APIRouter(prefix="/payments", tags=["payments"])
 
@@ -237,6 +239,88 @@ async def open_drawer(
     except ValueError as e:
         await db.rollback()
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e))
+
+
+@router.post(
+    "/drawer/{session_id}/attachments",
+    response_model=CashDrawerAttachmentResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def upload_drawer_attachment(
+    session_id: uuid.UUID,
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> CashDrawerAttachmentResponse:
+    """Pin a photo or PDF to a drawer session at close (Danny's D-78). Same
+    size cap and file checks as expense attachments."""
+    data = await file.read(MAX_UPLOAD_BYTES + 1)
+    if len(data) > MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            f"An attachment must be {MAX_UPLOAD_BYTES // (1024 * 1024)} MB or smaller.",
+        )
+    # The session is checked BEFORE the bytes are stored, so a bad id leaves
+    # no orphan media row behind.
+    try:
+        await payment_service.get_drawer_session_by_id(db, current_user.tenant_id, session_id)
+    except ValueError as e:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(e))
+    try:
+        media = await media_service.store_document(
+            db, current_user.tenant_id, data, original_filename=file.filename
+        )
+    except ImageTooLarge:
+        raise HTTPException(
+            status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            f"An attachment must be {MAX_UPLOAD_BYTES // (1024 * 1024)} MB or smaller.",
+        )
+    except InvalidDocument as exc:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"That file cannot be attached ({exc}). Use a PDF or a photo.",
+        )
+    row = await payment_service.add_drawer_attachment(
+        db, current_user.tenant_id, session_id, media, file.filename
+    )
+    await db.commit()
+    return CashDrawerAttachmentResponse(
+        id=row.id,
+        filename=row.filename,
+        content_type=row.content_type,
+        size_bytes=row.size_bytes,
+        url=f"/api/v1/payments/drawer/{session_id}/attachments/{row.id}",
+    )
+
+
+@router.get("/drawer/{session_id}/attachments/{attachment_id}")
+async def download_drawer_attachment(
+    session_id: uuid.UUID,
+    attachment_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    """Serve one drawer attachment. `inline` + `nosniff`, as for expenses, so
+    a crafted upload cannot be sniffed as HTML on this origin."""
+    try:
+        row = await payment_service.get_drawer_attachment(
+            db, current_user.tenant_id, session_id, attachment_id
+        )
+    except ValueError as e:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(e))
+    media = await media_service.get_media_bytes(db, row.media_id)
+    if media is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "The file is no longer stored.")
+    safe_name = (row.filename or "attachment").replace('"', "")
+    return Response(
+        content=media.data,
+        media_type=media.content_type,
+        headers={
+            "Content-Disposition": f'inline; filename="{safe_name}"',
+            "X-Content-Type-Options": "nosniff",
+            "Cache-Control": "private, max-age=300",
+        },
+    )
 
 
 @router.post("/drawer/close", response_model=CashDrawerSessionResponse)

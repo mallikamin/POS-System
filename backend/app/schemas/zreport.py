@@ -118,6 +118,12 @@ class StockLeft(BaseModel):
     rows: list[StockLeftRow]
 
 
+class DrawerAttachmentLink(BaseModel):
+    id: uuid.UUID
+    filename: str | None
+    url: str
+
+
 class DrawerPosition(BaseModel):
     session_status: str  # open | closed
     opened_at: datetime
@@ -130,6 +136,10 @@ class DrawerPosition(BaseModel):
     expected_in_drawer: int
     counted_closing: int | None
     over_short: int | None  # counted - expected; None until counted
+    # D-78: what the cashier wrote and attached at close. No defaults, so a
+    # builder that forgets them fails instead of showing nothing.
+    note: str | None
+    attachments: list[DrawerAttachmentLink]
 
 
 class CashExpenseLine(BaseModel):
