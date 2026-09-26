@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { toLocalISODate } from "@/utils/localDate";
+import { formatDate, toLocalISODate } from "@/utils/localDate";
 import { currencyLocale } from "@/utils/currency";
 import {
   FileText,
@@ -75,6 +75,7 @@ interface DrawerPosition {
   cash_taken: number;
   cash_refunds: number;
   cash_paid_out: number;
+  other_cash_in: number;
   expected_in_drawer: number;
   counted_closing: number | null;
   over_short: number | null;
@@ -85,7 +86,16 @@ interface CashPosition {
   cash_refunds: number;
   cash_paid_out: number;
   cash_expenses: { payee: string; payment_method: string; amount: number }[];
+  other_cash_in: number;
+  other_cash_income: { payer: string; category_name: string | null; amount: number }[];
   net_cash: number;
+  /** D-62: null when no opening cash is recorded or the day is before it. */
+  cash_in_hand: {
+    opening_as_of: string;
+    opening_cash: number;
+    start_of_day: number;
+    end_of_day: number;
+  } | null;
   drawer_opened: boolean;
   drawers: DrawerPosition[];
 }
@@ -329,7 +339,7 @@ function ZReportPage() {
                           {channelLabel(ch.channel, config?.takeaway_label)}
                         </span>
                         <span>
-                          {ch.orders} orders — {formatPKR(ch.revenue)}
+                          {ch.orders} order{ch.orders === 1 ? "" : "s"} | {formatPKR(ch.revenue)}
                         </span>
                       </div>
                     ))}
@@ -475,8 +485,45 @@ function CashPositionCard({ cash }: { cash: CashPosition }) {
               <span>-{formatPKR(e.amount)}</span>
             </div>
           ))}
+          {/* D-63: cash received that is not a sale. */}
+          <Row label="Other cash income" value={formatPKR(cash.other_cash_in)} />
+          {cash.other_cash_income.map((e, i) => (
+            <div
+              key={i}
+              className="flex justify-between pl-4 text-xs text-secondary-500 print:text-gray-600"
+            >
+              <span>
+                {e.payer}
+                {e.category_name ? ` (${e.category_name})` : ""}
+              </span>
+              <span>{formatPKR(e.amount)}</span>
+            </div>
+          ))}
           <div className="border-t pt-1" />
           <Row label="Net cash for the day" value={formatPKR(cash.net_cash)} bold />
+          {/* D-62: rolled forward from the opening cash balance. */}
+          {cash.cash_in_hand ? (
+            <>
+              <div className="border-t pt-1" />
+              <Row
+                label="Cash in hand at start of day"
+                value={formatPKR(cash.cash_in_hand.start_of_day)}
+              />
+              <Row
+                label="Expected cash in hand at end of day"
+                value={formatPKR(cash.cash_in_hand.end_of_day)}
+                bold
+              />
+              <p className="text-xs text-secondary-500 print:text-gray-600">
+                From opening cash of {formatPKR(cash.cash_in_hand.opening_cash)} on{" "}
+                {formatDate(cash.cash_in_hand.opening_as_of)}.
+              </p>
+            </>
+          ) : (
+            <p className="text-xs text-secondary-500 print:hidden">
+              Cash in hand is shown once opening cash is recorded (Purchasing, Other Income).
+            </p>
+          )}
         </div>
 
         {!cash.drawer_opened ? (
@@ -510,6 +557,7 @@ function CashPositionCard({ cash }: { cash: CashPosition }) {
               <Row label="Cash taken" value={formatPKR(d.cash_taken)} />
               <Row label="Cash refunds" value={`-${formatPKR(d.cash_refunds)}`} />
               <Row label="Cash paid out" value={`-${formatPKR(d.cash_paid_out)}`} />
+              <Row label="Other cash income" value={formatPKR(d.other_cash_in)} />
               <Row
                 label="Should be in drawer"
                 value={formatPKR(d.expected_in_drawer)}

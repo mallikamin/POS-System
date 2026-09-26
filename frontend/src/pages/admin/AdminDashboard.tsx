@@ -367,8 +367,9 @@ function AdminDashboard() {
       />
     ) : undefined;
 
-  /* utilization progress bar width */
-  const utilPct = kpis ? Math.min(kpis.table_utilization, 100) : 0;
+  /* D-66: the API sends utilization as a 0-1 fraction (1 of 16 tables = 0.06),
+     not a percentage, so it read 0% with a table occupied. */
+  const utilPct = kpis ? Math.min(Math.round(kpis.table_utilization * 100), 100) : 0;
 
   if (loading) {
     return (
@@ -396,7 +397,7 @@ function AdminDashboard() {
             <span className="text-pos-xs text-danger-500">{error}</span>
           )}
           <span className="text-pos-xs text-secondary-400">
-            Updated {lastRefresh.toLocaleTimeString()}
+            Updated {lastRefresh.toLocaleTimeString("en-GB")}
           </span>
           <button
             onClick={loadData}
@@ -442,11 +443,16 @@ function AdminDashboard() {
           iconColor="text-accent-500"
           footer={
             kpis &&
-            vsYesterday(
-              kpis.avg_order_value,
-              kpis.yesterday_same_time_avg_order_value,
-              formatPKR,
-            )
+            (kpis.today_orders === 0 ? (
+              // D-65: an average of no orders is not a fall.
+              <p className="text-xs text-secondary-400">No orders yet today</p>
+            ) : (
+              vsYesterday(
+                kpis.avg_order_value,
+                kpis.yesterday_same_time_avg_order_value,
+                formatPKR,
+              )
+            ))
           }
         />
         {/* Table utilisation is a dine-in metric and reads as a broken gauge in
@@ -465,7 +471,7 @@ function AdminDashboard() {
             </CardHeader>
             <CardContent>
               <p className="text-pos-2xl font-bold text-secondary-800">
-                {kpis ? `${Math.round(kpis.table_utilization)}%` : "--"}
+                {kpis ? `${utilPct}%` : "--"}
               </p>
               <div className="mt-2 h-2 w-full rounded-full bg-secondary-100">
                 <div
@@ -482,7 +488,7 @@ function AdminDashboard() {
           Admin only, like its endpoint: a manager would get a 403 toast on
           every 10-second refresh. */}
       <div className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {isAdmin && <ActivityFeedCard />}
+        {isAdmin && <ActivityFeedCard onNewActivity={loadData} />}
         <HourlyChart data={hourly} />
       </div>
 

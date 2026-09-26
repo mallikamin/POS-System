@@ -37,6 +37,7 @@ from sqlalchemy.orm import aliased
 from app.models.inventory import Ingredient, InventoryTransaction
 from app.models.location import Location, LocationStock
 from app.models.user import User
+from app.utils.tenant_time import local_today, tenant_timezone
 
 # Movement types. `consumption` is a sale; `production` is a recipe run adding
 # its output; `transfer_out`/`transfer_in` are the two halves of a transfer.
@@ -48,6 +49,9 @@ TRANSACTION_TYPES = (
     "adjustment",
     "transfer_out",
     "transfer_in",
+    # The go-live count (Danny's D-61). Its own type, not `adjustment`, so the
+    # day summary never reads the shelf being filled as usage or a correction.
+    "opening",
 )
 
 
@@ -243,6 +247,98 @@ async def move_stock(
 
     await _resync_ingredient_total(db, ingredient)
     return txn
+
+
+async def record_opening_count(
+    db: AsyncSession,
+    *,
+    tenant_id: uuid.UUID,
+    location_id: uuid.UUID | None,
+    lines: list[dict],
+    performed_by: uuid.UUID,
+    note: str | None = None,
+) -> dict:
+    """Book the go-live stock count for one location (Danny's D-61).
+
+    Each line is what is ON THE SHELF, not a change. The movement booked is
+    `counted - balance now`, so saving the same count twice moves nothing and
+    a count can be finished in several sittings.
+
+    A cost on a line becomes the ingredient's `cost_per_unit`, the same rule a
+    goods receipt follows, and skipped the same way for a produced ingredient,
+    whose cost is a recipe rollup. Also skipped when the ingredient is bought
+    in a purchase unit: its cost per unit is derived from the purchase price,
+    and setting one without the other would leave the two disagreeing. The
+    count screen shows those costs read-only. Omitting the cost keeps it.
+    """
+    location = await resolve_location(db, tenant_id, location_id)
+    tz_name = await tenant_timezone(db, tenant_id)
+    reference = f"OPENING-{local_today(tz_name):%y%m%d}"
+
+    ids = [line["ingredient_id"] for line in lines]
+    ingredients = {
+        i.id: i
+        for i in (
+            await db.execute(
+                select(Ingredient).where(
+                    Ingredient.tenant_id == tenant_id,
+                    Ingredient.id.in_(ids),
+                    Ingredient.is_active == True,  # noqa: E712
+                )
+            )
+        ).scalars()
+    }
+    missing = [i for i in ids if i not in ingredients]
+    if missing:
+        raise StockError(
+            f"{len(missing)} ingredient(s) in the count are not active ingredients "
+            "of this restaurant."
+        )
+
+    movements = 0
+    costs_updated = 0
+    stock_value = Decimal("0")
+    for line in lines:
+        ingredient = ingredients[line["ingredient_id"]]
+        counted = Decimal(str(line["counted_quantity"]))
+        unit_cost = line.get("unit_cost")
+        if (
+            unit_cost is not None
+            and not ingredient.is_produced
+            and not ingredient.purchase_unit
+        ):
+            rate = Decimal(str(unit_cost)).quantize(Decimal("0.0001"))
+            if rate != Decimal(str(ingredient.cost_per_unit)):
+                ingredient.cost_per_unit = rate
+                costs_updated += 1
+
+        row = await get_or_create_stock_row(db, tenant_id, location.id, ingredient.id)
+        delta = counted - Decimal(str(row.quantity))
+        if delta != 0:
+            await move_stock(
+                db,
+                tenant_id=tenant_id,
+                ingredient_id=ingredient.id,
+                quantity_delta=delta,
+                transaction_type="opening",
+                location_id=location.id,
+                performed_by=performed_by,
+                reference_number=reference,
+                notes=note or "Opening stock count",
+            )
+            movements += 1
+        stock_value += counted * Decimal(str(ingredient.cost_per_unit))
+
+    await db.flush()
+    return {
+        "location_id": location.id,
+        "location_name": location.name,
+        "reference_number": reference,
+        "lines_counted": len(lines),
+        "movements": movements,
+        "costs_updated": costs_updated,
+        "stock_value": stock_value.quantize(Decimal("0.01")),
+    }
 
 
 async def get_stock_movements(

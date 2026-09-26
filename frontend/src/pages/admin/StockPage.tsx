@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Factory, Loader2, Package, RefreshCw, Search } from "lucide-react";
+import { ClipboardList, Factory, Loader2, Package, RefreshCw, Search } from "lucide-react";
+import { OpeningStockDialog } from "@/components/admin/OpeningStockDialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -116,6 +117,9 @@ function StockPage() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [reorderPoint, setReorderPoint] = useState("");
   const [reorderQuantity, setReorderQuantity] = useState("");
+
+  // Opening stock count (D-61)
+  const [showOpening, setShowOpening] = useState(false);
 
   // Production dialog
   const [showProduction, setShowProduction] = useState(false);
@@ -368,6 +372,15 @@ function StockPage() {
             />
             Refresh
           </Button>
+          <Button
+            variant="outline"
+            onClick={() => setShowOpening(true)}
+            disabled={locations.length === 0}
+            className="gap-2 min-h-[48px]"
+          >
+            <ClipboardList className="h-4 w-4" />
+            Opening Stock
+          </Button>
           {/* Not offered to a tenant that makes nothing in-house (Danny's). */}
           {!isModuleHidden(config, "production") && (
             <Button
@@ -513,6 +526,19 @@ function StockPage() {
           </CardContent>
         </Card>
       )}
+
+      <OpeningStockDialog
+        open={showOpening}
+        onClose={() => setShowOpening(false)}
+        locations={locations}
+        ingredients={ingredients}
+        defaultLocationId={
+          locationFilter ||
+          (locations.find((l) => l.is_default) ?? locations[0])?.id ||
+          ""
+        }
+        onSaved={() => void loadStock()}
+      />
 
       {/* Adjust Stock Dialog */}
       <Dialog

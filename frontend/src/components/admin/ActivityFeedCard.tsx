@@ -79,22 +79,34 @@ function FeedRow({ event, fresh }: { event: ActivityEvent; fresh: boolean }) {
   );
 }
 
-export function ActivityFeedCard() {
+interface ActivityFeedCardProps {
+  /** Called when a refresh brings a new event, so the page can reload the
+   *  figures the event changed (D-65: the cards lagged the feed by 30 s). */
+  onNewActivity?: () => void;
+}
+
+export function ActivityFeedCard({ onNewActivity }: ActivityFeedCardProps) {
   const [events, setEvents] = useState<ActivityEvent[] | null>(null);
   const [seen, setSeen] = useState<Set<string>>(new Set());
   const [failed, setFailed] = useState(false);
   const lastIds = useRef<Set<string> | null>(null);
+  const onNewRef = useRef(onNewActivity);
+  onNewRef.current = onNewActivity;
 
   const load = useCallback(async () => {
     try {
       const feed = await fetchActivityFeed();
       const ids = new Set(feed.events.map((e) => e.id));
+      const previous = lastIds.current;
       // Highlight only what arrived since the last refresh, never the first
       // load (everything would light up).
-      setSeen(lastIds.current ?? ids);
+      setSeen(previous ?? ids);
       lastIds.current = ids;
       setEvents(feed.events);
       setFailed(false);
+      if (previous && feed.events.some((e) => !previous.has(e.id))) {
+        onNewRef.current?.();
+      }
     } catch {
       setFailed(true);
     }

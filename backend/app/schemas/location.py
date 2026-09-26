@@ -232,6 +232,41 @@ class ReorderLevelRequest(BaseModel):
     reorder_quantity: Num = Field(default=0, ge=0)
 
 
+class OpeningCountLine(BaseModel):
+    """One ingredient as counted on the shelf (Danny's D-61)."""
+
+    ingredient_id: uuid.UUID
+    counted_quantity: Num = Field(..., ge=0, description="What is on the shelf, not a change")
+    unit_cost: Num | None = Field(
+        default=None,
+        ge=0,
+        description="Minor units per stocking unit. Omit to keep the current cost.",
+    )
+
+
+class OpeningCountRequest(BaseModel):
+    location_id: uuid.UUID | None = None
+    lines: list[OpeningCountLine] = Field(..., min_length=1)
+    note: str | None = Field(default=None, max_length=500)
+
+    @model_validator(mode="after")
+    def one_line_per_ingredient(self) -> "OpeningCountRequest":
+        ids = [line.ingredient_id for line in self.lines]
+        if len(ids) != len(set(ids)):
+            raise ValueError("Each ingredient can be counted once per opening count.")
+        return self
+
+
+class OpeningCountResponse(BaseModel):
+    location_id: uuid.UUID
+    location_name: str
+    reference_number: str
+    lines_counted: int
+    movements: int
+    costs_updated: int
+    stock_value: Num
+
+
 # ---------------------------------------------------------------------------
 # PRODUCTION
 # ---------------------------------------------------------------------------

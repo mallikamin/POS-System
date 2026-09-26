@@ -55,6 +55,8 @@ const TransfersPage = lazy(() => import("@/pages/admin/TransfersPage"));
 // expenses had no home anywhere in the system (M10).
 const ProductionPage = lazy(() => import("@/pages/admin/ProductionPage"));
 const ExpensesPage = lazy(() => import("@/pages/admin/ExpensesPage"));
+// Danny's D-63: money in that is not a sale.
+const OtherIncomePage = lazy(() => import("@/pages/admin/OtherIncomePage"));
 const SuppliersPage = lazy(() => import("@/pages/admin/SuppliersPage"));
 const PurchaseOrdersPage = lazy(() => import("@/pages/admin/PurchaseOrdersPage"));
 const OrderPlannerPage = lazy(() => import("@/pages/admin/OrderPlannerPage"));
@@ -131,6 +133,7 @@ export function App() {
             <Route path="production" element={<ProductionPage />} />
             <Route path="transfers" element={<TransfersPage />} />
             <Route path="expenses" element={<ExpensesPage />} />
+            <Route path="other-income" element={<OtherIncomePage />} />
             <Route path="suppliers" element={<SuppliersPage />} />
             <Route path="purchase-orders" element={<PurchaseOrdersPage />} />
             <Route path="order-planner" element={<OrderPlannerPage />} />

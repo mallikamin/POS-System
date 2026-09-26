@@ -22,6 +22,8 @@ from app.schemas.location import (
     LocationStockRow,
     StockMovementRow,
     LocationUpdate,
+    OpeningCountRequest,
+    OpeningCountResponse,
     ProductionHistoryRow,
     ProductionPreviewRequest,
     ProductionPreviewResponse,
@@ -303,6 +305,32 @@ async def adjust_stock(
     if row is None:  # pragma: no cover -- the row was just written
         raise HTTPException(status_code=500, detail="Stock row vanished after write.")
     return LocationStockRow(**row)
+
+
+@router.post(
+    "/stock/opening-count",
+    response_model=OpeningCountResponse,
+    dependencies=[Depends(require_role("admin", "manager"))],
+)
+async def opening_count(
+    data: OpeningCountRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> OpeningCountResponse:
+    """The go-live stock count for one location, in one save (Danny's D-61)."""
+    try:
+        result = await stock_service.record_opening_count(
+            db,
+            tenant_id=current_user.tenant_id,
+            location_id=data.location_id,
+            lines=[line.model_dump() for line in data.lines],
+            performed_by=current_user.id,
+            note=data.note,
+        )
+    except StockError as exc:
+        raise _bad_request(exc) from exc
+    await db.commit()
+    return OpeningCountResponse(**result)
 
 
 @router.post(

@@ -1,7 +1,7 @@
 """Z-Report / Daily Settlement service -- assembles end-of-day report data."""
 
 import uuid
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import ROUND_HALF_UP, Decimal
 
 from sqlalchemy import and_, case, func, select
@@ -12,7 +12,7 @@ from app.models.expense import Expense
 from app.models.inventory import Ingredient, InventoryTransaction
 from app.models.order import Order, OrderItem
 from app.models.payment import CashDrawerSession, Payment, PaymentMethod
-from app.services import stock_service
+from app.services import other_income_service, stock_service
 from app.utils.tenant_time import tenant_range_utc
 
 
@@ -238,9 +238,9 @@ async def generate_zreport(
             (p.change_amount or 0) for p in cash_payments if p.kind == "payment"
         )
         cash_out_refund = sum(p.amount for p in cash_payments if p.kind == "refund")
-        expected = (
-            drawer_session.opening_float + cash_in - cash_out_change - cash_out_refund
-        )
+        # `amount` is already net of change; `cash_out_change` is reported for
+        # information only. Subtracting it too counted change twice (D-67).
+        expected = drawer_session.opening_float + cash_in - cash_out_refund
 
         drawer_data = {
             "opening_float": drawer_session.opening_float,
@@ -578,6 +578,76 @@ async def _cash_sums(
     return sums.get("payment", 0), sums.get("refund", 0)
 
 
+async def _cash_expenses(
+    db: AsyncSession, tenant_id: uuid.UUID, date_from: date, date_to: date
+) -> list[dict]:
+    """Paid cash expenses with `paid_on` in [date_from, date_to]; see
+    `_cash_position` for why "cash" is a substring match. Each amount is
+    rounded to whole minor units here, once, so the day figure and the
+    rolled-forward cash in hand (D-62) round the same way."""
+    if date_to < date_from:
+        return []
+    rows = (
+        await db.execute(
+            select(Expense.payee, Expense.payment_method, Expense.amount_minor)
+            .where(
+                Expense.tenant_id == tenant_id,
+                Expense.status == "paid",
+                Expense.paid_on >= date_from,
+                Expense.paid_on <= date_to,
+                func.lower(Expense.payment_method).contains("cash"),
+            )
+            .order_by(Expense.payee)
+        )
+    ).all()
+    return [
+        {
+            "payee": r.payee,
+            "payment_method": r.payment_method,
+            "amount": int(_dec(r.amount_minor).quantize(Decimal("1"), ROUND_HALF_UP)),
+        }
+        for r in rows
+    ]
+
+
+async def _cash_in_hand(
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    target_date: date,
+    day_start: datetime,
+    net_cash_today: int,
+) -> dict | None:
+    """Expected cash in hand at the start and end of the day (D-62).
+
+    Start = the opening cash balance plus every day's net cash from its
+    `as_of` date up to the day before, by the same formula as `net_cash`.
+    None when no opening balance is recorded or the day is before it: no
+    figure is invented. Drawer floats are not added: a float is cash in hand
+    moved into the till, not new money. "Expected" because counted shortages
+    at drawer close are not booked anywhere and so cannot be subtracted.
+    """
+    opening = await other_income_service.get_opening_balance(db, tenant_id)
+    if opening is None or target_date < opening.as_of:
+        return None
+
+    range_start, _ = await tenant_range_utc(db, tenant_id, opening.as_of, opening.as_of)
+    before = target_date - timedelta(days=1)
+    taken, refunds = await _cash_sums(db, tenant_id, range_start, day_start)
+    paid_out = sum(
+        e["amount"] for e in await _cash_expenses(db, tenant_id, opening.as_of, before)
+    )
+    other_in = await other_income_service.cash_received_total(
+        db, tenant_id, opening.as_of, before
+    )
+    start = opening.cash_minor + taken - refunds - paid_out + other_in
+    return {
+        "opening_as_of": opening.as_of,
+        "opening_cash": opening.cash_minor,
+        "start_of_day": start,
+        "end_of_day": start + net_cash_today,
+    }
+
+
 async def _cash_position(
     db: AsyncSession,
     tenant_id: uuid.UUID,
@@ -604,26 +674,7 @@ async def _cash_position(
     """
     cash_taken, cash_refunds = await _cash_sums(db, tenant_id, day_start, day_end)
 
-    expense_rows = (
-        await db.execute(
-            select(Expense.payee, Expense.payment_method, Expense.amount_minor)
-            .where(
-                Expense.tenant_id == tenant_id,
-                Expense.status == "paid",
-                Expense.paid_on == target_date,
-                func.lower(Expense.payment_method).contains("cash"),
-            )
-            .order_by(Expense.payee)
-        )
-    ).all()
-    cash_expenses = [
-        {
-            "payee": r.payee,
-            "payment_method": r.payment_method,
-            "amount": int(_dec(r.amount_minor).quantize(Decimal("1"), ROUND_HALF_UP)),
-        }
-        for r in expense_rows
-    ]
+    cash_expenses = await _cash_expenses(db, tenant_id, target_date, target_date)
     cash_paid_out = sum(e["amount"] for e in cash_expenses)
 
     sessions = (
@@ -642,22 +693,28 @@ async def _cash_position(
         .all()
     )
 
+    # Cash income that is not a sale (D-63). Like an expense it has a date and
+    # no time, so it is charged to the LAST drawer opened that day.
+    other_cash_income = await other_income_service.cash_received(
+        db, tenant_id, target_date
+    )
+    other_cash_in = sum(line["amount"] for line in other_cash_income)
+
     # THE CASH FORMULA, in one place:
-    #     day:    net_cash = cash_taken - cash_refunds - cash_paid_out
-    #     drawer: expected = opening_float + taken - refunds - paid_out
-    # Not built yet, logged for the next batch, deliberately NOT faked here:
-    #   * other cash in (a module for non-sale cash received): add it to both
-    #     lines below as `+ other_cash_in`, with its own schema field.
-    #   * an opening cash balance for days with no drawer: it would go into
-    #     `net_cash`'s line as the starting figure. Until then the ONLY
-    #     opening figure shown is a drawer session's own `opening_float`.
-    net_cash = cash_taken - cash_refunds - cash_paid_out
+    #     day:    net_cash = cash_taken - cash_refunds - cash_paid_out + other_cash_in
+    #     drawer: expected = opening_float + taken - refunds - paid_out + other_in
+    #     in hand: start = opening cash + the same net cash for every earlier
+    #              day since the opening balance (D-62, `_cash_in_hand`)
+    net_cash = cash_taken - cash_refunds - cash_paid_out + other_cash_in
+    cash_in_hand = await _cash_in_hand(db, tenant_id, target_date, day_start, net_cash)
 
     drawers = []
     for i, s in enumerate(sessions):
         taken, refunds = await _cash_sums(db, tenant_id, s.opened_at, s.closed_at)
-        paid_out = cash_paid_out if i == len(sessions) - 1 else 0
-        expected = s.opening_float + taken - refunds - paid_out
+        last = i == len(sessions) - 1
+        paid_out = cash_paid_out if last else 0
+        other_in = other_cash_in if last else 0
+        expected = s.opening_float + taken - refunds - paid_out + other_in
         counted = s.closing_balance_counted
         drawers.append(
             {
@@ -668,6 +725,7 @@ async def _cash_position(
                 "cash_taken": taken,
                 "cash_refunds": refunds,
                 "cash_paid_out": paid_out,
+                "other_cash_in": other_in,
                 "expected_in_drawer": expected,
                 "counted_closing": counted,
                 "over_short": (counted - expected) if counted is not None else None,
@@ -679,7 +737,10 @@ async def _cash_position(
         "cash_refunds": cash_refunds,
         "cash_paid_out": cash_paid_out,
         "cash_expenses": cash_expenses,
+        "other_cash_in": other_cash_in,
+        "other_cash_income": other_cash_income,
         "net_cash": net_cash,
+        "cash_in_hand": cash_in_hand,
         "drawer_opened": bool(drawers),
         "drawers": drawers,
     }

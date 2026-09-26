@@ -11,6 +11,7 @@ import type {
   LocationCreate,
   LocationOrderRow,
   LocationStockRow,
+  OpeningCountResult,
   StockMovementRow,
   LocationUpdate,
   ProductionPreview,
@@ -126,6 +127,20 @@ export async function adjustStock(body: {
 }): Promise<LocationStockRow> {
   const { data } = await api.post<LocationStockRow>(
     "/locations/stock/adjust",
+    body,
+  );
+  return data;
+}
+
+/** The go-live count for one location (Danny's D-61). Quantities are what is
+ *  on the shelf, not changes; the server books the difference. */
+export async function saveOpeningCount(body: {
+  location_id: string;
+  lines: { ingredient_id: string; counted_quantity: number; unit_cost?: number }[];
+  note?: string;
+}): Promise<OpeningCountResult> {
+  const { data } = await api.post<OpeningCountResult>(
+    "/locations/stock/opening-count",
     body,
   );
   return data;

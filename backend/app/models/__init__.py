@@ -34,6 +34,7 @@ from app.models.inventory import (
     StockCount,
 )
 from app.models.expense import Expense, ExpenseAttachment, ExpenseCategory
+from app.models.other_income import IncomeCategory, OpeningBalance, OtherIncome
 from app.models.location import (
     Location,
     LocationStock,
@@ -95,6 +96,9 @@ __all__ = [
     "Expense",
     "ExpenseAttachment",
     "ExpenseCategory",
+    "IncomeCategory",
+    "OpeningBalance",
+    "OtherIncome",
     "Recipe",
     "RecipeItem",
     "InventoryTransaction",

@@ -126,6 +126,7 @@ class DrawerPosition(BaseModel):
     cash_taken: int
     cash_refunds: int
     cash_paid_out: int
+    other_cash_in: int  # D-63 cash income, charged to the last drawer like expenses
     expected_in_drawer: int
     counted_closing: int | None
     over_short: int | None  # counted - expected; None until counted
@@ -137,13 +138,31 @@ class CashExpenseLine(BaseModel):
     amount: int  # minor units
 
 
+class CashIncomeLine(BaseModel):
+    payer: str
+    category_name: str | None
+    amount: int  # minor units
+
+
+class CashInHand(BaseModel):
+    # D-62: rolled forward from the opening cash balance. Minor units.
+    opening_as_of: date
+    opening_cash: int
+    start_of_day: int
+    end_of_day: int  # start_of_day + net_cash
+
+
 class CashPosition(BaseModel):
     # The whole restaurant day, minor units.
     cash_taken: int
     cash_refunds: int
     cash_paid_out: int
     cash_expenses: list[CashExpenseLine]  # what cash_paid_out is made of
-    net_cash: int  # cash_taken - cash_refunds - cash_paid_out
+    other_cash_in: int  # D-63: income that is not a sale, received in cash
+    other_cash_income: list[CashIncomeLine]  # what other_cash_in is made of
+    net_cash: int  # cash_taken - cash_refunds - cash_paid_out + other_cash_in
+    # None when no opening balance is recorded or the day is before it.
+    cash_in_hand: CashInHand | None
     drawer_opened: bool
     drawers: list[DrawerPosition]
 

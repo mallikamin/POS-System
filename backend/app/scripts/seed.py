@@ -1547,13 +1547,10 @@ async def seed_payments(db: AsyncSession, tenant: Tenant) -> None:
         for i, o in enumerate(completed_orders)
         if i % 2 == 0  # cash payments
     )
-    cash_change = sum(
-        (((o.total // 100) // 100 + 1) * 100 * 100 - o.total)
-        for i, o in enumerate(completed_orders)
-        if i % 2 == 0
-    )
     opening_float = 500000  # Rs. 5,000
-    expected_balance = opening_float + cash_in - cash_change
+    # Payments store the bill (`amount`), already net of change, so change is
+    # not subtracted again (D-67: that made every demo drawer look short).
+    expected_balance = opening_float + cash_in
 
     # Small variance for demo realism
     counted = expected_balance - 5000  # Rs. 50 short

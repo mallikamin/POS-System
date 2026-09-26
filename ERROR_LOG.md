@@ -1657,3 +1657,72 @@ genuine defect with no human clicking anything.
   every row is right on a phone and pure cost on a laptop.
 - **Rule**: when a "make it bigger" fix changes nothing, measure the child before raising the
   parent again.
+
+---
+
+### [2026-09-21] A closure notice dropped into a page that still said "Open now"
+
+- **Error**: Chick Shack closed temporarily. The first deploy put the closure sentence in the
+  existing rush-notice slot, at rush-notice size. The header badge still read "Open now", the
+  Hours card still showed today's hours, and checkout still offered two Call buttons to a shop
+  nobody was in. Malik caught all of it from the live page.
+- **Context**: urgent live change, verified on the bundle hash and the API flag, never looked at
+  as a page. Same family as the 09-06 "API-verified is not verified" entry.
+- **Root Cause**: treated "closed" as a new message for the "paused" slot. They are different
+  states. Paused means busy, phone us. Closed means do not phone, do not trust the hours. Every
+  element built to help a paused customer (phone number, basket total, hours, Call buttons)
+  becomes a contradiction when the shop is shut.
+- **Fix**: a `closed` flag (`orderingPaused && CLOSURE_NOTICE !== null`) in `App.tsx` and
+  `Checkout.tsx`: headline-sized block, badge "Temporarily closed", hours and Call buttons
+  hidden. Commit `ca30af1` on `storefront-closure-notice`.
+- **Rule**: when a page enters a new state, read every other element on it and ask whether it
+  still tells the truth. Changing the one sentence you were asked to change is not the job.
+
+### 2026-09-25: Kitchen board and order were separate state machines (Danny's D-21)
+- **Error**: Dine-in order bumped to Served on the KDS and paid in full; order stayed `in_kitchen`, 0 stock movements, table freed.
+- **Context**: Browser UAT of the Danny's demo. The 2026-09-24 API test passed only because it moved the order via `/orders/{id}/status`, which no screen does.
+- **Root Cause**: `kitchen_service.transition_ticket` changed only the ticket; payment auto-complete needs the ORDER `served`.
+- **Fix**: `sync_order_from_tickets` (tickets drive order), served+paid completes in `transition_order`, POS moves tickets. Commit `41270ce`.
+- **Rule**: walk the path the screens use, in a browser, before calling a flow verified.
+
+### 2026-09-25: "Today" was the UTC day (Danny's D-18, D-30)
+- **Error**: Order at 01:59 PKT numbered with yesterday's date; dashboard showed yesterday afternoon as today.
+- **Root Cause**: `datetime.now(utc)`, `cast(created_at, Date)` and `toISOString()` used as "today".
+- **Fix**: `app/utils/tenant_time.py`, frontend `utils/localDate.ts`. Commit `41270ce`.
+- **Rule**: any day boundary uses the tenant's `timezone`. PO/GRN/transfer numbers still UTC (open).
+
+### 2026-09-25: Filtering a relationship by reassigning it writes to the database
+- **Error**: `/menu/full` returned 500 for Danny's after the re-seed hid 6 dishes: `UPDATE menu_items SET category_id=NULL` on a GET.
+- **Root Cause**: `cat.items = [i for i in cat.items if i.is_available]` tells the ORM the other items left the category; `get_db` commits after every request, so the "filter" became a write. Latent since February; no tenant had a hidden dish in an active category before.
+- **Fix**: `set_committed_value(cat, "items", ...)` in `menu_service.get_full_menu`. Commit `fb6b747`, test `test_full_menu_hidden_items.py`.
+- **Rule**: never assign to an ORM relationship to shape a response. Same pattern still in `public_order_service.py` (storefront), open.
+
+### 2026-09-25: Prod backend container is read-only
+- **Error**: `docker cp` into pos-system-backend-1 failed ("container rootfs is marked read-only"); an `&&`-chained cleanup of a temp file holding a login never ran.
+- **Fix**: pipe code over stdin (`docker exec -i ... python -`); the /tmp copy was removed by hand.
+- **Rule**: never chain the cleanup of a sensitive file after a step that can fail.
+
+### 2026-09-25: SSH to prod timed out after a burst of connections
+- **Error**: `ssh: connect to host 159.65.158.26 port 22: Connection timed out`, twice, while HTTPS stayed up.
+- **Context**: about 6 separate ssh calls within a few minutes (deploy checks, mounts, release dir).
+- **Root Cause**: probable SSH rate limit on the box (not verified; nothing in the docs names one). Port 22 reopened after about a minute.
+- **Fix**: waited, then batched backup + seed + checks into ONE ssh call (`bash -s` with a script, every `docker exec` reading /dev/null).
+- **Rule**: batch server work into one ssh session; do not fire many short ones.
+
+### 2026-09-25: Walk-script expectations drifted from the product, not the other way round
+- **Error**: walk FAILs on "images 52" (now 57), karahi base (now retired), tomato 0.28 (actual 0.294).
+- **Root Cause**: the check encoded yesterday's data and ignored waste %: consumption = quantity x (1 + waste/100).
+- **Rule**: when a verification script fails right after an intended change, check the expectation before the product, and say which one was wrong.
+
+### 2026-09-26: A response field declared with a None default was filled by no endpoint (Danny's D-44)
+- **Error**: Portions panel read "Adds null 0.5 kg, null 0.12 kg". `RecipeItemResponse.ingredient_name: str | None = None` was never set by list, get, create or edit.
+- **Context**: the checkpoint claimed the single-recipe load filled it; it did not. The recipe screen looked right only because the frontend mapped names from its own ingredients list, which hid the gap until a second screen read the field.
+- **Fix**: loaders chain `selectinload(RecipeItem.ingredient)`, `_enrich_recipe` fills the name. Route test on all four paths. Commit `c84e9df`.
+- **Rule**: same as the response-schema-defaults memory: a `None` default on a response field turns "forgot to fill it" into a plausible value. Grep for who sets a field before trusting that one does.
+
+### 2026-09-26: A same-second payment fell outside the drawer window, in SQLite only (Danny's D-67 test)
+- **Error**: new drawer test expected 510000, got 500000: the Rs 100 cash payment was not in the drawer at all.
+- **Context**: writing the D-67 regression test. Paused undiagnosed; the checkpoint said "do not weaken the assertion".
+- **Root Cause**: SQLite stores `server_default=func.now()` as second-resolution TEXT (`'2026-09-26 00:47:28'`). The ORM re-binds `opened_at` with microseconds (`'... 00:47:28.000000'`), and the shorter string sorts first, so `created_at >= opened_at` is false for a payment in the same second. Proven with a probe: raw-driver bind counted 1 row, ORM bind 0. Postgres has real timestamps and separate transactions; unaffected.
+- **Fix**: the test opens the drawer a second earlier (as in any real shop); assertion unchanged. Test fails with 505000 (the old double count) when the fix is removed.
+- **Rule**: in this suite, a timestamp window test needs either a backdated row or a positive control; an empty or short window can be a SQLite artifact (see also 2026-08-01, date casts). Also: the 13 long-standing suite failures are NOT from the uncommitted Meta Pixel work; they fail on a clean HEAD worktree too.

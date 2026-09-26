@@ -6,6 +6,7 @@ tenant isolation, and validation errors.
 """
 
 import uuid
+from datetime import timedelta
 
 import pytest
 import pytest_asyncio
@@ -14,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.order import Order
 from app.models.restaurant_config import RestaurantConfig
-from app.models.payment import Payment
+from app.models.payment import CashDrawerSession, Payment
 from app.models.tenant import Tenant
 from app.models.user import Permission, Role, RolePermission
 
@@ -572,6 +573,53 @@ class TestCashDrawer:
         assert body["status"] == "closed"
         assert body["closing_balance_counted"] == 480000
         assert body["closing_balance_expected"] is not None
+
+    async def test_change_given_is_not_counted_twice(
+        self,
+        client: AsyncClient,
+        db: AsyncSession,
+        order: Order,
+        cashier_token: str,
+    ):
+        """D-67: a Rs 100 bill paid with Rs 150 leaves the drawer Rs 100 up.
+        The expected balance used to subtract the Rs 50 change again, so a
+        drawer counted exactly right was reported Rs 50 short."""
+        opened = await client.post(
+            "/api/v1/payments/drawer/open",
+            json={"opening_float": 500000},
+            headers=_auth(cashier_token),
+        )
+        # SQLite keeps server-default timestamps as second-resolution TEXT, and
+        # the bound `opened_at` gains ".000000", so a payment in the same second
+        # compares as earlier than the drawer and drops out of the window.
+        # Postgres is unaffected. Open the drawer a second earlier, as it always
+        # is in a real shop, so the window holds the sale.
+        session = await db.get(CashDrawerSession, uuid.UUID(opened.json()["id"]))
+        session.opened_at = session.opened_at - timedelta(seconds=1)
+        await db.commit()
+
+        paid = await client.post(
+            "/api/v1/payments",
+            json={
+                "order_id": str(order.id),
+                "method_code": "cash",
+                "amount": 10000,
+                "tendered_amount": 15000,
+            },
+            headers=_auth(cashier_token),
+        )
+        assert paid.status_code == 201
+        assert paid.json()["payments"][0]["change_amount"] == 5000
+
+        closed = await client.post(
+            "/api/v1/payments/drawer/close",
+            json={"closing_balance_counted": 510000},
+            headers=_auth(cashier_token),
+        )
+        assert closed.status_code == 200
+        body = closed.json()
+        assert body["closing_balance_expected"] == 510000
+        assert body["closing_balance_counted"] - body["closing_balance_expected"] == 0
 
     async def test_double_open_rejected(
         self, client: AsyncClient, cashier_token: str

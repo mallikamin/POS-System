@@ -20,6 +20,7 @@ import {
   Boxes,
   Factory,
   Wallet,
+  Banknote,
   ArrowLeftRight,
   Percent,
   TrendingUp,
@@ -89,7 +90,8 @@ const baseNavGroups: NavGroup[] = [
   },
   {
     // Where stock and spend come from: purchase orders, and everything else
-    // through Expenses (Martin M10).
+    // through Expenses (Martin M10). Other Income sits beside Expenses: the
+    // owner reads the two as a pair (Danny's D-63).
     key: "purchasing",
     label: "Purchasing",
     icon: Truck,
@@ -98,6 +100,7 @@ const baseNavGroups: NavGroup[] = [
       { to: "/admin/purchase-orders", label: "Purchase Orders", icon: ClipboardList, end: false },
       { to: "/admin/order-planner", label: "Order Planner", icon: Sparkles, end: false, module: "order-planner" },
       { to: "/admin/expenses", label: "Expenses", icon: Wallet, end: false },
+      { to: "/admin/other-income", label: "Other Income", icon: Banknote, end: false },
     ],
   },
   {

@@ -335,10 +335,14 @@ async def _calculate_expected_drawer_balance(
         )
     )
     payments = list(result.scalars().all())
+    # `amount` is the bill, already net of change: the customer hands over
+    # `tendered_amount`, gets `change_amount` back, and the drawer keeps
+    # `amount`. Subtracting change here as well counted it twice, so every
+    # cash sale that needed change made the drawer look short by that change
+    # (Danny's D-67, 2026-09-26).
     incoming = sum(p.amount for p in payments if p.kind == "payment")
-    outgoing_change = sum(p.change_amount for p in payments if p.kind == "payment")
     outgoing_refund = sum(p.amount for p in payments if p.kind == "refund")
-    return opening_float + incoming - outgoing_change - outgoing_refund
+    return opening_float + incoming - outgoing_refund
 
 
 # ---------------------------------------------------------------------------

@@ -104,6 +104,17 @@ export interface LocationStockRow {
   ingredient_image_url: string | null;
 }
 
+/** What one opening-count save did (Danny's D-61). `stock_value` in minor units. */
+export interface OpeningCountResult {
+  location_id: string;
+  location_name: string;
+  reference_number: string;
+  lines_counted: number;
+  movements: number;
+  costs_updated: number;
+  stock_value: number;
+}
+
 /**
  * One line of the stock ledger: what changed, by how much, who did it and why.
  *
