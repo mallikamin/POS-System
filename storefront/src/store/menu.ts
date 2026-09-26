@@ -112,13 +112,11 @@ export const DEFAULT_PAUSED_MESSAGE =
  * deploy. Set back to `null` once the shop reopens, or the next rush pause
  * will announce a closure.
  */
-export const CLOSURE_NOTICE: string | null =
-  "We reopen on Saturday 26 September at 4pm, our normal opening time. " +
-  "Thank you for your patience, see you then.";
+export const CLOSURE_NOTICE: string | null = null;
 
 /**
- * Headline and header badge for the closure (Imran, 2026-09-24: reopening
- * Sat 26 Sep at 4pm). Clear these with CLOSURE_NOTICE on reopening.
+ * Headline and header badge for a closure, shown only while CLOSURE_NOTICE is
+ * set. Reset to neutral wording on reopening (2026-09-26).
  */
-export const CLOSURE_TITLE = "Back Saturday at 4pm";
-export const CLOSURE_BADGE = "Reopening Sat 4pm";
+export const CLOSURE_TITLE = "Temporarily closed";
+export const CLOSURE_BADGE = "Temporarily closed";
