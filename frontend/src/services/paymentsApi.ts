@@ -3,6 +3,7 @@ import type {
   CashDrawerCloseRequest,
   CashDrawerOpenRequest,
   CashDrawerSessionResponse,
+  CashDrawerSummary,
   PaymentCreateRequest,
   PaymentMethodResponse,
   PaymentSummary,
@@ -41,6 +42,11 @@ export async function refundPayment(body: RefundCreateRequest): Promise<PaymentS
 
 export async function fetchDrawerSession(): Promise<CashDrawerSessionResponse | null> {
   const { data } = await api.get<CashDrawerSessionResponse | null>("/payments/drawer/session");
+  return data;
+}
+
+export async function fetchDrawerSummary(): Promise<CashDrawerSummary | null> {
+  const { data } = await api.get<CashDrawerSummary | null>("/payments/drawer/summary");
   return data;
 }
 

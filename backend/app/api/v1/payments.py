@@ -13,6 +13,7 @@ from app.schemas.payment import (
     CashDrawerCloseRequest,
     CashDrawerOpenRequest,
     CashDrawerSessionResponse,
+    CashDrawerSummary,
     PaymentCreate,
     PaymentMethodResponse,
     PaymentSummary,
@@ -201,6 +202,15 @@ async def get_drawer_session(
         db, current_user.tenant_id
     )
     return CashDrawerSessionResponse.model_validate(session) if session else None
+
+
+@router.get("/drawer/summary", response_model=CashDrawerSummary | None)
+async def get_drawer_summary(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> CashDrawerSummary | None:
+    summary = await payment_service.get_drawer_summary(db, current_user.tenant_id)
+    return CashDrawerSummary(**summary) if summary else None
 
 
 @router.post(

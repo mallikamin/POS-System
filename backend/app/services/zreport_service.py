@@ -13,7 +13,12 @@ from app.models.inventory import Ingredient, InventoryTransaction
 from app.models.order import Order, OrderItem
 from app.models.payment import CashDrawerSession, Payment, PaymentMethod
 from app.services import other_income_service, stock_service
-from app.utils.tenant_time import tenant_range_utc
+from app.utils.tenant_time import (
+    local_day_bounds_utc,
+    tenant_range_utc,
+    tenant_timezone,
+    zone,
+)
 
 
 async def generate_zreport(
@@ -677,6 +682,56 @@ async def _cash_position(
     cash_expenses = await _cash_expenses(db, tenant_id, target_date, target_date)
     cash_paid_out = sum(e["amount"] for e in cash_expenses)
 
+    # Cash income that is not a sale (D-63). Like an expense it has a date and
+    # no time, so it is charged to the LAST drawer opened that day.
+    other_cash_income = await other_income_service.cash_received(
+        db, tenant_id, target_date
+    )
+    other_cash_in = sum(line["amount"] for line in other_cash_income)
+
+    # THE CASH FORMULA, in one place:
+    #     day:    net_cash = cash_taken - cash_refunds - cash_paid_out + other_cash_in
+    #     drawer: expected = opening_float + taken - refunds - paid_out + other_in
+    #     in hand: start = opening cash + the same net cash for every earlier
+    #              day since the opening balance (D-62, `_cash_in_hand`)
+    net_cash = cash_taken - cash_refunds - cash_paid_out + other_cash_in
+    cash_in_hand = await _cash_in_hand(db, tenant_id, target_date, day_start, net_cash)
+
+    drawers = await _drawers_for_day(
+        db, tenant_id, day_start, day_end, cash_paid_out, other_cash_in
+    )
+
+    return {
+        "cash_taken": cash_taken,
+        "cash_refunds": cash_refunds,
+        "cash_paid_out": cash_paid_out,
+        "cash_expenses": cash_expenses,
+        "other_cash_in": other_cash_in,
+        "other_cash_income": other_cash_income,
+        "net_cash": net_cash,
+        "cash_in_hand": cash_in_hand,
+        "drawer_opened": bool(drawers),
+        "drawers": drawers,
+    }
+
+
+async def _drawers_for_day(
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    day_start: datetime,
+    day_end: datetime,
+    cash_paid_out: int,
+    other_cash_in: int,
+) -> list[dict]:
+    """Every drawer opened in [day_start, day_end), with its expected cash.
+
+    The day's cash expenses and cash other income go to the LAST drawer opened
+    that day (they carry a date, not a time). A drawer still open counts cash
+    taken up to now. This is the only place the drawer figure is worked out:
+    closing a drawer calls it too (`drawer_breakdown`), so the close screen
+    and the Z-Report cannot disagree (Danny's D-68, Malik 2026-09-26: cash
+    paid out and taken in outside sales count against the drawer at close).
+    """
     sessions = (
         (
             await db.execute(
@@ -693,21 +748,6 @@ async def _cash_position(
         .all()
     )
 
-    # Cash income that is not a sale (D-63). Like an expense it has a date and
-    # no time, so it is charged to the LAST drawer opened that day.
-    other_cash_income = await other_income_service.cash_received(
-        db, tenant_id, target_date
-    )
-    other_cash_in = sum(line["amount"] for line in other_cash_income)
-
-    # THE CASH FORMULA, in one place:
-    #     day:    net_cash = cash_taken - cash_refunds - cash_paid_out + other_cash_in
-    #     drawer: expected = opening_float + taken - refunds - paid_out + other_in
-    #     in hand: start = opening cash + the same net cash for every earlier
-    #              day since the opening balance (D-62, `_cash_in_hand`)
-    net_cash = cash_taken - cash_refunds - cash_paid_out + other_cash_in
-    cash_in_hand = await _cash_in_hand(db, tenant_id, target_date, day_start, net_cash)
-
     drawers = []
     for i, s in enumerate(sessions):
         taken, refunds = await _cash_sums(db, tenant_id, s.opened_at, s.closed_at)
@@ -718,6 +758,7 @@ async def _cash_position(
         counted = s.closing_balance_counted
         drawers.append(
             {
+                "session_id": s.id,
                 "session_status": s.status,
                 "opened_at": s.opened_at,
                 "closed_at": s.closed_at,
@@ -731,19 +772,35 @@ async def _cash_position(
                 "over_short": (counted - expected) if counted is not None else None,
             }
         )
+    return drawers
 
-    return {
-        "cash_taken": cash_taken,
-        "cash_refunds": cash_refunds,
-        "cash_paid_out": cash_paid_out,
-        "cash_expenses": cash_expenses,
-        "other_cash_in": other_cash_in,
-        "other_cash_income": other_cash_income,
-        "net_cash": net_cash,
-        "cash_in_hand": cash_in_hand,
-        "drawer_opened": bool(drawers),
-        "drawers": drawers,
-    }
+
+async def drawer_breakdown(
+    db: AsyncSession, tenant_id: uuid.UUID, session: CashDrawerSession
+) -> dict:
+    """One drawer's figures, exactly as the Z-Report of its opening day shows
+    them. The day is the restaurant's local day the drawer was opened on."""
+    opened_at = session.opened_at
+    if opened_at.tzinfo is None:  # SQLite hands back naive UTC
+        opened_at = opened_at.replace(tzinfo=timezone.utc)
+    tz_name = await tenant_timezone(db, tenant_id)
+    day = opened_at.astimezone(zone(tz_name)).date()
+    day_start, day_end = local_day_bounds_utc(tz_name, day)
+
+    cash_paid_out = sum(
+        e["amount"] for e in await _cash_expenses(db, tenant_id, day, day)
+    )
+    other_cash_in = sum(
+        line["amount"]
+        for line in await other_income_service.cash_received(db, tenant_id, day)
+    )
+    drawers = await _drawers_for_day(
+        db, tenant_id, day_start, day_end, cash_paid_out, other_cash_in
+    )
+    for row in drawers:
+        if row["session_id"] == session.id:
+            return row
+    raise ValueError("Cash drawer session not found for its own day")
 
 
 def _proportional_amount(base_amount: int, partial_amount: int, total_amount: int) -> int:

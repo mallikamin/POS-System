@@ -20,7 +20,6 @@ import {
 import type { PaymentPreview } from "@/services/ordersApi";
 import { useAuthStore } from "@/stores/authStore";
 import type {
-  CashDrawerSessionResponse,
   PaymentMethodCode,
   PaymentSummary,
   SplitPaymentAllocation,
@@ -61,7 +60,6 @@ function PaymentPage() {
   const [summary, setSummary] = useState<PaymentSummary | null>(null);
   const [orderDetail, setOrderDetail] = useState<OrderResponse | null>(null);
   const [preview, setPreview] = useState<PaymentPreview | null>(null);
-  const [drawerSession, setDrawerSession] = useState<CashDrawerSessionResponse | null>(null);
   const [discountTypes, setDiscountTypes] = useState<DiscountType[]>([]);
   const [discountBreakdown, setDiscountBreakdown] = useState<DiscountBreakdown | null>(null);
   const [selectedDiscountTypeId, setSelectedDiscountTypeId] = useState("");
@@ -154,16 +152,14 @@ function PaymentPage() {
     setLoading(true);
     setError(null);
     try {
-      const [nextSummary, nextDrawer, nextOrder, nextPreview, nextDiscTypes, nextDiscBreakdown] = await Promise.all([
+      const [nextSummary, nextOrder, nextPreview, nextDiscTypes, nextDiscBreakdown] = await Promise.all([
         paymentsApi.fetchOrderPaymentSummary(currentOrderId),
-        paymentsApi.fetchDrawerSession(),
         fetchOrder(currentOrderId),
         fetchPaymentPreview(currentOrderId),
         fetchDiscountTypes(true),
         fetchOrderDiscounts(currentOrderId),
       ]);
       setSummary(nextSummary);
-      setDrawerSession(nextDrawer);
       setOrderDetail(nextOrder);
       setPreview(nextPreview);
       setDiscountTypes(nextDiscTypes);
@@ -277,36 +273,6 @@ function PaymentPage() {
       setSplitCardReference("");
     } catch (err: unknown) {
       setError(getErrorMessage(err, "Failed to record split payment"));
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  async function handleOpenDrawer() {
-    setSubmitting(true);
-    setError(null);
-    setSuccess(null);
-    try {
-      const next = await paymentsApi.openDrawer({ opening_float: 0 });
-      setDrawerSession(next);
-      setSuccess("Cash drawer session opened.");
-    } catch (err: unknown) {
-      setError(getErrorMessage(err, "Failed to open drawer"));
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  async function handleCloseDrawer() {
-    setSubmitting(true);
-    setError(null);
-    setSuccess(null);
-    try {
-      const next = await paymentsApi.closeDrawer({ closing_balance_counted: 0 });
-      setDrawerSession(next.status === "open" ? next : null);
-      setSuccess("Cash drawer session closed.");
-    } catch (err: unknown) {
-      setError(getErrorMessage(err, "Failed to close drawer"));
     } finally {
       setSubmitting(false);
     }
@@ -647,26 +613,9 @@ function PaymentPage() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Cash Drawer</CardTitle>
-        </CardHeader>
-        <CardContent className="flex items-center justify-between gap-3">
-          <p className="text-sm text-secondary-600">
-            {drawerSession ? "Session is open." : "Session is closed."}
-          </p>
-          {drawerSession ? (
-            <Button variant="outline" onClick={handleCloseDrawer} disabled={submitting}>
-              Close Session
-            </Button>
-          ) : (
-            <Button variant="outline" onClick={handleOpenDrawer} disabled={submitting}>
-              Open Session
-            </Button>
-          )}
-        </CardContent>
-      </Card>
-
+      {/* The "Cash Drawer" card that stood here opened with a float of 0 and
+          closed with a count of 0 without asking either (D-73). The drawer
+          now lives in the POS header, on every channel. */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Payment Mode</CardTitle>

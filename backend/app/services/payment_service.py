@@ -9,6 +9,7 @@ from sqlalchemy.orm import selectinload
 
 from app.models.order import Order
 from app.models.payment import CashDrawerSession, Payment, PaymentMethod
+from app.models.user import User
 from app.schemas.payment import (
     CashDrawerCloseRequest,
     CashDrawerOpenRequest,
@@ -22,7 +23,7 @@ from app.schemas.payment import (
     SessionSplitPaymentCreate,
     SplitPaymentCreate,
 )
-from app.services import customer_service, order_service
+from app.services import customer_service, order_service, zreport_service
 
 DEFAULT_PAYMENT_METHODS: list[tuple[str, str, bool, int]] = [
     ("cash", "Cash", False, 1),
@@ -304,9 +305,12 @@ async def close_drawer_session(
     if session is None:
         raise ValueError("No active cash drawer session")
 
-    expected = await _calculate_expected_drawer_balance(
-        db, tenant_id, session.opened_at, session.opening_float
-    )
+    # The Z-Report's own figure for this drawer, so the two never differ
+    # (Danny's D-68): float + cash sales - cash refunds, and on the day's last
+    # drawer, - cash expenses + cash other income.
+    expected = (await zreport_service.drawer_breakdown(db, tenant_id, session))[
+        "expected_in_drawer"
+    ]
     session.status = "closed"
     session.closed_by = user_id
     session.closed_at = datetime.now(timezone.utc)
@@ -317,32 +321,30 @@ async def close_drawer_session(
     return session
 
 
-async def _calculate_expected_drawer_balance(
-    db: AsyncSession,
-    tenant_id: uuid.UUID,
-    opened_at: datetime,
-    opening_float: int,
-) -> int:
-    result = await db.execute(
-        select(Payment)
-        .join(PaymentMethod, Payment.method_id == PaymentMethod.id)
-        .where(
-            Payment.tenant_id == tenant_id,
-            PaymentMethod.code == "cash",
-            Payment.status == "completed",
-            Payment.created_at >= opened_at,
-            Payment.kind.in_(["payment", "refund"]),
-        )
-    )
-    payments = list(result.scalars().all())
-    # `amount` is the bill, already net of change: the customer hands over
-    # `tendered_amount`, gets `change_amount` back, and the drawer keeps
-    # `amount`. Subtracting change here as well counted it twice, so every
-    # cash sale that needed change made the drawer look short by that change
-    # (Danny's D-67, 2026-09-26).
-    incoming = sum(p.amount for p in payments if p.kind == "payment")
-    outgoing_refund = sum(p.amount for p in payments if p.kind == "refund")
-    return opening_float + incoming - outgoing_refund
+async def get_drawer_summary(
+    db: AsyncSession, tenant_id: uuid.UUID
+) -> dict | None:
+    """The open drawer and what should be in it right now, for the close
+    screen (D-73). None when no drawer is open."""
+    session = await get_active_drawer_session(db, tenant_id)
+    if session is None:
+        return None
+    row = await zreport_service.drawer_breakdown(db, tenant_id, session)
+    opened_by_name = (
+        await db.execute(select(User.full_name).where(User.id == session.opened_by))
+    ).scalar_one_or_none()
+    return {
+        "id": session.id,
+        "opened_by": session.opened_by,
+        "opened_by_name": opened_by_name,
+        "opened_at": session.opened_at,
+        "opening_float": row["opening_float"],
+        "cash_taken": row["cash_taken"],
+        "cash_refunds": row["cash_refunds"],
+        "cash_paid_out": row["cash_paid_out"],
+        "other_cash_in": row["other_cash_in"],
+        "expected_in_drawer": row["expected_in_drawer"],
+    }
 
 
 # ---------------------------------------------------------------------------

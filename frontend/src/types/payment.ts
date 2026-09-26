@@ -79,6 +79,21 @@ export interface CashDrawerSessionResponse {
   note?: string;
 }
 
+/** The open drawer and what should be in it now (D-73). Same figure the
+ *  Z-Report shows for this drawer (D-68). */
+export interface CashDrawerSummary {
+  id: string;
+  opened_by: string;
+  opened_by_name: string | null;
+  opened_at: string;
+  opening_float: number;
+  cash_taken: number;
+  cash_refunds: number;
+  cash_paid_out: number;
+  other_cash_in: number;
+  expected_in_drawer: number;
+}
+
 export interface CashDrawerOpenRequest {
   opening_float: number;
   note?: string;

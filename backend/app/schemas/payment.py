@@ -170,3 +170,20 @@ class CashDrawerSessionResponse(BaseModel):
     note: str | None = None
 
     model_config = {"from_attributes": True}
+
+
+class CashDrawerSummary(BaseModel):
+    """The open drawer and what should be in it now (D-73). Built by hand in
+    `payment_service.get_drawer_summary`, so no field has a default: a
+    forgotten field must fail, not read as 0."""
+
+    id: uuid.UUID
+    opened_by: uuid.UUID
+    opened_by_name: str | None
+    opened_at: datetime
+    opening_float: int
+    cash_taken: int
+    cash_refunds: int
+    cash_paid_out: int
+    other_cash_in: int
+    expected_in_drawer: int

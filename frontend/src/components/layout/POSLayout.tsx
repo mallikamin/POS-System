@@ -1,6 +1,8 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Outlet, Navigate, useNavigate, Link } from "react-router-dom";
-import { LogOut, User, ClipboardList, Settings, Loader2 } from "lucide-react";
+import { LogOut, User, ClipboardList, Settings, Loader2, Wallet } from "lucide-react";
+import { CashDrawerDialog } from "@/components/pos/CashDrawerDialog";
+import { fetchDrawerSession } from "@/services/paymentsApi";
 import { useAuthStore } from "@/stores/authStore";
 import { useUIStore } from "@/stores/uiStore";
 import { useConfigStore } from "@/stores/configStore";
@@ -47,6 +49,19 @@ function POSLayout() {
       fetchConfig();
     }
   }, [isAuthenticated, fetchConfig]);
+
+  // Cash drawer (D-73): the header shows whether one is open, on every channel.
+  const [drawerOpen, setDrawerOpen] = useState<boolean | null>(null);
+  const [drawerDialog, setDrawerDialog] = useState(false);
+  const refreshDrawer = useCallback(() => {
+    fetchDrawerSession()
+      .then((session) => setDrawerOpen(session !== null))
+      .catch(() => setDrawerOpen(null));
+  }, []);
+  const closeDrawerDialog = useCallback(() => setDrawerDialog(false), []);
+  useEffect(() => {
+    if (isAuthenticated) refreshDrawer();
+  }, [isAuthenticated, refreshDrawer]);
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
@@ -149,6 +164,24 @@ function POSLayout() {
 
         {/* Right: Orders link, Clock, User, Logout */}
         <div className="flex shrink-0 items-center gap-2 sm:gap-4">
+          <button
+            type="button"
+            onClick={() => setDrawerDialog(true)}
+            aria-label={drawerOpen ? "Cash drawer (open)" : "Cash drawer (closed)"}
+            className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-secondary-600 hover:bg-secondary-100 hover:text-secondary-800 transition-colors"
+          >
+            <span className="relative">
+              <Wallet className="h-4 w-4" />
+              {drawerOpen !== null && (
+                <span
+                  className={`absolute -right-1 -top-1 h-2 w-2 rounded-full ${
+                    drawerOpen ? "bg-success-500" : "bg-secondary-300"
+                  }`}
+                />
+              )}
+            </span>
+            <span className="hidden sm:inline">Drawer</span>
+          </button>
           <Link
             to="/orders"
             className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-secondary-600 hover:bg-secondary-100 hover:text-secondary-800 transition-colors"
@@ -193,6 +226,13 @@ function POSLayout() {
       <main className="flex-1 overflow-auto">
         <Outlet />
       </main>
+
+      <CashDrawerDialog
+        open={drawerDialog}
+        onClose={closeDrawerDialog}
+        onChanged={refreshDrawer}
+      />
+
     </div>
   );
 }
