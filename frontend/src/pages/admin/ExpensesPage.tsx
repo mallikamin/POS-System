@@ -51,6 +51,7 @@ import {
   majorToMinor,
   minorToMajor,
 } from "@/utils/currency";
+import { toLocalISODate } from "@/utils/localDate";
 import { fetchLocations } from "@/services/locationsApi";
 import {
   createExpense,
@@ -212,7 +213,9 @@ function ExpensesPage() {
 
   function openCreate() {
     setEditing(null);
-    setExpenseDate(new Date().toISOString().slice(0, 10));
+    // The restaurant's day, not the UTC day: at 03:31 in Faisalabad UTC still
+    // says yesterday, and the expense left the drawer's day (Danny's D-75).
+    setExpenseDate(toLocalISODate());
     setPayee("");
     setCategoryId(categories[0]?.id ?? "");
     setLocationId("");

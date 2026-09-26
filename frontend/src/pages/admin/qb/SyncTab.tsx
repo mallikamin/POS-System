@@ -19,7 +19,7 @@ import { Label } from "@/components/ui/label";
 import { useQuickBooksStore } from "@/stores/quickbooksStore";
 import * as qbApi from "@/services/quickbooksApi";
 import type { QBSyncJob, QBSyncLog } from "@/types/quickbooks";
-import { formatDateTime } from "@/utils/localDate";
+import { formatDateTime, toLocalISODate } from "@/utils/localDate";
 
 const SYNC_TYPES = [
   { value: "sync_orders", label: "Sync Orders", description: "Sync completed orders as SalesReceipts" },
@@ -39,8 +39,9 @@ export function SyncTab({ isConnected }: SyncTabProps) {
   const loadSyncStats = useQuickBooksStore((s) => s.loadSyncStats);
 
   const [syncType, setSyncType] = useState("sync_orders");
-  const [dateFrom, setDateFrom] = useState(() => new Date().toISOString().split("T")[0] ?? "");
-  const [dateTo, setDateTo] = useState(() => new Date().toISOString().split("T")[0] ?? "");
+  // The local day, not toISOString's UTC day (D-75).
+  const [dateFrom, setDateFrom] = useState(() => toLocalISODate());
+  const [dateTo, setDateTo] = useState(() => toLocalISODate());
   const [triggering, setTriggering] = useState(false);
   const [triggerResult, setTriggerResult] = useState<{ jobs_created: number; message: string } | null>(null);
 

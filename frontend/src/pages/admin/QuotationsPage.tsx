@@ -51,7 +51,7 @@ import type {
   QuotationDisplayStatus,
 } from "@/types/quotation";
 import type { Location } from "@/types/location";
-import { formatDate, formatDateTime } from "@/utils/localDate";
+import { formatDate, formatDateTime, toLocalISODate } from "@/utils/localDate";
 
 type StatusFilter = "all" | QuotationDisplayStatus;
 
@@ -113,7 +113,7 @@ function errorDetail(error: unknown, fallback = "Please try again."): string {
 function inDays(days: number): string {
   const d = new Date();
   d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
+  return toLocalISODate(d); // not toISOString: the UTC day (D-75)
 }
 
 function QuotationsPage() {

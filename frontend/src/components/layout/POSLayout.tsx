@@ -20,7 +20,9 @@ function Clock() {
 
   return (
     <span className="font-mono text-pos-sm tabular-nums text-secondary-400">
-      {time.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+      {/* en-GB: 24-hour like the dashboard and order screens. The browser
+          default printed "03:28 AM" on an en-US machine (Danny's D-74). */}
+      {time.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
     </span>
   );
 }

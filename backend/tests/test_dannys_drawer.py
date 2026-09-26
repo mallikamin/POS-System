@@ -146,3 +146,75 @@ async def test_close_and_z_report_agree_on_the_drawer(
 
     after = await client.get("/api/v1/payments/drawer/summary", headers=headers)
     assert after.json() is None
+
+
+async def test_correcting_a_paid_expense_date_moves_its_payment_date(
+    client: AsyncClient, db, admin_token: str
+) -> None:
+    """D-76: a Rs 200 cash expense saved on yesterday's date (D-75, the UTC
+    day at 03:31 PKT) and corrected to today, the way the Expenses screen
+    sends it: the date alone, no `paid_on`. It must then count in today's
+    drawer. Before the fix `paid_on` stayed on yesterday."""
+    from datetime import date
+
+    headers = _auth(admin_token)
+    await _open_drawer(client, db, headers, 500_000)
+    yday = (date.fromisoformat(_today()) - timedelta(days=1)).isoformat()
+    created = await client.post(
+        "/api/v1/expenses",
+        json={
+            "expense_date": yday,
+            "payee": "Electrician",
+            "amount_minor": 20_000,
+            "status": "paid",
+            "payment_method": "Cash",
+        },
+        headers=headers,
+    )
+    assert created.status_code == 201, created.text
+    assert created.json()["paid_on"] == yday
+    before = (await client.get("/api/v1/payments/drawer/summary", headers=headers)).json()
+    assert before["cash_paid_out"] == 0  # yesterday's expense is not today's drawer
+
+    fixed = await client.patch(
+        f"/api/v1/expenses/{created.json()['id']}",
+        json={"expense_date": _today(), "payee": "Electrician", "status": "paid"},
+        headers=headers,
+    )
+    assert fixed.status_code == 200, fixed.text
+    assert fixed.json()["paid_on"] == _today()
+    after = (await client.get("/api/v1/payments/drawer/summary", headers=headers)).json()
+    assert after["cash_paid_out"] == 20_000
+    assert after["expected_in_drawer"] == 480_000
+
+
+async def test_an_explicit_payment_date_is_kept(client: AsyncClient, admin_token: str) -> None:
+    """Invoice dated one day, paid another: sending both keeps both."""
+    from datetime import date
+
+    headers = _auth(admin_token)
+    today = date.fromisoformat(_today())
+    created = await client.post(
+        "/api/v1/expenses",
+        json={
+            "expense_date": (today - timedelta(days=5)).isoformat(),
+            "payee": "Landlord",
+            "amount_minor": 100_000,
+            "status": "paid",
+            "payment_method": "Cash",
+            "paid_on": (today - timedelta(days=5)).isoformat(),
+        },
+        headers=headers,
+    )
+    assert created.status_code == 201, created.text
+    moved = await client.patch(
+        f"/api/v1/expenses/{created.json()['id']}",
+        json={
+            "expense_date": (today - timedelta(days=6)).isoformat(),
+            "paid_on": (today - timedelta(days=2)).isoformat(),
+        },
+        headers=headers,
+    )
+    assert moved.status_code == 200, moved.text
+    assert moved.json()["expense_date"] == (today - timedelta(days=6)).isoformat()
+    assert moved.json()["paid_on"] == (today - timedelta(days=2)).isoformat()

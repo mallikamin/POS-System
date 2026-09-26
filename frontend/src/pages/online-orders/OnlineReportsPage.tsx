@@ -17,6 +17,7 @@ import {
 } from "@/services/onlineReportsApi";
 import type { SalesSummary } from "@/types/order";
 import { formatMoney } from "@/utils/currency";
+import { toLocalISODate } from "@/utils/localDate";
 
 /**
  * OI-58 -- a lean, branded reports view for online-ordering-only tenants.
@@ -34,7 +35,7 @@ import { formatMoney } from "@/utils/currency";
  */
 
 function todayISO(): string {
-  return new Date().toISOString().split("T")[0] ?? "";
+  return toLocalISODate(); // not toISOString: the UTC day (D-75)
 }
 
 function StatTile({

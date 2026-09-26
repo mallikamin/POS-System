@@ -430,6 +430,14 @@ async def update_expense(
             continue
         setattr(expense, field, value)
 
+    # A new date without a payment date moves the payment date with it. The
+    # Expenses screen sends the date on every save and never `paid_on`, so
+    # correcting the date of a paid expense left it counted on the old day in
+    # the drawer, the Z-Report and cash in hand, while the list showed the new
+    # one (Danny's D-76, 2026-09-27). An explicit `paid_on` is still honoured.
+    if "expense_date" in data and "paid_on" not in data and expense.status == "paid":
+        expense.paid_on = expense.expense_date
+
     _apply_paid_on(expense)
     await db.flush()
     return await get_expense(db, tenant_id, expense_id)
