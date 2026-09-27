@@ -564,7 +564,7 @@ function ReportsPage() {
                 <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
                   <div className="overflow-hidden rounded-lg border border-secondary-200">
                     <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
+                      <table className="table-fits w-full text-sm">
                         <thead>
                           <tr className="border-b border-secondary-200 bg-secondary-50">
                             <th className="px-2 py-2 sm:px-4 sm:py-2.5 text-left font-medium text-secondary-600">
@@ -720,7 +720,7 @@ function ReportsPage() {
                 {waiterReport.entries.length > 0 ? (
                   <div className="overflow-hidden rounded-lg border border-secondary-200">
                     <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
+                      <table className="table-fits w-full text-sm">
                         <thead>
                           <tr className="border-b border-secondary-200 bg-secondary-50">
                             <th className="px-2 py-2 sm:px-4 sm:py-2.5 text-left font-medium text-secondary-600">
@@ -843,7 +843,7 @@ function ReportsPage() {
                 {/* Phone: the bars above already give orders + revenue per channel */}
                 <div className="mt-6 hidden overflow-hidden rounded-lg border border-secondary-200 md:block">
                   <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
+                    <table className="table-fits w-full text-sm">
                       <thead>
                         <tr className="border-b border-secondary-200 bg-secondary-50">
                           <th className="px-2 py-2 sm:px-4 sm:py-2.5 text-left font-medium text-secondary-600">
@@ -983,7 +983,7 @@ function ReportsPage() {
                   {itemPerf.top_items.length > 0 ? (
                     <div className="overflow-hidden rounded-lg border border-secondary-200">
                       <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
+                        <table className="table-fits w-full text-sm">
                           <thead>
                             <tr className="border-b border-secondary-200 bg-secondary-50">
                               <th className="w-12 px-2 py-2 sm:px-4 sm:py-2.5 text-center font-medium text-secondary-600">
@@ -1083,7 +1083,7 @@ function ReportsPage() {
                   {itemPerf.bottom_items.length > 0 ? (
                     <div className="overflow-hidden rounded-lg border border-secondary-200">
                       <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
+                        <table className="table-fits w-full text-sm">
                           <thead>
                             <tr className="border-b border-secondary-200 bg-secondary-50">
                               <th className="w-12 px-2 py-2 sm:px-4 sm:py-2.5 text-center font-medium text-secondary-600">
