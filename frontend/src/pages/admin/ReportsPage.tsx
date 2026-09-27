@@ -236,7 +236,7 @@ function ReportsPage() {
   );
 
   return (
-    <div className="flex flex-col gap-6 p-6">
+    <div className="flex flex-col gap-4 sm:gap-6 sm:p-6">
       {/* ---------- header ---------- */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
@@ -272,13 +272,14 @@ function ReportsPage() {
               </span>
             </div>
 
+            {/* Phone: the two dates share the row (the second ran off it) */}
             <div className="flex items-center gap-2">
               <input
                 type="date"
                 value={dateFrom}
                 onChange={(e) => setDateFrom(e.target.value)}
                 max={dateTo}
-                className="rounded-lg border border-secondary-300 px-3 py-2 text-sm text-secondary-800 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200"
+                className="min-w-0 flex-1 sm:flex-none rounded-lg border border-secondary-300 px-3 py-2 text-sm text-secondary-800 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200"
                 aria-label="From date"
               />
               <span className="text-sm text-secondary-400">to</span>
@@ -288,7 +289,7 @@ function ReportsPage() {
                 onChange={(e) => setDateTo(e.target.value)}
                 min={dateFrom}
                 max={today}
-                className="rounded-lg border border-secondary-300 px-3 py-2 text-sm text-secondary-800 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200"
+                className="min-w-0 flex-1 sm:flex-none rounded-lg border border-secondary-300 px-3 py-2 text-sm text-secondary-800 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200"
                 aria-label="To date"
               />
             </div>
@@ -341,16 +342,16 @@ function ReportsPage() {
       {!loading && summary && (
         <>
           {/* summary cards */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardHeader className="flex flex-row items-center justify-between p-3 pb-1 sm:p-6 sm:pb-2">
                 <CardTitle className="text-sm font-medium text-secondary-600">
                   Total Revenue
                 </CardTitle>
                 <DollarSign className="h-5 w-5 text-success-500" />
               </CardHeader>
-              <CardContent>
-                <p className="text-2xl font-bold text-secondary-900">
+              <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
+                <p className="text-lg font-bold sm:text-2xl text-secondary-900">
                   {formatPKR(summary.total_revenue)}
                 </p>
                 {prev && (
@@ -367,14 +368,14 @@ function ReportsPage() {
             </Card>
 
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardHeader className="flex flex-row items-center justify-between p-3 pb-1 sm:p-6 sm:pb-2">
                 <CardTitle className="text-sm font-medium text-secondary-600">
                   Total Orders
                 </CardTitle>
                 <ShoppingCart className="h-5 w-5 text-primary-500" />
               </CardHeader>
-              <CardContent>
-                <p className="text-2xl font-bold text-secondary-900">
+              <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
+                <p className="text-lg font-bold sm:text-2xl text-secondary-900">
                   {summary.total_orders.toLocaleString()}
                 </p>
                 {prev && (
@@ -391,14 +392,14 @@ function ReportsPage() {
             </Card>
 
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardHeader className="flex flex-row items-center justify-between p-3 pb-1 sm:p-6 sm:pb-2">
                 <CardTitle className="text-sm font-medium text-secondary-600">
                   Avg Order Value
                 </CardTitle>
                 <BarChart3 className="h-5 w-5 text-accent-500" />
               </CardHeader>
-              <CardContent>
-                <p className="text-2xl font-bold text-secondary-900">
+              <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
+                <p className="text-lg font-bold sm:text-2xl text-secondary-900">
                   {formatPKR(summary.avg_order_value)}
                 </p>
                 {prev && (
@@ -415,14 +416,14 @@ function ReportsPage() {
             </Card>
 
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardHeader className="flex flex-row items-center justify-between p-3 pb-1 sm:p-6 sm:pb-2">
                 <CardTitle className="text-sm font-medium text-secondary-600">
                   Tax Collected
                 </CardTitle>
                 <Receipt className="h-5 w-5 text-warning-500" />
               </CardHeader>
-              <CardContent>
-                <p className="text-2xl font-bold text-secondary-900">
+              <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
+                <p className="text-lg font-bold sm:text-2xl text-secondary-900">
                   {formatPKR(summary.total_tax)}
                 </p>
               </CardContent>
@@ -430,30 +431,30 @@ function ReportsPage() {
           </div>
 
           {/* discount & net revenue row */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardHeader className="flex flex-row items-center justify-between p-3 pb-1 sm:p-6 sm:pb-2">
                 <CardTitle className="text-sm font-medium text-secondary-600">
                   Total Discount
                 </CardTitle>
                 <Tag className="h-5 w-5 text-danger-500" />
               </CardHeader>
-              <CardContent>
-                <p className="text-2xl font-bold text-danger-600">
+              <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
+                <p className="text-lg font-bold sm:text-2xl text-danger-600">
                   {formatPKR(summary.total_discount)}
                 </p>
               </CardContent>
             </Card>
 
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardHeader className="flex flex-row items-center justify-between p-3 pb-1 sm:p-6 sm:pb-2">
                 <CardTitle className="text-sm font-medium text-secondary-600">
                   Net Revenue
                 </CardTitle>
                 <DollarSign className="h-5 w-5 text-success-600" />
               </CardHeader>
-              <CardContent>
-                <p className="text-2xl font-bold text-success-700">
+              <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
+                <p className="text-lg font-bold sm:text-2xl text-success-700">
                   {formatPKR(summary.net_revenue)}
                 </p>
                 {prev && (
@@ -472,13 +473,13 @@ function ReportsPage() {
             {/* discount breakdown by type */}
             {summary.discount_breakdown.length > 0 && (
               <Card>
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardHeader className="flex flex-row items-center justify-between p-3 pb-1 sm:p-6 sm:pb-2">
                   <CardTitle className="text-sm font-medium text-secondary-600">
                     Discount Breakdown
                   </CardTitle>
                   <Percent className="h-5 w-5 text-accent-500" />
                 </CardHeader>
-                <CardContent>
+                <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
                   <div className="flex flex-col gap-2">
                     {summary.discount_breakdown.map((entry) => (
                       <div
@@ -505,42 +506,42 @@ function ReportsPage() {
           {/* cash / card / other revenue split */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardHeader className="flex flex-row items-center justify-between p-3 pb-1 sm:p-6 sm:pb-2">
                 <CardTitle className="text-sm font-medium text-secondary-600">
                   Cash Revenue
                 </CardTitle>
                 <Banknote className="h-5 w-5 text-success-500" />
               </CardHeader>
-              <CardContent>
-                <p className="text-2xl font-bold text-secondary-900">
+              <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
+                <p className="text-lg font-bold sm:text-2xl text-secondary-900">
                   {formatPKR(summary.cash_revenue)}
                 </p>
               </CardContent>
             </Card>
 
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardHeader className="flex flex-row items-center justify-between p-3 pb-1 sm:p-6 sm:pb-2">
                 <CardTitle className="text-sm font-medium text-secondary-600">
                   Card Revenue
                 </CardTitle>
                 <CreditCard className="h-5 w-5 text-primary-500" />
               </CardHeader>
-              <CardContent>
-                <p className="text-2xl font-bold text-secondary-900">
+              <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
+                <p className="text-lg font-bold sm:text-2xl text-secondary-900">
                   {formatPKR(summary.card_revenue)}
                 </p>
               </CardContent>
             </Card>
 
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardHeader className="flex flex-row items-center justify-between p-3 pb-1 sm:p-6 sm:pb-2">
                 <CardTitle className="text-sm font-medium text-secondary-600">
                   Other Revenue
                 </CardTitle>
                 <Wallet className="h-5 w-5 text-accent-500" />
               </CardHeader>
-              <CardContent>
-                <p className="text-2xl font-bold text-secondary-900">
+              <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
+                <p className="text-lg font-bold sm:text-2xl text-secondary-900">
                   {formatPKR(summary.other_revenue)}
                 </p>
               </CardContent>
@@ -552,7 +553,7 @@ function ReportsPage() {
             {/* payment-method breakdown */}
             {pmReport && pmReport.entries.length > 0 && (
               <Card>
-                <CardHeader>
+                <CardHeader className="p-3 sm:p-6">
                   <div className="flex items-center gap-2">
                     <CreditCard className="h-4 w-4 text-primary-500" />
                     <CardTitle className="text-base text-secondary-800">
@@ -560,19 +561,19 @@ function ReportsPage() {
                     </CardTitle>
                   </div>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
                   <div className="overflow-hidden rounded-lg border border-secondary-200">
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead>
                           <tr className="border-b border-secondary-200 bg-secondary-50">
-                            <th className="px-4 py-2.5 text-left font-medium text-secondary-600">
+                            <th className="px-2 py-2 sm:px-4 sm:py-2.5 text-left font-medium text-secondary-600">
                               Method
                             </th>
-                            <th className="px-4 py-2.5 text-right font-medium text-secondary-600">
+                            <th className="px-2 py-2 sm:px-4 sm:py-2.5 text-right font-medium text-secondary-600">
                               Payments
                             </th>
-                            <th className="px-4 py-2.5 text-right font-medium text-secondary-600">
+                            <th className="px-2 py-2 sm:px-4 sm:py-2.5 text-right font-medium text-secondary-600">
                               Total
                             </th>
                           </tr>
@@ -580,13 +581,13 @@ function ReportsPage() {
                         <tbody className="divide-y divide-secondary-100">
                           {pmReport.entries.map((entry) => (
                             <tr key={entry.method_code} className="hover:bg-secondary-50">
-                              <td className="px-4 py-2.5 text-secondary-700">
+                              <td className="px-2 py-2 sm:px-4 sm:py-2.5 text-secondary-700">
                                 {entry.method}
                               </td>
-                              <td className="px-4 py-2.5 text-right text-secondary-800">
+                              <td className="px-2 py-2 sm:px-4 sm:py-2.5 text-right text-secondary-800">
                                 {entry.count}
                               </td>
-                              <td className="px-4 py-2.5 text-right font-medium text-secondary-900">
+                              <td className="px-2 py-2 sm:px-4 sm:py-2.5 text-right font-medium text-secondary-900">
                                 {formatPKR(entry.total)}
                               </td>
                             </tr>
@@ -594,11 +595,11 @@ function ReportsPage() {
                         </tbody>
                         <tfoot>
                           <tr className="border-t border-secondary-200 bg-secondary-50">
-                            <td className="px-4 py-2.5 font-medium text-secondary-700">
+                            <td className="px-2 py-2 sm:px-4 sm:py-2.5 font-medium text-secondary-700">
                               Total Collected
                             </td>
                             <td />
-                            <td className="px-4 py-2.5 text-right font-bold text-secondary-900">
+                            <td className="px-2 py-2 sm:px-4 sm:py-2.5 text-right font-bold text-secondary-900">
                               {formatPKR(pmReport.total_collected)}
                             </td>
                           </tr>
@@ -613,7 +614,7 @@ function ReportsPage() {
             {/* void report */}
             {voidReport && (
               <Card>
-                <CardHeader>
+                <CardHeader className="p-3 sm:p-6">
                   <div className="flex items-center gap-2">
                     <Ban className="h-4 w-4 text-danger-500" />
                     <CardTitle className="text-base text-secondary-800">
@@ -621,7 +622,7 @@ function ReportsPage() {
                     </CardTitle>
                   </div>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
                   <div className="mb-4 grid grid-cols-2 gap-4">
                     <div className="rounded-lg bg-danger-50 p-3">
                       <p className="text-xs font-medium text-danger-600">
@@ -707,7 +708,7 @@ function ReportsPage() {
           {/* waiter performance */}
           {waiterReport && (
             <Card>
-              <CardHeader>
+              <CardHeader className="p-3 sm:p-6">
                 <div className="flex items-center gap-2">
                   <UserCircle className="h-4 w-4 text-primary-500" />
                   <CardTitle className="text-base text-secondary-800">
@@ -715,23 +716,23 @@ function ReportsPage() {
                   </CardTitle>
                 </div>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
                 {waiterReport.entries.length > 0 ? (
                   <div className="overflow-hidden rounded-lg border border-secondary-200">
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead>
                           <tr className="border-b border-secondary-200 bg-secondary-50">
-                            <th className="px-4 py-2.5 text-left font-medium text-secondary-600">
+                            <th className="px-2 py-2 sm:px-4 sm:py-2.5 text-left font-medium text-secondary-600">
                               Waiter
                             </th>
-                            <th className="px-4 py-2.5 text-right font-medium text-secondary-600">
+                            <th className="px-2 py-2 sm:px-4 sm:py-2.5 text-right font-medium text-secondary-600">
                               Orders
                             </th>
-                            <th className="px-4 py-2.5 text-right font-medium text-secondary-600">
+                            <th className="px-2 py-2 sm:px-4 sm:py-2.5 text-right font-medium text-secondary-600">
                               Revenue
                             </th>
-                            <th className="px-4 py-2.5 text-right font-medium text-secondary-600">
+                            <th className="px-2 py-2 sm:px-4 sm:py-2.5 text-right font-medium text-secondary-600">
                               Avg Order
                             </th>
                           </tr>
@@ -739,19 +740,19 @@ function ReportsPage() {
                         <tbody className="divide-y divide-secondary-100">
                           {waiterReport.entries.map((entry) => (
                             <tr key={entry.waiter_id} className="hover:bg-secondary-50">
-                              <td className="px-4 py-2.5 text-secondary-700">
+                              <td className="px-2 py-2 sm:px-4 sm:py-2.5 text-secondary-700">
                                 <div className="flex items-center gap-1.5">
                                   <UserCircle className="h-3.5 w-3.5 text-secondary-400" />
                                   {entry.waiter_name}
                                 </div>
                               </td>
-                              <td className="px-4 py-2.5 text-right text-secondary-800">
+                              <td className="px-2 py-2 sm:px-4 sm:py-2.5 text-right text-secondary-800">
                                 {entry.order_count}
                               </td>
-                              <td className="px-4 py-2.5 text-right font-medium text-secondary-900">
+                              <td className="px-2 py-2 sm:px-4 sm:py-2.5 text-right font-medium text-secondary-900">
                                 {formatPKR(entry.total_revenue)}
                               </td>
-                              <td className="px-4 py-2.5 text-right text-secondary-700">
+                              <td className="px-2 py-2 sm:px-4 sm:py-2.5 text-right text-secondary-700">
                                 {formatPKR(entry.avg_order_value)}
                               </td>
                             </tr>
@@ -759,23 +760,23 @@ function ReportsPage() {
                         </tbody>
                         <tfoot>
                           <tr className="border-t border-secondary-200 bg-secondary-50">
-                            <td className="px-4 py-2.5 font-medium text-secondary-700">
+                            <td className="px-2 py-2 sm:px-4 sm:py-2.5 font-medium text-secondary-700">
                               Total (with waiter)
                             </td>
-                            <td className="px-4 py-2.5 text-right font-bold text-secondary-900">
+                            <td className="px-2 py-2 sm:px-4 sm:py-2.5 text-right font-bold text-secondary-900">
                               {waiterReport.total_orders_with_waiter}
                             </td>
-                            <td className="px-4 py-2.5 text-right font-bold text-secondary-900">
+                            <td className="px-2 py-2 sm:px-4 sm:py-2.5 text-right font-bold text-secondary-900">
                               {formatPKR(waiterReport.entries.reduce((s, e) => s + e.total_revenue, 0))}
                             </td>
                             <td />
                           </tr>
                           {waiterReport.total_orders_without_waiter > 0 && (
                             <tr className="bg-secondary-50">
-                              <td className="px-4 py-2.5 text-secondary-500" colSpan={2}>
+                              <td className="px-2 py-2 sm:px-4 sm:py-2.5 text-secondary-500" colSpan={2}>
                                 Orders without waiter
                               </td>
-                              <td className="px-4 py-2.5 text-right text-secondary-500" colSpan={2}>
+                              <td className="px-2 py-2 sm:px-4 sm:py-2.5 text-right text-secondary-500" colSpan={2}>
                                 {waiterReport.total_orders_without_waiter}
                               </td>
                             </tr>
@@ -797,12 +798,12 @@ function ReportsPage() {
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             {/* channel breakdown */}
             <Card>
-              <CardHeader>
+              <CardHeader className="p-3 sm:p-6">
                 <CardTitle className="text-base text-secondary-800">
                   Channel Breakdown
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
                 <div className="flex flex-col gap-5">
                   {channels.map((ch) => {
                     const revenue = getChannelRevenue(ch);
@@ -839,18 +840,19 @@ function ReportsPage() {
                 </div>
 
                 {/* channel summary table */}
-                <div className="mt-6 overflow-hidden rounded-lg border border-secondary-200">
+                {/* Phone: the bars above already give orders + revenue per channel */}
+                <div className="mt-6 hidden overflow-hidden rounded-lg border border-secondary-200 md:block">
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b border-secondary-200 bg-secondary-50">
-                          <th className="px-4 py-2.5 text-left font-medium text-secondary-600">
+                          <th className="px-2 py-2 sm:px-4 sm:py-2.5 text-left font-medium text-secondary-600">
                             Channel
                           </th>
-                          <th className="px-4 py-2.5 text-right font-medium text-secondary-600">
+                          <th className="px-2 py-2 sm:px-4 sm:py-2.5 text-right font-medium text-secondary-600">
                             Orders
                           </th>
-                          <th className="px-4 py-2.5 text-right font-medium text-secondary-600">
+                          <th className="px-2 py-2 sm:px-4 sm:py-2.5 text-right font-medium text-secondary-600">
                             Revenue
                           </th>
                         </tr>
@@ -858,7 +860,7 @@ function ReportsPage() {
                       <tbody className="divide-y divide-secondary-100">
                         {channels.map((ch) => (
                           <tr key={ch.key} className="hover:bg-secondary-50">
-                            <td className="px-4 py-2.5 text-secondary-700">
+                            <td className="px-2 py-2 sm:px-4 sm:py-2.5 text-secondary-700">
                               <div className="flex items-center gap-2">
                                 <div
                                   className={`h-2.5 w-2.5 rounded-full ${ch.color}`}
@@ -866,10 +868,10 @@ function ReportsPage() {
                                 {ch.label}
                               </div>
                             </td>
-                            <td className="px-4 py-2.5 text-right text-secondary-800">
+                            <td className="px-2 py-2 sm:px-4 sm:py-2.5 text-right text-secondary-800">
                               {getChannelOrders(ch).toLocaleString()}
                             </td>
-                            <td className="px-4 py-2.5 text-right font-medium text-secondary-900">
+                            <td className="px-2 py-2 sm:px-4 sm:py-2.5 text-right font-medium text-secondary-900">
                               {formatPKR(getChannelRevenue(ch))}
                             </td>
                           </tr>
@@ -883,7 +885,7 @@ function ReportsPage() {
 
             {/* hourly breakdown chart */}
             <Card>
-              <CardHeader>
+              <CardHeader className="p-3 sm:p-6">
                 <CardTitle className="text-base text-secondary-800">
                   Hourly Revenue (
                   {hourly && hourly.date !== hourly.date_to
@@ -892,7 +894,7 @@ function ReportsPage() {
                   )
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
                 {hourly && hourly.buckets.length > 0 ? (
                   <div className="flex flex-col gap-2">
                     {/* chart area */}
@@ -972,33 +974,33 @@ function ReportsPage() {
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
               {/* top 10 items */}
               <Card>
-                <CardHeader>
+                <CardHeader className="p-3 sm:p-6">
                   <CardTitle className="text-base text-secondary-800">
                     Top 10 Items
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
                   {itemPerf.top_items.length > 0 ? (
                     <div className="overflow-hidden rounded-lg border border-secondary-200">
                       <div className="overflow-x-auto">
                         <table className="w-full text-sm">
                           <thead>
                             <tr className="border-b border-secondary-200 bg-secondary-50">
-                              <th className="w-12 px-4 py-2.5 text-center font-medium text-secondary-600">
+                              <th className="w-12 px-2 py-2 sm:px-4 sm:py-2.5 text-center font-medium text-secondary-600">
                                 #
                               </th>
-                              <th className="px-4 py-2.5 text-left font-medium text-secondary-600">
+                              <th className="px-2 py-2 sm:px-4 sm:py-2.5 text-left font-medium text-secondary-600">
                                 Item Name
                               </th>
-                              <th className="px-4 py-2.5 text-right font-medium text-secondary-600">
+                              <th className="px-2 py-2 sm:px-4 sm:py-2.5 text-right font-medium text-secondary-600">
                                 Qty Sold
                               </th>
-                              <th className="px-4 py-2.5 text-right font-medium text-secondary-600">
+                              <th className="px-2 py-2 sm:px-4 sm:py-2.5 text-right font-medium text-secondary-600">
                                 Revenue
                               </th>
                               {prev && (
                                 <th
-                                  className="px-4 py-2.5 text-right font-medium text-secondary-600"
+                                  className="px-2 py-2 sm:px-4 sm:py-2.5 text-right font-medium text-secondary-600"
                                   title={`Revenue against ${against}${until}`}
                                 >
                                   vs {against}
@@ -1014,7 +1016,7 @@ function ReportsPage() {
                                   key={item.menu_item_id}
                                   className="hover:bg-secondary-50"
                                 >
-                                  <td className="px-4 py-2.5 text-center">
+                                  <td className="px-2 py-2 sm:px-4 sm:py-2.5 text-center">
                                     <span
                                       className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${
                                         index === 0
@@ -1029,20 +1031,20 @@ function ReportsPage() {
                                       {index + 1}
                                     </span>
                                   </td>
-                                  <td className="px-4 py-2.5 font-medium text-secondary-800">
+                                  <td className="px-2 py-2 sm:px-4 sm:py-2.5 font-medium text-secondary-800">
                                     <div className="flex items-center gap-2">
                                       <Thumb src={item.image_url} alt={item.name} size="md" />
                                       {item.name}
                                     </div>
                                   </td>
-                                  <td className="px-4 py-2.5 text-right text-secondary-700">
+                                  <td className="px-2 py-2 sm:px-4 sm:py-2.5 text-right text-secondary-700">
                                     {item.quantity_sold.toLocaleString()}
                                   </td>
-                                  <td className="px-4 py-2.5 text-right font-medium text-secondary-900">
+                                  <td className="px-2 py-2 sm:px-4 sm:py-2.5 text-right font-medium text-secondary-900">
                                     {formatPKR(item.revenue)}
                                   </td>
                                   {prev && (
-                                    <td className="px-4 py-2.5 text-right">
+                                    <td className="px-2 py-2 sm:px-4 sm:py-2.5 text-right">
                                       <PeriodDelta
                                         compact
                                         current={item.revenue}
@@ -1069,7 +1071,7 @@ function ReportsPage() {
 
               {/* bottom 5 performers */}
               <Card>
-                <CardHeader>
+                <CardHeader className="p-3 sm:p-6">
                   <div className="flex items-center gap-2">
                     <TrendingDown className="h-4 w-4 text-danger-500" />
                     <CardTitle className="text-base text-secondary-800">
@@ -1077,23 +1079,23 @@ function ReportsPage() {
                     </CardTitle>
                   </div>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
                   {itemPerf.bottom_items.length > 0 ? (
                     <div className="overflow-hidden rounded-lg border border-secondary-200">
                       <div className="overflow-x-auto">
                         <table className="w-full text-sm">
                           <thead>
                             <tr className="border-b border-secondary-200 bg-secondary-50">
-                              <th className="w-12 px-4 py-2.5 text-center font-medium text-secondary-600">
+                              <th className="w-12 px-2 py-2 sm:px-4 sm:py-2.5 text-center font-medium text-secondary-600">
                                 #
                               </th>
-                              <th className="px-4 py-2.5 text-left font-medium text-secondary-600">
+                              <th className="px-2 py-2 sm:px-4 sm:py-2.5 text-left font-medium text-secondary-600">
                                 Item Name
                               </th>
-                              <th className="px-4 py-2.5 text-right font-medium text-secondary-600">
+                              <th className="px-2 py-2 sm:px-4 sm:py-2.5 text-right font-medium text-secondary-600">
                                 Qty Sold
                               </th>
-                              <th className="px-4 py-2.5 text-right font-medium text-secondary-600">
+                              <th className="px-2 py-2 sm:px-4 sm:py-2.5 text-right font-medium text-secondary-600">
                                 Revenue
                               </th>
                             </tr>
@@ -1106,19 +1108,19 @@ function ReportsPage() {
                                   key={item.menu_item_id}
                                   className="hover:bg-secondary-50"
                                 >
-                                  <td className="px-4 py-2.5 text-center text-secondary-500">
+                                  <td className="px-2 py-2 sm:px-4 sm:py-2.5 text-center text-secondary-500">
                                     {index + 1}
                                   </td>
-                                  <td className="px-4 py-2.5 font-medium text-secondary-800">
+                                  <td className="px-2 py-2 sm:px-4 sm:py-2.5 font-medium text-secondary-800">
                                     <div className="flex items-center gap-2">
                                       <Thumb src={item.image_url} alt={item.name} size="md" />
                                       {item.name}
                                     </div>
                                   </td>
-                                  <td className="px-4 py-2.5 text-right text-secondary-700">
+                                  <td className="px-2 py-2 sm:px-4 sm:py-2.5 text-right text-secondary-700">
                                     {item.quantity_sold.toLocaleString()}
                                   </td>
-                                  <td className="px-4 py-2.5 text-right font-medium text-secondary-900">
+                                  <td className="px-2 py-2 sm:px-4 sm:py-2.5 text-right font-medium text-secondary-900">
                                     {formatPKR(item.revenue)}
                                   </td>
                                 </tr>
@@ -1143,7 +1145,7 @@ function ReportsPage() {
           {/* dine-in by table size (D-56): real counts, no pattern from a tiny sample */}
           {tableSize && tableSize.sizes.length > 0 && (
             <Card>
-              <CardHeader>
+              <CardHeader className="p-3 sm:p-6">
                 <CardTitle className="text-base text-secondary-800">
                   Dine-In by Table Size
                 </CardTitle>
@@ -1153,7 +1155,7 @@ function ReportsPage() {
                   {tableSize.min_visits} visits.
                 </p>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                   {tableSize.sizes.map((size) => (
                     <div

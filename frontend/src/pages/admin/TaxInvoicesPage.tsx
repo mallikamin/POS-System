@@ -179,7 +179,35 @@ function TaxInvoicesPage() {
                 </p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <>
+              {/* Phone (D-90): one tappable row per order; the table hid status,
+                  total and the invoice button off the screen. */}
+              <div className="divide-y md:hidden">
+                {orders.map((o) => (
+                  <button
+                    key={o.id}
+                    type="button"
+                    onClick={() => void openInvoice(o.id)}
+                    disabled={loadingInvoice}
+                    className="flex w-full items-center gap-3 py-3 text-left disabled:opacity-50"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="font-mono text-sm">{o.order_number}</div>
+                      <div className="truncate text-xs text-secondary-500">
+                        {formatDate(o.created_at)} · {o.customer_name ?? "-"} ·{" "}
+                        {o.channel_name ?? "Direct"}
+                      </div>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <div className="text-sm font-medium">{formatMoney(o.total_minor, currency)}</div>
+                      <Badge variant={o.payment_status === "paid" ? "success" : "secondary"}>
+                        {o.payment_status}
+                      </Badge>
+                    </div>
+                  </button>
+                ))}
+              </div>
+              <div className="hidden overflow-x-auto md:block">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b text-left text-secondary-500">
@@ -228,6 +256,7 @@ function TaxInvoicesPage() {
                   </tbody>
                 </table>
               </div>
+              </>
             )}
           </CardContent>
         </Card>

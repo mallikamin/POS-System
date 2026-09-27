@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Navigate } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import {
   AlertTriangle,
+  ArrowLeft,
   Bell,
   BellOff,
   ChefHat,
@@ -179,12 +180,22 @@ function KitchenPage() {
 
   return (
     <div className="flex h-app flex-col bg-secondary-100 text-secondary-900">
-      <header className="flex h-14 items-center justify-between border-b border-secondary-200 bg-white px-4">
+      {/* Malik, 27 Sep: nothing linked POS and kitchen either way. POS button
+          here; the POS header has a Kitchen button. Phone: icon-only buttons,
+          header wraps instead of running off the screen. */}
+      <header className="flex min-h-14 shrink-0 flex-wrap items-center justify-between gap-2 border-b border-secondary-200 bg-white px-4 py-2">
         <div className="flex items-center gap-3">
-          <ChefHat className="h-5 w-5 text-warning-500" />
+          <Link
+            to="/"
+            className="flex min-h-[40px] items-center gap-1.5 rounded-lg border border-secondary-300 px-3 text-xs font-medium text-secondary-700 hover:bg-secondary-100"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            POS
+          </Link>
+          <ChefHat className="hidden h-5 w-5 text-warning-500 sm:block" />
           <div>
             <h1 className="text-lg font-bold">Kitchen Display</h1>
-            <p className="text-xs text-secondary-500">Live ticket operations board</p>
+            <p className="hidden text-xs text-secondary-500 sm:block">Live ticket operations board</p>
           </div>
         </div>
 
@@ -192,7 +203,7 @@ function KitchenPage() {
           <Select
             value={selectedStation}
             onChange={(e) => setStation(e.target.value as KitchenStationFilter)}
-            className="h-9 w-44 border-secondary-300 bg-white text-secondary-900"
+            className="h-9 w-32 border-secondary-300 bg-white text-secondary-900 sm:w-44"
             aria-label="Station filter"
           >
             <option value="all">All Stations</option>
@@ -215,7 +226,7 @@ function KitchenPage() {
             className="border-secondary-300 bg-white text-secondary-800 hover:bg-secondary-100"
           >
             {audioEnabled ? <Bell className="h-4 w-4" /> : <BellOff className="h-4 w-4" />}
-            {audioEnabled ? "Audio On" : "Audio Off"}
+            <span className="hidden sm:inline">{audioEnabled ? "Audio On" : "Audio Off"}</span>
           </Button>
           <Button
             variant="outline"
@@ -224,7 +235,7 @@ function KitchenPage() {
             className="border-secondary-300 bg-white text-secondary-800 hover:bg-secondary-100"
           >
             <RefreshCw className="h-4 w-4" />
-            Refresh
+            <span className="hidden sm:inline">Refresh</span>
           </Button>
         </div>
       </header>

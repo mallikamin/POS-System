@@ -84,7 +84,41 @@ function ProfitabilityPage() {
               Nothing recorded in this date range.
             </p>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+            {/* Phone (D-90): one row per channel/location; the table ran four
+                columns past the screen edge. */}
+            <div className="divide-y divide-secondary-100 md:hidden">
+              {rows.map((row) => {
+                const share = totalRevenue > 0 ? (row.revenue_minor / totalRevenue) * 100 : 0;
+                return (
+                  <div key={row.name} className="space-y-1 px-4 py-3">
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="min-w-0 font-medium text-secondary-900">{row.name}</span>
+                      <span
+                        className={`shrink-0 tabular-nums font-semibold ${profitClass(row.net_profit_minor)}`}
+                      >
+                        {formatMoney(row.net_profit_minor, currency)}
+                        <span className="ml-1 text-xs font-normal">
+                          ({formatPct(row.net_margin_pct)})
+                        </span>
+                      </span>
+                    </div>
+                    <div className="h-1.5 w-full rounded-full bg-secondary-100">
+                      <div
+                        className="h-1.5 rounded-full bg-primary-500"
+                        style={{ width: `${Math.min(share, 100)}%` }}
+                      />
+                    </div>
+                    <div className="text-xs tabular-nums text-secondary-500">
+                      {row.orders} orders · revenue {formatMoney(row.revenue_minor, currency)} ·
+                      cost {formatMoney(row.product_cost_minor, currency)} · commission{" "}
+                      {formatMoney(row.commission_minor, currency)}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="hidden overflow-x-auto md:block">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-secondary-200 text-left text-secondary-500">
@@ -160,6 +194,7 @@ function ProfitabilityPage() {
                 </tbody>
               </table>
             </div>
+            </>
           )}
         </CardContent>
       </Card>
@@ -183,14 +218,14 @@ function ProfitabilityPage() {
 
       <Card>
         <CardContent className="pt-4">
-          <div className="flex flex-wrap items-end gap-4">
+          <div className="grid grid-cols-2 items-end gap-3 sm:flex sm:flex-wrap sm:gap-4">
             <div className="space-y-2">
               <Label>From</Label>
               <Input
                 type="date"
                 value={dateFrom}
                 onChange={(e) => setDateFrom(e.target.value)}
-                className="w-44"
+                className="sm:w-44"
               />
             </div>
             <div className="space-y-2">
@@ -199,13 +234,13 @@ function ProfitabilityPage() {
                 type="date"
                 value={dateTo}
                 onChange={(e) => setDateTo(e.target.value)}
-                className="w-44"
+                className="sm:w-44"
               />
             </div>
             <Button
               onClick={handleRefresh}
               disabled={loading || rangeInvalid}
-              className="gap-2 min-h-[48px]"
+              className="col-span-2 gap-2 min-h-[48px]"
             >
               <RefreshCw
                 className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}
@@ -245,7 +280,7 @@ function ProfitabilityPage() {
         </Card>
       ) : (
         <>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
             <Card>
               <CardContent className="pt-4">
                 <p className="text-sm text-secondary-500">Revenue</p>

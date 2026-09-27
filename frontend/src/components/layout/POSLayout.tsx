@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Outlet, Navigate, useNavigate, Link } from "react-router-dom";
-import { LogOut, User, ClipboardList, Settings, Loader2, Wallet } from "lucide-react";
+import { LogOut, User, ClipboardList, Settings, Loader2, Wallet, ChefHat } from "lucide-react";
 import { CashDrawerDialog } from "@/components/pos/CashDrawerDialog";
 import { fetchDrawerSession } from "@/services/paymentsApi";
 import { useAuthStore } from "@/stores/authStore";
@@ -194,6 +194,15 @@ function POSLayout() {
           >
             <ClipboardList className="h-4 w-4" />
             Orders
+          </Link>
+          {/* Malik, 27 Sep: no screen linked to the kitchen display. */}
+          <Link
+            to="/kitchen"
+            aria-label="Kitchen"
+            className="flex min-h-[44px] items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-secondary-600 hover:bg-secondary-100 hover:text-secondary-800 transition-colors"
+          >
+            <ChefHat className="h-4 w-4" />
+            <span className="hidden sm:inline">Kitchen</span>
           </Link>
           <Link
             to="/admin"

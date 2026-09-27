@@ -204,10 +204,10 @@ function StaffManagementPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <Users className="h-7 w-7 text-primary-600" />
-          <h1 className="text-pos-2xl font-bold text-secondary-900">
+          <Users className="h-7 w-7 shrink-0 text-primary-600" />
+          <h1 className="text-pos-xl font-bold text-secondary-900 sm:text-pos-2xl">
             Staff Management
           </h1>
         </div>
@@ -227,7 +227,7 @@ function StaffManagementPage() {
 
       {/* Staff Table */}
       <Card>
-        <CardContent className="pt-6">
+        <CardContent className="px-3 pt-2 md:px-6 md:pt-6">
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
@@ -237,7 +237,35 @@ function StaffManagementPage() {
               No staff members found.
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+            {/* Phone (D-90): one row per person, tap to edit; the switch
+                stays on the row. The table cut off role, status and actions. */}
+            <div className="divide-y md:hidden">
+              {staff.map((m) => (
+                <div key={m.id} className="flex items-center gap-3 py-3">
+                  <button
+                    type="button"
+                    onClick={() => openEdit(m)}
+                    className="min-w-0 flex-1 text-left"
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-medium text-secondary-900">{m.full_name}</span>
+                      <Badge variant="outline" className="text-[10px]">{m.role.name}</Badge>
+                    </div>
+                    <div className="truncate text-pos-xs text-secondary-500">{m.email}</div>
+                    <div className="text-[10px] text-secondary-400">
+                      Last login {formatDate(m.last_login_at)}
+                    </div>
+                  </button>
+                  <Switch
+                    checked={m.is_active}
+                    onCheckedChange={() => toggleActive(m)}
+                    aria-label={m.is_active ? `Deactivate ${m.full_name}` : `Activate ${m.full_name}`}
+                  />
+                </div>
+              ))}
+            </div>
+            <div className="hidden overflow-x-auto md:block">
               <table className="w-full text-left text-pos-sm">
                 <thead>
                   <tr className="border-b text-secondary-500">
@@ -297,6 +325,7 @@ function StaffManagementPage() {
                 </tbody>
               </table>
             </div>
+            </>
           )}
         </CardContent>
       </Card>

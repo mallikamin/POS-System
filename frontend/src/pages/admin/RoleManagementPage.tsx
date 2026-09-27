@@ -119,9 +119,9 @@ function RoleManagementPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-secondary-900">Role Management</h1>
+          <h1 className="text-xl font-bold text-secondary-900 sm:text-2xl">Role Management</h1>
           <p className="text-sm text-secondary-500 mt-1">
             Create and manage roles with granular permissions
           </p>
@@ -129,8 +129,40 @@ function RoleManagementPage() {
         <Button onClick={openCreate}>Create Role</Button>
       </div>
 
+      {/* Phone (D-90): one card per role; the permissions column ran off
+          the screen. Tap the card to edit. */}
+      <div className="space-y-3 md:hidden">
+        {roles.map((role) => (
+          <button
+            key={role.id}
+            type="button"
+            onClick={() => openEdit(role)}
+            className="w-full rounded-lg border border-secondary-200 bg-white p-4 text-left"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-medium text-secondary-900">{role.name}</span>
+              <span className="text-xs text-primary-600">Edit</span>
+            </div>
+            {role.description && (
+              <p className="mt-1 text-sm text-secondary-600">{role.description}</p>
+            )}
+            <div className="mt-2 flex flex-wrap gap-1">
+              {role.permissions.length === 0 ? (
+                <span className="text-xs text-secondary-400">No permissions</span>
+              ) : (
+                role.permissions.map((p) => (
+                  <span key={p.id} className="rounded bg-blue-50 px-2 py-0.5 text-xs text-blue-700">
+                    {p.code}
+                  </span>
+                ))
+              )}
+            </div>
+          </button>
+        ))}
+      </div>
+
       {/* Roles Table */}
-      <div className="rounded-lg border border-secondary-200 bg-white">
+      <div className="hidden rounded-lg border border-secondary-200 bg-white md:block">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
