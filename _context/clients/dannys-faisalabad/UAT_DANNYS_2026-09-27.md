@@ -1,18 +1,20 @@
 # Danny's Restaurant: UAT guide
 
-Prepared by Sitara Infotech for the Danny's team. Updated 27 September 2026 from a live walk of
-the demo shop. Replaces the guide of 25 September.
-
 **How to use this guide.** Work through the tests in order on the device you will use in the
-restaurant (a tablet is best; Section L repeats the key screens on a phone). For each test, do the
-steps, compare with "Expected", and mark Pass, Fail or Note. We want your recommendations as much
-as your marks: if your staff would do something differently, write it down.
+restaurant. For each test, follow the steps, compare with "Expected", and mark Pass, Fail or Note.
+If your staff would do something differently, write it down.
 
-**Login details** are in the separate access sheet we sent you. Do not share it outside the team.
+**Login details** are in the separate access sheet. The demo shop holds sample dishes, stock and
+orders, so feel free to place, pay and cancel orders.
 
-**Demo data.** The shop is filled with sample dishes, recipes, stock, suppliers and a few test
-orders so every screen has something to show. Nothing you do here touches a real account. Feel
-free to place, pay and cancel orders.
+**Your links**
+
+* **Till and back office:** https://eats.sitaratech.info/login?shop=dannys
+* **Kitchen screen:** log in with the Kitchen PIN, then tap **Kitchen** (the chef's hat) in the
+  top bar. **POS** at the top of the kitchen screen goes back. Direct link:
+  https://eats.sitaratech.info/kitchen
+
+Everything works on a laptop, a tablet and a phone.
 
 | Result key | Meaning |
 |---|---|
@@ -53,6 +55,8 @@ free to place, pay and cancel orders.
 * The top bar shows the Danny's logo and name, a **Drawer** button, **Orders**, **Admin**, the
   time on a 24-hour clock (Pakistan time), the person logged in, and a sign-out icon.
 
+![The channel screen, with Danny's logo in the top bar](images/a2-channels.png)
+
 **Result:** Pass / Fail / Note  **Your notes:** ______________________
 
 ---
@@ -92,6 +96,8 @@ free to place, pay and cancel orders.
 * Every added dish appears in "Current Order" and the list scrolls to it, even on a long order.
 * Subtotal, GST (16%) and Total update on each change. Check one total by hand.
 
+![Choosing the portion on a karahi](images/b2-portion.png)
+
 **Result:** Pass / Fail / Note  **Your notes:** ______________________
 
 > Question for you: the tax line says "GST (16%)". What do your current bills print (for
@@ -111,6 +117,8 @@ free to place, pay and cancel orders.
 **Also check**
 * Send a second round to the same table: the Running Total includes both.
 
+![Order sent: the table turns red and the Table Session box appears](images/b3-sent.png)
+
 **Result:** Pass / Fail / Note  **Your notes:** ______________________
 
 ---
@@ -119,7 +127,11 @@ free to place, pay and cancel orders.
 
 ### UAT-C1. The order reaches the kitchen screen
 
-**Who:** kitchen staff, on the kitchen screen (Kitchen PIN).
+**Who:** kitchen staff, on the kitchen device.
+
+**Steps**
+1. Log in with the Kitchen PIN, then tap **Kitchen** (the chef's hat) in the top bar.
+2. Send a dine-in order from the till (UAT-B3) and watch the kitchen screen.
 
 **Expected**
 * Columns **NEW**, **PREPARING**, **READY**, **SERVED**. The order appears in NEW within a few
@@ -164,6 +176,8 @@ free to place, pay and cancel orders.
 * What is missing from the receipt compared with your current bills (NTN, PRA number, phone,
   FBR/PRA invoice number, QR code)?
 
+![Receipt preview, with the portion under the dish and the change in whole rupees](images/d1-receipt.png)
+
 **Result:** Pass / Fail / Note  **Your notes:** ______________________
 
 ### UAT-D2. Take a cash payment
@@ -182,6 +196,10 @@ free to place, pay and cancel orders.
 **Also check**
 * On other tables: pay by **Card** (5% bill), **Split** cash and card, and give a discount.
 
+![Cash payment recorded, with the change to give back](images/d2-paid.png)
+
+![Session totals: fully paid](images/d2-session-totals.png)
+
 **Result:** Pass / Fail / Note  **Your notes:** ______________________
 
 ---
@@ -198,6 +216,10 @@ free to place, pay and cancel orders.
 
 **Expected**
 * "Drawer opened, Float Rs. [amount]." A green dot appears on the Drawer icon.
+
+![Opening the drawer from the Dine-In screen](images/e1-open.png)
+
+![Drawer open: green dot on the Drawer icon](images/e1-opened.png)
 
 **Result:** Pass / Fail / Note  **Your notes:** ______________________
 
@@ -220,6 +242,12 @@ free to place, pay and cancel orders.
 
 **Also check**
 * Next morning, open the drawer again with the new float.
+
+![What should be in the drawer, including today's cash expense](images/e2-breakdown.png)
+
+![The difference shows before you close](images/e2-count.png)
+
+![Drawer closed](images/e2-closed.png)
 
 **Result:** Pass / Fail / Note  **Your notes:** ______________________
 
@@ -265,6 +293,8 @@ free to place, pay and cancel orders.
   never Complete.
 * **Void** asks for a manager and a reason.
 
+![The Orders screen follows the kitchen](images/g1-orders.png)
+
 **Result:** Pass / Fail / Note  **Your notes:** ______________________
 
 > Known today: older sample orders are numbered "DN-0001" and so on; new orders use the date
@@ -286,6 +316,8 @@ free to place, pay and cancel orders.
 * "Today" is Pakistan's day from midnight.
 * The left menu is grouped: Sales & Reports, Inventory, Purchasing, Settings.
 
+![The owner's dashboard, with the live feed](images/h1-dashboard.png)
+
 **Result:** Pass / Fail / Note  **Your notes:** ______________________
 
 > Known today: Live Operations shows an "Online" card; you have no online ordering, so it will
@@ -303,6 +335,12 @@ free to place, pay and cancel orders.
   your opening cash, UAT-J4).
 * One block per **drawer**: times, float, expected, counted, over/short, note and files.
 * **Inventory used** that day and **stock left at close**, with low stock flagged.
+
+![Z-Report: the day's figures](images/h2-zreport-top.png)
+
+![Z-Report: cash position and the drawer](images/h2-zreport.png)
+
+![Z-Report: stock left at close](images/h2-stock-left.png)
 
 **Result:** Pass / Fail / Note  **Your notes:** ______________________
 
@@ -326,12 +364,20 @@ free to place, pay and cancel orders.
 ### UAT-I1. Stock
 
 **Steps**
-1. **Inventory > Stock**. Search for "chicken". Note one ingredient's quantity, place and pay an
-   order containing a dish that uses it, then check again.
+1. **Inventory > Stock**. Search for "chicken" and tap one ingredient. Note its quantity, place and
+   pay an order containing a dish that uses it, then check again.
+2. On the same ingredient, **Adjust stock**: enter 1 with the reason "Count correction" and save.
+   Then enter -1 with the same reason and save.
+3. Change its **Reorder level** and save.
 
 **Expected**
-* Every ingredient with a photo, quantity, unit and reorder level; low stock flagged.
+* Every ingredient in a list with its photo and quantity; low stock in red with LOW.
+* Tapping one shows what is on hand, the reorder level, the cost per unit and what the stock is
+  worth, with Adjust stock, Reorder level and History on the same screen.
 * The quantity drops by exactly the recipe amount once the order is paid and served.
+* Each adjustment appears at the top of **History** with your name and the reason.
+
+![Stock: one ingredient open beside the list](images/i1-stock.png)
 
 **Result:** Pass / Fail / Note  **Your notes:** ______________________
 
@@ -361,6 +407,10 @@ free to place, pay and cancel orders.
 
 **Also check**
 * Are the quantities right for your kitchen? Tell us the real ones for your best sellers.
+
+![Recipe Builder: Chicken Karahi, made from bought ingredients](images/i3-recipe.png)
+
+![The Full portion adds its own ingredients and cost](images/i3-portion-recipe.png)
 
 **Result:** Pass / Fail / Note  **Your notes:** ______________________
 
@@ -404,10 +454,9 @@ free to place, pay and cancel orders.
 * A cash expense shows in the drawer's "Cash expenses today" and the Z-Report.
 * An invoice photo or PDF can be attached to an expense.
 
-**Result:** Pass / Fail / Note  **Your notes:** ______________________
+![Expenses: totals, filters and the list](images/j3-expenses.png)
 
-> Known today: the Expenses page says "VAT" in two places; it will say GST like the rest of the
-> system.
+**Result:** Pass / Fail / Note  **Your notes:** ______________________
 
 ### UAT-J4. Opening cash in hand
 
@@ -456,6 +505,27 @@ free to place, pay and cancel orders.
 * Buttons are easy to tap; dialogs such as the drawer scroll when they are taller than the screen.
 
 **Result:** Pass / Fail / Note  **Your notes:** ______________________
+
+---
+
+## Additional scope of work
+
+Available on request, to explore once the core system is in use.
+
+### Live website ordering
+Customers go to your own website to reserve a table for later dine-in, or to place a delivery or
+collection order. Orders land straight on your till and kitchen screen.
+
+### Foodpanda API
+Foodpanda orders arrive in your POS automatically, instead of being re-typed from a separate
+device.
+
+### Payment gateways
+Collect payment for prepaid orders through your preferred method.
+
+### WhatsApp API
+Get analysis and dashboards on your own WhatsApp, and send messages and surveys to your
+customers.
 
 ---
 
