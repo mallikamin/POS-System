@@ -133,9 +133,9 @@ function POSLayout() {
         now truncated (`min-w-0` on the flex child is what lets `truncate`
         work) and the right-hand controls refuse to shrink.
       */}
-      <header className="flex h-14 shrink-0 items-center justify-between gap-2 overflow-hidden border-b border-secondary-200 bg-white px-4 shadow-sm">
+      <header className="flex h-14 shrink-0 items-center justify-between gap-2 overflow-hidden border-b border-secondary-200 bg-white px-3 shadow-sm sm:px-4">
         {/* Left: Restaurant name + channel */}
-        <div className="flex min-w-0 items-center gap-3">
+        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
           {/* The comment above said "Restaurant name" while the code said "POS
               System" for every tenant. The name has always been in the config
               response as `restaurant_name`; nothing read it. A client sitting in
@@ -144,7 +144,12 @@ function POSLayout() {
               frame before config lands. */}
           <Link
             to="/"
-            className="flex min-w-0 items-center gap-2 text-pos-lg font-bold text-secondary-800 hover:text-primary-600 transition-colors"
+            // D-92: with a logo the link must not shrink on a phone. As a
+            // shrinkable flex item it collapsed and the logo overflowed under
+            // the buttons, showing as a thin sliver on Malik's phone.
+            className={`flex items-center gap-2 text-pos-lg font-bold text-secondary-800 hover:text-primary-600 transition-colors ${
+              brand ? "shrink-0 sm:min-w-0 sm:shrink" : "min-w-0"
+            }`}
           >
             {brand && (
               <img
@@ -161,7 +166,9 @@ function POSLayout() {
           </Link>
           {channel && (
             <span
-              className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold text-white ${channel.color}`}
+              // Phone: hidden. At 360px it truncated to "D..", and the screen
+              // itself (tables, token, phone lookup) already says which channel.
+              className={`hidden whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold text-white sm:inline-flex ${channel.color}`}
             >
               {channel.label}
             </span>
@@ -169,12 +176,12 @@ function POSLayout() {
         </div>
 
         {/* Right: Orders link, Clock, User, Logout */}
-        <div className="flex shrink-0 items-center gap-2 sm:gap-4">
+        <div className="flex shrink-0 items-center gap-0.5 sm:gap-4">
           <button
             type="button"
             onClick={() => setDrawerDialog(true)}
             aria-label={drawerOpen ? "Cash drawer (open)" : "Cash drawer (closed)"}
-            className="flex min-h-[44px] items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-secondary-600 hover:bg-secondary-100 hover:text-secondary-800 transition-colors"
+            className="flex min-h-[44px] items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium text-secondary-600 sm:px-3 hover:bg-secondary-100 hover:text-secondary-800 transition-colors"
           >
             <span className="relative">
               <Wallet className="h-4 w-4" />
@@ -190,7 +197,7 @@ function POSLayout() {
           </button>
           <Link
             to="/orders"
-            className="flex min-h-[44px] items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-secondary-600 hover:bg-secondary-100 hover:text-secondary-800 transition-colors"
+            className="flex min-h-[44px] items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium text-secondary-600 sm:px-3 hover:bg-secondary-100 hover:text-secondary-800 transition-colors"
           >
             <ClipboardList className="h-4 w-4" />
             Orders
@@ -199,14 +206,14 @@ function POSLayout() {
           <Link
             to="/kitchen"
             aria-label="Kitchen"
-            className="flex min-h-[44px] items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-secondary-600 hover:bg-secondary-100 hover:text-secondary-800 transition-colors"
+            className="flex min-h-[44px] items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium text-secondary-600 sm:px-3 hover:bg-secondary-100 hover:text-secondary-800 transition-colors"
           >
             <ChefHat className="h-4 w-4" />
             <span className="hidden sm:inline">Kitchen</span>
           </Link>
           <Link
             to="/admin"
-            className="flex min-h-[44px] items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-secondary-600 hover:bg-secondary-100 hover:text-secondary-800 transition-colors"
+            className="flex min-h-[44px] items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium text-secondary-600 sm:px-3 hover:bg-secondary-100 hover:text-secondary-800 transition-colors"
           >
             <Settings className="h-4 w-4" />
             Admin

@@ -247,8 +247,10 @@ function KitchenPage() {
         </div>
       )}
 
-      <main className="flex-1 overflow-hidden p-3">
-        <div className="grid h-full grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+      {/* Phone (D-93): the page scrolls and each column grows with its tickets;
+          fixed-height columns scrolling inside themselves showed half a ticket. */}
+      <main className="min-h-0 flex-1 overflow-y-auto p-3 md:overflow-hidden">
+        <div className="grid grid-cols-1 gap-3 md:h-full md:grid-cols-2 xl:grid-cols-4">
           {COLUMN_CONFIG.map((column) => (
             <section
               key={column.key}
@@ -263,7 +265,7 @@ function KitchenPage() {
                 </Badge>
               </div>
 
-              <div className="flex-1 space-y-2 overflow-y-auto p-2">
+              <div className="space-y-2 p-2 md:flex-1 md:overflow-y-auto">
                 {ticketsByColumn[column.key].map((ticket) => {
                   const minutes = elapsedMinutes(ticket.created_at, nowMs);
                   const recalled = recalledTicketIds.includes(ticket.id);
@@ -404,7 +406,7 @@ function KitchenPage() {
                 })}
 
                 {ticketsByColumn[column.key].length === 0 && (
-                  <div className="flex h-28 items-center justify-center rounded-lg border border-dashed border-secondary-300 bg-white">
+                  <div className="flex h-12 items-center md:h-28 justify-center rounded-lg border border-dashed border-secondary-300 bg-white">
                     <p className="text-sm text-secondary-400">No tickets</p>
                   </div>
                 )}

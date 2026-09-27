@@ -223,11 +223,18 @@ function CategoriesTab() {
         <div className="space-y-2">
           {categories.map((cat) => (
             <Card key={cat.id}>
-              <CardContent className="flex items-center gap-4 p-4">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary-50 text-lg">
+              {/* Phone (D-94): the badge and pencil squeezed the name out of the
+                  row entirely. There: tap the name to edit; the switch shows
+                  active/inactive. */}
+              <CardContent className="flex items-center gap-2 p-3 sm:gap-4 sm:p-4">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary-50 text-lg">
                   {cat.icon || "🍽️"}
                 </div>
-                <div className="flex-1 min-w-0">
+                <button
+                  type="button"
+                  onClick={() => openEdit(cat)}
+                  className="min-w-0 flex-1 text-left"
+                >
                   <p className="font-medium text-secondary-900 truncate">
                     {cat.name}
                   </p>
@@ -236,19 +243,20 @@ function CategoriesTab() {
                       {cat.description}
                     </p>
                   )}
-                </div>
-                <Badge variant={cat.is_active ? "success" : "secondary"}>
+                </button>
+                <Badge variant={cat.is_active ? "success" : "secondary"} className="hidden sm:inline-flex">
                   {cat.is_active ? "Active" : "Inactive"}
                 </Badge>
                 <Switch
                   checked={cat.is_active}
                   onCheckedChange={() => handleToggleActive(cat)}
+                  aria-label={cat.is_active ? `Deactivate ${cat.name}` : `Activate ${cat.name}`}
                 />
                 <Button
                   variant="ghost"
                   size="icon"
                   onClick={() => openEdit(cat)}
-                  className="min-h-touch min-w-touch"
+                  className="hidden min-h-touch min-w-touch sm:inline-flex"
                 >
                   <Pencil className="h-4 w-4" />
                 </Button>
@@ -256,7 +264,8 @@ function CategoriesTab() {
                   variant="ghost"
                   size="icon"
                   onClick={() => setDeleteTarget(cat)}
-                  className="min-h-touch min-w-touch text-danger-600 hover:text-danger-700"
+                  aria-label={`Delete ${cat.name}`}
+                  className="min-h-touch min-w-touch shrink-0 text-danger-600 hover:text-danger-700"
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
@@ -538,12 +547,12 @@ function ItemsTab() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 sm:gap-4">
+        <div className="flex min-w-0 items-center gap-3">
           <Select
             value={filterCategory}
             onChange={(e) => setFilterCategory(e.target.value)}
-            className="w-48"
+            className="w-40 sm:w-48"
           >
             <option value="">All Categories</option>
             {categories.map((cat) => (
@@ -572,7 +581,49 @@ function ItemsTab() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <>
+        {/* Phone (D-94): one compact row per dish, tap to edit. The card grid
+            was ~200px per dish, 60 dishes deep. */}
+        <Card className="md:hidden">
+          <CardContent className="divide-y p-0">
+            {items.map((item) => (
+              <div key={item.id} className="flex items-center gap-2 px-3 py-2">
+                <button
+                  type="button"
+                  onClick={() => openEdit(item)}
+                  className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                >
+                  <Thumb src={item.image_url} alt={item.name} size="lg" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-secondary-900">{item.name}</p>
+                    <p className="truncate text-xs text-secondary-400">
+                      {categoryName(item.category_id)}
+                      {item.modifier_groups && item.modifier_groups.length > 0
+                        ? ` · ${item.modifier_groups.length} modifier${item.modifier_groups.length !== 1 ? "s" : ""}`
+                        : ""}
+                    </p>
+                    <p className="text-sm font-semibold text-primary-600">{formatPKR(item.price)}</p>
+                  </div>
+                </button>
+                <Switch
+                  checked={item.is_available}
+                  onCheckedChange={() => handleToggleAvailable(item)}
+                  aria-label={item.is_available ? `Make ${item.name} unavailable` : `Make ${item.name} available`}
+                />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setDeleteTarget(item)}
+                  aria-label={`Delete ${item.name}`}
+                  className="min-h-touch min-w-touch shrink-0 text-danger-600 hover:text-danger-700"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+        <div className="hidden grid-cols-1 gap-3 sm:grid-cols-2 md:grid lg:grid-cols-3">
           {items.map((item) => (
             <Card key={item.id}>
               <CardContent className="space-y-3 p-4">
@@ -641,6 +692,7 @@ function ItemsTab() {
             </Card>
           ))}
         </div>
+        </>
       )}
 
       {/* Create / Edit Dialog */}
@@ -1075,9 +1127,11 @@ function ModifierGroupsTab() {
               <Card key={group.id}>
                 <CardContent className="p-0">
                   {/* Group Header */}
-                  <div className="flex items-center gap-4 p-4">
+                  {/* Phone (D-94): actions wrap to a second line so the group
+                      name keeps the first. */}
+                  <div className="flex flex-wrap items-center gap-2 p-3 sm:flex-nowrap sm:gap-4 sm:p-4">
                     <button
-                      className="min-h-touch min-w-touch flex items-center justify-center"
+                      className="min-h-touch min-w-touch flex shrink-0 items-center justify-center"
                       onClick={() =>
                         setExpandedGroupId(isExpanded ? null : group.id)
                       }
@@ -1101,7 +1155,7 @@ function ModifierGroupsTab() {
                         {group.min_selections}-{group.max_selections} selections
                       </p>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex w-full items-center justify-end gap-2 sm:w-auto">
                       <Badge
                         variant={group.is_active ? "success" : "secondary"}
                       >
@@ -1136,9 +1190,10 @@ function ModifierGroupsTab() {
                       {group.modifiers?.map((mod) => (
                         <div
                           key={mod.id}
-                          className="flex items-center gap-3 rounded-lg bg-white p-3"
+                          className="flex flex-wrap items-center gap-2 rounded-lg bg-white p-3 sm:gap-3"
                         >
-                          <span className="flex-1 text-sm text-secondary-700">
+                          {/* Phone: the name owns line 1, tags + actions share line 2 */}
+                          <span className="min-w-0 flex-1 basis-full text-sm text-secondary-700 sm:basis-auto">
                             {mod.name}
                           </span>
                           {mod.price_adjustment > 0 && (
@@ -1166,16 +1221,20 @@ function ModifierGroupsTab() {
                                 </Link>
                               )
                             ))}
+                          {/* Phone: only the exception ("Unavailable") is shown */}
                           <Badge
                             variant={
                               mod.is_available ? "success" : "destructive"
                             }
+                            className={mod.is_available ? "hidden sm:inline-flex" : ""}
                           >
                             {mod.is_available ? "Available" : "Unavailable"}
                           </Badge>
                           <Button
                             variant="ghost"
                             size="sm"
+                            aria-label={`Edit ${mod.name}`}
+                            className="ml-auto sm:ml-0"
                             onClick={() => openEditMod(mod)}
                           >
                             <Pencil className="h-3 w-3" />
@@ -1184,6 +1243,7 @@ function ModifierGroupsTab() {
                             variant="ghost"
                             size="sm"
                             className="text-danger-600"
+                            aria-label={`Delete ${mod.name}`}
                             onClick={() => handleDeleteMod(mod.id)}
                           >
                             <Trash2 className="h-3 w-3" />
