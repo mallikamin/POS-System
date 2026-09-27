@@ -1,8 +1,16 @@
-import { useEffect, useState } from "react";
-import { ClipboardList, Factory, Loader2, Package, RefreshCw, Search } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import {
+  ArrowLeft,
+  ClipboardList,
+  Factory,
+  Loader2,
+  Package,
+  RefreshCw,
+  Search,
+} from "lucide-react";
 import { OpeningStockDialog } from "@/components/admin/OpeningStockDialog";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
@@ -86,6 +94,17 @@ function errorMessage(err: unknown, fallback: string): string {
   return typeof detail === "string" && detail.length > 0 ? detail : fallback;
 }
 
+/** One stock row is one ingredient at one location. */
+function rowKey(row: LocationStockRow): string {
+  return `${row.location_id}:${row.ingredient_id}`;
+}
+
+/**
+ * Stock on Hand: a list, and one item's detail beside it (below `lg`, one or
+ * the other, with Back). Malik, 2026-09-27: the old table put Adjust, History
+ * and Reorder behind a sideways scroll on a phone. Same pattern as the Recipe
+ * Builder: tap an item, everything about it is on one screen.
+ */
 function StockPage() {
   const { toast } = useToast();
   const config = useConfigStore((s) => s.config);
@@ -105,18 +124,23 @@ function StockPage() {
   // Find one ingredient in a 70-row list without scrolling (Danny's D-49).
   const [search, setSearch] = useState("");
 
-  // Adjust dialog
-  const [adjustRow, setAdjustRow] = useState<LocationStockRow | null>(null);
+  // The item whose detail is open. Kept as the row itself, refreshed from each
+  // reload, so an item that leaves the list (no longer low under "Low stock
+  // only") stays open instead of snapping back to the list mid-task.
+  const [selected, setSelected] = useState<LocationStockRow | null>(null);
+  const detailRef = useRef<HTMLDivElement>(null);
+
+  // Adjust form
   const [adjustDelta, setAdjustDelta] = useState("");
   const [adjustReason, setAdjustReason] = useState("");
 
-  // Reorder dialog
-  const [reorderRow, setReorderRow] = useState<LocationStockRow | null>(null);
-  const [historyRow, setHistoryRow] = useState<LocationStockRow | null>(null);
-  const [history, setHistory] = useState<StockMovementRow[]>([]);
-  const [historyLoading, setHistoryLoading] = useState(false);
+  // Reorder form
   const [reorderPoint, setReorderPoint] = useState("");
   const [reorderQuantity, setReorderQuantity] = useState("");
+
+  // Movement history
+  const [history, setHistory] = useState<StockMovementRow[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   // Opening stock count (D-61)
   const [showOpening, setShowOpening] = useState(false);
@@ -134,6 +158,23 @@ function StockPage() {
   useEffect(() => {
     void loadStock();
   }, [locationFilter, lowOnly]);
+
+  const selectedKey = selected ? rowKey(selected) : null;
+
+  // A newly opened item: fresh forms, its own history, and on a phone the
+  // detail brought to the top of the screen.
+  useEffect(() => {
+    if (!selected) return;
+    setAdjustDelta("");
+    setAdjustReason("");
+    setReorderPoint(String(toNumber(selected.reorder_point)));
+    setReorderQuantity(String(toNumber(selected.reorder_quantity)));
+    void loadHistory(selected);
+    if (window.innerWidth < 1024) {
+      detailRef.current?.scrollIntoView({ block: "start" });
+    }
+    // Keyed on the item, not the row object, which each reload replaces.
+  }, [selectedKey]);
 
   async function loadReferenceData() {
     try {
@@ -162,6 +203,9 @@ function StockPage() {
         ...(lowOnly ? { low_only: true } : {}),
       });
       setRows(data);
+      setSelected((prev) =>
+        prev ? (data.find((r) => rowKey(r) === rowKey(prev)) ?? prev) : null,
+      );
     } catch (err) {
       toast({
         title: "Failed to load stock position",
@@ -174,22 +218,7 @@ function StockPage() {
     }
   }
 
-  function ingredientName(id: string): string {
-    return ingredients.find((i) => i.id === id)?.name ?? "ingredient";
-  }
-
-  function ingredientUnit(id: string): string {
-    return ingredients.find((i) => i.id === id)?.unit ?? "";
-  }
-
-  function openAdjust(row: LocationStockRow) {
-    setAdjustRow(row);
-    setAdjustDelta("");
-    setAdjustReason("");
-  }
-
-  async function openHistory(row: LocationStockRow) {
-    setHistoryRow(row);
+  async function loadHistory(row: LocationStockRow) {
     setHistory([]);
     setHistoryLoading(true);
     try {
@@ -212,10 +241,12 @@ function StockPage() {
     }
   }
 
-  function openReorder(row: LocationStockRow) {
-    setReorderRow(row);
-    setReorderPoint(String(toNumber(row.reorder_point)));
-    setReorderQuantity(String(toNumber(row.reorder_quantity)));
+  function ingredientName(id: string): string {
+    return ingredients.find((i) => i.id === id)?.name ?? "ingredient";
+  }
+
+  function ingredientUnit(id: string): string {
+    return ingredients.find((i) => i.id === id)?.unit ?? "";
   }
 
   function openProduction() {
@@ -232,6 +263,7 @@ function StockPage() {
 
   const adjustDeltaValue = Number(adjustDelta);
   const adjustValid =
+    adjustDelta.trim().length > 0 &&
     Number.isFinite(adjustDeltaValue) &&
     adjustDeltaValue !== 0 &&
     adjustReason.trim().length > 0;
@@ -239,6 +271,7 @@ function StockPage() {
   const reorderPointValue = Number(reorderPoint);
   const reorderQuantityValue = Number(reorderQuantity);
   const reorderValid =
+    reorderPoint.trim().length > 0 &&
     Number.isFinite(reorderPointValue) &&
     reorderPointValue >= 0 &&
     Number.isFinite(reorderQuantityValue) &&
@@ -252,24 +285,27 @@ function StockPage() {
     batchesValue > 0;
 
   async function handleAdjust() {
-    if (!adjustRow || !adjustValid) return;
+    if (!selected || !adjustValid) return;
+    const row = selected;
     setSaving(true);
     try {
       await adjustStock({
-        ingredient_id: adjustRow.ingredient_id,
-        location_id: adjustRow.location_id,
+        ingredient_id: row.ingredient_id,
+        location_id: row.location_id,
         quantity_delta: adjustDeltaValue,
         reason: adjustReason.trim(),
       });
       toast({
         title: "Stock adjusted",
         description: `${adjustDeltaValue > 0 ? "+" : ""}${adjustDeltaValue} ${
-          adjustRow.unit
-        } of ${adjustRow.ingredient_name} at ${adjustRow.location_name}.`,
+          row.unit
+        } of ${row.ingredient_name} at ${row.location_name}.`,
         variant: "success",
       });
-      setAdjustRow(null);
+      setAdjustDelta("");
+      setAdjustReason("");
       await loadStock();
+      await loadHistory(row);
     } catch (err) {
       toast({
         title: "Adjustment failed",
@@ -282,21 +318,21 @@ function StockPage() {
   }
 
   async function handleReorder() {
-    if (!reorderRow || !reorderValid) return;
+    if (!selected || !reorderValid) return;
+    const row = selected;
     setSaving(true);
     try {
       await setReorderLevel({
-        ingredient_id: reorderRow.ingredient_id,
-        location_id: reorderRow.location_id,
+        ingredient_id: row.ingredient_id,
+        location_id: row.location_id,
         reorder_point: reorderPointValue,
         reorder_quantity: reorderQuantityValue,
       });
       toast({
         title: "Reorder level saved",
-        description: `${reorderRow.ingredient_name} reorders at ${reorderPointValue} ${reorderRow.unit}.`,
+        description: `${row.ingredient_name} reorders at ${reorderPointValue} ${row.unit}.`,
         variant: "success",
       });
-      setReorderRow(null);
       await loadStock();
     } catch (err) {
       toast({
@@ -342,6 +378,8 @@ function StockPage() {
   const visibleRows = needle
     ? rows.filter((row) => row.ingredient_name.toLowerCase().includes(needle))
     : rows;
+  // The location only needs saying when the list can hold more than one.
+  const showLocation = !locationFilter && locations.length > 1;
 
   if (loading) {
     return (
@@ -352,25 +390,26 @@ function StockPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <Package className="h-7 w-7 text-primary-600" />
           <h1 className="text-pos-2xl font-bold text-secondary-900">
             Stock on Hand
           </h1>
         </div>
-        <div className="flex items-center gap-2">
+        <div className={cn("flex flex-wrap items-center gap-2", selected && "hidden lg:flex")}>
           <Button
             variant="outline"
             onClick={() => void loadStock()}
             disabled={refreshing}
+            aria-label="Refresh"
             className="gap-2 min-h-[48px]"
           >
             <RefreshCw
               className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`}
             />
-            Refresh
+            <span className="hidden sm:inline">Refresh</span>
           </Button>
           <Button
             variant="outline"
@@ -395,137 +434,358 @@ function StockPage() {
         </div>
       </div>
 
-      <Card>
-        <CardContent className="flex flex-wrap items-end gap-6 pt-4">
-          <div className="space-y-2 min-w-[240px] flex-1 sm:max-w-sm">
-            <Label htmlFor="stock-search">Search</Label>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        {/* LEFT: the list */}
+        <Card className={cn("lg:col-span-1", selected && "hidden lg:block")}>
+          <CardContent className="space-y-3 px-4 pt-4 sm:px-6">
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-secondary-400" />
               <Input
-                id="stock-search"
                 type="search"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Ingredient name"
-                className="pl-9"
+                placeholder="Search ingredients"
+                aria-label="Search ingredients"
+                className="min-h-[48px] pl-9"
               />
             </div>
-          </div>
-          <div className="space-y-2 min-w-[240px]">
-            <Label>Location</Label>
-            <Select
-              value={locationFilter}
-              onChange={(e) => setLocationFilter(e.target.value)}
-            >
-              <option value="">All locations</option>
-              {locations.map((loc) => (
-                <option key={loc.id} value={loc.id}>
-                  {loc.name}
-                </option>
-              ))}
-            </Select>
-          </div>
-          <div className="flex items-center gap-2 pb-2">
-            <Switch checked={lowOnly} onCheckedChange={setLowOnly} />
-            <span className="text-sm text-secondary-600">Low stock only</span>
-          </div>
-        </CardContent>
-      </Card>
+            {locations.length > 1 && (
+              <Select
+                value={locationFilter}
+                onChange={(e) => setLocationFilter(e.target.value)}
+                aria-label="Location"
+                className="min-h-[48px]"
+              >
+                <option value="">All locations</option>
+                {locations.map((loc) => (
+                  <option key={loc.id} value={loc.id}>
+                    {loc.name}
+                  </option>
+                ))}
+              </Select>
+            )}
+            <label className="flex items-center gap-2">
+              <Switch checked={lowOnly} onCheckedChange={setLowOnly} />
+              <span className="text-sm text-secondary-600">Low stock only</span>
+            </label>
 
-      {visibleRows.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center text-secondary-400">
-            {needle && rows.length > 0
-              ? `No ingredient matches "${search.trim()}".`
-              : lowOnly
-              ? "Nothing is below its reorder point right now."
-              : "No stock records for this selection."}
-          </CardContent>
-        </Card>
-      ) : (
-        <Card>
-          <CardContent className="p-0 overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-secondary-200 text-left text-secondary-500">
-                  <th className="px-4 py-3 font-medium">Location</th>
-                  <th className="px-4 py-3 font-medium">Ingredient</th>
-                  <th className="px-4 py-3 font-medium text-right">Quantity</th>
-                  <th className="px-4 py-3 font-medium text-right">
-                    Reorder point
-                  </th>
-                  <th className="px-4 py-3 font-medium text-right">
-                    Cost per unit
-                  </th>
-                  <th className="px-4 py-3 font-medium text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {visibleRows.map((row) => (
-                  <tr
-                    key={`${row.location_id}:${row.ingredient_id}`}
-                    className="border-b border-secondary-100 last:border-0"
-                  >
-                    <td className="px-4 py-3 text-secondary-700">
-                      {row.location_name}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <Thumb
-                          src={row.ingredient_image_url}
-                          alt={row.ingredient_name}
-                          size="lg"
-                        />
-                        <span className="font-medium text-secondary-900">
+            {visibleRows.length === 0 ? (
+              <div className="py-8 text-center text-pos-sm text-secondary-500">
+                {needle && rows.length > 0
+                  ? `No ingredient matches "${search.trim()}".`
+                  : lowOnly
+                    ? "Nothing is below its reorder point right now."
+                    : "No stock records for this selection."}
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {visibleRows.map((row) => {
+                  const isSelected = selectedKey === rowKey(row);
+                  return (
+                    <button
+                      key={rowKey(row)}
+                      type="button"
+                      onClick={() => setSelected(row)}
+                      className={cn(
+                        "flex w-full items-center gap-3 rounded-lg border px-3 py-2 text-left transition-colors",
+                        isSelected
+                          ? "border-primary-500 bg-primary-50"
+                          : "border-secondary-200 hover:bg-secondary-50",
+                      )}
+                    >
+                      <Thumb src={row.ingredient_image_url} alt={row.ingredient_name} />
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-pos-sm font-medium text-secondary-900">
                           {row.ingredient_name}
-                        </span>
-                        {row.is_produced && (
-                          <Badge variant="secondary">Produced</Badge>
+                        </div>
+                        {showLocation && (
+                          <div className="truncate text-pos-xs text-secondary-500">
+                            {row.location_name}
+                          </div>
                         )}
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <div
+                          className={cn(
+                            "text-pos-sm tabular-nums font-medium",
+                            row.is_low ? "text-danger-600" : "text-secondary-900",
+                          )}
+                        >
+                          {formatQty(row.quantity)} {row.unit}
+                        </div>
                         {row.is_low && <Badge variant="warning">LOW</Badge>}
                       </div>
-                    </td>
-                    <td className="px-4 py-3 text-right tabular-nums text-secondary-900">
-                      {formatQty(row.quantity)} {row.unit}
-                    </td>
-                    <td className="px-4 py-3 text-right tabular-nums text-secondary-600">
-                      {formatQty(row.reorder_point)} {row.unit}
-                    </td>
-                    <td className="px-4 py-3 text-right tabular-nums text-secondary-600">
-                      {formatMoney(toNumber(row.cost_per_unit), currency)}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => openAdjust(row)}
-                        >
-                          Adjust Stock
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => openHistory(row)}
-                        >
-                          History
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => openReorder(row)}
-                        >
-                          Set Reorder Level
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </CardContent>
         </Card>
-      )}
+
+        {/* RIGHT: one item */}
+        <Card
+          ref={detailRef}
+          // Desktop: pinned beside a 70-row list, scrolling on its own, so an
+          // item picked far down the list is not opened off-screen at the top.
+          className={cn(
+            "scroll-mt-4 lg:sticky lg:top-4 lg:col-span-2 lg:max-h-[calc(100vh-6rem)] lg:self-start lg:overflow-y-auto",
+            !selected && "hidden lg:block",
+          )}
+        >
+          <CardHeader className="px-4 pb-3 sm:px-6">
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSelected(null)}
+                className="min-h-[44px] gap-1 lg:hidden"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Back
+              </Button>
+              <CardTitle className="text-pos-lg">Stock item</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="px-4 sm:px-6">
+            {!selected ? (
+              <div className="py-12 text-center text-secondary-500">
+                Select an ingredient to see its stock, adjust it, set its reorder
+                level, or read its history.
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {/* Identity */}
+                <div className="flex items-center gap-3 rounded-lg border border-secondary-200 bg-secondary-50 p-3">
+                  <Thumb
+                    src={selected.ingredient_image_url}
+                    alt={selected.ingredient_name}
+                    size="lg"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-pos-base font-semibold text-secondary-900">
+                      {selected.ingredient_name}
+                    </div>
+                    <div className="text-pos-sm text-secondary-600">
+                      {selected.location_name}
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 flex-col items-end gap-1">
+                    {selected.is_produced && <Badge variant="secondary">Produced</Badge>}
+                    {selected.is_low && <Badge variant="warning">LOW</Badge>}
+                  </div>
+                </div>
+
+                {/* The three numbers */}
+                <div className="grid grid-cols-3 gap-2 sm:gap-3">
+                  <div className="rounded-lg border border-secondary-200 p-3">
+                    <div className="text-pos-xs text-secondary-500">On hand</div>
+                    <div
+                      className={cn(
+                        "text-pos-base font-semibold tabular-nums",
+                        selected.is_low ? "text-danger-600" : "text-secondary-900",
+                      )}
+                    >
+                      {formatQty(selected.quantity)} {selected.unit}
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-secondary-200 p-3">
+                    <div className="text-pos-xs text-secondary-500">Reorder at</div>
+                    <div className="text-pos-base font-semibold tabular-nums text-secondary-900">
+                      {formatQty(selected.reorder_point)} {selected.unit}
+                    </div>
+                    {toNumber(selected.reorder_quantity) > 0 && (
+                      <div className="text-pos-xs text-secondary-500">
+                        buy {formatQty(selected.reorder_quantity)} {selected.unit}
+                      </div>
+                    )}
+                  </div>
+                  <div className="rounded-lg border border-secondary-200 p-3">
+                    <div className="text-pos-xs text-secondary-500">Cost / {selected.unit}</div>
+                    <div className="text-pos-base font-semibold tabular-nums text-secondary-900">
+                      {formatMoney(toNumber(selected.cost_per_unit), currency)}
+                    </div>
+                    <div className="text-pos-xs text-secondary-500">
+                      worth{" "}
+                      {formatMoney(
+                        toNumber(selected.quantity) * toNumber(selected.cost_per_unit),
+                        currency,
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Adjust stock */}
+                <section className="space-y-3">
+                  <h2 className="text-pos-base font-semibold text-secondary-900">
+                    Adjust stock
+                  </h2>
+                  <div className="space-y-2">
+                    <Label htmlFor="adjust-delta">
+                      Quantity change ({selected.unit})
+                    </Label>
+                    <Input
+                      id="adjust-delta"
+                      type="number"
+                      step="any"
+                      inputMode="decimal"
+                      value={adjustDelta}
+                      onChange={(e) => setAdjustDelta(e.target.value)}
+                      placeholder="e.g. 5 to add, -5 to remove"
+                      className="min-h-[48px]"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="adjust-reason">Reason (required)</Label>
+                    <Textarea
+                      id="adjust-reason"
+                      rows={2}
+                      value={adjustReason}
+                      onChange={(e) => setAdjustReason(e.target.value)}
+                      placeholder="e.g. Spoilage, stock count correction, supplier shortfall"
+                    />
+                    <p className="text-xs text-secondary-500">
+                      Recorded on the history against your name, so it stays
+                      auditable.
+                    </p>
+                  </div>
+                  <Button
+                    onClick={() => void handleAdjust()}
+                    disabled={saving || !adjustValid}
+                    className="min-h-[48px] w-full sm:w-auto"
+                  >
+                    {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save adjustment"}
+                  </Button>
+                </section>
+
+                {/* Reorder level */}
+                <section className="space-y-3 border-t border-secondary-200 pt-6">
+                  <h2 className="text-pos-base font-semibold text-secondary-900">
+                    Reorder level
+                  </h2>
+                  <p className="text-xs text-secondary-500">
+                    Flagged as low once stock falls below the reorder point.
+                  </p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="reorder-point">Reorder point ({selected.unit})</Label>
+                      <Input
+                        id="reorder-point"
+                        type="number"
+                        min={0}
+                        step="any"
+                        inputMode="decimal"
+                        value={reorderPoint}
+                        onChange={(e) => setReorderPoint(e.target.value)}
+                        className="min-h-[48px]"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="reorder-qty">Buy quantity ({selected.unit})</Label>
+                      <Input
+                        id="reorder-qty"
+                        type="number"
+                        min={0}
+                        step="any"
+                        inputMode="decimal"
+                        value={reorderQuantity}
+                        onChange={(e) => setReorderQuantity(e.target.value)}
+                        className="min-h-[48px]"
+                      />
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    onClick={() => void handleReorder()}
+                    disabled={saving || !reorderValid}
+                    className="min-h-[48px] w-full sm:w-auto"
+                  >
+                    {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save reorder level"}
+                  </Button>
+                </section>
+
+                {/* Movement history
+                    Why the stock figure is what it is. Every movement this system
+                    has ever written for this ingredient at this site, newest
+                    first, with who did it and the reason they gave.
+
+                    🔴 This ledger has been written since the module shipped and
+                    had no reader at all until 2026-08-27: no endpoint, no screen.
+                    The mandatory reason on a manual adjustment went into the
+                    database and could never be seen again, which made "stock
+                    never changes without an explanation" a claim a customer had
+                    to take on trust. */}
+                <section className="space-y-3 border-t border-secondary-200 pt-6">
+                  <h2 className="text-pos-base font-semibold text-secondary-900">
+                    History
+                  </h2>
+                  {historyLoading ? (
+                    <div className="flex justify-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin text-secondary-400" />
+                    </div>
+                  ) : history.length === 0 ? (
+                    <p className="py-6 text-center text-pos-sm text-secondary-500">
+                      No movements recorded yet for this item at this location.
+                    </p>
+                  ) : (
+                    <div className="divide-y divide-secondary-100 rounded-lg border border-secondary-200">
+                      {history.map((m) => {
+                        const delta = toNumber(m.quantity);
+                        return (
+                          <div key={m.id} className="space-y-1 px-3 py-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <Badge variant="secondary">
+                                {m.transaction_type.replace(/_/g, " ")}
+                              </Badge>
+                              <span className="text-pos-xs text-secondary-500">
+                                {formatDateTime(m.transaction_date)}
+                              </span>
+                            </div>
+                            {/* Signed and colour-coded: the single most-read
+                                number here is "did this go up or down". */}
+                            <div className="flex flex-wrap items-baseline gap-x-3 text-pos-sm tabular-nums">
+                              <span
+                                className={cn(
+                                  "font-medium",
+                                  delta < 0 ? "text-danger-600" : "text-success-600",
+                                )}
+                              >
+                                {delta > 0 ? "+" : ""}
+                                {formatQty(m.quantity)} {m.unit}
+                              </span>
+                              <span className="text-secondary-700">
+                                balance {formatQty(m.balance_after)} {m.unit}
+                              </span>
+                              {/* F43: what this movement was valued at, rather
+                                  than what the ingredient costs today. */}
+                              {toNumber(m.total_cost) > 0 && (
+                                <span className="text-secondary-500">
+                                  {formatMoney(toNumber(m.total_cost), currency)}
+                                  {toNumber(m.unit_cost) > 0 &&
+                                    ` @ ${formatMoney(toNumber(m.unit_cost), currency)}`}
+                                </span>
+                              )}
+                            </div>
+                            {/* A null performer is the system, not a gap in the
+                                record: consumption from an online order has no
+                                human behind it. */}
+                            <div className="text-pos-xs text-secondary-500">
+                              {m.performed_by_name ?? <span className="italic">System</span>}
+                              {(m.notes ?? m.reference_number) && (
+                                <> · {m.notes ?? m.reference_number}</>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </section>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
       <OpeningStockDialog
         open={showOpening}
@@ -539,260 +799,6 @@ function StockPage() {
         }
         onSaved={() => void loadStock()}
       />
-
-      {/* Adjust Stock Dialog */}
-      <Dialog
-        open={adjustRow !== null}
-        onOpenChange={(open) => {
-          if (!open) setAdjustRow(null);
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Adjust Stock</DialogTitle>
-            <DialogDescription>
-              {adjustRow
-                ? `${adjustRow.ingredient_name} at ${adjustRow.location_name}. On hand: ${formatQty(adjustRow.quantity)} ${adjustRow.unit}.`
-                : ""}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Quantity change ({adjustRow?.unit ?? "unit"})</Label>
-              <Input
-                type="number"
-                step="any"
-                value={adjustDelta}
-                onChange={(e) => setAdjustDelta(e.target.value)}
-                placeholder="e.g. 5 to add, -5 to remove"
-              />
-              <p className="text-xs text-secondary-500">
-                Positive adds stock, negative removes it.
-              </p>
-            </div>
-            <div className="space-y-2">
-              <Label>Reason (required)</Label>
-              <Textarea
-                value={adjustReason}
-                onChange={(e) => setAdjustReason(e.target.value)}
-                placeholder="e.g. Spoilage, stock count correction, supplier shortfall"
-              />
-              <p className="text-xs text-secondary-500">
-                This reason is recorded on the stock movement log against your
-                user, so it stays auditable.
-              </p>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setAdjustRow(null)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={() => void handleAdjust()}
-              disabled={saving || !adjustValid}
-            >
-              {saving ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                "Save Adjustment"
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Movement History Dialog
-          Why the stock figure is what it is. Every movement this system has ever
-          written for this ingredient at this site, newest first, with who did it
-          and the reason they gave.
-
-          🔴 This ledger has been written since the module shipped and had no
-          reader at all until 2026-08-27: no endpoint, no screen. The mandatory
-          reason on a manual adjustment went into the database and could never be
-          seen again, which made "stock never changes without an explanation" a
-          claim a customer had to take on trust. */}
-      <Dialog
-        open={historyRow !== null}
-        onOpenChange={(open) => {
-          if (!open) {
-            setHistoryRow(null);
-            setHistory([]);
-          }
-        }}
-      >
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>Movement History</DialogTitle>
-            <DialogDescription>
-              {historyRow
-                ? `Every change to ${historyRow.ingredient_name} at ${historyRow.location_name}, newest first.`
-                : ""}
-            </DialogDescription>
-          </DialogHeader>
-
-          {historyLoading ? (
-            <div className="flex justify-center py-10">
-              <Loader2 className="h-6 w-6 animate-spin text-secondary-400" />
-            </div>
-          ) : history.length === 0 ? (
-            <p className="py-8 text-center text-pos-sm text-secondary-500">
-              No movements recorded yet for this item at this location.
-            </p>
-          ) : (
-            <div className="max-h-[60vh] overflow-y-auto">
-              <div className="overflow-x-auto">
-                <table className="w-full text-pos-sm">
-                  <thead className="sticky top-0 bg-white">
-                    <tr className="border-b border-secondary-200 text-left text-secondary-500">
-                      <th className="px-3 py-2 font-medium">When</th>
-                      <th className="px-3 py-2 font-medium">Type</th>
-                      <th className="px-3 py-2 text-right font-medium">Change</th>
-                      <th className="px-3 py-2 text-right font-medium">Balance</th>
-                      {/* F43: the price paid on each movement was stored and
-                          returned by the API all along, and shown nowhere. */}
-                      <th className="px-3 py-2 text-right font-medium">
-                        Unit price
-                      </th>
-                      <th className="px-3 py-2 text-right font-medium">Value</th>
-                      <th className="px-3 py-2 font-medium">Who</th>
-                      <th className="px-3 py-2 font-medium">Why</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {history.map((m) => {
-                      const delta = toNumber(m.quantity);
-                      return (
-                        <tr
-                          key={m.id}
-                          className="border-b border-secondary-100 align-top"
-                        >
-                          <td className="whitespace-nowrap px-3 py-2 text-secondary-600">
-                            {formatDateTime(m.transaction_date)}
-                          </td>
-                          <td className="px-3 py-2">
-                            <Badge variant="secondary">
-                              {m.transaction_type.replace(/_/g, " ")}
-                            </Badge>
-                          </td>
-                          {/* Signed and colour-coded: the single most-read number
-                              here is "did this go up or down". */}
-                          <td
-                            className={cn(
-                              "whitespace-nowrap px-3 py-2 text-right tabular-nums font-medium",
-                              delta < 0 ? "text-danger-600" : "text-success-600",
-                            )}
-                          >
-                            {delta > 0 ? "+" : ""}
-                            {formatQty(m.quantity)} {m.unit}
-                          </td>
-                          <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-secondary-700">
-                            {formatQty(m.balance_after)} {m.unit}
-                          </td>
-                          {/* What this movement was actually valued at, rather
-                              than what the ingredient costs today. A purchase
-                              made at 3.50 stays 3.50 here after a later delivery
-                              at 3.75. */}
-                          <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-secondary-700">
-                            {toNumber(m.unit_cost) > 0 ? (
-                              formatMoney(toNumber(m.unit_cost), currency)
-                            ) : (
-                              <span className="text-secondary-300">--</span>
-                            )}
-                          </td>
-                          <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-secondary-700">
-                            {toNumber(m.total_cost) > 0 ? (
-                              formatMoney(toNumber(m.total_cost), currency)
-                            ) : (
-                              <span className="text-secondary-300">--</span>
-                            )}
-                          </td>
-                          {/* A null performer is the system, not a gap in the
-                              record: consumption from an online order has no
-                              human behind it. Say so rather than showing a dash
-                              that reads as missing data. */}
-                          <td className="px-3 py-2 text-secondary-600">
-                            {m.performed_by_name ?? (
-                              <span className="italic text-secondary-400">
-                                System
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-3 py-2 text-secondary-600">
-                            {m.notes ?? m.reference_number ?? (
-                              <span className="text-secondary-300">--</span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setHistoryRow(null)}>
-              Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Reorder Level Dialog */}
-      <Dialog
-        open={reorderRow !== null}
-        onOpenChange={(open) => {
-          if (!open) setReorderRow(null);
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Set Reorder Level</DialogTitle>
-            <DialogDescription>
-              {reorderRow
-                ? `${reorderRow.ingredient_name} at ${reorderRow.location_name}. Flagged as low once stock falls below the reorder point.`
-                : ""}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Reorder point ({reorderRow?.unit ?? "unit"})</Label>
-              <Input
-                type="number"
-                min={0}
-                step="any"
-                value={reorderPoint}
-                onChange={(e) => setReorderPoint(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Reorder quantity ({reorderRow?.unit ?? "unit"})</Label>
-              <Input
-                type="number"
-                min={0}
-                step="any"
-                value={reorderQuantity}
-                onChange={(e) => setReorderQuantity(e.target.value)}
-              />
-              <p className="text-xs text-secondary-500">
-                How much to buy or produce when the reorder point is hit.
-              </p>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setReorderRow(null)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={() => void handleReorder()}
-              disabled={saving || !reorderValid}
-            >
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Run Production Dialog */}
       <Dialog open={showProduction} onOpenChange={setShowProduction}>
