@@ -257,6 +257,16 @@
 }
 
 @layer utilities {
+  /* App shell height (Danny's D-85). `100vh` on a phone is the height with the
+     address bar HIDDEN, so while the bar shows, the shell is taller than the
+     screen and the page itself scrolls: the top bar slides away and takes two
+     scroll-ups to get back. `100dvh` tracks the visible viewport; `100vh`
+     stays as the fallback for browsers without it. */
+  .h-app {
+    height: 100vh;
+    height: 100dvh;
+  }
+
   /* Hide scrollbar but keep functionality */
   .scrollbar-hidden {
     -ms-overflow-style: none;

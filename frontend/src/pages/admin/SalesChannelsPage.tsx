@@ -178,11 +178,12 @@ function SalesChannelsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      {/* Phone (D-89): header wraps, the button gets its own row */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <Store className="h-7 w-7 text-primary-600" />
+          <Store className="h-7 w-7 shrink-0 text-primary-600" />
           <div>
-            <h1 className="text-pos-2xl font-bold text-secondary-900">
+            <h1 className="text-pos-xl font-bold text-secondary-900 sm:text-pos-2xl">
               Sales Channels
             </h1>
             <p className="text-sm text-secondary-500">
@@ -191,7 +192,7 @@ function SalesChannelsPage() {
             </p>
           </div>
         </div>
-        <Button onClick={openCreate} className="gap-2 min-h-[48px]">
+        <Button onClick={openCreate} className="w-full gap-2 min-h-[48px] sm:w-auto">
           <Plus className="h-4 w-4" />
           Add Channel
         </Button>
@@ -217,7 +218,41 @@ function SalesChannelsPage() {
           </CardContent>
         </Card>
       ) : (
-        <Card>
+        <>
+        {/* Phone (D-89): one row per channel, tap to edit. The table hid
+            status, POS tile and Edit past a sideways scroll. */}
+        <Card className="md:hidden">
+          <CardContent className="divide-y p-0">
+            {channels.map((channel) => (
+              <button
+                key={channel.id}
+                type="button"
+                onClick={() => openEdit(channel)}
+                className="flex w-full items-center gap-3 px-4 py-3 text-left"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="font-medium text-secondary-900">{channel.name}</div>
+                  <div className="text-xs text-secondary-500">
+                    {channel.is_active && channel.pos_visible ? "Own tile on the POS" : "Not on the POS"}
+                  </div>
+                </div>
+                <div className="shrink-0 text-right text-sm tabular-nums">
+                  <div className="text-secondary-900">
+                    {formatBpsAsPercent(channel.commission_bps)}
+                  </div>
+                  <div className="text-xs text-secondary-500">
+                    + {formatMoney(channel.fixed_fee_minor, currency)} fee
+                  </div>
+                </div>
+                <Badge variant={channel.is_active ? "success" : "secondary"} className="shrink-0">
+                  {channel.is_active ? "Active" : "Inactive"}
+                </Badge>
+                <Pencil className="h-4 w-4 shrink-0 text-secondary-400" />
+              </button>
+            ))}
+          </CardContent>
+        </Card>
+        <Card className="hidden md:block">
           <CardContent className="p-0 overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -276,6 +311,7 @@ function SalesChannelsPage() {
             </table>
           </CardContent>
         </Card>
+        </>
       )}
 
       <Dialog open={showDialog} onOpenChange={setShowDialog}>

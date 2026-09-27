@@ -480,21 +480,23 @@ export default function IngredientManagementPage() {
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-wrap items-center gap-4">
+      {/* Filters. Phone (D-88): search on its own row, the three filters
+          share the next one instead of taking a row each. */}
+      <div className="grid grid-cols-3 gap-2 md:flex md:flex-wrap md:items-center md:gap-4">
         {/* Search */}
         <Input
           placeholder="Search by name..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="min-h-[48px] max-w-md"
+          className="col-span-3 min-h-[48px] md:max-w-md"
         />
 
         {/* Category filter */}
         <select
           value={categoryFilter}
           onChange={(e) => setCategoryFilter(e.target.value)}
-          className="min-h-[48px] rounded-md border border-secondary-300 px-3 text-pos-sm"
+          aria-label="Filter by category"
+          className="min-h-[48px] min-w-0 rounded-md border border-secondary-300 px-2 text-pos-xs md:px-3 md:text-pos-sm"
         >
           <option value="">All Categories</option>
           {categories.map((cat) => (
@@ -508,10 +510,10 @@ export default function IngredientManagementPage() {
         <select
           value={sourceFilter}
           onChange={(e) => setSourceFilter(e.target.value as typeof sourceFilter)}
-          className="min-h-[48px] rounded-md border border-secondary-300 px-3 text-pos-sm"
+          className="min-h-[48px] min-w-0 rounded-md border border-secondary-300 px-2 text-pos-xs md:px-3 md:text-pos-sm"
           aria-label="Filter by source"
         >
-          <option value="all">Bought and made in-house</option>
+          <option value="all">All sources</option>
           <option value="bought">Bought only</option>
           <option value="produced">Made in-house only</option>
         </select>
@@ -523,9 +525,9 @@ export default function IngredientManagementPage() {
             const val = e.target.value;
             setActiveFilter(val === "all" ? "all" : val === "true");
           }}
-          className="min-h-[48px] rounded-md border border-secondary-300 px-3 text-pos-sm"
+          className="min-h-[48px] min-w-0 rounded-md border border-secondary-300 px-2 text-pos-xs md:px-3 md:text-pos-sm"
         >
-          <option value="all">All Status</option>
+          <option value="all">All status</option>
           <option value="true">Active Only</option>
           <option value="false">Inactive Only</option>
         </select>
@@ -533,7 +535,7 @@ export default function IngredientManagementPage() {
 
       {/* Table */}
       <Card>
-        <CardContent className="pt-6">
+        <CardContent className="px-3 pt-2 md:px-6 md:pt-6">
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
@@ -543,7 +545,74 @@ export default function IngredientManagementPage() {
               No ingredients found.
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+            {/* Phone (D-88): one row per ingredient, tap to edit. The table
+                showed three of its nine columns and hid the rest sideways. */}
+            <div className="divide-y md:hidden">
+              {ingredients.map((ingredient) => {
+                const isLowStock = ingredient.current_stock < ingredient.reorder_point;
+                return (
+                  <div key={ingredient.id} className="flex items-center gap-3 py-2">
+                    <button
+                      type="button"
+                      onClick={() => openEdit(ingredient)}
+                      className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                    >
+                      <Thumb src={ingredient.image_url} alt={ingredient.name} size="lg" />
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-pos-sm font-medium text-secondary-900">
+                          {ingredient.name}
+                        </div>
+                        <div className="truncate text-pos-xs text-secondary-500">
+                          {ingredient.category} · {formatPKR(ingredient.cost_per_unit)} / {ingredient.unit}
+                        </div>
+                        <div className="mt-0.5 flex flex-wrap gap-1">
+                          {ingredient.is_produced ? (
+                            <Badge variant="secondary" className="gap-1 text-[10px]">
+                              <ChefHat className="h-3 w-3" />
+                              Made
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="gap-1 text-[10px]">
+                              <ShoppingBag className="h-3 w-3" />
+                              Bought
+                            </Badge>
+                          )}
+                          {isLowStock && (
+                            <Badge variant="destructive" className="text-[10px]">
+                              Low
+                            </Badge>
+                          )}
+                          {!ingredient.is_active && (
+                            <Badge variant="secondary" className="text-[10px]">
+                              Inactive
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <div
+                          className={`text-pos-sm tabular-nums ${isLowStock ? "font-semibold text-red-600" : "text-secondary-900"}`}
+                        >
+                          {Number(ingredient.current_stock.toFixed(2))} {ingredient.unit}
+                        </div>
+                        <div className="text-[10px] text-secondary-400">in stock</div>
+                      </div>
+                    </button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      aria-label={`Delete ${ingredient.name}`}
+                      className="min-h-[44px] shrink-0 px-2 text-danger-600 hover:text-danger-700"
+                      onClick={() => setDeleteTarget(ingredient)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="hidden overflow-x-auto md:block">
               <table className="w-full text-left text-pos-sm">
                 <thead>
                   <tr className="border-b text-secondary-500">
@@ -698,6 +767,7 @@ export default function IngredientManagementPage() {
                 </tbody>
               </table>
             </div>
+            </>
           )}
         </CardContent>
       </Card>

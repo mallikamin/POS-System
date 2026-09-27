@@ -392,7 +392,88 @@ function SuppliersPage() {
           </CardContent>
         </Card>
       ) : (
-        <Card>
+        <>
+        {/* Phone (D-87): one card per supplier. The table's actions sat past a
+            sideways scroll as bare icons; here they are labelled buttons. */}
+        <div className="space-y-3 md:hidden">
+          {suppliers.map((supplier) => (
+            <Card key={supplier.id}>
+              <CardContent className="space-y-3 p-4">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="font-medium text-secondary-900">
+                      {supplier.name}
+                      {!supplier.is_active && (
+                        <Badge variant="secondary" className="ml-2">
+                          Inactive
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="text-xs text-secondary-500">
+                      {supplier.code}
+                      {supplier.contact_name ? ` · ${supplier.contact_name}` : ""}
+                      {supplier.email ? ` · ${supplier.email}` : ""}
+                    </div>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <div className="font-medium tabular-nums">
+                      {formatMoney(minor(supplier.total_spend_minor), currency)}
+                    </div>
+                    <div className="text-xs text-secondary-500">
+                      {supplier.order_count} {supplier.order_count === 1 ? "order" : "orders"}
+                    </div>
+                  </div>
+                </div>
+                <div className="text-xs text-secondary-600">
+                  Terms: {supplier.payment_terms || "-"} · Lead time:{" "}
+                  {supplier.lead_time_days
+                    ? `${supplier.lead_time_days} ${supplier.lead_time_days === 1 ? "day" : "days"}`
+                    : "-"}
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="min-h-[44px] gap-1"
+                    onClick={() => void openCatalogue(supplier)}
+                  >
+                    <Package className="h-4 w-4" />
+                    Items
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="min-h-[44px] gap-1"
+                    onClick={() => void openHistory(supplier)}
+                  >
+                    <History className="h-4 w-4" />
+                    History
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="min-h-[44px] gap-1"
+                    onClick={() => openEdit(supplier)}
+                  >
+                    <Pencil className="h-4 w-4" />
+                    Edit
+                  </Button>
+                </div>
+                {supplier.is_active && (
+                  <button
+                    type="button"
+                    disabled={saving}
+                    onClick={() => void deactivate(supplier)}
+                    className="text-xs text-danger-600 underline-offset-4 hover:underline disabled:opacity-50"
+                  >
+                    Deactivate supplier
+                  </button>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        <Card className="hidden md:block">
           <CardContent className="overflow-x-auto p-0">
             <table className="w-full text-sm">
               <thead className="border-b border-secondary-200 bg-secondary-50 text-left text-xs uppercase tracking-wide text-secondary-500">
@@ -488,6 +569,7 @@ function SuppliersPage() {
             </table>
           </CardContent>
         </Card>
+        </>
       )}
 
       {/* ---------------------------------------------------- supplier form */}
@@ -680,7 +762,7 @@ function SuppliersPage() {
                             so it is not shown until his paperwork proves his
                             suppliers actually quote codes. */}
                         <th className="px-3 py-2 text-right">Last price</th>
-                        <th className="px-3 py-2 text-right">Pack</th>
+                        <th className="hidden px-3 py-2 text-right sm:table-cell">Pack</th>
                         <th className="px-3 py-2" />
                       </tr>
                     </thead>
@@ -715,11 +797,17 @@ function SuppliersPage() {
                             <span className="ml-1 text-xs text-secondary-500">
                               per {item.unit}
                             </span>
+                            {/* Phone: pack under the name, not its own column (D-87) */}
+                            {Number(item.pack_size) > 0 && (
+                              <div className="text-xs text-secondary-500 sm:hidden">
+                                pack {formatQty(item.pack_size)} {item.unit}
+                              </div>
+                            )}
                           </td>
                           <td className="px-3 py-2 text-right">
                             {formatMoney(minor(item.last_price_minor), currency)}
                           </td>
-                          <td className="px-3 py-2 text-right">
+                          <td className="hidden px-3 py-2 text-right sm:table-cell">
                             {Number(item.pack_size) > 0
                               ? `${formatQty(item.pack_size)} ${item.unit}`
                               : "-"}
@@ -830,7 +918,7 @@ function SuppliersPage() {
                 <thead className="border-b border-secondary-200 text-left text-xs uppercase tracking-wide text-secondary-500">
                   <tr>
                     <th className="px-3 py-2">Order</th>
-                    <th className="px-3 py-2">Location</th>
+                    <th className="hidden px-3 py-2 sm:table-cell">Location</th>
                     <th className="px-3 py-2">Status</th>
                     <th className="px-3 py-2 text-right">Total</th>
                   </tr>
@@ -845,9 +933,10 @@ function SuppliersPage() {
                         <div className="font-medium">{row.po_number}</div>
                         <div className="text-xs text-secondary-500">
                           {formatDate(row.created_at)}
+                          <span className="sm:hidden"> · {row.location_name}</span>
                         </div>
                       </td>
-                      <td className="px-3 py-2">{row.location_name}</td>
+                      <td className="hidden px-3 py-2 sm:table-cell">{row.location_name}</td>
                       <td className="px-3 py-2 capitalize">
                         {row.status.replace("_", " ")}
                       </td>

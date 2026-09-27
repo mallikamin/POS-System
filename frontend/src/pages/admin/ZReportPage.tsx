@@ -229,19 +229,21 @@ function ZReportPage() {
   return (
     <div className="print-clean">
       {/* ===== SCREEN HEADER (hidden in print) ===== */}
-      <div className="mb-6 flex items-center justify-between print:hidden">
+      {/* Phone (D-86): title on its own line, date + Print share the row below;
+          side by side they pushed Print off the screen. */}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3 sm:mb-6 print:hidden">
         <div className="flex items-center gap-3">
-          <FileText className="h-7 w-7 text-primary-600" />
-          <h1 className="text-pos-2xl font-bold text-secondary-900">
+          <FileText className="h-7 w-7 shrink-0 text-primary-600" />
+          <h1 className="text-pos-xl font-bold text-secondary-900 sm:text-pos-2xl">
             Z-Report / Daily Settlement
           </h1>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex w-full items-center gap-3 sm:w-auto">
           <input
             type="date"
             value={selectedDate}
             onChange={(e) => setSelectedDate(e.target.value)}
-            className="min-h-[48px] rounded-md border border-secondary-300 px-3 text-pos-sm"
+            className="min-h-[48px] min-w-0 flex-1 rounded-md border border-secondary-300 px-3 text-pos-sm sm:flex-none"
           />
           <Button
             onClick={handlePrint}
@@ -276,7 +278,7 @@ function ZReportPage() {
         <div className="space-y-6 print:space-y-4">
           {/* ===== KPI SUMMARY ===== */}
           {/* Screen: card grid */}
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-5 print:hidden">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-5 print:hidden">
             <KpiCard
               icon={<ShoppingCart className="h-5 w-5" />}
               label="Settled Orders"
@@ -421,7 +423,20 @@ function ZReportPage() {
                 <h2 className="mb-3 font-semibold text-secondary-800 print:text-sm print:font-bold print:uppercase print:tracking-wide print:border-b print:border-gray-300 print:pb-1 print:mb-2">
                   Top 10 Items
                 </h2>
-                <div className="overflow-x-auto">
+                {/* Phone: one line per item, no sideways scroll (D-86) */}
+                <div className="divide-y text-pos-sm sm:hidden print:hidden">
+                  {report.top_items.map((item, i) => (
+                    <div key={i} className="flex items-baseline gap-2 py-2">
+                      <span className="w-5 shrink-0 text-secondary-500">{i + 1}</span>
+                      <span className="min-w-0 flex-1 font-medium">{item.name}</span>
+                      <span className="shrink-0 text-right tabular-nums">
+                        <span className="text-secondary-500">{item.quantity} sold · </span>
+                        <span className="font-medium">{formatPKR(item.revenue)}</span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <div className="hidden overflow-x-auto sm:block print:block">
                   <table className="w-full text-left text-pos-sm print:text-xs">
                     <thead>
                       <tr className="border-b text-secondary-500 print:text-gray-600">
@@ -631,7 +646,28 @@ function InventoryUsedCard({ used }: { used: InventoryUsed }) {
           </p>
         ) : (
           <>
-            <div className="overflow-x-auto">
+            {/* Phone: name + cost, then the quantities that apply (D-86) */}
+            <div className="divide-y text-pos-sm sm:hidden print:hidden">
+              {used.rows.map((r) => (
+                <div key={r.ingredient_id} className="py-2">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="min-w-0 font-medium">
+                      {r.ingredient_name}
+                      {r.costed_at_current_price ? " *" : ""}
+                    </span>
+                    <span className="shrink-0 tabular-nums">{formatPKR(r.used_cost)}</span>
+                  </div>
+                  <div className="text-pos-xs tabular-nums text-secondary-500">
+                    Sold {formatQty(r.sold_quantity)} {r.unit}
+                    {showProduction && ` · Production ${formatQty(r.production_quantity)} ${r.unit}`}
+                    {showWaste && ` · Waste ${formatQty(r.waste_quantity)} ${r.unit}`}
+                    {showAdjust &&
+                      ` · Adjusted ${r.adjustment_quantity > 0 ? "+" : ""}${formatQty(r.adjustment_quantity)} ${r.unit}`}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="hidden overflow-x-auto sm:block print:block">
               <table className="w-full text-left text-pos-sm print:text-xs">
                 <thead>
                   <tr className="border-b text-secondary-500 print:text-gray-600">
@@ -735,7 +771,33 @@ function StockLeftCard({ left }: { left: StockLeft }) {
         {left.rows.length === 0 ? (
           <p className="text-pos-sm text-secondary-500">No stock is tracked.</p>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          {/* Phone: name + quantity left, reorder point underneath (D-86) */}
+          <div className="divide-y text-pos-sm sm:hidden print:hidden">
+            {left.rows.map((r) => (
+              <div
+                key={`${r.location_id}-${r.ingredient_id}`}
+                className={`flex items-center justify-between gap-2 py-2 ${r.is_low ? "bg-red-50" : ""}`}
+              >
+                <div className="min-w-0">
+                  <div className="font-medium">{r.ingredient_name}</div>
+                  <div className="text-pos-xs text-secondary-500">
+                    {left.multiple_locations ? `${r.location_name} · ` : ""}
+                    {r.reorder_point > 0
+                      ? `reorder at ${formatQty(r.reorder_point)} ${r.unit}`
+                      : "no reorder point"}
+                  </div>
+                </div>
+                <div className="shrink-0 text-right tabular-nums">
+                  <div className={r.is_low ? "font-semibold text-red-600" : ""}>
+                    {formatQty(r.closing_quantity)} {r.unit}
+                  </div>
+                  {r.is_low && <div className="text-pos-xs font-semibold text-red-600">LOW</div>}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="hidden overflow-x-auto sm:block print:block">
             <table className="w-full text-left text-pos-sm print:text-xs">
               <thead>
                 <tr className="border-b text-secondary-500 print:text-gray-600">
@@ -772,6 +834,7 @@ function StockLeftCard({ left }: { left: StockLeft }) {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </CardContent>
     </Card>
@@ -791,13 +854,15 @@ function KpiCard({
 }) {
   return (
     <Card>
-      <CardContent className="flex items-center gap-3 pt-6">
-        <div className="rounded-lg bg-primary-100 p-2 text-primary-600">
+      {/* Phone: no icon and tighter padding, so a label reads on one line
+          instead of wrapping beside the icon (D-86). */}
+      <CardContent className="flex items-center gap-3 p-3 sm:p-6">
+        <div className="hidden rounded-lg bg-primary-100 p-2 text-primary-600 sm:block">
           {icon}
         </div>
-        <div>
-          <p className="text-pos-sm text-secondary-500">{label}</p>
-          <p className="text-pos-lg font-bold text-secondary-900">{value}</p>
+        <div className="min-w-0">
+          <p className="text-pos-xs text-secondary-500 sm:text-pos-sm">{label}</p>
+          <p className="text-pos-base font-bold text-secondary-900 sm:text-pos-lg">{value}</p>
         </div>
       </CardContent>
     </Card>

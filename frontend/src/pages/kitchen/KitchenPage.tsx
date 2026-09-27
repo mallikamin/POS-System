@@ -178,7 +178,7 @@ function KitchenPage() {
   }
 
   return (
-    <div className="flex h-screen flex-col bg-secondary-100 text-secondary-900">
+    <div className="flex h-app flex-col bg-secondary-100 text-secondary-900">
       <header className="flex h-14 items-center justify-between border-b border-secondary-200 bg-white px-4">
         <div className="flex items-center gap-3">
           <ChefHat className="h-5 w-5 text-warning-500" />

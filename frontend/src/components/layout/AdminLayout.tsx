@@ -303,7 +303,7 @@ function AdminLayout() {
   );
 
   return (
-    <div className="flex h-screen overflow-hidden bg-secondary-50 print:block print:h-auto print:overflow-visible print:bg-white">
+    <div className="flex h-app overflow-hidden bg-secondary-50 print:block print:h-auto print:overflow-visible print:bg-white">
       {/* Sidebar.
           F10: on a desktop or landscape tablet it collapses to an icon rail so a
           three-column screen like the Recipe Builder gets the width back. The

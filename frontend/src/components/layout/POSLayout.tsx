@@ -122,7 +122,7 @@ function POSLayout() {
   };
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-secondary-50">
+    <div className="flex h-app flex-col overflow-hidden bg-secondary-50">
       {/* Header */}
       {/*
         🔴 `h-14` is a FIXED height and the restaurant name inside it is free
