@@ -35,7 +35,7 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useConfigStore } from "@/stores/configStore";
-import { formatMoney } from "@/utils/currency";
+import { formatMoney, taxIdName, taxName } from "@/utils/currency";
 import {
   convertQuotation,
   createQuotation,
@@ -464,7 +464,7 @@ function QuotationsPage() {
                         </div>
                         {quote.tax_rate_bps > 0 && (
                           <div className="text-xs text-secondary-500">
-                            incl. {formatMoney(quote.tax_minor, currency)} VAT
+                            incl. {formatMoney(quote.tax_minor, currency)} {taxName()}
                           </div>
                         )}
                       </div>
@@ -576,7 +576,7 @@ function QuotationsPage() {
                             {quote.tax_rate_bps > 0 && (
                               <tr className="text-secondary-500">
                                 <td colSpan={3} className="py-1 text-right">
-                                  of which VAT {quote.tax_rate_bps / 100}%
+                                  of which {taxName()} {quote.tax_rate_bps / 100}%
                                 </td>
                                 <td className="py-1 text-right">
                                   {formatMoney(quote.tax_minor, currency)}
@@ -630,7 +630,7 @@ function QuotationsPage() {
           <DialogHeader>
             <DialogTitle>New quotation</DialogTitle>
             <DialogDescription>
-              Prices include VAT, as on the rest of the system.
+              Prices include {taxName()}, as on the rest of the system.
             </DialogDescription>
           </DialogHeader>
 
@@ -659,7 +659,7 @@ function QuotationsPage() {
               />
             </div>
             <div>
-              <Label>Their TRN (for a B2B customer)</Label>
+              <Label>Their {taxIdName()} (for a B2B customer)</Label>
               <Input
                 value={customerTrn}
                 onChange={(e) => setCustomerTrn(e.target.value)}
@@ -792,7 +792,7 @@ function QuotationsPage() {
 
           <div className="rounded-lg bg-secondary-50 p-3 text-sm">
             <div className="flex justify-between font-semibold">
-              <span>Total (VAT included)</span>
+              <span>Total ({taxName()} included)</span>
               <span>{formatMoney(draftTotal, currency)}</span>
             </div>
           </div>

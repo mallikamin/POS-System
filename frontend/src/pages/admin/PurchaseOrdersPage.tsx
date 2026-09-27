@@ -39,7 +39,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { Thumb } from "@/components/admin/Thumb";
 import { useConfigStore } from "@/stores/configStore";
-import { formatMoney } from "@/utils/currency";
+import { formatMoney, taxName } from "@/utils/currency";
 import {
   cancelPurchaseOrder,
   createPurchaseOrder,
@@ -751,7 +751,7 @@ function PurchaseOrdersPage() {
                             {order.tax_bps > 0 && (
                               <tr>
                                 <td colSpan={4} className="py-1 text-right">
-                                  VAT {order.tax_bps / 100}%
+                                  {taxName()} {order.tax_bps / 100}%
                                 </td>
                                 <td className="py-1 text-right">
                                   {formatMoney(minor(order.tax_minor), currency)}
@@ -871,7 +871,7 @@ function PurchaseOrdersPage() {
               />
             </div>
             <div>
-              <Label>VAT %</Label>
+              <Label>{taxName()} %</Label>
               <Input
                 type="number"
                 step="0.01"
@@ -997,7 +997,7 @@ function PurchaseOrdersPage() {
               <span>{formatMoney(draftTotal.subtotal, currency)}</span>
             </div>
             <div className="flex justify-between text-secondary-600">
-              <span>VAT</span>
+              <span>{taxName()}</span>
               <span>{formatMoney(draftTotal.tax, currency)}</span>
             </div>
             <div className="mt-1 flex justify-between border-t border-secondary-200 pt-1 font-semibold">

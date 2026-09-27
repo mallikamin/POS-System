@@ -29,7 +29,7 @@ import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useConfigStore } from "@/stores/configStore";
-import { formatMoney } from "@/utils/currency";
+import { formatMoney, taxName } from "@/utils/currency";
 import {
   createPurchaseOrder,
   suggestOrder,
@@ -564,7 +564,7 @@ function OrderPlannerPage() {
                 {/* F45: supplier prices are ex VAT; the purchase order this
                     becomes adds VAT on top, so say so or the two totals look
                     like a bug next to each other (693.75 here, 728.44 there). */}
-                Estimated total, before VAT{" "}
+                Estimated total, before {taxName()}{" "}
                 <span className="text-lg font-semibold text-secondary-900">
                   {formatMoney(minor(plan.estimated_total_minor), currency)}
                 </span>

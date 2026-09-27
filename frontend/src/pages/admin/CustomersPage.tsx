@@ -27,7 +27,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { formatPKR } from "@/utils/currency";
+import { formatPKR, taxIdName } from "@/utils/currency";
 import {
   createCustomer,
   listCustomers,
@@ -186,7 +186,7 @@ export default function CustomersPage() {
           <div>
             <h1 className="text-pos-2xl font-bold text-secondary-900">Customers</h1>
             <p className="text-sm text-secondary-500">
-              Contact details, delivery addresses, and the company name and TRN for
+              Contact details, delivery addresses, and the company name and {taxIdName()} for
               business customers.
             </p>
           </div>
@@ -201,7 +201,7 @@ export default function CustomersPage() {
       <div className="relative max-w-md">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-secondary-400" />
         <Input
-          placeholder="Search by name, company, phone or TRN..."
+          placeholder={`Search by name, company, phone or ${taxIdName()}...`}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           className="min-h-[48px] pl-9"
@@ -228,7 +228,7 @@ export default function CustomersPage() {
                   <tr className="border-b text-secondary-500">
                     <th className="pb-3 font-medium">Customer</th>
                     <th className="pb-3 font-medium">Phone</th>
-                    <th className="pb-3 font-medium">Company / TRN</th>
+                    <th className="pb-3 font-medium">Company / {taxIdName()}</th>
                     <th className="pb-3 font-medium">Address</th>
                     <th className="pb-3 font-medium text-right">Orders</th>
                     <th className="pb-3 font-medium text-right">Spent</th>
@@ -266,7 +266,7 @@ export default function CustomersPage() {
                             <div>
                               {customer.company_name && <div>{customer.company_name}</div>}
                               {customer.trn && (
-                                <div className="font-mono text-xs text-secondary-500">TRN {customer.trn}</div>
+                                <div className="font-mono text-xs text-secondary-500">{taxIdName()} {customer.trn}</div>
                               )}
                             </div>
                           </div>
@@ -434,7 +434,7 @@ export default function CustomersPage() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="cust-trn">TRN</Label>
+                    <Label htmlFor="cust-trn">{taxIdName()}</Label>
                     <Input
                       id="cust-trn"
                       value={trn}

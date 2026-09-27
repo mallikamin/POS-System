@@ -64,6 +64,22 @@ export function taxName(code: string = activeCode): string {
   return TAX_NAMES[code.toUpperCase()] ?? "Tax";
 }
 
+/**
+ * The name of a business's tax registration number, same idea as taxName()
+ * (Danny's D-80: a Pakistani tenant was asked for a "TRN", the UAE term).
+ * Pakistan: NTN, the National Tax Number printed on invoices.
+ */
+const TAX_ID_NAMES: Record<string, string> = {
+  PKR: "NTN",
+  GBP: "VAT no.",
+  AED: "TRN",
+};
+
+/** e.g. "TRN" for AED, "NTN" for PKR, "Tax ID" for anything unmapped. */
+export function taxIdName(code: string = activeCode): string {
+  return TAX_ID_NAMES[code.toUpperCase()] ?? "Tax ID";
+}
+
 /** Unknown codes fall back to this rather than throwing mid-render. */
 function fallbackFor(code: string): CurrencyDef {
   return {

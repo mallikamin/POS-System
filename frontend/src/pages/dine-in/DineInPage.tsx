@@ -136,13 +136,21 @@ function DineInPage() {
 
         {/* Center: Menu grid */}
         <div className="min-w-0 flex-1 p-3 pb-24 sm:p-4 lg:pb-4">
-          <div className="mb-4 max-h-52 overflow-y-auto rounded-lg border border-secondary-200 bg-secondary-50 lg:hidden">
+          {/* D-95: capped only once a table is picked (the menu needs the room
+              then). Before that the cap cut tables in half above empty space. */}
+          <div
+            className={`mb-4 rounded-lg border border-secondary-200 bg-secondary-50 lg:hidden ${
+              tableSelected ? "max-h-52 overflow-y-auto" : ""
+            }`}
+          >
             <FloorGrid onTableSelect={handleTableSelect} />
           </div>
           {tableSelected ? (
             <MenuGrid onAddToCart={handleAddToCart} />
           ) : (
-            <div className="flex flex-col items-center justify-center h-full gap-3">
+            // Desktop only: on a phone the floor plan above is the prompt, and
+            // "on the left" is wrong there.
+            <div className="hidden h-full flex-col items-center justify-center gap-3 lg:flex">
               <p className="text-lg font-medium text-secondary-400">
                 Select a table to start ordering
               </p>

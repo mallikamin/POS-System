@@ -45,12 +45,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import {
-  formatMoney,
-  getActiveCurrency,
-  majorToMinor,
-  minorToMajor,
-} from "@/utils/currency";
+import { formatMoney, getActiveCurrency, majorToMinor, minorToMajor, taxName } from "@/utils/currency";
 import { toLocalISODate } from "@/utils/localDate";
 import { fetchLocations } from "@/services/locationsApi";
 import {
@@ -413,13 +408,13 @@ function ExpensesPage() {
           <Card>
             <CardContent className="p-4">
               <p className="text-xs uppercase tracking-wide text-secondary-500">
-                Net of VAT
+                Net of {taxName()}
               </p>
               <p className="mt-1 text-lg font-semibold text-secondary-900 sm:text-xl">
                 {formatMoney(summary.net_minor, currency)}
               </p>
               <p className="mt-1 text-xs text-secondary-500">
-                {formatMoney(summary.tax_total_minor, currency)} VAT
+                {formatMoney(summary.tax_total_minor, currency)} {taxName()}
               </p>
             </CardContent>
           </Card>
@@ -614,7 +609,7 @@ function ExpensesPage() {
                     <th className="px-4 py-3 font-medium">Category</th>
                     <th className="px-4 py-3 font-medium">Invoice</th>
                     <th className="px-4 py-3 text-right font-medium">Net</th>
-                    <th className="px-4 py-3 text-right font-medium">VAT</th>
+                    <th className="px-4 py-3 text-right font-medium">{taxName()}</th>
                     <th className="px-4 py-3 text-right font-medium">Total</th>
                     <th className="px-4 py-3 font-medium">Status</th>
                     <th className="px-4 py-3 font-medium">Files</th>
@@ -711,8 +706,8 @@ function ExpensesPage() {
               {editing ? "Edit expense" : "Add an expense"}
             </DialogTitle>
             <DialogDescription>
-              The amount is the whole invoice. The VAT box is the part of it that
-              is VAT, not an extra on top.
+              The amount is the whole invoice. The {taxName()} box is the part of it that
+              is {taxName()}, not an extra on top.
             </DialogDescription>
           </DialogHeader>
 
@@ -797,7 +792,7 @@ function ExpensesPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="f-tax">VAT inside it ({currency})</Label>
+                <Label htmlFor="f-tax">{taxName()} inside it ({currency})</Label>
                 <Input
                   id="f-tax"
                   type="number"
@@ -820,8 +815,8 @@ function ExpensesPage() {
                 )}
               >
                 {taxMinor > amountMinor
-                  ? "The VAT cannot be more than the invoice total."
-                  : `Net of VAT: ${formatMoney(amountMinor - taxMinor, currency)}`}
+                  ? `The ${taxName()} cannot be more than the invoice total.`
+                  : `Net of ${taxName()}: ${formatMoney(amountMinor - taxMinor, currency)}`}
               </p>
             )}
 

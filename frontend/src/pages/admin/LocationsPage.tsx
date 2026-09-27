@@ -1,3 +1,4 @@
+import { taxIdName } from "@/utils/currency";
 import { useEffect, useState } from "react";
 import { Building2, Loader2, Pencil, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -297,7 +298,7 @@ function LocationsPage() {
                     )}
                     {loc.tax_registration_number && (
                       <p>
-                        <span className="text-secondary-400">TRN: </span>
+                        <span className="text-secondary-400">{taxIdName()}: </span>
                         {loc.tax_registration_number}
                       </p>
                     )}
@@ -394,7 +395,7 @@ function LocationsPage() {
 
             <div className="space-y-2">
               <Label htmlFor="loc-trn">
-                Tax Registration Number{" "}
+                Tax Registration Number ({taxIdName()}){" "}
                 {needsTaxIdentity && <span>(required)</span>}
               </Label>
               <Input

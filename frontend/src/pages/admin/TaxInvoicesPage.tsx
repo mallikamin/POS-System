@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { formatMoney } from "@/utils/currency";
+import { formatMoney, taxIdName, taxName } from "@/utils/currency";
 import { useConfigStore } from "@/stores/configStore";
 import {
   fetchLocationOrders,
@@ -121,8 +121,8 @@ function TaxInvoicesPage() {
         <div>
           <h1 className="text-2xl font-bold text-secondary-900">Tax Invoices</h1>
           <p className="text-sm text-secondary-500">
-            A4 VAT invoices for B2B and wholesale sales. Carries the location's
-            registered legal name and TRN, with VAT shown as its own figure.
+            A4 {taxName()} invoices for B2B and wholesale sales. Carries the location's
+            registered legal name and {taxIdName()}, with {taxName()} shown as its own figure.
           </p>
         </div>
 
@@ -153,8 +153,8 @@ function TaxInvoicesPage() {
 
             {selected && !selected.tax_registration_number && (
               <div className="rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-900">
-                <strong>{selected.name}</strong> has no Tax Registration Number.
-                An invoice without a TRN is not a valid tax invoice. Add one on
+                <strong>{selected.name}</strong> has no tax registration number ({taxIdName()}).
+                An invoice without a {taxIdName()} is not a valid tax invoice. Add one on
                 the Locations screen before sending this to a customer.
               </div>
             )}
@@ -314,7 +314,7 @@ function TaxInvoicesPage() {
                 <p className="font-semibold">{invoice.supplier.name}</p>
                 {invoice.supplier.trn && (
                   <p>
-                    TRN: <span className="font-mono">{invoice.supplier.trn}</span>
+                    {taxIdName()}: <span className="font-mono">{invoice.supplier.trn}</span>
                   </p>
                 )}
                 {invoice.supplier.address_line1 && (
@@ -341,7 +341,7 @@ function TaxInvoicesPage() {
                     <p className="font-semibold">{invoice.recipient.name}</p>
                     {invoice.recipient.trn && (
                       <p>
-                        TRN:{" "}
+                        {taxIdName()}:{" "}
                         <span className="font-mono">{invoice.recipient.trn}</span>
                       </p>
                     )}
@@ -367,7 +367,7 @@ function TaxInvoicesPage() {
                     </th>
                     <th className="py-2 pr-4 text-right font-semibold">Net</th>
                     <th className="py-2 pr-4 text-right font-semibold">
-                      VAT {(invoice.vat_rate_bps / 100).toFixed(0)}%
+                      {taxName()} {(invoice.vat_rate_bps / 100).toFixed(0)}%
                     </th>
                     <th className="py-2 pr-2 text-right font-semibold">Total</th>
                   </tr>
@@ -408,7 +408,7 @@ function TaxInvoicesPage() {
                   </div>
                 )}
                 <div className="flex justify-between">
-                  <span>VAT ({(invoice.vat_rate_bps / 100).toFixed(0)}%)</span>
+                  <span>{taxName()} ({(invoice.vat_rate_bps / 100).toFixed(0)}%)</span>
                   <span>{money(invoice.vat_total_minor)}</span>
                 </div>
                 <div className="flex justify-between border-t-2 border-secondary-900 pt-2 text-base font-bold">
@@ -421,7 +421,7 @@ function TaxInvoicesPage() {
             <div className="mt-8 border-t pt-4 text-xs text-secondary-500">
               {invoice.prices_include_vat && (
                 <p>
-                  Prices are VAT inclusive. The net and VAT figures above are
+                  Prices are {taxName()} inclusive. The net and {taxName()} figures above are
                   derived from the amount charged.
                 </p>
               )}
