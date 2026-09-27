@@ -11,6 +11,11 @@ import { tenantBrand, useTenantTab } from "@/lib/tenantBranding";
 
 /** Extract a human-readable message from an API error response. */
 function getErrorMessage(err: unknown, fallback: string): string {
+  // nginx answers 429 with an HTML page, so without this the fallback
+  // "Invalid email or password" told staff their right password was wrong (D-81).
+  if (err instanceof AxiosError && err.response?.status === 429) {
+    return "Too many login attempts from this connection. Wait a minute and try again.";
+  }
   if (err instanceof AxiosError && err.response?.data) {
     const data = err.response.data as Record<string, unknown>;
     // Backend may send { detail: "..." } or { message: "..." }

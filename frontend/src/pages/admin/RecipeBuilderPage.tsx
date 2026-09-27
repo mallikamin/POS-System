@@ -16,7 +16,7 @@
  * Auto-calculates food cost % with real-time updates.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ChefHat,
   Layers,
@@ -30,6 +30,7 @@ import {
   X,
   Search,
   PlusCircle,
+  ArrowLeft,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -98,6 +99,7 @@ export default function RecipeBuilderPage() {
 
   // What this recipe produces: a sellable menu item, or an ingredient
   const [targetMode, setTargetMode] = useState<TargetMode>("menu_item");
+  const editorTopRef = useRef<HTMLDivElement>(null);
   const isSubRecipe = targetMode === "sub_recipe";
   const isModifier = targetMode === "modifier";
 
@@ -430,6 +432,32 @@ export default function RecipeBuilderPage() {
     selectedIngredientTarget !== null ||
     selectedModifier !== null;
 
+  // One entry per recipe line, shared by the desktop table and the phone cards
+  const recipeRows = recipeItems.flatMap((item) => {
+    const ingredient = ingredients.find((i) => i.id === item.ingredient_id);
+    if (!ingredient) return [];
+    const adjustedQty = item.quantity * (1 + (item.waste_factor || 0) / 100);
+    return [{ item, ingredient, itemCost: adjustedQty * ingredient.cost_per_unit }];
+  });
+
+  // Below lg the page shows the list OR the editor, never both (Malik, 27 Sep:
+  // "not lean" on a phone: tapping a dish changed a panel 60 cards further
+  // down). Picking a target brings the editor to the top of the screen.
+  const selectedKey =
+    selectedMenuItem?.id ?? selectedIngredientTarget?.id ?? selectedModifier?.id ?? null;
+  useEffect(() => {
+    if (selectedKey && window.innerWidth < 1024) {
+      editorTopRef.current?.scrollIntoView({ block: "start" });
+    }
+  }, [selectedKey]);
+
+  function handleBackToList() {
+    setSelectedMenuItem(null);
+    setSelectedIngredientTarget(null);
+    setSelectedModifier(null);
+    resetEditor();
+  }
+
   // Yield is servings for a menu item, but a quantity in the produced
   // ingredient's own unit for a sub-recipe (5 meaning 5 kg of dough)
   const producedUnit = selectedIngredientTarget?.unit ?? "unit";
@@ -743,7 +771,7 @@ export default function RecipeBuilderPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
         <ChefHat className="h-7 w-7 text-primary-600" />
@@ -752,41 +780,45 @@ export default function RecipeBuilderPage() {
         </h1>
       </div>
 
-      {/* Target mode switch: what this recipe produces */}
-      <Card>
-        <CardContent className="flex flex-col gap-3 pt-6 sm:flex-row sm:items-center">
-          <span className="text-pos-sm font-medium text-secondary-700">
+      {/* Target mode switch: what this recipe produces. On a phone: short
+          labels on one row, no explainer (hidden while a recipe is open). */}
+      <Card className={hasTarget ? "hidden lg:block" : ""}>
+        <CardContent className="flex flex-col gap-3 pt-4 sm:flex-row sm:items-center sm:pt-6">
+          <span className="hidden text-pos-sm font-medium text-secondary-700 sm:inline">
             This recipe produces:
           </span>
           <div className="flex flex-wrap gap-2">
             <Button
               variant={targetMode === "menu_item" ? "default" : "outline"}
               onClick={() => handleModeChange("menu_item")}
-              className="min-h-[48px] gap-2"
+              className="min-h-[48px] flex-1 gap-2 sm:flex-none"
             >
               <ChefHat className="h-4 w-4" />
-              Menu item recipe
+              <span className="sm:hidden">Dishes</span>
+              <span className="hidden sm:inline">Menu item recipe</span>
             </Button>
             {!productionHidden && (
               <Button
                 variant={isSubRecipe ? "default" : "outline"}
                 onClick={() => handleModeChange("sub_recipe")}
-                className="min-h-[48px] gap-2"
+                className="min-h-[48px] flex-1 gap-2 sm:flex-none"
               >
                 <Layers className="h-4 w-4" />
-                Sub-recipe (produces an ingredient)
+                <span className="sm:hidden">Sub-recipes</span>
+                <span className="hidden sm:inline">Sub-recipe (produces an ingredient)</span>
               </Button>
             )}
             <Button
               variant={isModifier ? "default" : "outline"}
               onClick={() => handleModeChange("modifier")}
-              className="min-h-[48px] gap-2"
+              className="min-h-[48px] flex-1 gap-2 sm:flex-none"
             >
               <PlusCircle className="h-4 w-4" />
-              Add-on or portion (modifier)
+              <span className="sm:hidden">Add-ons</span>
+              <span className="hidden sm:inline">Add-on or portion (modifier)</span>
             </Button>
           </div>
-          <p className="text-pos-xs text-secondary-500 sm:ml-auto sm:max-w-xs">
+          <p className="hidden text-pos-xs text-secondary-500 sm:ml-auto sm:block sm:max-w-xs">
             {isSubRecipe
               ? "An in-house ingredient such as dough, a sauce, or a stuffing, which other recipes then use as an input line."
               : isModifier
@@ -799,13 +831,13 @@ export default function RecipeBuilderPage() {
       {/* Two-panel layout */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* LEFT PANEL: Target list (menu items or ingredients) */}
-        <Card className="lg:col-span-1">
-          <CardHeader>
+        <Card className={`lg:col-span-1 ${hasTarget ? "hidden lg:block" : ""}`}>
+          <CardHeader className="px-4 pb-3 sm:px-6 sm:pb-6">
             <CardTitle className="text-pos-lg">
               {isSubRecipe ? "Ingredients" : isModifier ? "Add-ons" : "Menu Items"}
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-3 px-4 sm:space-y-4 sm:px-6">
             {/* Name search (F11) */}
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-secondary-400" />
@@ -902,7 +934,7 @@ export default function RecipeBuilderPage() {
                           <button
                             key={mod.id}
                             onClick={() => loadRecipeForModifier(mod)}
-                            className={`w-full rounded-lg border p-3 text-left transition-colors ${
+                            className={`w-full rounded-lg border px-3 py-2 text-left transition-colors sm:p-3 ${
                               isSelected
                                 ? "border-primary-500 bg-primary-50"
                                 : "border-secondary-200 hover:bg-secondary-50"
@@ -957,7 +989,7 @@ export default function RecipeBuilderPage() {
                       <button
                         key={ing.id}
                         onClick={() => loadRecipeForIngredient(ing)}
-                        className={`w-full rounded-lg border p-3 text-left transition-colors ${
+                        className={`w-full rounded-lg border px-3 py-2 text-left transition-colors sm:p-3 ${
                           isSelected
                             ? "border-primary-500 bg-primary-50"
                             : "border-secondary-200 hover:bg-secondary-50"
@@ -1006,7 +1038,7 @@ export default function RecipeBuilderPage() {
                     <button
                       key={item.id}
                       onClick={() => loadRecipe(item)}
-                      className={`w-full rounded-lg border p-3 text-left transition-colors ${
+                      className={`w-full rounded-lg border px-3 py-2 text-left transition-colors sm:p-3 ${
                         isSelected
                           ? "border-primary-500 bg-primary-50"
                           : "border-secondary-200 hover:bg-secondary-50"
@@ -1032,11 +1064,25 @@ export default function RecipeBuilderPage() {
         </Card>
 
         {/* RIGHT PANEL: Recipe Editor */}
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="text-pos-lg">Recipe Editor</CardTitle>
+        <Card
+          ref={editorTopRef}
+          className={`scroll-mt-4 lg:col-span-2 ${hasTarget ? "" : "hidden lg:block"}`}
+        >
+          <CardHeader className="px-4 pb-3 sm:px-6 sm:pb-6">
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleBackToList}
+                className="min-h-[44px] gap-1 lg:hidden"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Back
+              </Button>
+              <CardTitle className="text-pos-lg">Recipe Editor</CardTitle>
+            </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="px-4 sm:px-6">
             {!hasTarget ? (
               <div className="py-12 text-center text-secondary-500">
                 {isSubRecipe
@@ -1083,8 +1129,8 @@ export default function RecipeBuilderPage() {
                 </div>
 
                 {/* Metadata fields */}
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="space-y-2">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
+                  <div className="col-span-2 space-y-2 sm:col-span-1">
                     <Label htmlFor="yield">
                       {isSubRecipe
                         ? `Yield Quantity (${producedUnit}) *`
@@ -1181,7 +1227,77 @@ export default function RecipeBuilderPage() {
                       No ingredients added yet. Click "Add Ingredient" to start.
                     </div>
                   ) : (
-                    <div className="overflow-x-auto rounded-lg border border-secondary-200">
+                    <>
+                    {/* Phone: one card per line instead of a six-column table
+                        that scrolled sideways. Inputs are controlled by page
+                        state, so rendering the rows twice holds no local state. */}
+                    <div className="space-y-2 sm:hidden">
+                      {recipeRows.map(({ item, ingredient, itemCost }) => (
+                        <div
+                          key={item.ingredient_id}
+                          className="space-y-2 rounded-lg border border-secondary-200 p-3"
+                        >
+                          <div className="flex items-center gap-2">
+                            <Thumb src={ingredient.image_url} alt={ingredient.name} />
+                            <span className="min-w-0 flex-1 text-pos-sm font-medium text-secondary-900">
+                              {ingredient.name}
+                            </span>
+                            <span className="text-pos-sm text-secondary-900">
+                              {formatPKR(itemCost)}
+                            </span>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              aria-label={`Remove ${ingredient.name}`}
+                              onClick={() => handleRemoveIngredient(item.ingredient_id)}
+                              className="min-h-[44px] text-danger-600 hover:text-danger-700"
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <label className="space-y-1 text-pos-xs text-secondary-600">
+                              Quantity ({item.unit})
+                              <Input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                inputMode="decimal"
+                                value={item.quantity}
+                                onChange={(e) =>
+                                  handleUpdateRecipeItem(
+                                    item.ingredient_id,
+                                    "quantity",
+                                    parseFloat(e.target.value) || 0
+                                  )
+                                }
+                                className="min-h-[44px]"
+                              />
+                            </label>
+                            <label className="space-y-1 text-pos-xs text-secondary-600">
+                              Waste %
+                              <Input
+                                type="number"
+                                min="0"
+                                max="100"
+                                step="0.1"
+                                inputMode="decimal"
+                                value={item.waste_factor || 0}
+                                onChange={(e) =>
+                                  handleUpdateRecipeItem(
+                                    item.ingredient_id,
+                                    "waste_factor",
+                                    parseFloat(e.target.value) || 0
+                                  )
+                                }
+                                className="min-h-[44px]"
+                              />
+                            </label>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="hidden overflow-x-auto rounded-lg border border-secondary-200 sm:block">
                       <table className="w-full text-left text-pos-sm">
                         <thead className="bg-secondary-50">
                           <tr>
@@ -1204,18 +1320,7 @@ export default function RecipeBuilderPage() {
                           </tr>
                         </thead>
                         <tbody>
-                          {recipeItems.map((item) => {
-                            const ingredient = ingredients.find(
-                              (i) => i.id === item.ingredient_id
-                            );
-                            if (!ingredient) return null;
-
-                            const wasteFactor = item.waste_factor || 0;
-                            const adjustedQty =
-                              item.quantity * (1 + wasteFactor / 100);
-                            const itemCost =
-                              adjustedQty * ingredient.cost_per_unit;
-
+                          {recipeRows.map(({ item, ingredient, itemCost }) => {
                             return (
                               <tr
                                 key={item.ingredient_id}
@@ -1287,6 +1392,7 @@ export default function RecipeBuilderPage() {
                         </tbody>
                       </table>
                     </div>
+                    </>
                   )}
                 </div>
 
@@ -1507,20 +1613,22 @@ export default function RecipeBuilderPage() {
                 </div>
 
                 {/* Action buttons */}
-                <div className="flex items-center justify-between border-t border-secondary-200 pt-6">
+                {/* Phone: Save/Discard on top as two equal buttons, Delete
+                    below on its own, away from Save. */}
+                <div className="flex flex-col-reverse gap-3 border-t border-secondary-200 pt-4 sm:flex-row sm:items-center sm:justify-between sm:pt-6">
                   <div>
                     {recipe && (
                       <Button
                         variant="destructive"
                         onClick={() => setDeleteConfirmOpen(true)}
-                        className="min-h-[48px] gap-2"
+                        className="min-h-[48px] w-full gap-2 sm:w-auto"
                       >
                         <Trash2 className="h-4 w-4" />
                         Delete Recipe
                       </Button>
                     )}
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="grid grid-cols-2 gap-3 sm:flex sm:items-center">
                     <Button
                       variant="outline"
                       onClick={handleReloadTarget}

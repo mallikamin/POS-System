@@ -153,7 +153,11 @@ function POSLayout() {
                 className="h-9 w-9 shrink-0 rounded-full object-cover"
               />
             )}
-            <span className="truncate">{config?.restaurant_name ?? "POS System"}</span>
+            {/* On a phone the controls leave room for one letter ("D"), which
+                reads as broken. With a logo, the logo alone names the shop there. */}
+            <span className={brand ? "hidden truncate sm:inline" : "truncate"}>
+              {config?.restaurant_name ?? "POS System"}
+            </span>
           </Link>
           {channel && (
             <span
