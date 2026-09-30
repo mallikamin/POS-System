@@ -112,11 +112,13 @@ export const DEFAULT_PAUSED_MESSAGE =
  * deploy. Set back to `null` once the shop reopens, or the next rush pause
  * will announce a closure.
  */
-export const CLOSURE_NOTICE: string | null = null;
+export const CLOSURE_NOTICE: string | null =
+  "We are carrying out further works to our water system and will be " +
+  "closed until further notice. Thank you for your patience.";
 
 /**
  * Headline and header badge for a closure, shown only while CLOSURE_NOTICE is
- * set. Reset to neutral wording on reopening (2026-09-26).
+ * set (Malik, 2026-09-30: closed again for water system works).
  */
 export const CLOSURE_TITLE = "Temporarily closed";
 export const CLOSURE_BADGE = "Temporarily closed";
