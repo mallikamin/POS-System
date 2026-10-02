@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatPKR } from "@/utils/currency";
 import { useMenuStore } from "@/stores/menuStore";
@@ -15,6 +15,7 @@ export function MenuGrid({ onAddToCart }: MenuGridProps) {
   const { categories, isLoading, error, loadMenu } = useMenuStore();
   const [activeCategoryIndex, setActiveCategoryIndex] = useState(0);
   const [modifierItem, setModifierItem] = useState<MenuItem | null>(null);
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     loadMenu();
@@ -72,20 +73,59 @@ export function MenuGrid({ onAddToCart }: MenuGridProps) {
     );
   }
 
+  /* D-96: a search term looks across every category, so the cashier types
+     "kara" instead of finding the category and scrolling. Every word must
+     appear in the name, in any order. */
+  const query = search.trim().toLowerCase();
+  const searching = query.length > 0;
   const activeCategory = categories[activeCategoryIndex];
-  const availableItems = activeCategory?.items?.filter((i) => i.is_available) || [];
+  const availableItems = searching
+    ? categories
+        .flatMap((cat) => cat.items ?? [])
+        .filter((i) => {
+          const name = i.name.toLowerCase();
+          return i.is_available && query.split(/\s+/).every((word) => name.includes(word));
+        })
+    : activeCategory?.items?.filter((i) => i.is_available) || [];
 
   return (
     <div className="flex h-full flex-col">
+      {/* Item search */}
+      <div className="relative mb-2">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-secondary-400" />
+        <input
+          type="search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          onFocus={(e) => e.target.select()}
+          placeholder="Search items..."
+          aria-label="Search menu items"
+          className="w-full rounded-lg border border-secondary-200 bg-white py-2.5 pl-9 pr-11 text-sm min-h-touch-lg focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-100 [&::-webkit-search-cancel-button]:hidden"
+        />
+        {searching && (
+          <button
+            type="button"
+            onClick={() => setSearch("")}
+            aria-label="Clear search"
+            className="absolute right-0 top-0 flex h-full w-11 items-center justify-center text-secondary-400 hover:text-secondary-600"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
+      </div>
+
       {/* Category tabs - horizontal scrollable */}
       <div className="flex gap-2 overflow-x-auto border-b border-secondary-200 pb-2 scrollbar-hide">
         {categories.map((cat, idx) => (
           <button
             key={cat.id}
-            onClick={() => setActiveCategoryIndex(idx)}
+            onClick={() => {
+              setActiveCategoryIndex(idx);
+              setSearch("");
+            }}
             className={cn(
               "flex-shrink-0 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors min-h-touch-lg",
-              idx === activeCategoryIndex
+              idx === activeCategoryIndex && !searching
                 ? "bg-primary-600 text-white shadow-sm"
                 : "bg-secondary-100 text-secondary-600 hover:bg-secondary-200"
             )}
@@ -101,7 +141,7 @@ export function MenuGrid({ onAddToCart }: MenuGridProps) {
         {availableItems.length === 0 ? (
           <div className="flex items-center justify-center py-12">
             <p className="text-secondary-400">
-              No items available in this category
+              {searching ? `No items match "${search.trim()}"` : "No items available in this category"}
             </p>
           </div>
         ) : (
