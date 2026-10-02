@@ -26,6 +26,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from sqlalchemy import func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+from sqlalchemy.orm.attributes import set_committed_value
 
 from app.models.customer import Customer
 from app.models.delivery import DeliveryArea
@@ -142,22 +143,39 @@ async def get_public_menu(db: AsyncSession, tenant_id: uuid.UUID) -> tuple[str, 
     )
     categories = list(result.scalars().unique())
 
+    # `set_committed_value`, never plain assignment. Assigning a filtered list
+    # to a relationship tells SQLAlchemy the dropped children were REMOVED from
+    # their parent, and the next autoflush tries to NULL their foreign key: one
+    # sold-out item took the whole storefront menu down with a 500 (2026-10-02).
+    # This replaces the loaded collection for display only, with no history.
     for cat in categories:
-        cat.items = sorted(
-            (i for i in cat.items if i.is_available),
-            key=lambda i: (i.display_order, i.name),
+        set_committed_value(
+            cat,
+            "items",
+            sorted(
+                (i for i in cat.items if i.is_available),
+                key=lambda i: (i.display_order, i.name),
+            ),
         )
         for item in cat.items:
             # Sorted, not just filtered. The association table returns groups in
             # no particular order, so without this `display_order` is inert on
             # the storefront and customers get whatever order the rows were
             # inserted in. Same key as the item sort directly above.
-            item.modifier_groups = sorted(
-                (g for g in item.modifier_groups if g.is_active),
-                key=lambda g: (g.display_order, g.name),
+            set_committed_value(
+                item,
+                "modifier_groups",
+                sorted(
+                    (g for g in item.modifier_groups if g.is_active),
+                    key=lambda g: (g.display_order, g.name),
+                ),
             )
             for group in item.modifier_groups:
-                group.modifiers = [m for m in group.modifiers if m.is_available]
+                set_committed_value(
+                    group,
+                    "modifiers",
+                    [m for m in group.modifiers if m.is_available],
+                )
 
     categories = [c for c in categories if c.items]
 
