@@ -2,7 +2,7 @@
 
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -193,9 +193,15 @@ async def reconcile_table_occupancy(
     if not tables:
         return
 
-    # Only open sessions with genuinely unsettled orders should keep a table
-    # occupied. This keeps the floor plan aligned with the table-settlement UI.
-
+    # A table is occupied while its open session holds any order that is not
+    # yet BOTH settled and completed. That is the exact rule that closes the
+    # session (`payment_service._maybe_close_session`, D-79): guests who paid
+    # are still at the table while the kitchen cooks and they eat.
+    #
+    # D-101 (2026-10-02): this used to look at payment alone, so a table paid
+    # while its order was still in the kitchen went green on the floor plan
+    # while its session stayed open. The next party seated there had their
+    # order added to the previous party's already-paid bill.
     open_session_result = await db.execute(
         select(TableSession.table_id)
         .join(
@@ -207,7 +213,10 @@ async def reconcile_table_occupancy(
             TableSession.tenant_id == tenant_id,
             TableSession.status == "open",
             Order.status != "voided",
-            Order.payment_status.notin_(["paid", "refunded"]),
+            or_(
+                Order.payment_status.notin_(["paid", "refunded"]),
+                Order.status != "completed",
+            ),
             TableSession.table_id.is_not(None),
         )
         .distinct()

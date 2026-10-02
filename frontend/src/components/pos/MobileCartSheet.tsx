@@ -43,18 +43,23 @@ export function MobileCartSheet({ children, className }: MobileCartSheetProps) {
   const cart: Cart = useCartStore((s) => s.carts[s.activeCartId]) ?? EMPTY_CART;
   const itemCount = cart.lines.reduce((sum, l) => sum + l.quantity, 0);
   const [open, setOpen] = useState(false);
+  // At `lg` and up the panel is a normal column, always on screen.
+  const [isWide, setIsWide] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches
+  );
 
   // The sheet is a phone affordance. Rotating a tablet to landscape crosses
   // `lg`, where the panel is on screen permanently; leaving `open` set would
   // then keep the backdrop painted over a page that no longer needs it.
   useEffect(() => {
     const query = window.matchMedia("(min-width: 1024px)");
-    const close = () => {
+    const sync = () => {
+      setIsWide(query.matches);
       if (query.matches) setOpen(false);
     };
-    close();
-    query.addEventListener("change", close);
-    return () => query.removeEventListener("change", close);
+    sync();
+    query.addEventListener("change", sync);
+    return () => query.removeEventListener("change", sync);
   }, []);
 
   // The page must not scroll behind an open sheet, or a flick on the backdrop
@@ -98,7 +103,10 @@ export function MobileCartSheet({ children, className }: MobileCartSheetProps) {
         // A sheet that is slid off-screen is still in the DOM, so it has to be
         // hidden from a screen reader and from tab order as well as from view.
         // `inert` is not typed on React 18's JSX, hence the attribute form.
-        {...(!open ? { "aria-hidden": true } : {})}
+        // D-102: only on a PHONE. At `lg` the panel is on screen whether or not
+        // the (phone-only) sheet is "open", and hiding it hid the whole cart and
+        // its Send / Settle buttons from screen readers on every till.
+        {...(!open && !isWide ? { "aria-hidden": true } : {})}
       >
         <div className="flex items-center justify-between border-b border-secondary-200 px-4 py-2 lg:hidden">
           <span className="text-sm font-semibold text-secondary-800">
