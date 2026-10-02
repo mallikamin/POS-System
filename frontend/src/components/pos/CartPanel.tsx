@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Minus, Plus, Printer, ShoppingCart, ChefHat, X, Loader2, CreditCard, User, Search, RotateCcw, Truck, SlidersHorizontal, ChevronDown } from "lucide-react";
+import { Minus, Plus, Printer, ShoppingCart, ChefHat, X, Loader2, CreditCard, User, Search, RotateCcw, Truck, SlidersHorizontal, ChevronDown, Gift } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ReceiptModal } from "@/components/pos/ReceiptModal";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,8 @@ import { useConfigStore } from "@/stores/configStore";
 import { SaleAttributionPicker } from "@/components/pos/SaleAttributionPicker";
 import { useSaleAttributionStore } from "@/stores/saleAttributionStore";
 import { searchCustomers } from "@/services/customerApi";
+import api from "@/lib/axios";
+import type { LoyaltyProgress } from "@/services/loyaltyApi";
 import type { CustomerResponse } from "@/types/customer";
 
 const DEFAULT_TAX_BPS = 1600; // 16.00% in basis points (integer math)
@@ -142,6 +144,35 @@ export function CartPanel({ waiterId, onOrderCreated }: CartPanelProps = {}) {
     }, 300);
     return () => clearTimeout(searchTimeout.current);
   }, [phoneQuery]);
+
+  /* D-99: the customer's stamp card, once a phone is on the order. */
+  const loyaltyEnabled = useConfigStore((s) => s.config?.loyalty_enabled) ?? false;
+  const [loyalty, setLoyalty] = useState<LoyaltyProgress | null>(null);
+  useEffect(() => {
+    const phone = customerPhone.replace(/\D/g, "");
+    if (!loyaltyEnabled || phone.length < 10) {
+      setLoyalty(null);
+      return;
+    }
+    let alive = true;
+    api
+      .get<LoyaltyProgress | null>(`/loyalty/customers/${phone}`)
+      .then(({ data }) => alive && setLoyalty(data))
+      .catch(() => alive && setLoyalty(null));
+    return () => {
+      alive = false;
+    };
+  }, [customerPhone, loyaltyEnabled]);
+  const loyaltyChip =
+    loyaltyEnabled && customerPhone ? (
+      <p className="flex items-center gap-1 text-[11px] text-primary-700">
+        <Gift className="h-3 w-3" />
+        {loyalty
+          ? `Loyalty ${loyalty.toward_next}/${loyalty.visits_required}` +
+            (loyalty.rewards_available > 0 ? ` · reward ready: ${loyalty.reward_label}` : "")
+          : "New loyalty member: this bill will be their first visit"}
+      </p>
+    ) : null;
 
   function selectCustomer(c: CustomerResponse) {
     setLinkedCustomer(c);
@@ -313,6 +344,28 @@ export function CartPanel({ waiterId, onOrderCreated }: CartPanelProps = {}) {
                 />
               </div>
               {searching && <p className="text-[10px] text-secondary-400">Searching...</p>}
+              {/* D-99: a new customer's number has nothing to find. Let the
+                  cashier put it on the order anyway, so a first visit counts
+                  on the loyalty card (the server creates the customer). */}
+              {!searching &&
+                phoneQuery.replace(/\D/g, "").length >= 10 &&
+                !searchResults.some((c) => c.phone === phoneQuery.replace(/\D/g, "")) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLinkedCustomer(null);
+                      setCustomerPhone(phoneQuery.replace(/\D/g, ""));
+                      setPhoneQuery("");
+                      setSearchResults([]);
+                    }}
+                    className="w-full rounded border border-primary-200 bg-primary-50 px-3 py-2 text-left text-xs font-medium text-primary-700 min-h-[44px]"
+                  >
+                    Use {phoneQuery.replace(/\D/g, "")} for this order
+                  </button>
+                )}
+              {customerPhone && !linkedCustomer && (
+                <p className="text-[11px] text-secondary-600">Phone on this order: {customerPhone}</p>
+              )}
               {searchResults.length > 0 && (
                 <div className="max-h-28 overflow-y-auto rounded border border-secondary-200 divide-y divide-secondary-100">
                   {searchResults.map((c) => (
@@ -339,6 +392,9 @@ export function CartPanel({ waiterId, onOrderCreated }: CartPanelProps = {}) {
               )}
             </div>
           )}
+          {/* D-99: always visible, so "reward ready" is not hidden when the
+              customer section collapses after picking someone. */}
+          {loyaltyChip && <div className="px-4 pb-2">{loyaltyChip}</div>}
         </div>
       )}
 

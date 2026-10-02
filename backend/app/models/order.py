@@ -244,6 +244,10 @@ class Order(BaseMixin, Base):
         nullable=False,
         comment="Service charge rate applied to this order, basis points.",
     )
+    # Danny's D-99: the one-time code behind the loyalty QR on this bill. Set at
+    # creation only when the tenant has loyalty on; NULL otherwise.
+    loyalty_code: Mapped[str | None] = mapped_column(
+        String(16), nullable=True, unique=True, index=True)
     tip: Mapped[int] = mapped_column(
         Integer,
         default=0,

@@ -29,6 +29,7 @@ import { ReceiptModal } from "@/components/pos/ReceiptModal";
 import { payableTotal, taxPortion } from "@/utils/tax";
 import { useCurrencyCode } from "@/hooks/useCurrencyCode";
 import { useConfigStore } from "@/stores/configStore";
+import { LoyaltyPanel } from "@/components/loyalty/LoyaltyPanel";
 
 type Mode = "cash" | "card" | "split";
 
@@ -412,6 +413,9 @@ function PaymentPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* D-99: the customer's stamp card, and their reward when it is due. */}
+      {orderId && <LoyaltyPanel orderId={orderId} onRedeemed={() => void loadData(orderId)} />}
 
       {/* Discounts */}
       <Card>

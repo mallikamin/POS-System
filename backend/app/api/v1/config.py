@@ -1,5 +1,7 @@
 """Restaurant configuration endpoints."""
 
+import uuid
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
@@ -7,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, require_role
 from app.database import get_db
+from app.models.menu import MenuItem
 from app.models.restaurant_config import RestaurantConfig
 from app.models.tenant import Tenant
 from app.models.user import User
@@ -30,6 +33,12 @@ class RestaurantConfigUpdate(BaseModel):
     # D-97. Capped at 30%: a typo like 500 meaning 5.00% must not become 50%.
     service_charge_bps: int | None = Field(None, ge=0, le=3000)
     service_charge_dine_in_only: bool | None = None
+    # D-99 visit loyalty. An empty string for the item id clears the reward item.
+    loyalty_enabled: bool | None = None
+    loyalty_visits_required: int | None = Field(None, ge=1, le=50)
+    loyalty_reward_menu_item_id: str | None = None
+    loyalty_reward_label: str | None = Field(None, max_length=80)
+    loyalty_max_visits_per_day: int | None = Field(None, ge=0, le=20)  # 0 = no limit
     payment_flow: str | None = Field(None, pattern=r"^(order_first|pay_first)$")
     timezone: str | None = None
     currency: str | None = Field(None, min_length=2, max_length=10)
@@ -126,6 +135,29 @@ async def update_restaurant_config(
         config.service_charge_bps = data.service_charge_bps
     if data.service_charge_dine_in_only is not None:
         config.service_charge_dine_in_only = data.service_charge_dine_in_only
+    if data.loyalty_enabled is not None:
+        config.loyalty_enabled = data.loyalty_enabled
+    if data.loyalty_visits_required is not None:
+        config.loyalty_visits_required = data.loyalty_visits_required
+    if data.loyalty_max_visits_per_day is not None:
+        config.loyalty_max_visits_per_day = data.loyalty_max_visits_per_day
+    if data.loyalty_reward_label is not None:
+        config.loyalty_reward_label = data.loyalty_reward_label.strip() or None
+    if data.loyalty_reward_menu_item_id is not None:
+        if data.loyalty_reward_menu_item_id == "":
+            config.loyalty_reward_menu_item_id = None
+        else:
+            try:
+                item_id = uuid.UUID(data.loyalty_reward_menu_item_id)
+            except ValueError as exc:
+                raise HTTPException(status_code=422, detail="Invalid reward item") from exc
+            owned = (await db.execute(
+                select(MenuItem.id).where(MenuItem.id == item_id,
+                                          MenuItem.tenant_id == current_user.tenant_id)
+            )).scalar_one_or_none()
+            if owned is None:
+                raise HTTPException(status_code=422, detail="Reward item not on this menu")
+            config.loyalty_reward_menu_item_id = item_id
     if data.payment_flow is not None:
         config.payment_flow = data.payment_flow
     if data.timezone is not None:

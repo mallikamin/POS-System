@@ -84,6 +84,13 @@ export interface RestaurantConfig extends BaseEntity {
   /** D-97: percentage service charge in basis points (0 = off), taxed. */
   service_charge_bps: number;
   service_charge_dine_in_only: boolean;
+  /** D-99: visit loyalty. */
+  loyalty_enabled: boolean;
+  loyalty_visits_required: number;
+  loyalty_reward_menu_item_id: string | null;
+  loyalty_reward_label: string | null;
+  /** Visits one customer can earn per day; 0 = no limit. */
+  loyalty_max_visits_per_day: number;
   receipt_header: string | null;
   receipt_footer: string | null;
   /** How the browser receipt prints: `thermal` (80mm roll) or `a4`. */

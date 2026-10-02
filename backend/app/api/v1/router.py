@@ -26,6 +26,10 @@ from app.api.v1.expenses import router as expenses_router  # Martin M10
 from app.api.v1.other_income import opening_router as opening_balance_router  # Danny's D-62
 from app.api.v1.other_income import router as other_income_router  # Danny's D-63
 from app.api.v1.public import router as public_router  # storefront, unauthenticated
+from app.api.v1.loyalty import (  # D-99
+    public_router as loyalty_public_router,
+    router as loyalty_router,
+)
 from app.api.v1.media import router as media_router  # image upload + delivery
 
 api_v1_router = APIRouter()
@@ -55,5 +59,9 @@ api_v1_router.include_router(quotations_router)
 api_v1_router.include_router(expenses_router)
 api_v1_router.include_router(other_income_router)
 api_v1_router.include_router(opening_balance_router)
+api_v1_router.include_router(loyalty_router)
+# Before the storefront router, so /public/loyalty/<code> is never read as a
+# shop slug by its /public/{slug}/... routes.
+api_v1_router.include_router(loyalty_public_router)
 api_v1_router.include_router(public_router)
 api_v1_router.include_router(media_router)

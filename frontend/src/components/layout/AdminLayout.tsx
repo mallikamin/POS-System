@@ -4,6 +4,7 @@ import {
   LayoutDashboard,
   Menu,
   Contact,
+  Gift,
   UtensilsCrossed,
   Users,
   Settings,
@@ -121,6 +122,8 @@ const baseNavGroups: NavGroup[] = [
       { to: "/admin/menu", label: "Menu", icon: UtensilsCrossed, end: false },
       { to: "/admin/staff", label: "Staff", icon: Users, end: false },
       { to: "/admin/customers", label: "Customers", icon: Contact, end: false },
+      // D-99. Hideable per tenant like any other module.
+      { to: "/admin/loyalty", label: "Loyalty", icon: Gift, end: false, module: "loyalty" },
       { to: "/admin/roles", label: "Roles", icon: Shield, end: false },
       { to: "/admin/discounts", label: "Discounts", icon: Tag, end: false },
       { to: "/admin/locations", label: "Locations", icon: Store, end: false },

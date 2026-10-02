@@ -38,6 +38,12 @@ class RestaurantConfigResponse(BaseModel):
     # D-97: percentage service charge (basis points, 0 = off), taxed.
     service_charge_bps: int
     service_charge_dine_in_only: bool
+    # D-99: visit loyalty.
+    loyalty_enabled: bool
+    loyalty_visits_required: int
+    loyalty_reward_menu_item_id: uuid.UUID | None
+    loyalty_reward_label: str | None
+    loyalty_max_visits_per_day: int
     receipt_header: str | None = None
     receipt_footer: str | None = None
     # 'thermal' (80mm roll) or 'a4'. Presentation only.

@@ -21,6 +21,7 @@ import { verifyPassword } from "@/services/ordersApi";
 import { payableTotal } from "@/utils/tax";
 import { useCurrencyCode } from "@/hooks/useCurrencyCode";
 import { useConfigStore } from "@/stores/configStore";
+import { LoyaltyPanel } from "@/components/loyalty/LoyaltyPanel";
 import type {
   PaymentMethodCode,
   SessionPaymentPreview,
@@ -396,6 +397,14 @@ function SessionPaymentPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* D-99: one stamp card per bill on the table. A reward goes on the bill
+          that carries the reward item; each panel hides itself when it has
+          nothing to show. */}
+      {sessionId &&
+        summary?.orders.map((o) => (
+          <LoyaltyPanel key={o.order_id} orderId={o.order_id} onRedeemed={() => void loadData(sessionId)} />
+        ))}
 
       {/* Discounts */}
       <Card>

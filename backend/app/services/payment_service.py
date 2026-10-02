@@ -543,12 +543,37 @@ async def get_session_payment_preview(
     # a single order cannot quote different totals for the same basket.
     prices_include_tax = True if row is None else bool(row.tax_inclusive)
 
-    cash_tax, cash_total = order_service.compute_tax(
+    cash_tax, cash_goods = order_service.compute_tax(
         base, cash_rate, prices_include_tax
     )
-    card_tax, card_total = order_service.compute_tax(
+    card_tax, card_goods = order_service.compute_tax(
         base, card_rate, prices_include_tax
     )
+    # D-103: the totals the till asks for must equal the bill. Charges outside
+    # the tax ride on top, and every discount (on an order or on the whole
+    # table) comes off after tax, the same rule `order_total` and the session
+    # summary use. The preview used to ignore discounts entirely, so a table
+    # with Rs 200 off was asked for the full amount.
+    from app.models.discount import OrderDiscount
+
+    extras = sum(
+        (o.delivery_fee or 0) + (o.service_fee or 0) + (o.tip or 0) for o in billable_orders
+    )
+    order_discounts = sum(o.discount_amount or 0 for o in billable_orders)
+    session_discounts = sum(
+        row[0]
+        for row in (
+            await db.execute(
+                select(OrderDiscount.amount).where(
+                    OrderDiscount.tenant_id == tenant_id,
+                    OrderDiscount.table_session_id == session_id,
+                )
+            )
+        ).all()
+    )
+    off = order_discounts + session_discounts
+    cash_total = max(cash_goods + extras - off, 0)
+    card_total = max(card_goods + extras - off, 0)
 
     return SessionPaymentPreview(
         session_id=session.id,
@@ -1012,6 +1037,13 @@ async def _sync_order_payment_status(
         customer = await customer_service.get_customer(db, order.customer_id, tenant_id)
         if customer is not None:
             await customer_service.update_customer_stats(db, tenant_id, customer)
+
+    # D-99: a paid bill with the customer's phone on it is a loyalty visit.
+    # No-op when loyalty is off; never raises, so it cannot block a payment.
+    if order.payment_status == "paid":
+        from app.services import loyalty_service
+
+        await loyalty_service.on_order_paid(db, tenant_id, order)
 
     # Auto-close table session when all its orders are fully settled.
     # This covers the per-order payment path (session payment endpoints

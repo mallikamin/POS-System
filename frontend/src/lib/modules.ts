@@ -35,7 +35,8 @@ export type UiModule =
   | "production"
   | "order-planner"
   | "quotations"
-  | "tax-invoices";
+  | "tax-invoices"
+  | "loyalty";
 
 function hiddenSet(config: RestaurantConfig | null): Set<string> {
   if (!config?.hidden_ui_modules) return new Set();

@@ -37,6 +37,20 @@ def _tax_label(currency: str | None, rate_bps: int) -> str:
     )
 
 
+async def _loyalty_fields(
+    db: AsyncSession, tenant_id: uuid.UUID, code: str | None
+) -> dict:
+    """D-99: what the receipt needs to print the loyalty QR, or all None."""
+    from app.services import loyalty_service
+
+    settings = await loyalty_service.get_settings(db, tenant_id)
+    if not settings.enabled or not code:
+        return {"loyalty_code": None, "loyalty_reward_label": None,
+                "loyalty_visits_required": None}
+    return {"loyalty_code": code, "loyalty_reward_label": settings.reward_label,
+            "loyalty_visits_required": settings.visits_required}
+
+
 async def get_receipt_data(
     db: AsyncSession,
     tenant_id: uuid.UUID,
@@ -164,6 +178,7 @@ async def get_receipt_data(
         subtotal=order.subtotal,
         service_charge=order.service_charge or 0,
         service_charge_bps=order.service_charge_bps or 0,
+        **(await _loyalty_fields(db, tenant_id, order.loyalty_code)),
         tax_label=_tax_label(config.currency if config else None, tax_rate_bps),
         tax_rate_display=f"{tax_pct:.0f}%"
         if tax_pct == int(tax_pct)
@@ -365,6 +380,10 @@ async def get_session_receipt_data(
         subtotal=subtotal,
         service_charge=service_charge,
         service_charge_bps=service_charge_bps,
+        # One table, one visit: the first bill's code stands for the session.
+        **(await _loyalty_fields(
+            db, tenant_id, next((o.loyalty_code for o in orders if o.loyalty_code), None)
+        )),
         tax_label=_tax_label(config.currency if config else None, tax_rate_bps),
         tax_rate_display=f"{tax_pct:.0f}%"
         if tax_pct == int(tax_pct)

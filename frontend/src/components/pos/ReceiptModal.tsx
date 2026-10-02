@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import api from "@/lib/axios";
 import { useConfigStore } from "@/stores/configStore";
+import { LoyaltyQR } from "@/components/loyalty/LoyaltyQR";
 
 interface ReceiptItem {
   modifiers: Array<{
@@ -48,6 +49,10 @@ interface ReceiptData {
   /** D-97: service charge, taxed, printed between subtotal and tax. */
   service_charge: number;
   service_charge_bps: number;
+  /** D-99: the bill's loyalty QR; null when loyalty is off. */
+  loyalty_code: string | null;
+  loyalty_reward_label: string | null;
+  loyalty_visits_required: number | null;
   tax_label: string;
   tax_rate_display: string;
   tax_amount: number;
@@ -145,6 +150,7 @@ export function ReceiptModal({ orderId, sessionId, open, onClose }: Props) {
       ".right { text-align: right; }",
       ".bold { font-weight: bold; }",
       ".row { display: flex; justify-content: space-between; }",
+      ".loyalty-qr { display: block; margin: 4px auto; }",
     ];
     const thermal = [
       "body { font-family: 'Courier New', monospace; font-size: 12px; width: 80mm; padding: 4mm; color: #000; }",
@@ -169,9 +175,14 @@ export function ReceiptModal({ orderId, sessionId, open, onClose }: Props) {
     const clone = printRef.current.cloneNode(true);
     printWindow.document.body.appendChild(clone);
 
-    printWindow.focus();
-    printWindow.print();
-    printWindow.close();
+    // D-99: the loyalty QR is an image. Print only once it has decoded, or
+    // the paper can come out with an empty square where the code should be.
+    const images = Array.from(printWindow.document.images);
+    void Promise.all(images.map((img) => img.decode().catch(() => undefined))).then(() => {
+      printWindow.focus();
+      printWindow.print();
+      printWindow.close();
+    });
   }
 
   const takeawayLabel = useConfigStore((s) => s.config?.takeaway_label);
@@ -462,6 +473,22 @@ export function ReceiptModal({ orderId, sessionId, open, onClose }: Props) {
                 </>
               );
             })()}
+
+            {/* D-99: loyalty QR. One code per bill; counts once, once paid. */}
+            {receipt.loyalty_code && (
+              <>
+                <div className="divider my-2 border-t border-dashed border-secondary-400" />
+                <div className="center text-center">
+                  <div className="bold font-semibold">Collect your visit</div>
+                  <div className="text-[10px]">
+                    Scan after paying. {receipt.loyalty_visits_required} visits ={" "}
+                    {receipt.loyalty_reward_label}
+                  </div>
+                  <LoyaltyQR code={receipt.loyalty_code} size={110} className="loyalty-qr mx-auto my-1" />
+                  <div className="text-[10px]">Code {receipt.loyalty_code}</div>
+                </div>
+              </>
+            )}
 
             {/* Footer */}
             <div className="divider my-2 border-t border-dashed border-secondary-400" />

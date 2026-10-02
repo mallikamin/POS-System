@@ -50,6 +50,10 @@ class ReceiptData(BaseModel):
     # No default: a receipt built without it must fail loudly, not print 0.
     service_charge: int
     service_charge_bps: int
+    # D-99: the bill's loyalty QR. All None when the tenant has loyalty off.
+    loyalty_code: str | None
+    loyalty_reward_label: str | None
+    loyalty_visits_required: int | None
     tax_label: str
     tax_rate_display: str  # e.g. "16%"
     tax_amount: int  # paisa

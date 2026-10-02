@@ -450,6 +450,13 @@ async def create_order(
     service_fee = data.service_fee or 0
     total = goods_total + delivery_fee + service_fee
 
+    # D-99: bills carry a one-time loyalty code when the tenant runs loyalty.
+    from app.services import loyalty_service
+
+    loyalty_on = (await loyalty_service.get_settings(db, tenant_id)).enabled and (
+        data.order_type in ("dine_in", "takeaway", "call_center")
+    )
+
     # Retry loop to handle order number race condition under concurrency.
     # The uq_order_tenant_number constraint catches collisions; we regenerate
     # the number and retry within a SAVEPOINT so the outer transaction survives.
@@ -545,6 +552,7 @@ async def create_order(
             service_fee=service_fee,
             service_charge=service_charge,
             service_charge_bps=sc_bps,
+            loyalty_code=loyalty_service.new_code() if loyalty_on else None,
             total=total,
             notes=data.notes,
             created_by=user_id,
@@ -1109,8 +1117,11 @@ async def get_payment_preview(
     cash_tax, cash_goods = compute_tax(base, cash_rate, prices_include_tax)
     card_tax, card_goods = compute_tax(base, card_rate, prices_include_tax)
     # Fees and tip are outside the tax, so they are the same under either
-    # method and simply ride on top (see `order_total`).
+    # method and simply ride on top (see `order_total`). Discounts come off
+    # after tax, exactly as `order_total` takes them (D-103: the preview used to
+    # leave them in, so it quoted more than the bill was for).
     extras = (order.delivery_fee or 0) + (order.service_fee or 0) + (order.tip or 0)
+    discount = order.discount_amount or 0
 
     return PaymentPreviewResponse(
         order_id=order.id,
@@ -1119,10 +1130,10 @@ async def get_payment_preview(
         service_charge_bps=order.service_charge_bps or 0,
         cash_tax_rate_bps=cash_rate,
         cash_tax_amount=cash_tax,
-        cash_total=cash_goods + extras,
+        cash_total=max(cash_goods + extras - discount, 0),
         card_tax_rate_bps=card_rate,
         card_tax_amount=card_tax,
-        card_total=card_goods + extras,
+        card_total=max(card_goods + extras - discount, 0),
         delivery_fee=order.delivery_fee or 0,
         service_fee=order.service_fee or 0,
         tip=order.tip or 0,

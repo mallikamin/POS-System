@@ -64,6 +64,10 @@ const QuotationsPage = lazy(() => import("@/pages/admin/QuotationsPage"));
 const SalesChannelsPage = lazy(() => import("@/pages/admin/SalesChannelsPage"));
 const ProfitabilityPage = lazy(() => import("@/pages/admin/ProfitabilityPage"));
 const TaxInvoicesPage = lazy(() => import("@/pages/admin/TaxInvoicesPage"));
+// Danny's D-99: visit loyalty.
+const LoyaltyPage = lazy(() => import("@/pages/admin/LoyaltyPage"));
+const ClaimPage = lazy(() => import("@/pages/loyalty/ClaimPage"));
+const CustomerDisplayPage = lazy(() => import("@/pages/loyalty/CustomerDisplayPage"));
 
 function LoadingFallback() {
   return (
@@ -89,6 +93,11 @@ export function App() {
               Deliberately unlinked from anywhere — bookmarked, never tapped
               by accident on a shop's unattended tablet mid-service. */}
           <Route path="/switch" element={<SwitchPage />} />
+
+          {/* D-99 loyalty. /v/<code> is PUBLIC: the customer's own phone after
+              scanning a bill's QR. /customer-display is the counter screen. */}
+          <Route path="/v/:code" element={<ClaimPage />} />
+          <Route path="/customer-display" element={<CustomerDisplayPage />} />
 
           {/* POS Routes (protected) */}
           <Route path="/" element={<POSLayout />}>
@@ -141,6 +150,7 @@ export function App() {
             <Route path="channels" element={<SalesChannelsPage />} />
             <Route path="profitability" element={<ProfitabilityPage />} />
             <Route path="tax-invoices" element={<TaxInvoicesPage />} />
+            <Route path="loyalty" element={<LoyaltyPage />} />
           </Route>
         </Routes>
       </Suspense>

@@ -96,6 +96,19 @@ class RestaurantConfig(BaseMixin, Base):
         comment="Charge the service charge on dine-in orders only.",
     )
 
+    # Danny's D-99: visit loyalty. Off for every tenant until switched on.
+    loyalty_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    loyalty_visits_required: Mapped[int] = mapped_column(
+        Integer, default=5, nullable=False, comment="Paid visits per reward")
+    loyalty_reward_menu_item_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("menu_items.id", ondelete="SET NULL"), nullable=True,
+        comment="The menu item given free as the reward")
+    loyalty_reward_label: Mapped[str | None] = mapped_column(
+        String(80), nullable=True, comment='What the customer sees, e.g. "Free Cappuccino"')
+    loyalty_max_visits_per_day: Mapped[int] = mapped_column(
+        Integer, default=1, nullable=False,
+        comment="Visits one customer can earn per local day; 0 = no limit")
+
     online_ordering_paused: Mapped[bool] = mapped_column(
         Boolean,
         default=False,
