@@ -1,5 +1,6 @@
 """D-103: the payment previews must ask for what the bill is for, discounts included.
-D-104 (open): a TABLE-level discount leaves the order 'partial' after the table pays.
+D-104 (fixed): a TABLE-level discount used to leave the order 'partial' after the
+table paid; more in test_session_discount_d104.py.
 """
 
 import uuid
@@ -83,8 +84,6 @@ async def test_order_discount_table_settles_fully(client, admin_token, admin_use
     assert order.payment_status == "paid"
 
 
-@pytest.mark.xfail(strict=True, reason="D-104 open: a table-level discount is not carried "
-                                       "into the orders, so the order stays 'partial'")
 @pytest.mark.asyncio
 async def test_session_discount_table_settles_fully(client, admin_token, admin_user, db, tenant, setup):
     item, table = setup

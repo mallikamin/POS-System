@@ -26,7 +26,7 @@ import type {
 } from "@/types/payment";
 import type { OrderResponse } from "@/types/order";
 import { ReceiptModal } from "@/components/pos/ReceiptModal";
-import { payableTotal, taxPortion } from "@/utils/tax";
+import { payableTotal, splitDiscountShares, taxPortion } from "@/utils/tax";
 import { useCurrencyCode } from "@/hooks/useCurrencyCode";
 import { useConfigStore } from "@/stores/configStore";
 import { LoyaltyPanel } from "@/components/loyalty/LoyaltyPanel";
@@ -93,8 +93,8 @@ function PaymentPage() {
     [preview, summary]
   );
   // D-97: the taxed base is food + service charge, as `taxable_base` on the server.
-  const splitSubtotal =
-    (preview?.subtotal ?? 0) + (preview?.service_charge ?? 0) - (discountBreakdown?.total_discount ?? 0);
+  // D-105: the FULL base; the discount comes off after tax, shared by the parts.
+  const splitSubtotal = (preview?.subtotal ?? 0) + (preview?.service_charge ?? 0);
   const splitCashBasePaisa = useMemo(() => {
     if (!splitCalcEnabled) return 0;
     return Math.min(parseRupees(splitCashBase), splitSubtotal);
@@ -103,14 +103,19 @@ function PaymentPage() {
     if (!splitCalcEnabled) return 0;
     return Math.max(splitSubtotal - splitCashBasePaisa, 0);
   }, [splitCalcEnabled, splitSubtotal, splitCashBasePaisa]);
+  // D-105: the order's whole discount (its own lines + any table share).
+  const [splitCashDiscount, splitCardDiscount] = useMemo(
+    () => splitDiscountShares(orderDetail?.discount_amount ?? 0, splitCashBasePaisa, splitCardBasePaisa),
+    [orderDetail, splitCashBasePaisa, splitCardBasePaisa]
+  );
   const splitCashPayable = useMemo(() => {
     if (!splitCalcEnabled || !preview) return 0;
-    return payableTotal(splitCashBasePaisa, preview.cash_tax_rate_bps, pricesIncludeTax);
-  }, [splitCalcEnabled, preview, splitCashBasePaisa]);
+    return payableTotal(splitCashBasePaisa, preview.cash_tax_rate_bps, pricesIncludeTax) - splitCashDiscount;
+  }, [splitCalcEnabled, preview, splitCashBasePaisa, splitCashDiscount]);
   const splitCardPayable = useMemo(() => {
     if (!splitCalcEnabled || !preview) return 0;
-    return payableTotal(splitCardBasePaisa, preview.card_tax_rate_bps, pricesIncludeTax);
-  }, [splitCalcEnabled, preview, splitCardBasePaisa]);
+    return payableTotal(splitCardBasePaisa, preview.card_tax_rate_bps, pricesIncludeTax) - splitCardDiscount;
+  }, [splitCalcEnabled, preview, splitCardBasePaisa, splitCardDiscount]);
   const splitTotalPayable = useMemo(
     () => splitCashPayable + splitCardPayable,
     [splitCashPayable, splitCardPayable]
@@ -172,9 +177,7 @@ function PaymentPage() {
         const dueRupees = minorToInputString(nextSummary.due_amount);
         setCashAmount(dueRupees);
         setCardAmount(dueRupees);
-        const postDiscountSubtotal =
-          nextPreview.subtotal + (nextPreview.service_charge ?? 0) - (nextDiscBreakdown?.total_discount ?? 0);
-        const halfSubtotal = Math.round(postDiscountSubtotal / 2);
+        const halfSubtotal = Math.round((nextPreview.subtotal + (nextPreview.service_charge ?? 0)) / 2);
         setSplitCashBase(String(paisaToRupees(halfSubtotal)));
       }
     } catch (err: unknown) {
@@ -246,12 +249,13 @@ function PaymentPage() {
       const allocations: SplitPaymentAllocation[] = splitCalcEnabled
         ? [
             ...(splitCashPayable > 0
-              ? [{ method_code: "cash" as const, amount: splitCashPayable }]
+              ? [{ method_code: "cash" as const, amount: splitCashPayable, discount: splitCashDiscount }]
               : []),
             ...(splitCardPayable > 0
               ? [{
                   method_code: "card" as const,
                   amount: splitCardPayable,
+                  discount: splitCardDiscount,
                   reference: splitCardReference || undefined,
                 }]
               : []),
@@ -794,8 +798,9 @@ function PaymentPage() {
               )}
             </>
           )}
-          {discountBreakdown && discountBreakdown.total_discount > 0 && (
-            <div className="flex justify-between"><span className="text-amber-600">Discount</span><span className="font-medium text-amber-700">-{formatPKR(discountBreakdown.total_discount)}</span></div>
+          {/* D-104: the order's whole discount, its own lines + any table share, so the lines add up. */}
+          {(orderDetail?.discount_amount ?? 0) > 0 && (
+            <div className="flex justify-between"><span className="text-amber-600">Discount</span><span className="font-medium text-amber-700">-{formatPKR(orderDetail?.discount_amount ?? 0)}</span></div>
           )}
           <div className="flex justify-between border-t border-secondary-200 pt-2 font-semibold"><span className="text-secondary-700">Order Total</span><span>{summary ? formatPKR(summary.order_total) : "--"}</span></div>
           {(() => {

@@ -287,17 +287,24 @@ async def get_session_receipt_data(
                 )
             )
 
-    # Add session-level discounts
+    # Table-level (session) discount lines, listed once each. D-104: their
+    # amounts already sit inside the orders' discount_amount and total once
+    # allocated; only a not-yet-allocated remainder still comes off here.
+    from app.services import discount_service
+
     session_disc_result = await db.execute(
         select(OrderDiscount)
         .where(
             OrderDiscount.tenant_id == tenant_id,
             OrderDiscount.table_session_id == session_id,
+            OrderDiscount.order_id.is_(None),
         )
         .order_by(OrderDiscount.created_at.asc())
     )
     session_discount_records = list(session_disc_result.scalars().all())
-    session_discount_amount = sum(d.amount for d in session_discount_records)
+    session_discount_amount = await discount_service.unallocated_session_discount(
+        db, tenant_id, session_id, orders
+    )
     discount_amount += session_discount_amount
 
     disc_result = await db.execute(

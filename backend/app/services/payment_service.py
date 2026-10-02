@@ -124,6 +124,7 @@ async def split_payment(
     data: SplitPaymentCreate,
 ) -> PaymentSummary:
     order = await _get_order_or_raise(db, data.order_id, tenant_id)
+    _check_split_discount_shares(data.allocations, order.discount_amount or 0)
     paid_amount, refunded_amount = await _get_order_payment_totals(
         db, tenant_id, order.id
     )
@@ -423,7 +424,6 @@ async def get_session_payment_summary(
 ) -> SessionPaymentSummary:
     """Get consolidated payment summary for a table session."""
     from app.models.table_session import TableSession
-    from app.models.discount import OrderDiscount
 
     result = await db.execute(
         select(TableSession)
@@ -466,14 +466,13 @@ async def get_session_payment_summary(
             )
         )
 
-    # Session-level discounts
-    session_disc_result = await db.execute(
-        select(OrderDiscount.amount).where(
-            OrderDiscount.tenant_id == tenant_id,
-            OrderDiscount.table_session_id == session_id,
-        )
+    # D-104: a table-level discount sits inside the orders' totals once
+    # allocated; only a not-yet-allocated remainder still comes off here.
+    from app.services import discount_service
+
+    session_discount = await discount_service.unallocated_session_discount(
+        db, tenant_id, session_id, billable_orders
     )
-    session_discount = sum(row[0] for row in session_disc_result.all())
     discount_amount += session_discount
 
     session_due = max(total - session_discount - total_paid, 0)
@@ -554,22 +553,16 @@ async def get_session_payment_preview(
     # table) comes off after tax, the same rule `order_total` and the session
     # summary use. The preview used to ignore discounts entirely, so a table
     # with Rs 200 off was asked for the full amount.
-    from app.models.discount import OrderDiscount
+    # D-104: the orders' discount_amount already holds their share of a table
+    # discount; only a not-yet-allocated remainder is added.
+    from app.services import discount_service
 
     extras = sum(
         (o.delivery_fee or 0) + (o.service_fee or 0) + (o.tip or 0) for o in billable_orders
     )
     order_discounts = sum(o.discount_amount or 0 for o in billable_orders)
-    session_discounts = sum(
-        row[0]
-        for row in (
-            await db.execute(
-                select(OrderDiscount.amount).where(
-                    OrderDiscount.tenant_id == tenant_id,
-                    OrderDiscount.table_session_id == session_id,
-                )
-            )
-        ).all()
+    session_discounts = await discount_service.unallocated_session_discount(
+        db, tenant_id, session_id, billable_orders
     )
     off = order_discounts + session_discounts
     cash_total = max(cash_goods + extras - off, 0)
@@ -613,6 +606,12 @@ async def create_session_payment(
         raise ValueError("Session is already closed")
 
     method = await _get_method_or_raise(db, tenant_id, data.method_code)
+
+    # D-104: put any table-level discount inside the orders' totals first, so
+    # the dues below are the discounted bill and the orders can reach 'paid'.
+    from app.services import discount_service
+
+    await discount_service.allocate_session_discounts(db, tenant_id, session_id)
 
     billable_orders = sorted(
         [o for o in session.orders if o.status != "voided"],
@@ -778,9 +777,17 @@ async def split_session_payment(
         if alloc.method_code not in methods:
             raise ValueError(f"Payment method '{alloc.method_code}' is not available")
 
+    # D-104: as in `create_session_payment`.
+    from app.services import discount_service
+
+    await discount_service.allocate_session_discounts(db, tenant_id, session_id)
+
     billable_orders = sorted(
         [o for o in session.orders if o.status != "voided"],
         key=lambda o: o.created_at,
+    )
+    _check_split_discount_shares(
+        data.allocations, sum(o.discount_amount or 0 for o in billable_orders)
     )
     await _retax_unpaid_session_orders_for_split_allocations(
         db, tenant_id, billable_orders, data.allocations
@@ -947,6 +954,20 @@ async def _retax_unpaid_session_orders_for_split_allocations(
     await db.flush()
 
 
+def _check_split_discount_shares(allocations, bill_discount: int) -> None:
+    """D-105: discount shares on a split, when sent, must add up to the bill's discount.
+
+    Otherwise the tax read from the parts is wrong and the bill cannot settle.
+    A client that sends no shares keeps the old behaviour.
+    """
+    shares = sum(a.discount or 0 for a in allocations)
+    if shares and shares != bill_discount:
+        raise ValueError(
+            f"Split discount shares ({shares}) must add up to the bill's discount "
+            f"({bill_discount}). Reload the bill and try again."
+        )
+
+
 async def _infer_split_subtotal_and_tax(
     db: AsyncSession,
     tenant_id: uuid.UUID,
@@ -981,9 +1002,11 @@ async def _infer_split_subtotal_and_tax(
         else:
             return None
 
+        # D-105: the tax was charged on the part before its discount share.
+        gross = alloc.amount + (alloc.discount or 0)
         divisor = 10_000 + rate
-        base = round(alloc.amount * 10_000 / divisor) if divisor > 0 else alloc.amount
-        tax = alloc.amount - base
+        base = round(gross * 10_000 / divisor) if divisor > 0 else gross
+        tax = gross - base
         inferred_subtotal += base
         inferred_tax += tax
 

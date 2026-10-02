@@ -18,7 +18,7 @@ import {
   type SessionDiscountBreakdown,
 } from "@/services/discountsApi";
 import { verifyPassword } from "@/services/ordersApi";
-import { payableTotal } from "@/utils/tax";
+import { payableTotal, splitDiscountShares } from "@/utils/tax";
 import { useCurrencyCode } from "@/hooks/useCurrencyCode";
 import { useConfigStore } from "@/stores/configStore";
 import { LoyaltyPanel } from "@/components/loyalty/LoyaltyPanel";
@@ -99,8 +99,8 @@ function SessionPaymentPage() {
     [preview, summary]
   );
   // D-97: the taxed base is food + service charge, as `taxable_base` on the server.
-  const splitSubtotal =
-    (preview?.subtotal ?? 0) + (preview?.service_charge ?? 0) - (discountBreakdown?.total_discount ?? 0);
+  // D-105: the FULL base; the discount comes off after tax, shared by the parts.
+  const splitSubtotal = (preview?.subtotal ?? 0) + (preview?.service_charge ?? 0);
   const splitCashBasePaisa = useMemo(() => {
     if (!splitCalcEnabled) return 0;
     return Math.min(parseRupees(splitCashBase), splitSubtotal);
@@ -109,14 +109,19 @@ function SessionPaymentPage() {
     if (!splitCalcEnabled) return 0;
     return Math.max(splitSubtotal - splitCashBasePaisa, 0);
   }, [splitCalcEnabled, splitSubtotal, splitCashBasePaisa]);
+  // D-105: every discount on the table (bills' own + table-level), as the server counts it.
+  const [splitCashDiscount, splitCardDiscount] = useMemo(
+    () => splitDiscountShares(summary?.discount_amount ?? 0, splitCashBasePaisa, splitCardBasePaisa),
+    [summary, splitCashBasePaisa, splitCardBasePaisa]
+  );
   const splitCashPayable = useMemo(() => {
     if (!splitCalcEnabled || !preview) return 0;
-    return payableTotal(splitCashBasePaisa, preview.cash_tax_rate_bps, pricesIncludeTax);
-  }, [splitCalcEnabled, preview, splitCashBasePaisa]);
+    return payableTotal(splitCashBasePaisa, preview.cash_tax_rate_bps, pricesIncludeTax) - splitCashDiscount;
+  }, [splitCalcEnabled, preview, splitCashBasePaisa, splitCashDiscount]);
   const splitCardPayable = useMemo(() => {
     if (!splitCalcEnabled || !preview) return 0;
-    return payableTotal(splitCardBasePaisa, preview.card_tax_rate_bps, pricesIncludeTax);
-  }, [splitCalcEnabled, preview, splitCardBasePaisa]);
+    return payableTotal(splitCardBasePaisa, preview.card_tax_rate_bps, pricesIncludeTax) - splitCardDiscount;
+  }, [splitCalcEnabled, preview, splitCardBasePaisa, splitCardDiscount]);
   const splitTotalPayable = useMemo(
     () => splitCashPayable + splitCardPayable,
     [splitCashPayable, splitCardPayable]
@@ -156,8 +161,7 @@ function SessionPaymentPage() {
         const cardDue = Math.max(p.card_total - s.paid_amount, 0);
         setCashAmount(minorToInputString(cashDue));
         setCardAmount(minorToInputString(cardDue));
-        const postDiscountSubtotal = p.subtotal + (p.service_charge ?? 0) - (db?.total_discount ?? 0);
-        const halfSubtotal = Math.round(postDiscountSubtotal / 2);
+        const halfSubtotal = Math.round((p.subtotal + (p.service_charge ?? 0)) / 2);
         setSplitCashBase(String(paisaToRupees(halfSubtotal)));
       }
     } catch (err: unknown) {
@@ -235,12 +239,13 @@ function SessionPaymentPage() {
       const allocations: SplitPaymentAllocation[] = splitCalcEnabled
         ? [
             ...(splitCashPayable > 0
-              ? [{ method_code: "cash" as const, amount: splitCashPayable }]
+              ? [{ method_code: "cash" as const, amount: splitCashPayable, discount: splitCashDiscount }]
               : []),
             ...(splitCardPayable > 0
               ? [{
                   method_code: "card" as const,
                   amount: splitCardPayable,
+                  discount: splitCardDiscount,
                   reference: splitCardReference || undefined,
                 }]
               : []),

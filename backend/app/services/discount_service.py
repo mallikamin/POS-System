@@ -127,6 +127,14 @@ async def apply_discount(
     if resolved_amount <= 0:
         raise ValueError("Discount amount must be > 0")
 
+    # D-104: a table discount has to land on a bill that can still change.
+    if table_session_id and not order_id and not await _session_has_unpaid_bill(
+        db, tenant_id, table_session_id
+    ):
+        raise ValueError(
+            "Every bill on this table already has a payment. Discount a single bill instead."
+        )
+
     # Validate: discount cannot exceed remaining applicable amount
     target_subtotal = await _get_target_subtotal(
         db, tenant_id, order_id, table_session_id
@@ -168,6 +176,8 @@ async def apply_discount(
     # Update order's discount_amount rollup for backward compatibility
     if order_id:
         await _sync_order_discount(db, tenant_id, order_id)
+    elif table_session_id:
+        await allocate_session_discounts(db, tenant_id, table_session_id)
 
     return od
 
@@ -191,12 +201,15 @@ async def remove_discount(
         raise ValueError("Discount not found")
 
     order_id = od.order_id
+    session_id = od.table_session_id
     await db.delete(od)
     await db.flush()
 
     # Re-sync rollup
     if order_id:
         await _sync_order_discount(db, tenant_id, order_id)
+    elif session_id:
+        await allocate_session_discounts(db, tenant_id, session_id)
 
 
 # ---------------------------------------------------------------------------
@@ -342,7 +355,11 @@ async def _check_approval_threshold(
 async def _sync_order_discount(
     db: AsyncSession, tenant_id: uuid.UUID, order_id: uuid.UUID
 ) -> None:
-    """Update the order.discount_amount and order.total to reflect applied discounts."""
+    """Update the order.discount_amount and order.total to reflect applied discounts.
+
+    discount_amount = the order's own discount lines + its share of any
+    table-level (session) discount (D-104, see `allocate_session_discounts`).
+    """
     total_discount = await _get_existing_discount_total(db, tenant_id, order_id, None)
     result = await db.execute(
         select(Order).where(Order.id == order_id, Order.tenant_id == tenant_id)
@@ -356,6 +373,116 @@ async def _sync_order_discount(
         from app.services import order_service
 
         _, prices_include_tax = await order_service._get_tax_settings(db, tenant_id)
-        order.discount_amount = total_discount
+        order.discount_amount = total_discount + (order.session_discount_share or 0)
         order.total = order_service.order_total(order, prices_include_tax)
         await db.flush()
+
+
+# ---------------------------------------------------------------------------
+# Table-level (session) discounts (D-104)
+# ---------------------------------------------------------------------------
+
+
+async def session_discount_total(
+    db: AsyncSession, tenant_id: uuid.UUID, session_id: uuid.UUID
+) -> int:
+    """Sum of the table-level discount lines (no order attached) on a session."""
+    result = await db.execute(
+        select(OrderDiscount.amount).where(
+            OrderDiscount.tenant_id == tenant_id,
+            OrderDiscount.table_session_id == session_id,
+            OrderDiscount.order_id.is_(None),
+        )
+    )
+    return sum(row[0] for row in result.all())
+
+
+async def unallocated_session_discount(
+    db: AsyncSession, tenant_id: uuid.UUID, session_id: uuid.UUID, billable_orders: list[Order]
+) -> int:
+    """The part of the table discount not yet inside any billable order's total.
+
+    Readers (session summary, preview, bill, receipt) subtract only this, since
+    the allocated part already sits in each order's discount_amount and total.
+    Normally 0; non-zero only between a change to the table's bills and the
+    next allocation (which every table payment runs first).
+    """
+    total = await session_discount_total(db, tenant_id, session_id)
+    allocated = sum(o.session_discount_share or 0 for o in billable_orders)
+    return max(total - allocated, 0)
+
+
+async def allocate_session_discounts(
+    db: AsyncSession, tenant_id: uuid.UUID, session_id: uuid.UUID
+) -> None:
+    """Spread the table-level discount over the table's bills (D-104).
+
+    A table discount used to live only on the session, so each order's total
+    stayed full: the table paid the discounted amount, the order stayed
+    'partial', the session never closed and stock was never deducted.
+
+    Bills with a payment on them keep their share (like the tax, nothing is
+    re-priced once money is taken). The rest is spread over the unpaid bills
+    in proportion to their food subtotal; the last bill takes the rounding
+    remainder, so the shares always add up to the discount exactly.
+    """
+    from app.services.payment_service import _get_order_payment_totals
+
+    result = await db.execute(
+        select(Order)
+        .where(Order.tenant_id == tenant_id, Order.table_session_id == session_id)
+        .order_by(Order.created_at, Order.id)
+    )
+    orders = list(result.scalars().all())
+    billable = [o for o in orders if o.status != "voided"]
+
+    open_orders: list[Order] = []
+    frozen = 0
+    for o in billable:
+        paid, refunded = await _get_order_payment_totals(db, tenant_id, o.id)
+        if paid - refunded > 0:
+            frozen += o.session_discount_share or 0
+        else:
+            open_orders.append(o)
+
+    to_allocate = max(await session_discount_total(db, tenant_id, session_id) - frozen, 0)
+    base = sum(o.subtotal for o in open_orders)
+    remaining = to_allocate
+    changed: list[Order] = []
+    for idx, o in enumerate(open_orders):
+        if idx == len(open_orders) - 1:
+            share = remaining
+        else:
+            share = round(to_allocate * o.subtotal / base) if base > 0 else 0
+            remaining -= share
+        if share != (o.session_discount_share or 0):
+            o.session_discount_share = share
+            changed.append(o)
+    # A voided bill never carries a share.
+    for o in orders:
+        if o.status == "voided" and o.session_discount_share:
+            o.session_discount_share = 0
+    await db.flush()
+    # Only a bill whose share moved is re-totalled. A table with no table
+    # discount is never touched, so paying it cannot re-price any bill.
+    for o in changed:
+        await _sync_order_discount(db, tenant_id, o.id)
+
+
+async def _session_has_unpaid_bill(
+    db: AsyncSession, tenant_id: uuid.UUID, session_id: uuid.UUID
+) -> bool:
+    from app.services.payment_service import _get_order_payment_totals
+
+    result = await db.execute(
+        select(Order.id).where(
+            Order.tenant_id == tenant_id,
+            Order.table_session_id == session_id,
+            Order.status != "voided",
+        )
+    )
+    for (order_id,) in result.all():
+        paid, refunded = await _get_order_payment_totals(db, tenant_id, order_id)
+        if paid - refunded <= 0:
+            return True
+    return False

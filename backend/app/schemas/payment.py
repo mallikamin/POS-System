@@ -60,6 +60,11 @@ class SplitPaymentAllocation(BaseModel):
     amount: int = Field(..., gt=0)
     tendered_amount: int | None = Field(None, ge=0)
     reference: str | None = Field(None, max_length=120)
+    # D-105: this method's share of the bill's discount (paisa), already taken
+    # off `amount`. The server adds it back to read the tax split, since the
+    # tax is charged on the full bill and the discount comes off after tax.
+    # The shares must add up to the bill's discount; 0 everywhere = no discount.
+    discount: int = Field(0, ge=0)
 
 
 class SplitPaymentCreate(BaseModel):

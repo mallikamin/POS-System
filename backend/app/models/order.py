@@ -195,6 +195,14 @@ class Order(BaseMixin, Base):
         nullable=False,
         comment="Discount in paisa",
     )
+    # D-104: this bill's share of a table-level (session) discount, already
+    # included in discount_amount. Set by discount_service.allocate_session_discounts.
+    session_discount_share: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        nullable=False,
+        comment="Share of the table-level discount inside discount_amount, in paisa",
+    )
     total: Mapped[int] = mapped_column(
         Integer,
         nullable=False,

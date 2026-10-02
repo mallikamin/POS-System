@@ -52,6 +52,8 @@ export interface SplitPaymentAllocation {
   amount: number;
   tendered_amount?: number;
   reference?: string;
+  /** D-105: this part's share of the bill's discount, already off `amount`. */
+  discount?: number;
 }
 
 export interface SplitPaymentCreateRequest {

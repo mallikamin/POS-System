@@ -7,7 +7,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.discount import OrderDiscount
 from app.models.floor import Table
 from app.models.payment import Payment
 from app.models.table_session import TableSession
@@ -163,17 +162,18 @@ async def get_bill_summary(
             p.amount if p.kind == "payment" else -p.amount for p in payments
         )
 
-    # Also include session-level discounts
-    session_disc_result = await db.execute(
-        select(OrderDiscount.amount).where(
-            OrderDiscount.tenant_id == tenant_id,
-            OrderDiscount.table_session_id == session_id,
-        )
+    # D-104: `total` already has every order's discounts taken off, including
+    # its share of a table-level discount. Only a not-yet-allocated remainder
+    # of the table discount still comes off (this used to subtract all the
+    # discounts a second time).
+    from app.services import discount_service
+
+    session_discount = await discount_service.unallocated_session_discount(
+        db, tenant_id, session_id, billable_orders
     )
-    session_discount = sum(row[0] for row in session_disc_result.all())
     discount_amount += session_discount
 
-    due_amount = max(total - discount_amount - paid_amount, 0)
+    due_amount = max(total - session_discount - paid_amount, 0)
 
     return {
         "session_id": session.id,

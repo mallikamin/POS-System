@@ -72,6 +72,26 @@ export function payableTotal(
 }
 
 /**
+ * D-105: each part of a cash/card split carries its share of the bill's
+ * discount, in proportion to its base. Tax is charged on the full bill and the
+ * discount comes off after (`order_total` on the server), so each part pays
+ * `payableTotal(base) - share`, and the server adds the share back to read the
+ * tax. The shares always add up to the discount exactly.
+ */
+export function splitDiscountShares(
+  discount: number,
+  cashBase: number,
+  cardBase: number
+): [number, number] {
+  const total = cashBase + cardBase;
+  if (discount <= 0 || total <= 0) return [0, 0];
+  if (cardBase <= 0) return [discount, 0];
+  if (cashBase <= 0) return [0, discount];
+  const cash = Math.round((discount * cashBase) / total);
+  return [cash, discount - cash];
+}
+
+/**
  * The part of an amount that is the business's own revenue.
  *
  * F13: Food Cost % divided by the menu price, which for a tax-inclusive tenant
