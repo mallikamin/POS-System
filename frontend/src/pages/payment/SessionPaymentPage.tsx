@@ -97,7 +97,9 @@ function SessionPaymentPage() {
     () => !!preview && !!summary && summary.paid_amount === 0,
     [preview, summary]
   );
-  const splitSubtotal = (preview?.subtotal ?? 0) - (discountBreakdown?.total_discount ?? 0);
+  // D-97: the taxed base is food + service charge, as `taxable_base` on the server.
+  const splitSubtotal =
+    (preview?.subtotal ?? 0) + (preview?.service_charge ?? 0) - (discountBreakdown?.total_discount ?? 0);
   const splitCashBasePaisa = useMemo(() => {
     if (!splitCalcEnabled) return 0;
     return Math.min(parseRupees(splitCashBase), splitSubtotal);
@@ -153,7 +155,7 @@ function SessionPaymentPage() {
         const cardDue = Math.max(p.card_total - s.paid_amount, 0);
         setCashAmount(minorToInputString(cashDue));
         setCardAmount(minorToInputString(cardDue));
-        const postDiscountSubtotal = p.subtotal - (db?.total_discount ?? 0);
+        const postDiscountSubtotal = p.subtotal + (p.service_charge ?? 0) - (db?.total_discount ?? 0);
         const halfSubtotal = Math.round(postDiscountSubtotal / 2);
         setSplitCashBase(String(paisaToRupees(halfSubtotal)));
       }
@@ -387,7 +389,10 @@ function SessionPaymentPage() {
                 <p className="text-xs text-blue-600">Tax: {formatPKR(preview.card_tax_amount)}</p>
               </div>
             </div>
-            <p className="mt-2 text-center text-xs text-secondary-400">Subtotal: {formatPKR(preview.subtotal)}</p>
+            <p className="mt-2 text-center text-xs text-secondary-400">
+              Subtotal: {formatPKR(preview.subtotal)}
+              {preview.service_charge > 0 && <> + Service charge: {formatPKR(preview.service_charge)} (taxed)</>}
+            </p>
           </CardContent>
         </Card>
       )}
@@ -605,6 +610,9 @@ function SessionPaymentPage() {
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
           <div className="flex justify-between"><span className="text-secondary-500">Subtotal</span><span>{summary ? formatPKR(summary.subtotal) : "--"}</span></div>
+          {!!summary && summary.service_charge > 0 && (
+            <div className="flex justify-between"><span className="text-secondary-500">Service charge</span><span>{formatPKR(summary.service_charge)}</span></div>
+          )}
           {preview ? (
             <>
               <div className="flex justify-between"><span className="text-secondary-500">Cash Tax ({preview.cash_tax_rate_bps / 100}%)</span><span>{formatPKR(preview.cash_tax_amount)}</span></div>

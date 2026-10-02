@@ -51,6 +51,9 @@ export async function voidOrder(
 export interface PaymentPreview {
   order_id: string;
   subtotal: number;
+  /** D-97: taxed service charge, already inside both totals. */
+  service_charge: number;
+  service_charge_bps: number;
   cash_tax_rate_bps: number;
   cash_tax_amount: number;
   cash_total: number;

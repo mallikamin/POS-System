@@ -80,6 +80,22 @@ class RestaurantConfig(BaseMixin, Base):
         "order regardless of payment method. 0 = disabled.",
     )
 
+    # Danny's D-97. A percentage of the food, unlike `service_fee` above, and
+    # TAXED: PRA taxes the gross bill "including ... service charges" (Restaurant
+    # Services Rules 2012). See `order_service.taxable_base`.
+    service_charge_bps: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        nullable=False,
+        comment="Service charge on the food subtotal, basis points. 0 = off.",
+    )
+    service_charge_dine_in_only: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        nullable=False,
+        comment="Charge the service charge on dine-in orders only.",
+    )
+
     online_ordering_paused: Mapped[bool] = mapped_column(
         Boolean,
         default=False,

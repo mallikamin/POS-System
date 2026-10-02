@@ -49,6 +49,8 @@ async def generate_zreport(
                 func.coalesce(func.sum(Order.total), 0).label("revenue"),
                 func.coalesce(func.sum(Order.tax_amount), 0).label("tax"),
                 func.coalesce(func.sum(Order.discount_amount), 0).label("discount"),
+                # D-97: inside revenue already; shown on its own line too.
+                func.coalesce(func.sum(Order.service_charge), 0).label("service_charge"),
             ).where(
                 Order.tenant_id == tenant_id,
                 date_filter,
@@ -295,6 +297,7 @@ async def generate_zreport(
         "total_revenue": totals.revenue,
         "total_tax": totals.tax,
         "total_discount": totals.discount,
+        "total_service_charge": totals.service_charge,
         "net_revenue": net_revenue,
         "settled_orders": settled_orders,
         "fully_refunded_orders": fully_refunded_orders,

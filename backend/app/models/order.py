@@ -229,6 +229,21 @@ class Order(BaseMixin, Base):
         comment="Service fee in minor units, snapshotted from the tenant's "
         "config at order creation. Charged regardless of service type.",
     )
+    # Danny's D-97: percentage service charge, snapshotted at creation from the
+    # tenant config. Unlike `service_fee` it is INSIDE the tax base (PRA), so
+    # every tax calculation uses `order_service.taxable_base(order)`.
+    service_charge: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        nullable=False,
+        comment="Service charge in minor units (taxed). 0 when not charged.",
+    )
+    service_charge_bps: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        nullable=False,
+        comment="Service charge rate applied to this order, basis points.",
+    )
     tip: Mapped[int] = mapped_column(
         Integer,
         default=0,

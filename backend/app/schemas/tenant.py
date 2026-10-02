@@ -35,6 +35,9 @@ class RestaurantConfigResponse(BaseModel):
     default_tax_rate: int
     cash_tax_rate_bps: int = 1600
     card_tax_rate_bps: int = 500
+    # D-97: percentage service charge (basis points, 0 = off), taxed.
+    service_charge_bps: int
+    service_charge_dine_in_only: bool
     receipt_header: str | None = None
     receipt_footer: str | None = None
     # 'thermal' (80mm roll) or 'a4'. Presentation only.

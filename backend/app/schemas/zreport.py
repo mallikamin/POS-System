@@ -190,6 +190,8 @@ class ZReport(BaseModel):
     total_revenue: int
     total_tax: int
     total_discount: int
+    # D-97: service charge collected (already inside total_revenue).
+    total_service_charge: int
     net_revenue: int = 0  # total_revenue - total_discount
     settled_orders: int = 0
     fully_refunded_orders: int = 0

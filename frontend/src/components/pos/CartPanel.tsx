@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { formatPKR, taxName, majorToMinor } from "@/utils/currency";
 import { useCurrencyCode } from "@/hooks/useCurrencyCode";
-import { splitTax } from "@/utils/tax";
+import { serviceChargeFor, splitTax } from "@/utils/tax";
 import { useCartStore, type CartLine, type Cart, EMPTY_CART } from "@/stores/cartStore";
 import { useOrderStore } from "@/stores/orderStore";
 import { useUIStore } from "@/stores/uiStore";
@@ -51,6 +51,9 @@ export function CartPanel({ waiterId, onOrderCreated }: CartPanelProps = {}) {
   // added to it. Defaults to true, matching the backend column default, so the
   // cart cannot quote a total the server will not charge.
   const pricesIncludeTax = useConfigStore((s) => s.config?.tax_inclusive) ?? true;
+  const serviceChargeBps = useConfigStore((s) => s.config?.service_charge_bps) ?? 0;
+  const serviceChargeDineInOnly =
+    useConfigStore((s) => s.config?.service_charge_dine_in_only) ?? true;
   const currency = useCurrencyCode();
   const selectedCustomer = useCustomerStore((s) => s.selectedCustomer);
   const isPayFirst = paymentFlow === "pay_first";
@@ -174,7 +177,22 @@ export function CartPanel({ waiterId, onOrderCreated }: CartPanelProps = {}) {
    * Tax-inclusive: the tax is already inside `subtotal`, so it is derived by
    * subtraction (never as `net * rate`) and the total IS the subtotal.
    */
-  const { tax, total: goodsTotal } = splitTax(subtotal, TAX_BPS, pricesIncludeTax);
+  /*
+   * D-97: percentage service charge, mirroring `order_service.create_order`:
+   * dine-in only unless the tenant says otherwise, and TAXED (PRA), so it is
+   * added to the subtotal before the tax is worked out.
+   */
+  const serviceChargeAppliesHere =
+    serviceChargeBps > 0 &&
+    (!serviceChargeDineInOnly || (currentChannel || "takeaway") === "dine_in");
+  const autoServiceCharge = serviceChargeAppliesHere
+    ? serviceChargeFor(subtotal, serviceChargeBps)
+    : 0;
+  const { tax, total: goodsTotal } = splitTax(
+    subtotal + autoServiceCharge,
+    TAX_BPS,
+    pricesIncludeTax
+  );
   // Charges ride outside the tax, exactly as `order_service.order_total` adds
   // them on the server, so the quoted total is the charged total.
   const total = goodsTotal + chargesTotal;
@@ -425,7 +443,11 @@ export function CartPanel({ waiterId, onOrderCreated }: CartPanelProps = {}) {
               aria-expanded={chargesOpen}
             >
               <Truck className="h-3.5 w-3.5 text-secondary-400" />
-              {chargesTotal > 0 ? `Charges: ${formatPKR(chargesTotal)}` : "Add charges (delivery fee, service charge)"}
+              {chargesTotal > 0
+                ? `Charges: ${formatPKR(chargesTotal)}`
+                : serviceChargeBps > 0
+                  ? "Add charges (delivery fee)"
+                  : "Add charges (delivery fee, service charge)"}
               <span className="ml-auto text-secondary-400">{chargesOpen ? "Hide" : "Edit"}</span>
             </button>
             {chargesOpen && (
@@ -443,6 +465,10 @@ export function CartPanel({ waiterId, onOrderCreated }: CartPanelProps = {}) {
                     className="w-full h-11 rounded border border-secondary-200 px-2 text-sm focus:border-primary-400 focus:outline-none"
                   />
                 </label>
+                {/* D-97: a tenant with an automatic % service charge does not
+                    also get a manual "Service charge" box; two lines with the
+                    same name on one bill would be charged twice by mistake. */}
+                {serviceChargeBps === 0 && (
                 <label className="space-y-1">
                   <span className="text-[11px] font-medium text-secondary-500">Service charge ({currency})</span>
                   <input
@@ -456,6 +482,7 @@ export function CartPanel({ waiterId, onOrderCreated }: CartPanelProps = {}) {
                     className="w-full h-11 rounded border border-secondary-200 px-2 text-sm focus:border-primary-400 focus:outline-none"
                   />
                 </label>
+                )}
                 <p className="col-span-2 text-[10px] text-secondary-400">
                   Added on top of the {taxName(currency)}-inclusive goods total and printed as their own lines on the receipt.
                 </p>
@@ -527,6 +554,12 @@ export function CartPanel({ waiterId, onOrderCreated }: CartPanelProps = {}) {
               <span>Subtotal</span>
               <span>{formatPKR(subtotal)}</span>
             </div>
+            {autoServiceCharge > 0 && (
+              <div className="flex justify-between text-secondary-600">
+                <span>Service charge ({serviceChargeBps / 100}%)</span>
+                <span>{formatPKR(autoServiceCharge)}</span>
+              </div>
+            )}
             <div className="flex justify-between text-secondary-600">
               <span>
                 {taxName(currency)} ({TAX_BPS / 100}%

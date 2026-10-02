@@ -46,6 +46,10 @@ class ReceiptData(BaseModel):
 
     items: list[ReceiptItem]
     subtotal: int  # paisa
+    # D-97: service charge, printed between subtotal and tax (it is taxed).
+    # No default: a receipt built without it must fail loudly, not print 0.
+    service_charge: int
+    service_charge_bps: int
     tax_label: str
     tax_rate_display: str  # e.g. "16%"
     tax_amount: int  # paisa

@@ -91,7 +91,9 @@ function PaymentPage() {
     () => !!preview && !!summary && summary.paid_amount === 0,
     [preview, summary]
   );
-  const splitSubtotal = (preview?.subtotal ?? 0) - (discountBreakdown?.total_discount ?? 0);
+  // D-97: the taxed base is food + service charge, as `taxable_base` on the server.
+  const splitSubtotal =
+    (preview?.subtotal ?? 0) + (preview?.service_charge ?? 0) - (discountBreakdown?.total_discount ?? 0);
   const splitCashBasePaisa = useMemo(() => {
     if (!splitCalcEnabled) return 0;
     return Math.min(parseRupees(splitCashBase), splitSubtotal);
@@ -169,7 +171,8 @@ function PaymentPage() {
         const dueRupees = minorToInputString(nextSummary.due_amount);
         setCashAmount(dueRupees);
         setCardAmount(dueRupees);
-        const postDiscountSubtotal = nextPreview.subtotal - (nextDiscBreakdown?.total_discount ?? 0);
+        const postDiscountSubtotal =
+          nextPreview.subtotal + (nextPreview.service_charge ?? 0) - (nextDiscBreakdown?.total_discount ?? 0);
         const halfSubtotal = Math.round(postDiscountSubtotal / 2);
         setSplitCashBase(String(paisaToRupees(halfSubtotal)));
       }
@@ -402,7 +405,10 @@ function PaymentPage() {
                 <p className="text-xs text-blue-600">Tax: {formatPKR(preview.card_tax_amount)}</p>
               </div>
             </div>
-            <p className="mt-2 text-center text-xs text-secondary-400">Subtotal: {formatPKR(preview.subtotal)}</p>
+            <p className="mt-2 text-center text-xs text-secondary-400">
+              Subtotal: {formatPKR(preview.subtotal)}
+              {preview.service_charge > 0 && <> + Service charge: {formatPKR(preview.service_charge)} (taxed)</>}
+            </p>
           </CardContent>
         </Card>
       )}
@@ -767,7 +773,11 @@ function PaymentPage() {
           {orderDetail && (
             <>
               <div className="flex justify-between"><span className="text-secondary-500">Subtotal</span><span className="font-medium">{formatPKR(orderDetail.subtotal)}</span></div>
-              <div className="flex justify-between"><span className="text-secondary-500">Tax ({orderDetail.tax_amount > 0 ? `${((orderDetail.tax_amount / orderDetail.subtotal) * 100).toFixed(0)}%` : "0%"})</span><span className="font-medium">{formatPKR(orderDetail.tax_amount)}</span></div>
+              {(orderDetail.service_charge ?? 0) > 0 && (
+                <div className="flex justify-between"><span className="text-secondary-500">Service charge ({orderDetail.service_charge_bps / 100}%)</span><span className="font-medium">{formatPKR(orderDetail.service_charge)}</span></div>
+              )}
+              {/* D-97: the tax is on food + service charge, so the % is taken on that base. */}
+              <div className="flex justify-between"><span className="text-secondary-500">Tax ({orderDetail.tax_amount > 0 ? `${((orderDetail.tax_amount / (orderDetail.subtotal + (orderDetail.service_charge ?? 0))) * 100).toFixed(0)}%` : "0%"})</span><span className="font-medium">{formatPKR(orderDetail.tax_amount)}</span></div>
               {/* Charges outside the tax. Shown so the lines add up to the total. */}
               {(orderDetail.delivery_fee ?? 0) > 0 && (
                 <div className="flex justify-between"><span className="text-secondary-500">Delivery fee</span><span className="font-medium">{formatPKR(orderDetail.delivery_fee)}</span></div>

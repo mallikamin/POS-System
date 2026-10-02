@@ -81,6 +81,9 @@ export interface RestaurantConfig extends BaseEntity {
   timezone: string;
   tax_inclusive: boolean;
   default_tax_rate: number;
+  /** D-97: percentage service charge in basis points (0 = off), taxed. */
+  service_charge_bps: number;
+  service_charge_dine_in_only: boolean;
   receipt_header: string | null;
   receipt_footer: string | null;
   /** How the browser receipt prints: `thermal` (80mm roll) or `a4`. */

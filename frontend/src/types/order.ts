@@ -73,6 +73,9 @@ export interface OrderResponse {
   customer_name?: string;
   customer_phone?: string;
   subtotal: number;
+  /** D-97: percentage service charge, INSIDE the tax base. */
+  service_charge: number;
+  service_charge_bps: number;
   tax_amount: number;
   discount_amount: number;
   /** Charges outside the tax. 0 on orders that carry none. */

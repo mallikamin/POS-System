@@ -45,6 +45,9 @@ interface ReceiptData {
   waiter_name: string | null;
   items: ReceiptItem[];
   subtotal: number;
+  /** D-97: service charge, taxed, printed between subtotal and tax. */
+  service_charge: number;
+  service_charge_bps: number;
   tax_label: string;
   tax_rate_display: string;
   tax_amount: number;
@@ -312,6 +315,12 @@ export function ReceiptModal({ orderId, sessionId, open, onClose }: Props) {
               <span>Subtotal</span>
               <span>{formatAmount(receipt.subtotal, receipt.currency)}</span>
             </div>
+            {receipt.service_charge > 0 && (
+              <div className="row flex justify-between">
+                <span>Service Charge ({receipt.service_charge_bps / 100}%)</span>
+                <span>{formatAmount(receipt.service_charge, receipt.currency)}</span>
+              </div>
+            )}
             {(() => {
               const cashRate = receipt.cash_tax_rate_bps || 0;
               const cardRate = receipt.card_tax_rate_bps || 0;

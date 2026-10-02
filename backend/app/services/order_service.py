@@ -231,6 +231,44 @@ def compute_tax(subtotal: int, rate_bps: int, prices_include_tax: bool) -> tuple
     return tax_amount, subtotal + tax_amount
 
 
+async def _get_service_charge_settings(
+    db: AsyncSession, tenant_id: uuid.UUID
+) -> tuple[int, bool]:
+    """Return `(service_charge_bps, dine_in_only)`; `(0, True)` without a config row."""
+    result = await db.execute(
+        select(
+            RestaurantConfig.service_charge_bps,
+            RestaurantConfig.service_charge_dine_in_only,
+        ).where(RestaurantConfig.tenant_id == tenant_id)
+    )
+    row = result.one_or_none()
+    if row is None:
+        return 0, True
+    return (row.service_charge_bps or 0), (
+        True if row.service_charge_dine_in_only is None else bool(row.service_charge_dine_in_only)
+    )
+
+
+def service_charge_for(subtotal: int, rate_bps: int) -> int:
+    """Danny's D-97: the service charge on a food subtotal, integer minor units."""
+    if rate_bps <= 0 or subtotal <= 0:
+        return 0
+    return round(subtotal * rate_bps / 10_000)
+
+
+def taxable_base(order: Order) -> int:
+    """What the tax is charged on: the food subtotal PLUS the service charge.
+
+    Danny's D-97. PRA taxes the gross bill "including the component of charges
+    received as service charges" (Punjab Restaurant Services Rules 2012), so a
+    service charge sits INSIDE the tax base, unlike `service_fee`, `delivery_fee`
+    and `tip`, which ride outside it (see `order_total`). Every place that taxes
+    or re-totals an order goes through here; with no service charge it is just
+    `subtotal`, so tenants that never set a rate are byte-identical.
+    """
+    return order.subtotal + (order.service_charge or 0)
+
+
 def net_of_tax(amount: int, rate_bps: int, prices_include_tax: bool) -> int:
     """The part of `amount` that is the business's own revenue, in minor units.
 
@@ -253,8 +291,9 @@ def order_total(order: Order, prices_include_tax: bool) -> int:
     discount sync, split allocations), because every place that wrote its own
     version got at least one of these wrong:
 
-        goods  = subtotal                (prices include tax, F19)
-               = subtotal + tax_amount   (prices exclude tax)
+        base   = subtotal + service_charge   (D-97, see `taxable_base`)
+        goods  = base                        (prices include tax, F19)
+               = base + tax_amount           (prices exclude tax)
         total  = goods + delivery_fee + service_fee + tip - discount_amount
 
     Fees and the tip ride OUTSIDE the tax, exactly as `public_order_service`
@@ -262,9 +301,8 @@ def order_total(order: Order, prices_include_tax: bool) -> int:
     Martin (FZ LLC, 2026-09-02) follow the same rule so the two channels cannot
     quote different totals for the same basket and fee.
     """
-    goods_total = (
-        order.subtotal if prices_include_tax else order.subtotal + order.tax_amount
-    )
+    base = taxable_base(order)
+    goods_total = base if prices_include_tax else base + order.tax_amount
     extras = (order.delivery_fee or 0) + (order.service_fee or 0) + (order.tip or 0)
     return goods_total + extras - (order.discount_amount or 0)
 
@@ -395,7 +433,16 @@ async def create_order(
         }
         order_items_data.append(item_dict)
 
-    tax_amount, goods_total = compute_tax(subtotal, tax_rate_bps, prices_include_tax)
+    # D-97: service charge on the food, then tax on food + service charge (PRA).
+    sc_bps, sc_dine_in_only = await _get_service_charge_settings(db, tenant_id)
+    if sc_dine_in_only and data.order_type != "dine_in":
+        sc_bps = 0
+    service_charge = service_charge_for(subtotal, sc_bps)
+    if service_charge == 0:
+        sc_bps = 0
+    tax_amount, goods_total = compute_tax(
+        subtotal + service_charge, tax_rate_bps, prices_include_tax
+    )
     # Charges added at the till (Martin, FZ LLC 2026-09-02: "option to add
     # charges such as delivery fees"). Outside the tax, same as the online
     # channel; see `order_total` for the one rule.
@@ -496,6 +543,8 @@ async def create_order(
             discount_amount=0,
             delivery_fee=delivery_fee,
             service_fee=service_fee,
+            service_charge=service_charge,
+            service_charge_bps=sc_bps,
             total=total,
             notes=data.notes,
             created_by=user_id,
@@ -1056,8 +1105,9 @@ async def get_payment_preview(
     prices_include_tax = True if row is None else bool(row.tax_inclusive)
 
     subtotal = order.subtotal
-    cash_tax, cash_goods = compute_tax(subtotal, cash_rate, prices_include_tax)
-    card_tax, card_goods = compute_tax(subtotal, card_rate, prices_include_tax)
+    base = taxable_base(order)  # D-97: service charge is taxed
+    cash_tax, cash_goods = compute_tax(base, cash_rate, prices_include_tax)
+    card_tax, card_goods = compute_tax(base, card_rate, prices_include_tax)
     # Fees and tip are outside the tax, so they are the same under either
     # method and simply ride on top (see `order_total`).
     extras = (order.delivery_fee or 0) + (order.service_fee or 0) + (order.tip or 0)
@@ -1065,6 +1115,8 @@ async def get_payment_preview(
     return PaymentPreviewResponse(
         order_id=order.id,
         subtotal=subtotal,
+        service_charge=order.service_charge or 0,
+        service_charge_bps=order.service_charge_bps or 0,
         cash_tax_rate_bps=cash_rate,
         cash_tax_amount=cash_tax,
         cash_total=cash_goods + extras,

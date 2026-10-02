@@ -111,6 +111,8 @@ interface ZReport {
   total_revenue: number;
   total_tax: number;
   total_discount: number;
+  /** D-97: service charge collected, already inside total_revenue. */
+  total_service_charge: number;
   net_revenue: number;
   settled_orders: number;
   fully_refunded_orders: number;
@@ -304,6 +306,13 @@ function ZReportPage() {
               label="Discounts"
               value={formatPKR(report.total_discount)}
             />
+            {report.total_service_charge > 0 && (
+              <KpiCard
+                icon={<DollarSign className="h-5 w-5" />}
+                label="Service Charge"
+                value={formatPKR(report.total_service_charge)}
+              />
+            )}
           </div>
 
           {/* Print: compact summary table */}
@@ -317,6 +326,9 @@ function ZReportPage() {
                   <tr><td className="py-1">Net Revenue</td><td className="py-1 text-right font-semibold">{formatPKR(report.net_revenue)}</td></tr>
                   <tr><td className="py-1">Net Tax Collected</td><td className="py-1 text-right font-semibold">{formatPKR(report.net_tax)}</td></tr>
                   <tr><td className="py-1">Discounts</td><td className="py-1 text-right font-semibold">{formatPKR(report.total_discount)}</td></tr>
+                  {report.total_service_charge > 0 && (
+                    <tr><td className="py-1">Service Charge</td><td className="py-1 text-right font-semibold">{formatPKR(report.total_service_charge)}</td></tr>
+                  )}
                 </tbody>
               </table>
             </div>

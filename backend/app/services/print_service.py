@@ -235,6 +235,11 @@ def _render_copy(
     # tips out its own way. `orders.tip` is still stored and reported
     # separately -- only what prints changed.
     t.columns("Subtotal", money(order.subtotal + (order.tip or 0), currency))
+    if order.service_charge:  # D-97; always 0 on online orders
+        t.columns(
+            f"Service Charge ({(order.service_charge_bps or 0) / 100:g}%)",
+            money(order.service_charge, currency),
+        )
     if order.discount_amount:
         t.columns("Discount", f"-{money(order.discount_amount, currency)}")
     if order.tax_amount:

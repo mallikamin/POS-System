@@ -43,6 +43,16 @@ export function splitTax(
   return { tax, total: subtotal + tax };
 }
 
+/**
+ * Danny's D-97: the service charge on a food subtotal. Mirrors
+ * `order_service.service_charge_for`. It is TAXED (PRA), so callers add it to
+ * the subtotal before `splitTax`, exactly as `order_service.taxable_base` does.
+ */
+export function serviceChargeFor(subtotal: number, rateBps: number): number {
+  if (rateBps <= 0 || subtotal <= 0) return 0;
+  return Math.round((subtotal * rateBps) / 10_000);
+}
+
 /** The tax contained in (or due on) an amount. */
 export function taxPortion(
   amount: number,

@@ -22,6 +22,8 @@ interface ConfigData {
   default_tax_rate: number;
   cash_tax_rate_bps: number;
   card_tax_rate_bps: number;
+  service_charge_bps: number;
+  service_charge_dine_in_only: boolean;
   receipt_header: string | null;
   receipt_footer: string | null;
   receipt_format: "thermal" | "a4";
@@ -42,6 +44,9 @@ function SettingsPage() {
   const [taxRate, setTaxRate] = useState(16);
   const [cashTaxRate, setCashTaxRate] = useState(16);
   const [cardTaxRate, setCardTaxRate] = useState(5);
+  // D-97: percentage service charge, taxed (PRA).
+  const [serviceChargeRate, setServiceChargeRate] = useState(0);
+  const [serviceChargeDineInOnly, setServiceChargeDineInOnly] = useState(true);
   const [receiptHeader, setReceiptHeader] = useState("");
   const [receiptFooter, setReceiptFooter] = useState("");
   // Martin (FZ LLC, 2026-09-02): "option to either print a vertical receipt
@@ -66,6 +71,8 @@ function SettingsPage() {
       setTaxRate(data.default_tax_rate / 100);
       setCashTaxRate(data.cash_tax_rate_bps / 100);
       setCardTaxRate(data.card_tax_rate_bps / 100);
+      setServiceChargeRate((data.service_charge_bps ?? 0) / 100);
+      setServiceChargeDineInOnly(data.service_charge_dine_in_only ?? true);
       setReceiptHeader(data.receipt_header ?? "");
       setReceiptFooter(data.receipt_footer ?? "");
       setReceiptFormat(data.receipt_format === "a4" ? "a4" : "thermal");
@@ -93,6 +100,8 @@ function SettingsPage() {
         default_tax_rate: Math.round(taxRate * 100),
         cash_tax_rate_bps: Math.round(cashTaxRate * 100),
         card_tax_rate_bps: Math.round(cardTaxRate * 100),
+        service_charge_bps: Math.round(serviceChargeRate * 100),
+        service_charge_dine_in_only: serviceChargeDineInOnly,
         receipt_header: receiptHeader || null,
         receipt_footer: receiptFooter || null,
         receipt_format: receiptFormat,
@@ -257,6 +266,36 @@ function SettingsPage() {
               <Switch
                 checked={taxInclusive}
                 onCheckedChange={setTaxInclusive}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="serviceChargeRate">Service Charge (%)</Label>
+              <Input
+                id="serviceChargeRate"
+                type="number"
+                min={0}
+                max={30}
+                step={0.5}
+                value={serviceChargeRate}
+                onChange={(e) => setServiceChargeRate(parseFloat(e.target.value) || 0)}
+                className="min-h-[48px]"
+              />
+              <p className="text-pos-sm text-secondary-500">
+                {serviceChargeRate > 0
+                  ? `${serviceChargeRate}% of the food, added to the bill and taxed with it. 0 turns it off.`
+                  : "Off. Enter a percentage to add a service charge to the bill."}
+              </p>
+            </div>
+            <div className="flex items-center justify-between rounded-lg border p-4">
+              <div>
+                <Label>Service charge on dine-in only</Label>
+                <p className="text-pos-sm text-secondary-500">
+                  Off charges takeaway and phone orders too
+                </p>
+              </div>
+              <Switch
+                checked={serviceChargeDineInOnly}
+                onCheckedChange={setServiceChargeDineInOnly}
               />
             </div>
           </CardContent>

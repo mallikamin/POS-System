@@ -136,6 +136,9 @@ class OrderResponse(BaseModel):
     waiter_id: uuid.UUID | None = None
     waiter_name: str | None = None
     subtotal: int
+    # D-97: percentage service charge, INSIDE the tax (PRA). Read from the row.
+    service_charge: int
+    service_charge_bps: int
     tax_amount: int
     discount_amount: int
     # Charges outside the tax. 0 on every order that predates them.
@@ -161,6 +164,10 @@ class PaymentPreviewResponse(BaseModel):
 
     order_id: uuid.UUID
     subtotal: int
+    # D-97: taxed together with the subtotal, so already inside both totals.
+    # No default: a forgotten field must fail, not read as 0.
+    service_charge: int
+    service_charge_bps: int
     cash_tax_rate_bps: int
     cash_tax_amount: int
     cash_total: int

@@ -162,6 +162,8 @@ async def get_receipt_data(
         waiter_name=order.waiter.full_name if order.waiter else None,
         items=receipt_items,
         subtotal=order.subtotal,
+        service_charge=order.service_charge or 0,
+        service_charge_bps=order.service_charge_bps or 0,
         tax_label=_tax_label(config.currency if config else None, tax_rate_bps),
         tax_rate_display=f"{tax_pct:.0f}%"
         if tax_pct == int(tax_pct)
@@ -236,6 +238,8 @@ async def get_session_receipt_data(
 
     receipt_items: list[ReceiptItem] = []
     subtotal = 0
+    service_charge = 0
+    service_charge_bps = 0
     tax_amount = 0
     discount_amount = 0
     total = 0
@@ -244,6 +248,8 @@ async def get_session_receipt_data(
 
     for o in orders:
         subtotal += o.subtotal
+        service_charge += o.service_charge or 0
+        service_charge_bps = service_charge_bps or (o.service_charge_bps or 0)
         tax_amount += o.tax_amount
         discount_amount += o.discount_amount
         total += o.total
@@ -357,6 +363,8 @@ async def get_session_receipt_data(
         waiter_name=next((o.waiter.full_name for o in orders if o.waiter), None),
         items=receipt_items,
         subtotal=subtotal,
+        service_charge=service_charge,
+        service_charge_bps=service_charge_bps,
         tax_label=_tax_label(config.currency if config else None, tax_rate_bps),
         tax_rate_display=f"{tax_pct:.0f}%"
         if tax_pct == int(tax_pct)

@@ -182,6 +182,8 @@ async def get_bill_summary(
         "table_label": session.table.label if session.table else None,
         "status": session.status,
         "subtotal": subtotal,
+        # D-97: taxed service charge, already inside `total`.
+        "service_charge": sum(o.service_charge or 0 for o in billable_orders),
         "tax_amount": tax_amount,
         "discount_amount": discount_amount,
         "total": total,

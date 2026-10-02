@@ -34,6 +34,7 @@ class TableSessionOrderSummary(BaseModel):
     status: str
     payment_status: str
     subtotal: int
+    service_charge: int
     tax_amount: int
     discount_amount: int
     total: int
@@ -77,6 +78,8 @@ class TableSessionBillSummary(BaseModel):
     table_label: str | None = None
     status: str
     subtotal: int = 0
+    # D-97: taxed service charge, inside `total`. No default on purpose.
+    service_charge: int
     tax_amount: int = 0
     discount_amount: int = 0
     total: int = 0

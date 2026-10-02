@@ -115,6 +115,8 @@ class SessionPaymentSummary(BaseModel):
     table_label: str | None = None
     order_count: int
     subtotal: int
+    # D-97: taxed service charge, already inside `total`. No default on purpose.
+    service_charge: int
     tax_amount: int
     discount_amount: int
     total: int
@@ -149,6 +151,8 @@ class SessionSplitPaymentCreate(BaseModel):
 class SessionPaymentPreview(BaseModel):
     session_id: uuid.UUID
     subtotal: int
+    # D-97: inside both totals (taxed together with the subtotal).
+    service_charge: int
     cash_tax_rate_bps: int
     cash_tax_amount: int
     cash_total: int

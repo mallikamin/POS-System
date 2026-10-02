@@ -495,6 +495,7 @@ async def get_session_payment_summary(
         ),
         order_count=len(billable_orders),
         subtotal=subtotal,
+        service_charge=sum(o.service_charge or 0 for o in billable_orders),
         tax_amount=tax_amount,
         discount_amount=discount_amount,
         total=total,
@@ -523,6 +524,9 @@ async def get_session_payment_preview(
 
     billable_orders = [o for o in session.orders if o.status != "voided"]
     subtotal = sum(o.subtotal for o in billable_orders)
+    service_charge = sum(o.service_charge or 0 for o in billable_orders)
+    # D-97: the tax is charged on food + service charge.
+    base = sum(order_service.taxable_base(o) for o in billable_orders)
 
     # Fetch per-method tax rates from config
     cfg_result = await db.execute(
@@ -540,15 +544,16 @@ async def get_session_payment_preview(
     prices_include_tax = True if row is None else bool(row.tax_inclusive)
 
     cash_tax, cash_total = order_service.compute_tax(
-        subtotal, cash_rate, prices_include_tax
+        base, cash_rate, prices_include_tax
     )
     card_tax, card_total = order_service.compute_tax(
-        subtotal, card_rate, prices_include_tax
+        base, card_rate, prices_include_tax
     )
 
     return SessionPaymentPreview(
         session_id=session.id,
         subtotal=subtotal,
+        service_charge=service_charge,
         cash_tax_rate_bps=cash_rate,
         cash_tax_amount=cash_tax,
         cash_total=cash_total,
@@ -689,7 +694,8 @@ async def _retax_unpaid_session_orders_for_method(
     prices_include_tax = True if row is None else bool(row.tax_inclusive)
     rate_bps = cash_rate if method_code == "cash" else card_rate
 
-    subtotal = sum(o.subtotal for o in billable_orders)
+    # D-97: tax base = food + service charge (`taxable_base`).
+    subtotal = sum(order_service.taxable_base(o) for o in billable_orders)
     # F19: the session's tax is whatever `compute_tax` says for the whole basket,
     # under whichever convention the tenant uses. The per-order loop below only
     # DISTRIBUTES that figure; it must not re-derive it with a different rule, or
@@ -704,7 +710,7 @@ async def _retax_unpaid_session_orders_for_method(
             tax_amount = remaining_tax
         else:
             tax_amount, _ = order_service.compute_tax(
-                order.subtotal, rate_bps, prices_include_tax
+                order_service.taxable_base(order), rate_bps, prices_include_tax
             )
             remaining_tax -= tax_amount
 
@@ -833,7 +839,8 @@ async def _retax_unpaid_order_for_split_allocations(
     if inferred is None:
         return
     inferred_subtotal, inferred_tax = inferred
-    if abs(inferred_subtotal - order.subtotal) > 1:
+    # The inferred figure is the pre-tax base, which includes any service charge.
+    if abs(inferred_subtotal - order_service.taxable_base(order)) > 1:
         return
 
     order.tax_amount = inferred_tax
@@ -891,7 +898,8 @@ async def _retax_unpaid_session_orders_for_split_allocations(
         return
     inferred_subtotal, inferred_tax = inferred
 
-    subtotal = sum(o.subtotal for o in billable_orders)
+    # D-97: compare and apportion on the taxed base (food + service charge).
+    subtotal = sum(order_service.taxable_base(o) for o in billable_orders)
     if abs(inferred_subtotal - subtotal) > max(1, len(billable_orders)):
         return
 
@@ -902,7 +910,9 @@ async def _retax_unpaid_session_orders_for_split_allocations(
             tax_amount = remaining_tax
         else:
             tax_amount = (
-                round(order.subtotal * inferred_tax / subtotal) if subtotal > 0 else 0
+                round(order_service.taxable_base(order) * inferred_tax / subtotal)
+                if subtotal > 0
+                else 0
             )
             remaining_tax -= tax_amount
 

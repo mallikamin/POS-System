@@ -130,6 +130,8 @@ export interface SessionPaymentSummary {
   table_label?: string;
   order_count: number;
   subtotal: number;
+  /** D-97: taxed service charge, already inside `total`. */
+  service_charge: number;
   tax_amount: number;
   discount_amount: number;
   total: number;
@@ -142,6 +144,8 @@ export interface SessionPaymentSummary {
 export interface SessionPaymentPreview {
   session_id: string;
   subtotal: number;
+  /** D-97: taxed service charge, already inside both totals. */
+  service_charge: number;
   cash_tax_rate_bps: number;
   cash_tax_amount: number;
   cash_total: number;
