@@ -19,6 +19,7 @@ interface AuthActions {
   loginWithPassword: (email: string, password: string) => Promise<void>;
   logout: () => void;
   refreshToken: () => Promise<void>;
+  refreshUser: () => Promise<void>;
   setLoading: (loading: boolean) => void;
 }
 
@@ -108,6 +109,22 @@ export const useAuthStore = create<AuthStore>()(
           set({ tokens: data });
         } catch {
           get().logout();
+        }
+      },
+
+      /**
+       * Re-read the signed-in user from the server. `user` is persisted from
+       * login, so without this a rename or role change made in Admin > Staff
+       * stayed invisible until the next login. Errors are ignored: a dead
+       * session is handled by the axios 401 path.
+       */
+      refreshUser: async () => {
+        if (!get().isAuthenticated) return;
+        try {
+          const { data } = await api.get<User>("/auth/me");
+          set({ user: data });
+        } catch {
+          // keep the cached user
         }
       },
 

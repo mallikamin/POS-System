@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import api from "@/lib/axios";
+import { useAuthStore } from "@/stores/authStore";
 
 interface StaffRole {
   id: string;
@@ -156,6 +157,10 @@ function StaffManagementPage() {
       toast({ title: "Staff member updated", variant: "success" });
       setEditOpen(false);
       fetchStaff(search);
+      // Editing your own record: the header shows the new name straight away.
+      if (editTarget.id === useAuthStore.getState().user?.id) {
+        void useAuthStore.getState().refreshUser();
+      }
     } catch (err: unknown) {
       const msg = isAxiosError(err) ? (err.response?.data?.detail ?? "Failed to update") : "Failed to update";
       toast({ title: msg, variant: "destructive" });

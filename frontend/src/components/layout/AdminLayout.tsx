@@ -198,6 +198,12 @@ function AdminLayout() {
     if (isAuthenticated && !config) void fetchConfig();
   }, [isAuthenticated, config, fetchConfig]);
 
+  // The persisted user is from login; re-read it once per page load so a
+  // rename or role change made in Admin > Staff shows without a re-login (D-108).
+  useEffect(() => {
+    if (isAuthenticated) void useAuthStore.getState().refreshUser();
+  }, [isAuthenticated]);
+
   // Fetch QB connection type for this tenant
   useEffect(() => {
     if (isAuthenticated) {

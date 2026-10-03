@@ -49,6 +49,8 @@ function POSLayout() {
   useEffect(() => {
     if (isAuthenticated) {
       fetchConfig();
+      // The persisted user is from login; re-read it so a rename shows (D-108).
+      void useAuthStore.getState().refreshUser();
     }
   }, [isAuthenticated, fetchConfig]);
 
