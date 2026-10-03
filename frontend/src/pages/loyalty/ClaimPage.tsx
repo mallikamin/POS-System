@@ -4,10 +4,11 @@
  * consent tick, then their stamp card.
  *
  * Shows only this customer's own count, never anyone else's details.
+ * D-106: customer-facing, so it wears the restaurant's own look.
  */
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { CheckCircle2, Gift, Loader2 } from "lucide-react";
+import { CheckCircle2, Loader2 } from "lucide-react";
 import { isAxiosError } from "axios";
 import {
   fetchClaimInfo,
@@ -15,6 +16,7 @@ import {
   type PublicClaimInfo,
   type PublicClaimResult,
 } from "@/services/loyaltyApi";
+import { BrandMark, Eyebrow, GoldRule, LuxeShell, SERIF } from "@/components/loyalty/luxe";
 
 function errorText(err: unknown, fallback: string): string {
   if (isAxiosError(err)) {
@@ -26,15 +28,16 @@ function errorText(err: unknown, fallback: string): string {
 
 function Stamps({ filled, total }: { filled: number; total: number }) {
   return (
-    <div className="flex flex-wrap justify-center gap-2" aria-label={`${filled} of ${total} visits`}>
+    <div className="flex flex-wrap justify-center gap-2.5" aria-label={`${filled} of ${total} visits`}>
       {Array.from({ length: total }, (_, i) => (
         <div
           key={i}
+          style={SERIF}
           className={
-            "flex h-11 w-11 items-center justify-center rounded-full border-2 text-sm font-bold " +
+            "flex h-12 w-12 items-center justify-center rounded-full text-lg font-semibold " +
             (i < filled
-              ? "border-primary-600 bg-primary-600 text-white"
-              : "border-secondary-300 text-secondary-300")
+              ? "bg-gradient-to-br from-[#f0d79a] to-[#b8892e] text-[#1a150d] shadow-[0_0_18px_rgba(212,175,106,0.35)]"
+              : "border border-[#c9a24d]/40 text-[#c9a24d]/60")
           }
         >
           {i + 1}
@@ -43,6 +46,10 @@ function Stamps({ filled, total }: { filled: number; total: number }) {
     </div>
   );
 }
+
+const field =
+  "h-12 w-full rounded-xl border border-[#c9a24d]/35 bg-black/30 px-4 text-base text-[#f4ecdc] " +
+  "placeholder:text-[#f4ecdc]/35 focus:border-[#e6c77a] focus:outline-none focus:ring-1 focus:ring-[#e6c77a]";
 
 export default function ClaimPage() {
   const { code = "" } = useParams();
@@ -76,27 +83,30 @@ export default function ClaimPage() {
   }
 
   const shell = (children: React.ReactNode) => (
-    <div className="min-h-dvh bg-secondary-50 px-4 py-8">
-      <div className="mx-auto max-w-sm space-y-5 rounded-2xl bg-white p-6 shadow-sm">{children}</div>
-    </div>
+    <LuxeShell className="px-5 py-10">
+      <div className="mx-auto max-w-sm space-y-7">{children}</div>
+    </LuxeShell>
   );
 
   if (loadError) {
-    return shell(<p className="text-center text-secondary-700">{loadError}</p>);
+    return shell(<p className="pt-24 text-center text-lg font-light text-[#f4ecdc]/80">{loadError}</p>);
   }
   if (!info) {
     return shell(
-      <div className="flex justify-center py-10">
-        <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
+      <div className="flex justify-center pt-32">
+        <Loader2 className="h-8 w-8 animate-spin text-[#e6c77a]" />
       </div>
     );
   }
 
   const header = (
-    <div className="space-y-1 text-center">
-      <h1 className="text-xl font-bold text-secondary-900">{info.restaurant_name}</h1>
-      <p className="flex items-center justify-center gap-1.5 text-sm text-secondary-600">
-        <Gift className="h-4 w-4 text-primary-600" />
+    <div className="flex flex-col items-center gap-4 text-center">
+      <BrandMark slug={info.tenant_slug} name={info.restaurant_name} size={96} />
+      <h1 style={SERIF} className="text-3xl font-semibold tracking-wide">
+        {info.restaurant_name}
+      </h1>
+      <GoldRule className="w-48" />
+      <p style={SERIF} className="text-2xl italic text-[#e6c77a]">
         {info.visits_required} visits = {info.reward_label}
       </p>
     </div>
@@ -108,16 +118,16 @@ export default function ClaimPage() {
       <>
         {header}
         <div className="flex flex-col items-center gap-2 text-center">
-          <CheckCircle2 className="h-10 w-10 text-success-600" />
-          <p className="text-lg font-semibold text-secondary-900">
+          <CheckCircle2 className="h-10 w-10 text-[#e6c77a]" />
+          <p style={SERIF} className="text-3xl font-semibold">
             {done.result === "counted" ? "Visit counted. Thank you!" : "You have collected all of today's visits."}
           </p>
-          <p className="text-xs text-secondary-500">Card for {done.phone}</p>
+          <p className="text-xs tracking-wide text-[#f4ecdc]/50">Card for {done.phone}</p>
         </div>
         <Stamps filled={filled} total={done.visits_required} />
-        <p className="text-center font-medium text-secondary-800">
+        <p className="text-center text-lg font-light leading-relaxed text-[#f4ecdc]/85">
           {done.rewards_available > 0
-            ? `You have ${done.rewards_available} reward ready: ${done.reward_label}. Ask the cashier on your next visit.`
+            ? `You have ${done.rewards_available} reward ready: ${done.reward_label}. Ask for it on your next visit.`
             : `${done.visits_required - done.toward_next} more visit${done.visits_required - done.toward_next === 1 ? "" : "s"} to ${done.reward_label}.`}
         </p>
       </>
@@ -135,7 +145,7 @@ export default function ClaimPage() {
     return shell(
       <>
         {header}
-        <p className="text-center text-secondary-700">{msg}</p>
+        <p className="text-center text-lg font-light text-[#f4ecdc]/85">{msg}</p>
       </>
     );
   }
@@ -143,9 +153,13 @@ export default function ClaimPage() {
   return shell(
     <>
       {header}
+      <div className="space-y-1 text-center">
+        <Eyebrow>Loyalty card</Eyebrow>
+        <p className="font-light text-[#f4ecdc]/75">Enter your mobile number to collect this visit.</p>
+      </div>
       <form onSubmit={handleSubmit} className="space-y-4">
-        <label className="block space-y-1">
-          <span className="text-sm font-medium text-secondary-700">Mobile number</span>
+        <label className="block space-y-1.5">
+          <span className="text-sm text-[#f4ecdc]/70">Mobile number</span>
           <input
             type="tel"
             inputMode="tel"
@@ -154,42 +168,44 @@ export default function ClaimPage() {
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
             placeholder="03xx xxxxxxx"
-            className="h-12 w-full rounded-lg border border-secondary-300 px-3 text-base focus:border-primary-500 focus:outline-none"
+            className={field}
           />
         </label>
-        <label className="block space-y-1">
-          <span className="text-sm font-medium text-secondary-700">Name (optional)</span>
+        <label className="block space-y-1.5">
+          <span className="text-sm text-[#f4ecdc]/70">Name (optional)</span>
           <input
             type="text"
             autoComplete="name"
             value={name}
             onChange={(e) => setName(e.target.value)}
             maxLength={100}
-            className="h-12 w-full rounded-lg border border-secondary-300 px-3 text-base focus:border-primary-500 focus:outline-none"
+            className={field}
           />
         </label>
-        <label className="flex items-start gap-3 text-sm text-secondary-700">
+        <label className="flex items-start gap-3 text-sm font-light leading-relaxed text-[#f4ecdc]/75">
           <input
             type="checkbox"
             checked={consent}
             onChange={(e) => setConsent(e.target.checked)}
-            className="mt-0.5 h-5 w-5 shrink-0"
+            className="mt-0.5 h-5 w-5 shrink-0 accent-[#c9a24d]"
           />
           <span>
             Join {info.restaurant_name}&apos;s loyalty card. My number is kept only to count my
             visits and is never sold or shared.
           </span>
         </label>
-        {error && <p className="rounded bg-danger-50 p-2 text-sm text-danger-700">{error}</p>}
+        {error && (
+          <p className="rounded-xl border border-red-400/40 bg-red-500/10 p-3 text-sm text-red-200">{error}</p>
+        )}
         <button
           type="submit"
           disabled={!consent || busy || phone.trim().length < 7}
-          className="flex h-12 w-full items-center justify-center rounded-lg bg-primary-600 font-semibold text-white disabled:opacity-50"
+          className="flex min-h-[52px] w-full items-center justify-center rounded-xl bg-gradient-to-r from-[#e6c77a] via-[#c9a24d] to-[#e6c77a] text-base font-medium uppercase tracking-[0.2em] text-[#1a150d] shadow-[0_10px_30px_rgba(201,162,77,0.25)] disabled:opacity-40"
         >
           {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : "Collect my visit"}
         </button>
       </form>
-      <p className="text-center text-xs text-secondary-400">Bill {info.order_number}</p>
+      <p className="text-center text-xs tracking-wide text-[#f4ecdc]/40">Bill {info.order_number}</p>
     </>
   );
 }

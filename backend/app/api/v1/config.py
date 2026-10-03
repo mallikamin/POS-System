@@ -39,6 +39,10 @@ class RestaurantConfigUpdate(BaseModel):
     loyalty_reward_menu_item_id: str | None = None
     loyalty_reward_label: str | None = Field(None, max_length=80)
     loyalty_max_visits_per_day: int | None = Field(None, ge=0, le=20)  # 0 = no limit
+    # D-107: the shop's Google review link, shown on the counter screen. An empty
+    # string clears it. NOTE: it is also the switch for the online-order review
+    # email (`send_due_review_emails`), which only ever reaches ONLINE orders.
+    google_review_url: str | None = Field(None, max_length=500)
     payment_flow: str | None = Field(None, pattern=r"^(order_first|pay_first)$")
     timezone: str | None = None
     currency: str | None = Field(None, min_length=2, max_length=10)
@@ -141,6 +145,11 @@ async def update_restaurant_config(
         config.loyalty_visits_required = data.loyalty_visits_required
     if data.loyalty_max_visits_per_day is not None:
         config.loyalty_max_visits_per_day = data.loyalty_max_visits_per_day
+    if data.google_review_url is not None:
+        url = data.google_review_url.strip()
+        if url and not url.startswith("https://"):
+            raise HTTPException(status_code=422, detail="The review link must start with https://")
+        config.google_review_url = url or None
     if data.loyalty_reward_label is not None:
         config.loyalty_reward_label = data.loyalty_reward_label.strip() or None
     if data.loyalty_reward_menu_item_id is not None:

@@ -44,6 +44,8 @@ class RestaurantConfigResponse(BaseModel):
     loyalty_reward_menu_item_id: uuid.UUID | None
     loyalty_reward_label: str | None
     loyalty_max_visits_per_day: int
+    # D-107: shown on the counter screen as a "rate us on Google" QR.
+    google_review_url: str | None
     receipt_header: str | None = None
     receipt_footer: str | None = None
     # 'thermal' (80mm roll) or 'a4'. Presentation only.

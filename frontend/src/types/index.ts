@@ -91,6 +91,8 @@ export interface RestaurantConfig extends BaseEntity {
   loyalty_reward_label: string | null;
   /** Visits one customer can earn per day; 0 = no limit. */
   loyalty_max_visits_per_day: number;
+  /** D-107: the shop's Google review link (counter screen QR); null = none. */
+  google_review_url: string | null;
   receipt_header: string | null;
   receipt_footer: string | null;
   /** How the browser receipt prints: `thermal` (80mm roll) or `a4`. */

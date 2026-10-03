@@ -243,6 +243,7 @@ class ClaimInfo:
     visits_required: int
     reward_label: str
     order_number: str
+    tenant_slug: str  # D-106: the claim page shows the shop's own logo
     progress: Progress | None = None
 
 
@@ -258,10 +259,11 @@ async def _order_by_code(db: AsyncSession, code: str) -> Order:
 async def claim_info(db: AsyncSession, code: str) -> ClaimInfo:
     order = await _order_by_code(db, code)
     tenant_id = order.tenant_id
-    name = (await db.execute(select(Tenant.name).where(Tenant.id == tenant_id))).scalar_one()
+    name, slug = (await db.execute(
+        select(Tenant.name, Tenant.slug).where(Tenant.id == tenant_id))).one()
     settings = await get_settings(db, tenant_id)
     info = ClaimInfo("open", name, settings.visits_required, settings.reward_label,
-                     order.order_number)
+                     order.order_number, slug)
     if not settings.enabled:
         info.status = "disabled"
     elif order.status == "voided":
@@ -404,7 +406,9 @@ async def redeem(db: AsyncSession, tenant_id: uuid.UUID, user_id: uuid.UUID,
     return await progress_for(db, tenant_id, customer, settings)
 
 
-async def display_current(db: AsyncSession, tenant_id: uuid.UUID) -> dict | None:
+async def display_current(
+    db: AsyncSession, tenant_id: uuid.UUID, with_idle: bool = False
+) -> dict | None:
     """Counter screen: the QR of the bill paid most recently, while it can still be claimed.
 
     Only the newest paid bill is ever shown. Once it is claimed, or it carries
@@ -435,11 +439,17 @@ async def display_current(db: AsyncSession, tenant_id: uuid.UUID) -> dict | None
         .order_by(Payment.created_at.desc())
         .limit(1)
     )).scalar_one_or_none()
+    # D-106: the idle screen explains the card, so with `with_idle` the rule goes
+    # out with null QR fields when no bill is waiting. Opt-in: a counter page
+    # still running the old bundle reads any object as a bill to scan.
+    idle = ({"loyalty_code": None, "order_number": None, "total": None,
+             "reward_label": settings.reward_label, "visits_required": settings.visits_required}
+            if with_idle else None)
     if order is None or normalize_phone(order.customer_phone) is not None:
-        return None
+        return idle
     if (await db.execute(select(LoyaltyVisit.id).where(LoyaltyVisit.order_id == order.id))
             ).scalar_one_or_none() is not None:
-        return None
+        return idle
     return {"loyalty_code": order.loyalty_code, "order_number": order.order_number,
             "total": order.total, "reward_label": settings.reward_label,
             "visits_required": settings.visits_required}

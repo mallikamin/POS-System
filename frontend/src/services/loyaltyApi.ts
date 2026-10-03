@@ -25,10 +25,11 @@ export interface OrderLoyaltyStatus {
   can_redeem: boolean;
 }
 
+/** The counter screen. The QR fields are null while no paid bill is waiting (D-106). */
 export interface CounterDisplay {
-  loyalty_code: string;
-  order_number: string;
-  total: number;
+  loyalty_code: string | null;
+  order_number: string | null;
+  total: number | null;
   reward_label: string;
   visits_required: number;
 }
@@ -39,6 +40,8 @@ export interface PublicClaimInfo {
   visits_required: number;
   reward_label: string;
   order_number: string;
+  /** D-106: the shop, so the page can show its own logo. */
+  tenant_slug: string;
 }
 
 export interface PublicClaimResult {
@@ -67,7 +70,8 @@ export async function redeemReward(orderId: string): Promise<LoyaltyProgress> {
 }
 
 export async function fetchCounterDisplay(): Promise<CounterDisplay | null> {
-  const { data } = await api.get<CounterDisplay | null>("/loyalty/display");
+  // idle=1: the rule comes back even with no bill waiting (null QR fields).
+  const { data } = await api.get<CounterDisplay | null>("/loyalty/display", { params: { idle: 1 } });
   return data;
 }
 

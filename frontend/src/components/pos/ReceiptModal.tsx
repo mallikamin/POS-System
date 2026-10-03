@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useLayoutEffect, useState, useRef } from "react";
 import { currencyLocale } from "@/utils/currency";
 import { formatMoney } from "@/utils/currency";
 import { Printer, Loader2 } from "lucide-react";
@@ -100,6 +100,26 @@ export function ReceiptModal({ orderId, sessionId, open, onClose }: Props) {
   const [receipt, setReceipt] = useState<ReceiptData | null>(null);
   const [loading, setLoading] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
+  // D-109: shrink the PREVIEW to fit the window (a receipt with the loyalty QR is
+  // taller than a laptop screen at 100%). The print clone drops this scale.
+  const [fit, setFit] = useState(1);
+  const fitRef = useRef(1);
+  useLayoutEffect(() => {
+    const el = printRef.current;
+    if (!el) return;
+    const measure = () => {
+      const natural = el.getBoundingClientRect().height / fitRef.current;
+      if (!natural) return;
+      const next = Math.min(1, Math.max(0.6, (window.innerHeight - 170) / natural));
+      if (Math.abs(next - fitRef.current) > 0.01) {
+        fitRef.current = next;
+        setFit(next);
+      }
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  });
 
   useEffect(() => {
     if (open && (orderId || sessionId)) {
@@ -172,7 +192,8 @@ export function ReceiptModal({ orderId, sessionId, open, onClose }: Props) {
     printWindow.document.head.appendChild(style);
 
     // Clone content into print window (safe — no innerHTML injection)
-    const clone = printRef.current.cloneNode(true);
+    const clone = printRef.current.cloneNode(true) as HTMLElement;
+    clone.style.zoom = ""; // D-109: the preview's fit-to-window scale never reaches paper
     printWindow.document.body.appendChild(clone);
 
     // D-99: the loyalty QR is an image. Print only once it has decoded, or
@@ -223,6 +244,7 @@ export function ReceiptModal({ orderId, sessionId, open, onClose }: Props) {
         ) : (
           <div
             ref={printRef}
+            style={{ zoom: fit }}
             className="mx-auto max-w-[300px] rounded border bg-white p-4 font-mono text-xs leading-relaxed text-secondary-900"
           >
             {/* Header */}

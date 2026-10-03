@@ -174,7 +174,7 @@ async def test_phone_bill_over_the_limit_is_not_claimable_by_anyone_else(
                           json={"phone": "03119998888", "consent": True})
     assert r.status_code == 400 and "linked" in r.json()["detail"]
     assert await _visits(db, tenant) == 1
-    assert (await client.get("/api/v1/loyalty/display", headers=_auth(admin_token))).json() is None
+    assert (await client.get("/api/v1/loyalty/display?idle=1", headers=_auth(admin_token))).json()["loyalty_code"] is None
 
 
 # --- QR route ------------------------------------------------------------------------
@@ -289,14 +289,14 @@ async def test_no_redeem_without_reward_item_or_visits(client, admin_token, db, 
 @pytest.mark.asyncio
 async def test_counter_display_shows_newest_unclaimed_paid_bill(client, admin_token, db, tenant, menu):
     await _config(db, tenant, menu)
-    assert (await client.get("/api/v1/loyalty/display", headers=_auth(admin_token))).json() is None
+    assert (await client.get("/api/v1/loyalty/display?idle=1", headers=_auth(admin_token))).json()["loyalty_code"] is None
     o = await _order(client, admin_token, menu["karahi"])
     await _pay(client, admin_token, o)
-    shown = (await client.get("/api/v1/loyalty/display", headers=_auth(admin_token))).json()
+    shown = (await client.get("/api/v1/loyalty/display?idle=1", headers=_auth(admin_token))).json()
     assert shown["loyalty_code"] == await _code(db, o["id"])
     await client.post(f"/api/v1/public/loyalty/{shown['loyalty_code']}",
                       json={"phone": PHONE, "consent": True})
-    assert (await client.get("/api/v1/loyalty/display", headers=_auth(admin_token))).json() is None
+    assert (await client.get("/api/v1/loyalty/display?idle=1", headers=_auth(admin_token))).json()["loyalty_code"] is None
 
 
 @pytest.mark.asyncio
@@ -313,12 +313,12 @@ async def test_counter_display_never_falls_back_to_an_older_bill(client, admin_t
     await db.commit()
     newer = await _order(client, admin_token, menu["karahi"])
     await _pay(client, admin_token, newer)
-    shown = (await client.get("/api/v1/loyalty/display", headers=_auth(admin_token))).json()
+    shown = (await client.get("/api/v1/loyalty/display?idle=1", headers=_auth(admin_token))).json()
     assert shown["loyalty_code"] == await _code(db, newer["id"])
     await client.post(f"/api/v1/public/loyalty/{shown['loyalty_code']}",
                       json={"phone": PHONE, "consent": True})
     # The older bill is still unclaimed, but its customer has gone: blank screen.
-    assert (await client.get("/api/v1/loyalty/display", headers=_auth(admin_token))).json() is None
+    assert (await client.get("/api/v1/loyalty/display?idle=1", headers=_auth(admin_token))).json()["loyalty_code"] is None
 
 
 @pytest.mark.asyncio
@@ -342,3 +342,46 @@ async def test_settings_and_members(client, admin_token, db, tenant, menu):
     await _pay(client, admin_token, o)
     m = (await client.get("/api/v1/loyalty/members", headers=_auth(admin_token))).json()
     assert len(m) == 1 and m[0]["total_visits"] == 1 and m[0]["visits_required"] == 6
+
+
+# --- customer-facing polish (D-106, D-107) -----------------------------------------------
+
+@pytest.mark.asyncio
+async def test_idle_counter_screen_still_explains_the_card(client, admin_token, db, tenant, menu):
+    cfg = await _config(db, tenant, menu)
+    idle = (await client.get("/api/v1/loyalty/display?idle=1", headers=_auth(admin_token))).json()
+    assert idle == {"loyalty_code": None, "order_number": None, "total": None,
+                    "reward_label": "Free Cappuccino", "visits_required": 5}
+    # Without idle=1 (a counter page still on the old bundle) idle stays null, or
+    # that page would read the object as a bill and show a QR for "null".
+    assert (await client.get("/api/v1/loyalty/display", headers=_auth(admin_token))).json() is None
+    o = await _order(client, admin_token, menu["karahi"])
+    await _pay(client, admin_token, o)
+    plain = (await client.get("/api/v1/loyalty/display", headers=_auth(admin_token))).json()
+    assert plain["loyalty_code"] == await _code(db, o["id"])
+    cfg.loyalty_enabled = False
+    await db.commit()
+    assert (await client.get("/api/v1/loyalty/display?idle=1", headers=_auth(admin_token))).json() is None
+
+
+@pytest.mark.asyncio
+async def test_claim_page_knows_the_shop_for_its_logo(client, admin_token, db, tenant, menu):
+    await _config(db, tenant, menu)
+    o = await _order(client, admin_token, menu["karahi"])
+    info = (await client.get(f"/api/v1/public/loyalty/{await _code(db, o['id'])}")).json()
+    assert info["tenant_slug"] == tenant.slug
+
+
+@pytest.mark.asyncio
+async def test_google_review_link_setting(client, admin_token, db, tenant, menu):
+    await _config(db, tenant, menu)
+    url = "https://www.google.com/maps?cid=2858650049585319157"
+    r = await client.patch("/api/v1/config/restaurant", headers=_auth(admin_token),
+                           json={"google_review_url": f"  {url} "})
+    assert r.status_code == 200 and r.json()["google_review_url"] == url
+    bad = await client.patch("/api/v1/config/restaurant", headers=_auth(admin_token),
+                             json={"google_review_url": "http://example.com"})
+    assert bad.status_code == 422
+    r = await client.patch("/api/v1/config/restaurant", headers=_auth(admin_token),
+                           json={"google_review_url": ""})
+    assert r.status_code == 200 and r.json()["google_review_url"] is None

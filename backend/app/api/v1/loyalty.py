@@ -80,9 +80,11 @@ async def redeem_reward(
 
 @router.get("/display")
 async def counter_display(
-    user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+    idle: bool = False,
+    user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db),
 ) -> dict | None:
-    return await loyalty_service.display_current(db, user.tenant_id)
+    # `idle=1`: also return the rule when no bill is waiting (D-106 counter screen).
+    return await loyalty_service.display_current(db, user.tenant_id, with_idle=idle)
 
 
 @router.get("/members", response_model=list[ProgressOut],
@@ -107,7 +109,7 @@ async def public_claim_info(code: str, db: AsyncSession = Depends(get_db)) -> di
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return {"status": info.status, "restaurant_name": info.restaurant_name,
             "visits_required": info.visits_required, "reward_label": info.reward_label,
-            "order_number": info.order_number}
+            "order_number": info.order_number, "tenant_slug": info.tenant_slug}
 
 
 @public_router.post("/{code}")
