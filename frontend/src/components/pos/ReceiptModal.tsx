@@ -496,14 +496,15 @@ export function ReceiptModal({ orderId, sessionId, open, onClose }: Props) {
               );
             })()}
 
-            {/* D-99: loyalty QR. One code per bill; counts once, once paid. */}
+            {/* D-99: loyalty QR. One code per bill; counts once, once paid. Scannable
+                before paying too (dine-in: the bill comes to the table first). */}
             {receipt.loyalty_code && (
               <>
                 <div className="divider my-2 border-t border-dashed border-secondary-400" />
                 <div className="center text-center">
                   <div className="bold font-semibold">Collect your visit</div>
                   <div className="text-[10px]">
-                    Scan after paying. {receipt.loyalty_visits_required} visits ={" "}
+                    Scan with your phone. {receipt.loyalty_visits_required} visits ={" "}
                     {receipt.loyalty_reward_label}
                   </div>
                   <LoyaltyQR code={receipt.loyalty_code} size={110} className="loyalty-qr mx-auto my-1" />

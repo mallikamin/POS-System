@@ -35,7 +35,8 @@ export interface CounterDisplay {
 }
 
 export interface PublicClaimInfo {
-  status: "open" | "counted" | "linked" | "unpaid" | "expired" | "disabled";
+  /** pending: a number is on this unpaid bill; the visit counts when it is paid. */
+  status: "open" | "counted" | "linked" | "pending" | "expired" | "disabled";
   restaurant_name: string;
   visits_required: number;
   reward_label: string;
@@ -45,7 +46,8 @@ export interface PublicClaimInfo {
 }
 
 export interface PublicClaimResult {
-  result: "counted" | "daily_limit";
+  /** pending: scanned before paying (dine-in); counted at payment. */
+  result: "counted" | "daily_limit" | "pending";
   phone: string;
   total_visits: number;
   toward_next: number;

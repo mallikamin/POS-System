@@ -82,7 +82,7 @@ export function LoyaltyPanel({ orderId, onRedeemed }: LoyaltyPanelProps) {
         </div>
       ) : (
         <p className="mt-1 text-secondary-600">
-          No phone on this bill. The customer can scan the QR on the receipt after paying.
+          No phone on this bill. The customer can scan the QR on the bill, before or after paying.
         </p>
       )}
       {error && <p className="mt-1 text-danger-700">{error}</p>}

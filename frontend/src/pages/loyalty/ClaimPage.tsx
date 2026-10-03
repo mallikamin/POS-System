@@ -114,21 +114,34 @@ export default function ClaimPage() {
 
   if (done) {
     const filled = done.toward_next === 0 && done.rewards_available > 0 ? done.visits_required : done.toward_next;
+    const title = {
+      counted: "Visit counted. Thank you!",
+      daily_limit: "You have collected all of today's visits.",
+      // Dine-in: scanned at the table before paying.
+      pending: "You're on the card.",
+    }[done.result];
     return shell(
       <>
         {header}
         <div className="flex flex-col items-center gap-2 text-center">
           <CheckCircle2 className="h-10 w-10 text-[#e6c77a]" />
           <p style={SERIF} className="text-3xl font-semibold">
-            {done.result === "counted" ? "Visit counted. Thank you!" : "You have collected all of today's visits."}
+            {title}
           </p>
+          {done.result === "pending" && (
+            <p className="text-base font-light text-[#f4ecdc]/80">
+              This visit is added as soon as the bill is paid.
+            </p>
+          )}
           <p className="text-xs tracking-wide text-[#f4ecdc]/50">Card for {done.phone}</p>
         </div>
         <Stamps filled={filled} total={done.visits_required} />
         <p className="text-center text-lg font-light leading-relaxed text-[#f4ecdc]/85">
           {done.rewards_available > 0
             ? `You have ${done.rewards_available} reward ready: ${done.reward_label}. Ask for it on your next visit.`
-            : `${done.visits_required - done.toward_next} more visit${done.visits_required - done.toward_next === 1 ? "" : "s"} to ${done.reward_label}.`}
+            : done.result === "pending"
+              ? `${done.toward_next} of ${done.visits_required} so far, before this visit.`
+              : `${done.visits_required - done.toward_next} more visit${done.visits_required - done.toward_next === 1 ? "" : "s"} to ${done.reward_label}.`}
         </p>
       </>
     );
@@ -138,7 +151,7 @@ export default function ClaimPage() {
     const msg = {
       counted: "This bill's visit has already been counted.",
       linked: "This bill is already linked to a customer's loyalty card.",
-      unpaid: "This bill isn't paid yet. Scan again once it's paid.",
+      pending: "This bill is already on a loyalty card. The visit is added when it's paid.",
       expired: "This code can no longer be used.",
       disabled: "The loyalty card isn't running at the moment.",
     }[info.status];

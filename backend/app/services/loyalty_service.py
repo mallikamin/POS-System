@@ -220,14 +220,19 @@ async def on_order_paid(db: AsyncSession, tenant_id: uuid.UUID, order: Order) ->
     try:
         if order.payment_status != "paid" or order.status == "voided":
             return
-        phone = normalize_phone(order.customer_phone)
+        # Read the number from the database, not the copy loaded at the start of
+        # the payment: a guest may have scanned the bill at the table meanwhile.
+        row = (await db.execute(
+            select(Order.customer_phone, Order.customer_name).where(Order.id == order.id)
+        )).one()
+        phone = normalize_phone(row.customer_phone)
         if phone is None:
             return
         settings = await get_settings(db, tenant_id)
         if not settings.enabled:
             return
         async with db.begin_nested():
-            customer = await _find_or_create_customer(db, tenant_id, phone, order.customer_name)
+            customer = await _find_or_create_customer(db, tenant_id, phone, row.customer_name)
             await _record_visit(db, tenant_id, order, customer, "cashier",
                                 settings.max_visits_per_day)
     except Exception:  # noqa: BLE001 - loyalty must never block taking money
@@ -238,7 +243,7 @@ async def on_order_paid(db: AsyncSession, tenant_id: uuid.UUID, order: Order) ->
 
 @dataclass
 class ClaimInfo:
-    status: str  # open | counted | linked | unpaid | expired | disabled
+    status: str  # open | counted | linked | pending | expired | disabled
     restaurant_name: str
     visits_required: int
     reward_label: str
@@ -276,29 +281,48 @@ async def claim_info(db: AsyncSession, code: str) -> ClaimInfo:
           ).scalar_one_or_none() is not None:
         info.status = "counted"
     elif normalize_phone(order.customer_phone) is not None:
-        info.status = "linked"
-    elif order.payment_status != "paid":
-        info.status = "unpaid"
+        # A number is on the bill. Unpaid: the guest scanned it at the table and
+        # the visit counts at payment. Paid: the cashier route owns it.
+        info.status = "pending" if order.payment_status != "paid" else "linked"
+    # An unpaid bill with no number stays "open": in dine-in the bill reaches
+    # the table before payment, and that is when guests scan it.
     return info
 
 
 async def claim(db: AsyncSession, code: str, phone_raw: str, name: str | None) -> tuple[str, Progress]:
-    """Customer route. Returns (result, progress); result is counted | daily_limit."""
+    """Customer route. Returns (result, progress); result is counted | daily_limit | pending.
+
+    `pending`: the bill is not paid yet (dine-in: the bill comes to the table
+    first). The number goes on the bill, and the visit is counted by
+    `on_order_paid` when it is paid, under the same rules as a number the
+    cashier typed.
+    """
+    phone = normalize_phone(phone_raw)
     info = await claim_info(db, code)
     if info.status == "counted":
         raise LoyaltyError("This bill has already been counted.")
-    if info.status == "linked":
+    if info.status in ("linked", "pending"):
         raise LoyaltyError("This bill is already linked to a customer's loyalty card.")
-    if info.status == "unpaid":
-        raise LoyaltyError("This bill is not paid yet. Scan again once it is paid.")
     if info.status in ("expired", "disabled"):
         raise LoyaltyError("This code can no longer be used.")
-    phone = normalize_phone(phone_raw)
     if phone is None:
         raise LoyaltyError("Please enter a valid mobile number.")
-    order = await _order_by_code(db, code)
+    # Lock the bill: a payment landing at the same moment must either see the
+    # number (and count the visit) or have finished first (and we count it here).
+    order = (await db.execute(
+        select(Order).where(Order.loyalty_code == code.strip().upper())
+        .with_for_update().execution_options(populate_existing=True)
+    )).scalar_one()
     settings = await get_settings(db, order.tenant_id)
     customer = await _find_or_create_customer(db, order.tenant_id, phone, name)
+    if order.payment_status != "paid":
+        if normalize_phone(order.customer_phone) is not None:
+            raise LoyaltyError("This bill is already linked to a customer's loyalty card.")
+        order.customer_phone = phone
+        if not order.customer_name and (name or "").strip():
+            order.customer_name = name.strip()[:255]
+        await db.flush()
+        return "pending", await progress_for(db, order.tenant_id, customer, settings)
     result = await _record_visit(db, order.tenant_id, order, customer, "qr",
                                  settings.max_visits_per_day)
     if result == "already_counted":

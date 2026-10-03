@@ -185,11 +185,9 @@ async def test_qr_claim_flow(client, admin_token, db, tenant, menu):
     o = await _order(client, admin_token, menu["karahi"])  # no phone at the till
     code = await _code(db, o["id"])
 
+    # Unpaid and no number yet: scannable (the pre-payment path has its own tests).
     info = (await client.get(f"/api/v1/public/loyalty/{code}")).json()
-    assert info["status"] == "unpaid" and info["reward_label"] == "Free Cappuccino"
-    early = await client.post(f"/api/v1/public/loyalty/{code}",
-                              json={"phone": PHONE, "consent": True})
-    assert early.status_code == 400  # not paid yet
+    assert info["status"] == "open" and info["reward_label"] == "Free Cappuccino"
 
     await _pay(client, admin_token, o)
     assert (await client.get(f"/api/v1/public/loyalty/{code}")).json()["status"] == "open"
@@ -212,6 +210,44 @@ async def test_qr_claim_flow(client, admin_token, db, tenant, menu):
     assert await _visits(db, tenant) == 1
     cust = (await db.execute(select(Customer).where(Customer.phone == PHONE))).scalar_one()
     assert cust.name == "Sara"
+
+
+@pytest.mark.asyncio
+async def test_dine_in_scan_before_paying_counts_at_payment(client, admin_token, db, tenant, menu):
+    """Dine-in: the waiter brings the bill, the guest scans it, THEN pays."""
+    await _config(db, tenant, menu)
+    o = await _order(client, admin_token, menu["karahi"], order_type="dine_in")
+    code = await _code(db, o["id"])
+    r = await client.post(f"/api/v1/public/loyalty/{code}",
+                          json={"phone": PHONE, "name": "Sara", "consent": True})
+    assert r.status_code == 200, r.text
+    assert (r.json()["result"], r.json()["total_visits"]) == ("pending", 0)
+    assert await _visits(db, tenant) == 0  # nothing until the money is in
+    assert (await client.get(f"/api/v1/public/loyalty/{code}")).json()["status"] == "pending"
+
+    # Nobody else can put their number on it meanwhile.
+    other = await client.post(f"/api/v1/public/loyalty/{code}",
+                              json={"phone": "03119998888", "consent": True})
+    assert other.status_code == 400 and "linked" in other.json()["detail"]
+
+    await _pay(client, admin_token, o)
+    assert await _visits(db, tenant) == 1
+    p = (await client.get(f"/api/v1/loyalty/customers/{PHONE}", headers=_auth(admin_token))).json()
+    assert (p["total_visits"], p["customer_name"]) == (1, "Sara")
+    assert (await client.get(f"/api/v1/public/loyalty/{code}")).json()["status"] == "counted"
+
+
+@pytest.mark.asyncio
+async def test_scan_before_paying_obeys_the_daily_limit(client, admin_token, db, tenant, menu):
+    await _config(db, tenant, menu)  # 1 per day
+    first = await _order(client, admin_token, menu["karahi"], PHONE)
+    await _pay(client, admin_token, first)
+    o = await _order(client, admin_token, menu["karahi"], order_type="dine_in")
+    r = await client.post(f"/api/v1/public/loyalty/{await _code(db, o['id'])}",
+                          json={"phone": PHONE, "consent": True})
+    assert r.json()["result"] == "pending"
+    await _pay(client, admin_token, o)
+    assert await _visits(db, tenant) == 1  # second bill today: refused at payment
 
 
 @pytest.mark.asyncio
