@@ -93,6 +93,8 @@ export interface RestaurantConfig extends BaseEntity {
   loyalty_max_visits_per_day: number;
   /** D-107: the shop's Google review link (counter screen QR); null = none. */
   google_review_url: string | null;
+  /** Email online customers for a review (also needs google_review_url). */
+  review_email_enabled: boolean;
   receipt_header: string | null;
   receipt_footer: string | null;
   /** How the browser receipt prints: `thermal` (80mm roll) or `a4`. */

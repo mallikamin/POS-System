@@ -4,6 +4,7 @@
  * screen opens from here.
  */
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { ExternalLink, Gift, Loader2, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -23,8 +24,6 @@ export default function LoyaltyPage() {
   const [visits, setVisits] = useState(5);
   // Visits one customer can earn per day; "" = no limit (sent as 0).
   const [perDay, setPerDay] = useState("1");
-  // D-107: shown as a "Rate us on Google" QR on the counter screen.
-  const [reviewUrl, setReviewUrl] = useState("");
   const [rewardItemId, setRewardItemId] = useState("");
   const [label, setLabel] = useState("");
   const [saving, setSaving] = useState(false);
@@ -40,7 +39,6 @@ export default function LoyaltyPage() {
     setEnabled(config.loyalty_enabled);
     setVisits(config.loyalty_visits_required || 5);
     setPerDay(config.loyalty_max_visits_per_day > 0 ? String(config.loyalty_max_visits_per_day) : "");
-    setReviewUrl(config.google_review_url ?? "");
     setRewardItemId(config.loyalty_reward_menu_item_id ?? "");
     setLabel(config.loyalty_reward_label ?? "");
   }, [config]);
@@ -59,18 +57,11 @@ export default function LoyaltyPage() {
         loyalty_max_visits_per_day: perDay === "" ? 0 : Math.max(1, Math.min(20, parseInt(perDay, 10) || 1)),
         loyalty_reward_menu_item_id: rewardItemId,
         loyalty_reward_label: label,
-        google_review_url: reviewUrl.trim(),
       });
       await useConfigStore.getState().fetchConfig();
       toast({ title: "Loyalty saved", variant: "success" });
     } catch {
-      toast({
-        title: "Could not save loyalty settings",
-        description: reviewUrl.trim() && !reviewUrl.trim().startsWith("https://")
-          ? "The Google review link must start with https://"
-          : undefined,
-        variant: "destructive",
-      });
+      toast({ title: "Could not save loyalty settings", variant: "destructive" });
     } finally {
       setSaving(false);
     }
@@ -170,23 +161,15 @@ export default function LoyaltyPage() {
               />
             </div>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="reviewUrl">Google review link (counter screen)</Label>
-            <Input
-              id="reviewUrl"
-              type="url"
-              value={reviewUrl}
-              maxLength={500}
-              onChange={(e) => setReviewUrl(e.target.value)}
-              placeholder="https://g.page/r/.../review"
-              className="min-h-[48px]"
-              aria-describedby="reviewUrlHelp"
-            />
-            <p id="reviewUrlHelp" className="text-pos-sm text-secondary-500">
-              Shown as a &ldquo;Rate us on Google&rdquo; QR on the counter screen. Best: the review
-              link from your Google Business Profile (&ldquo;Ask for reviews&rdquo;). Leave empty to hide it.
-            </p>
-          </div>
+          {/* D-107: the review link is a restaurant setting (Settings > Google reviews). */}
+          <p className="text-pos-sm text-secondary-500">
+            {config?.google_review_url
+              ? "The counter screen also shows a “Rate us on Google” QR. "
+              : "Add your Google review link to show a “Rate us on Google” QR on the counter screen. "}
+            <Link to="/admin/settings" className="font-medium text-primary-600 underline">
+              Settings &rsaquo; Google reviews
+            </Link>
+          </p>
         </CardContent>
       </Card>
 

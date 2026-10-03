@@ -123,9 +123,17 @@ class RestaurantConfig(BaseMixin, Base):
         nullable=True,
         comment="This tenant's Google 'write a review' link. A review link "
         "belongs to one restaurant's Business Profile, so it is per-tenant and "
-        "never hardcoded in the email service. NULL switches the "
-        "review-request email off for this tenant, which is how the feature "
-        "ships inert.",
+        "never hardcoded. Shown as a QR on the counter screen and on online "
+        "order tickets. It does NOT send email on its own: see "
+        "review_email_enabled.",
+    )
+    review_email_enabled: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+        comment="Email online customers asking for a Google review a few hours "
+        "after the order. Needs google_review_url too. Its own opt-in because it "
+        "is the one review feature that contacts customers.",
     )
 
     online_ordering_only: Mapped[bool] = mapped_column(

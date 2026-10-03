@@ -46,6 +46,8 @@ class RestaurantConfigResponse(BaseModel):
     loyalty_max_visits_per_day: int
     # D-107: shown on the counter screen as a "rate us on Google" QR.
     google_review_url: str | None
+    # Online-order review email (needs google_review_url too).
+    review_email_enabled: bool
     receipt_header: str | None = None
     receipt_footer: str | None = None
     # 'thermal' (80mm roll) or 'a4'. Presentation only.

@@ -88,12 +88,13 @@ def _order(tenant: Tenant, user: User, accepted_ago: timedelta, **overrides) -> 
 
 @pytest_asyncio.fixture
 async def config(db: AsyncSession, tenant: Tenant) -> RestaurantConfig:
-    """Chick Shack's real shape: GBP, London, review link set."""
+    """Chick Shack's real shape: GBP, London, review link set, email opted in."""
     cfg = RestaurantConfig(
         tenant_id=tenant.id,
         currency="GBP",
         timezone="Europe/London",
         google_review_url=REVIEW_URL,
+        review_email_enabled=True,
     )
     db.add(cfg)
     await db.flush()
@@ -187,6 +188,26 @@ async def test_a_tenant_with_no_review_url_sends_nothing(
 
     assert claimed == []
     assert send.await_count == 0
+
+
+@pytest.mark.asyncio
+async def test_a_review_link_alone_sends_no_email(
+    db: AsyncSession, tenant: Tenant, config: RestaurantConfig, due_order: Order
+) -> None:
+    """The link also drives the counter-screen QR (D-107). Setting it for that
+    must not start emailing customers: the email is its own opt-in."""
+    config.review_email_enabled = False
+    await db.commit()
+    with _frozen_now(), patch(
+        "app.services.email_service.send_order_email", new_callable=AsyncMock
+    ) as send:
+        claimed = await public_order_service.send_due_review_emails(db, tenant.id)
+        await _drain_emails()
+
+    assert claimed == []
+    assert send.await_count == 0
+    await db.refresh(due_order)
+    assert due_order.review_email_sent_at is None
 
 
 @pytest.mark.asyncio

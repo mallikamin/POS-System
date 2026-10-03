@@ -1655,11 +1655,12 @@ async def send_due_review_emails(
 
     Three guards, each earning its place:
 
-    * **The tenant's `google_review_url` is the feature switch.** It is NULL
-      everywhere on deploy, so this ships inert and turns on for exactly the
-      restaurant whose link is filled in. A review link belongs to one Google
-      Business Profile; hardcoding Chick Shack's would send Cosa Nostra's
-      customers to a chicken shop in Garelochhead (the OI-73 lesson).
+    * **The tenant opts in: `review_email_enabled` AND a `google_review_url`.**
+      The link alone no longer switches the email on (2026-10-03): it also
+      drives the counter-screen review QR, and showing a QR must not start
+      emailing customers. A review link belongs to one Google Business
+      Profile; hardcoding Chick Shack's would send Cosa Nostra's customers to
+      a chicken shop in Garelochhead (the OI-73 lesson).
     * **The send window**, in the tenant's own timezone, not the server's.
     * **The claim is a conditional UPDATE**, not a read-then-write. The backend
       runs `--workers 4` and every worker sweeps on the same timer, so
@@ -1675,12 +1676,13 @@ async def send_due_review_emails(
         await db.execute(
             select(
                 RestaurantConfig.google_review_url,
+                RestaurantConfig.review_email_enabled,
                 RestaurantConfig.timezone,
             ).where(RestaurantConfig.tenant_id == tenant_id)
         )
     ).first()
 
-    if config is None:
+    if config is None or not config.review_email_enabled:
         return []
     review_url = (config.google_review_url or "").strip()
     if not review_url:

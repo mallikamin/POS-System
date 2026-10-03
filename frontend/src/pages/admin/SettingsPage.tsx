@@ -30,6 +30,8 @@ interface ConfigData {
   takeaway_label: string | null;
   discount_approval_threshold_bps: number;
   discount_approval_threshold_fixed: number;
+  google_review_url: string | null;
+  review_email_enabled: boolean;
 }
 
 function SettingsPage() {
@@ -55,6 +57,10 @@ function SettingsPage() {
   const [takeawayLabel, setTakeawayLabel] = useState("");
   const [discountThresholdPct, setDiscountThresholdPct] = useState(0);
   const [discountThresholdFixed, setDiscountThresholdFixed] = useState(0);
+  // Google reviews: one link per restaurant (counter-screen QR, online
+  // tickets); the review email is its own opt-in.
+  const [reviewUrl, setReviewUrl] = useState("");
+  const [reviewEmail, setReviewEmail] = useState(false);
 
   useEffect(() => {
     fetchConfig();
@@ -80,6 +86,8 @@ function SettingsPage() {
 
       setDiscountThresholdPct((data.discount_approval_threshold_bps ?? 0) / 100);
       setDiscountThresholdFixed((data.discount_approval_threshold_fixed ?? 0) / 100);
+      setReviewUrl(data.google_review_url ?? "");
+      setReviewEmail(data.review_email_enabled);
       setRestaurantName(data.restaurant_name ?? "Demo Restaurant");
     } catch {
       toast({ title: "Failed to load settings", variant: "destructive" });
@@ -109,12 +117,20 @@ function SettingsPage() {
         takeaway_label: takeawayLabel.trim(),
         discount_approval_threshold_bps: Math.round(discountThresholdPct * 100),
         discount_approval_threshold_fixed: Math.round(discountThresholdFixed * 100),
+        // Empty string clears the link (null would mean "unchanged").
+        google_review_url: reviewUrl.trim(),
+        review_email_enabled: reviewEmail,
       });
       // Refresh global config store so all POS pages see new values immediately
       await useConfigStore.getState().fetchConfig();
       toast({ title: "Settings saved", variant: "success" });
     } catch {
-      toast({ title: "Failed to save settings", variant: "destructive" });
+      const badLink = reviewUrl.trim() !== "" && !reviewUrl.trim().startsWith("https://");
+      toast({
+        title: "Failed to save settings",
+        description: badLink ? "The Google review link must start with https://" : undefined,
+        variant: "destructive",
+      });
     } finally {
       setSaving(false);
     }
@@ -393,6 +409,47 @@ function SettingsPage() {
                     : "Disabled"}
                 </p>
               </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Google reviews */}
+        <Card>
+          <CardContent className="space-y-4 pt-6">
+            <h2 className="text-pos-lg font-semibold text-secondary-800">
+              Google reviews
+            </h2>
+            <div className="space-y-2">
+              <Label htmlFor="reviewUrl">Google review link</Label>
+              <Input
+                id="reviewUrl"
+                type="url"
+                value={reviewUrl}
+                maxLength={500}
+                onChange={(e) => setReviewUrl(e.target.value)}
+                placeholder="https://g.page/r/.../review"
+                className="min-h-[48px]"
+                aria-describedby="reviewUrlHelp"
+              />
+              <p id="reviewUrlHelp" className="text-pos-sm text-secondary-500">
+                Shown as a &ldquo;Rate us on Google&rdquo; QR on the loyalty counter screen and on
+                online order tickets. Best: the link from your Google Business Profile
+                (&ldquo;Ask for reviews&rdquo;). Leave empty to hide it.
+              </p>
+            </div>
+            <div className="flex items-center justify-between gap-4 rounded-lg border p-4">
+              <div>
+                <Label htmlFor="reviewEmail">Email online customers for a review</Label>
+                <p className="text-pos-sm text-secondary-500">
+                  Online orders only, a few hours after the order. Needs the link above.
+                </p>
+              </div>
+              <Switch
+                id="reviewEmail"
+                checked={reviewEmail}
+                onCheckedChange={setReviewEmail}
+                disabled={!reviewUrl.trim() && !reviewEmail}
+              />
             </div>
           </CardContent>
         </Card>

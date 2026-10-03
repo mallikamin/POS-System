@@ -379,6 +379,12 @@ async def test_google_review_link_setting(client, admin_token, db, tenant, menu)
     r = await client.patch("/api/v1/config/restaurant", headers=_auth(admin_token),
                            json={"google_review_url": f"  {url} "})
     assert r.status_code == 200 and r.json()["google_review_url"] == url
+    # Setting the link never opts the restaurant into the review email.
+    assert r.json()["review_email_enabled"] is False
+    r = await client.patch("/api/v1/config/restaurant", headers=_auth(admin_token),
+                           json={"review_email_enabled": True})
+    assert r.status_code == 200 and r.json()["review_email_enabled"] is True
+    assert r.json()["google_review_url"] == url
     bad = await client.patch("/api/v1/config/restaurant", headers=_auth(admin_token),
                              json={"google_review_url": "http://example.com"})
     assert bad.status_code == 422
