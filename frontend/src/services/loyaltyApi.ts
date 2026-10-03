@@ -43,6 +43,8 @@ export interface PublicClaimInfo {
   order_number: string;
   /** D-106: the shop, so the page can show its own logo. */
   tenant_slug: string;
+  /** This restaurant's card can be added to Google Wallet. Absent from older servers. */
+  google_wallet?: boolean;
 }
 
 export interface PublicClaimResult {
@@ -96,4 +98,13 @@ export async function submitClaim(
     body
   );
   return data;
+}
+
+/** The "Add to Google Wallet" link for the guest whose number is on this bill. */
+export async function fetchGoogleWalletUrl(code: string, phone: string): Promise<string> {
+  const { data } = await api.post<{ url: string }>(
+    `/public/loyalty/${encodeURIComponent(code)}/google-wallet`,
+    { phone }
+  );
+  return data.url;
 }

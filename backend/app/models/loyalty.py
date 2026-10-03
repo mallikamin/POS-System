@@ -55,3 +55,22 @@ class LoyaltyRedemption(BaseMixin, Base):
     amount: Mapped[int] = mapped_column(Integer, nullable=False,
                                         comment="Reward value in minor units")
     redeemed_by: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id"), nullable=False)
+
+
+class LoyaltyWalletPass(BaseMixin, Base):
+    """A guest's loyalty card in a phone wallet (Google Wallet today).
+
+    A row means a save link was handed out, so the card may be on a phone:
+    each counted visit pushes the new count to it. Google answers 404 for a
+    card the guest never saved, which costs nothing.
+    """
+
+    __tablename__ = "loyalty_wallet_passes"
+    __table_args__ = (
+        UniqueConstraint("customer_id", "platform", name="uq_loyalty_wallet_pass_customer_platform"),
+    )
+
+    customer_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("customers.id"), nullable=False)
+    platform: Mapped[str] = mapped_column(String(10), nullable=False, comment="google")
+    object_id: Mapped[str] = mapped_column(String(120), nullable=False,
+                                           comment="The card's id at the wallet provider")

@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, require_role
 from app.database import get_db
+from app.integrations import google_wallet
 from app.models.user import User
 from app.services import loyalty_service
 from app.services.loyalty_service import LoyaltyError, Progress
@@ -109,7 +110,8 @@ async def public_claim_info(code: str, db: AsyncSession = Depends(get_db)) -> di
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return {"status": info.status, "restaurant_name": info.restaurant_name,
             "visits_required": info.visits_required, "reward_label": info.reward_label,
-            "order_number": info.order_number, "tenant_slug": info.tenant_slug}
+            "order_number": info.order_number, "tenant_slug": info.tenant_slug,
+            "google_wallet": google_wallet.available_for(info.tenant_slug)}
 
 
 @public_router.post("/{code}")
@@ -124,3 +126,16 @@ async def public_claim(code: str, body: ClaimIn, db: AsyncSession = Depends(get_
     return {"result": result, "phone": _mask(p.phone), "total_visits": p.total_visits,
             "toward_next": p.toward_next, "visits_required": p.visits_required,
             "rewards_available": p.rewards_available, "reward_label": p.reward_label}
+
+
+class WalletIn(BaseModel):
+    phone: str = Field(..., min_length=7, max_length=20)
+
+
+@public_router.post("/{code}/google-wallet")
+async def public_google_wallet(code: str, body: WalletIn, db: AsyncSession = Depends(get_db)) -> dict:
+    """The "Add to Google Wallet" link, for the guest whose number is on this bill."""
+    try:
+        return {"url": await loyalty_service.wallet_link(db, code, body.phone)}
+    except LoyaltyError as exc:
+        raise _bad(exc) from exc

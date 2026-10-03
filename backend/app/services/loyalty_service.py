@@ -23,6 +23,7 @@ failure is logged, the same isolation the audit log uses.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 import secrets
@@ -30,13 +31,15 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import func, select
+from sqlalchemy import event, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
+from app.integrations import google_wallet
 from app.models.customer import Customer
 from app.models.discount import OrderDiscount
-from app.models.loyalty import LoyaltyRedemption, LoyaltyVisit
+from app.models.loyalty import LoyaltyRedemption, LoyaltyVisit, LoyaltyWalletPass
 from app.models.menu import MenuItem
 from app.models.order import Order
 from app.models.restaurant_config import RestaurantConfig
@@ -203,6 +206,7 @@ async def _record_visit(
     except IntegrityError:
         # Lost a race to the other route (cashier vs scan): the constraint held.
         return "already_counted"
+    _queue_wallet_push(db, tenant_id, customer.id, notify=True)
     return "counted"
 
 
@@ -427,6 +431,7 @@ async def redeem(db: AsyncSession, tenant_id: uuid.UUID, user_id: uuid.UUID,
     from app.services import discount_service
 
     await discount_service._sync_order_discount(db, tenant_id, order.id)
+    _queue_wallet_push(db, tenant_id, customer.id, notify=False)
     return await progress_for(db, tenant_id, customer, settings)
 
 
@@ -494,3 +499,141 @@ async def members(db: AsyncSession, tenant_id: uuid.UUID) -> list[Progress]:
                                    settings.max_visits_per_day)
     rows = [await progress_for(db, tenant_id, c, settings) for c in customers]
     return sorted(rows, key=lambda r: (r.last_visit or ""), reverse=True)
+
+
+# --- Google Wallet card ---------------------------------------------------
+#
+# A guest who collected a visit can add the card to Google Wallet. From then
+# on each counted visit (and each reward used) updates the card on their
+# phone, with a notification for visits. The push to Google runs only AFTER
+# the payment's transaction commits, in its own task: a slow or failing Google
+# never holds up taking money, and a rolled-back payment never notifies.
+
+_WALLET_KEY = "loyalty_wallet_push"
+_wallet_tasks: set[asyncio.Task] = set()
+
+
+def _queue_wallet_push(db: AsyncSession, tenant_id: uuid.UUID, customer_id: uuid.UUID,
+                       notify: bool) -> None:
+    if not google_wallet.enabled():
+        return
+    queued = db.sync_session.info.setdefault(_WALLET_KEY, {})
+    queued[customer_id] = (tenant_id, notify or queued.get(customer_id, (None, False))[1])
+
+
+@event.listens_for(Session, "after_commit")
+def _after_commit(session: Session) -> None:
+    # SQLAlchemy also fires this when a SAVEPOINT is released, and the visit is
+    # written inside one: pushing then would read the count before the payment
+    # commits (the card said "0 of 5"). Only the real commit sends.
+    if session.in_nested_transaction():
+        return
+    queued = session.info.pop(_WALLET_KEY, None)
+    if not queued:
+        return
+    for customer_id, (tenant_id, notify) in queued.items():
+        _schedule(_push_wallet(tenant_id, customer_id, notify))
+
+
+def _schedule(coro) -> None:
+    """Run the push in the background (tests replace this to run it in step)."""
+    try:
+        task = asyncio.get_running_loop().create_task(coro)
+    except RuntimeError:
+        coro.close()
+        return
+    _wallet_tasks.add(task)
+    task.add_done_callback(_wallet_tasks.discard)
+
+
+@event.listens_for(Session, "after_rollback")
+def _after_rollback(session: Session) -> None:
+    if session.in_nested_transaction():
+        return  # a savepoint: the outer transaction decides (the push re-reads the count)
+    session.info.pop(_WALLET_KEY, None)
+
+
+async def _wallet_card(db: AsyncSession, tenant_id: uuid.UUID, customer: Customer
+                       ) -> google_wallet.Card | None:
+    name, slug = (await db.execute(
+        select(Tenant.name, Tenant.slug).where(Tenant.id == tenant_id))).one()
+    if not google_wallet.available_for(slug):
+        return None
+    settings = await get_settings(db, tenant_id)
+    if not settings.enabled:
+        return None
+    p = await progress_for(db, tenant_id, customer, settings)
+    member = customer.name if customer.name and customer.name != "Loyalty member" else "Member"
+    return google_wallet.Card(
+        slug=slug, restaurant_name=name, customer_id=customer.id, member_name=member,
+        phone=customer.phone, masked_phone=mask_phone(customer.phone),
+        toward_next=p.toward_next, visits_required=p.visits_required,
+        rewards_available=p.rewards_available, reward_label=p.reward_label)
+
+
+async def _push_wallet(tenant_id: uuid.UUID, customer_id: uuid.UUID, notify: bool) -> None:
+    from app.database import async_session_factory
+
+    try:
+        async with async_session_factory() as db:
+            has_card = (await db.execute(select(LoyaltyWalletPass.id).where(
+                LoyaltyWalletPass.tenant_id == tenant_id,
+                LoyaltyWalletPass.customer_id == customer_id,
+                LoyaltyWalletPass.platform == "google"))).scalar_one_or_none()
+            if has_card is None:
+                return
+            customer = (await db.execute(select(Customer).where(
+                Customer.id == customer_id, Customer.tenant_id == tenant_id))).scalar_one()
+            card = await _wallet_card(db, tenant_id, customer)
+        if card is not None:
+            result = await google_wallet.push_update(card, notify)
+            logger.info("Wallet card %s: %s", customer_id, result)
+    except Exception:  # noqa: BLE001 - a card update must never surface as an error
+        logger.exception("Wallet card not updated for customer %s", customer_id)
+
+
+def mask_phone(phone: str) -> str:
+    return phone[:4] + "*" * max(len(phone) - 7, 0) + phone[-3:] if len(phone) > 7 else phone
+
+
+async def wallet_link(db: AsyncSession, code: str, phone_raw: str) -> str:
+    """The "Add to Google Wallet" link for the guest who claimed this bill.
+
+    The caller must give the same number that is on the bill, so a bill's QR
+    alone never opens someone else's card (the card's barcode is the number).
+    """
+    order = await _order_by_code(db, code)
+    phone = normalize_phone(phone_raw)
+    on_bill = normalize_phone(order.customer_phone)
+    if on_bill is None:
+        visit_customer = (await db.execute(
+            select(Customer.phone).join(LoyaltyVisit, LoyaltyVisit.customer_id == Customer.id)
+            .where(LoyaltyVisit.order_id == order.id))).scalar_one_or_none()
+        on_bill = normalize_phone(visit_customer)
+    if phone is None or phone != on_bill:
+        raise LoyaltyError("Collect your visit first, then add the card.")
+    customer = (await db.execute(select(Customer).where(
+        Customer.tenant_id == order.tenant_id, Customer.phone == phone))).scalar_one_or_none()
+    if customer is None:
+        raise LoyaltyError("Collect your visit first, then add the card.")
+    card = await _wallet_card(db, order.tenant_id, customer)
+    if card is None:
+        raise LoyaltyError("Google Wallet cards are not available here yet.")
+    try:
+        await google_wallet.upsert(card)
+    except google_wallet.WalletError as exc:
+        logger.error("Wallet card not created for %s: %s", customer.id, exc)
+        raise LoyaltyError("Google Wallet is not reachable right now. Please try again.") from exc
+    exists = (await db.execute(select(LoyaltyWalletPass.id).where(
+        LoyaltyWalletPass.customer_id == customer.id,
+        LoyaltyWalletPass.platform == "google"))).scalar_one_or_none()
+    if exists is None:
+        try:
+            async with db.begin_nested():
+                db.add(LoyaltyWalletPass(tenant_id=order.tenant_id, customer_id=customer.id,
+                                         platform="google",
+                                         object_id=google_wallet.object_id(customer.id)))
+                await db.flush()
+        except IntegrityError:
+            pass  # the same guest tapped twice at once; the row is there
+    return google_wallet.save_url(card)

@@ -25,7 +25,7 @@ from app.models.payment import (
     PaymentMethod,
 )
 from app.models.customer import Customer
-from app.models.loyalty import LoyaltyRedemption, LoyaltyVisit
+from app.models.loyalty import LoyaltyRedemption, LoyaltyVisit, LoyaltyWalletPass
 from app.models.kitchen import KitchenStation, KitchenTicket, KitchenTicketItem
 from app.models.table_session import TableSession
 from app.models.discount import DiscountType, OrderDiscount
@@ -92,6 +92,7 @@ __all__ = [
     "Customer",
     "LoyaltyVisit",
     "LoyaltyRedemption",
+    "LoyaltyWalletPass",
     "KitchenStation",
     "KitchenTicket",
     "KitchenTicketItem",

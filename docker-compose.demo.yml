@@ -96,6 +96,12 @@ services:
       - STRIPE_SUCCESS_URL=${STRIPE_SUCCESS_URL:-}
       - STRIPE_CANCEL_URL=${STRIPE_CANCEL_URL:-}
       - STRIPE_ACCOUNT_CURRENCY=${STRIPE_ACCOUNT_CURRENCY:-gbp}
+      # Google Wallet loyalty cards (Danny's). Same rule as every block here: a
+      # key in .env.demo that is not named HERE never reaches the container. The
+      # key is the service account's JSON, base64 in one line (the container is
+      # read-only, so no key file). Both unset = no wallet button, nothing else.
+      - GOOGLE_WALLET_ISSUER_ID=${GOOGLE_WALLET_ISSUER_ID:-}
+      - GOOGLE_WALLET_KEY_B64=${GOOGLE_WALLET_KEY_B64:-}
       # AI: OCR goods receiving and the ordering advisor. Third time the same
       # rule bites in this one file, so it is worth stating once more: this
       # service has NO `env_file:`, and `--env-file` only feeds ${...}

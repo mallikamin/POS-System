@@ -12,6 +12,7 @@ import { CheckCircle2, Loader2 } from "lucide-react";
 import { isAxiosError } from "axios";
 import {
   fetchClaimInfo,
+  fetchGoogleWalletUrl,
   submitClaim,
   type PublicClaimInfo,
   type PublicClaimResult,
@@ -47,6 +48,8 @@ function Stamps({ filled, total }: { filled: number; total: number }) {
   );
 }
 
+const IS_IOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+
 const field =
   "h-12 w-full rounded-xl border border-[#c9a24d]/35 bg-black/30 px-4 text-base text-[#f4ecdc] " +
   "placeholder:text-[#f4ecdc]/35 focus:border-[#e6c77a] focus:outline-none focus:ring-1 focus:ring-[#e6c77a]";
@@ -61,6 +64,8 @@ export default function ClaimPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<PublicClaimResult | null>(null);
+  const [walletBusy, setWalletBusy] = useState(false);
+  const [walletError, setWalletError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchClaimInfo(code)
@@ -79,6 +84,18 @@ export default function ClaimPage() {
       setError(errorText(err, "Something went wrong. Please try again."));
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function addToGoogleWallet() {
+    if (walletBusy) return;
+    setWalletBusy(true);
+    setWalletError(null);
+    try {
+      window.location.href = await fetchGoogleWalletUrl(code, phone);
+    } catch (err) {
+      setWalletError(errorText(err, "Google Wallet is not reachable right now. Please try again."));
+      setWalletBusy(false);
     }
   }
 
@@ -143,6 +160,28 @@ export default function ClaimPage() {
               ? `${done.toward_next} of ${done.visits_required} so far, before this visit.`
               : `${done.visits_required - done.toward_next} more visit${done.visits_required - done.toward_next === 1 ? "" : "s"} to ${done.reward_label}.`}
         </p>
+        {/* Google Wallet runs on Android; an iPhone gets the Apple card when it ships. */}
+        {info.google_wallet && !IS_IOS && (
+          <div className="flex flex-col items-center gap-3 pt-2">
+            <p className="text-center text-sm font-light text-[#f4ecdc]/70">
+              Keep your card on your phone and get a message after every visit.
+            </p>
+            <button
+              type="button"
+              onClick={addToGoogleWallet}
+              disabled={walletBusy}
+              aria-label="Add to Google Wallet"
+              className="disabled:opacity-60"
+            >
+              {walletBusy ? (
+                <Loader2 className="h-12 w-12 animate-spin text-[#e6c77a]" />
+              ) : (
+                <img src="/wallet/add-to-google-wallet.svg" alt="Add to Google Wallet" className="h-12 w-auto" />
+              )}
+            </button>
+            {walletError && <p className="text-center text-sm text-red-200">{walletError}</p>}
+          </div>
+        )}
       </>
     );
   }
