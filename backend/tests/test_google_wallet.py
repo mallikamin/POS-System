@@ -117,6 +117,7 @@ def test_card_and_message_wording():
     assert body["loyaltyPoints"]["balance"]["string"] == "3 of 5"
     assert len(body["loyaltyPoints"]["balance"]["string"]) < 15
     assert body["barcode"]["value"] == PHONE
+    assert body["linksModuleData"]["uris"][0]["uri"].endswith("/loyalty-privacy.html")
     header, text = google_wallet.visit_message(card)
     assert header == "Visit counted" and len(header) < 29
     assert text == "3 of 5 done. 2 more visits to Free Cappuccino."

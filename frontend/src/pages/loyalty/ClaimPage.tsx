@@ -243,7 +243,10 @@ export default function ClaimPage() {
           />
           <span>
             Join {info.restaurant_name}&apos;s loyalty card. My number is kept only to count my
-            visits and is never sold or shared.
+            visits and is never sold or shared.{" "}
+            <a href="/loyalty-privacy.html" target="_blank" rel="noopener" className="underline">
+              Privacy and terms
+            </a>
           </span>
         </label>
         {error && (

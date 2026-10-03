@@ -133,6 +133,11 @@ def object_body(card: Card) -> dict:
             "header": "Reward",
             "body": f"{card.visits_required} visits = {card.reward_label}",
         }],
+        "linksModuleData": {"uris": [{
+            "id": "privacy",
+            "uri": wallet_settings().PUBLIC_APP_URL + "/loyalty-privacy.html",
+            "description": "Privacy and terms",
+        }]},
     }
 
 
