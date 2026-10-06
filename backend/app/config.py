@@ -66,6 +66,15 @@ class Settings(BaseSettings):
     # Absolute base URL a customer can open to track their order, no trailing
     # slash. The order id is appended. Empty means no link is included.
     ORDER_TRACKING_BASE_URL: str = ""
+    # Tenants whose customers are emailed. EMAIL_FROM, its sending domain and the
+    # email branding belong to ONE shop (Chick Shack); a tenant not listed here
+    # sends no customer email rather than mail from another shop's address.
+    # Comma-separated slugs.
+    EMAIL_TENANT_SLUGS: str = "chick-shack"
+
+    @property
+    def email_tenant_slugs(self) -> set[str]:
+        return {s.strip() for s in self.EMAIL_TENANT_SLUGS.split(",") if s.strip()}
 
     # Stripe -- card payments for online orders.
     #
@@ -98,6 +107,10 @@ class Settings(BaseSettings):
     # checkout, and add a way for checkout to fail that has nothing to do with
     # the payment.
     STRIPE_ACCOUNT_CURRENCY: str = "gbp"
+    # The STRIPE_* settings above are ONE shop's account: this tenant's. Every
+    # other tenant has its own slug-suffixed variables and never falls back to
+    # these (see `stripe_service.account_for_slug`).
+    STRIPE_DEFAULT_TENANT_SLUG: str = "chick-shack"
 
     # QuickBooks Integration
     QB_CLIENT_ID: str = ""

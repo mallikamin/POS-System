@@ -46,6 +46,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, require_role
+from app.config import settings
 from app.database import get_db
 from app.models.order import Order
 from app.models.tenant import Tenant
@@ -241,10 +242,11 @@ async def create_checkout_session(
 
     currency = await public_order_service.get_currency(db, tenant_id)
     shop_name = await public_order_service.get_shop_name(db, tenant_id)
+    account = await stripe_service.account_for_tenant(db, tenant_id)
 
     try:
         url, session_id, payment_intent_id = await stripe_service.create_checkout_session(
-            order, currency=currency, shop_name=shop_name
+            account, order, currency=currency, shop_name=shop_name
         )
     except stripe_service.StripeNotConfigured as exc:
         # Not an error the customer caused. Card simply is not on offer.
@@ -280,6 +282,32 @@ async def stripe_webhook(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, str]:
+    """The default tenant's webhook (Chick Shack). URL unchanged since launch,
+    because it is registered in that Stripe account's dashboard."""
+    account = stripe_service.account_for_slug(settings.STRIPE_DEFAULT_TENANT_SLUG)
+    return await _stripe_webhook(request, db, account)
+
+
+@router.post("/{tenant_slug}/stripe/webhook", include_in_schema=False)
+async def tenant_stripe_webhook(
+    tenant_slug: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, str]:
+    """Every other tenant's webhook. Verified with THAT tenant's signing secret,
+    so an event from one shop's Stripe account cannot touch another's orders."""
+    tenant_id = await _resolve_tenant_id(db, tenant_slug)
+    account = await stripe_service.account_for_tenant(db, tenant_id)
+    return await _stripe_webhook(request, db, account, expected_tenant_id=tenant_id)
+
+
+async def _stripe_webhook(
+    request: Request,
+    db: AsyncSession,
+    account: stripe_service.StripeAccount,
+    *,
+    expected_tenant_id: uuid.UUID | None = None,
+) -> dict[str, str]:
     """Reconcile what Stripe believes against what we believe.
 
     Capture and cancel are both driven from the merchant tablet, so the system
@@ -297,7 +325,7 @@ async def stripe_webhook(
     signature = request.headers.get("Stripe-Signature", "")
 
     try:
-        event = stripe_service.verify_webhook(payload, signature)
+        event = stripe_service.verify_webhook(account, payload, signature)
     except stripe_service.StripeError as exc:
         # 400, not 500: this is a rejected request, not a broken server, and it
         # must not look like something worth retrying.
@@ -314,6 +342,24 @@ async def stripe_webhook(
     order = await db.get(Order, order_id)
     if order is None:
         logger.warning("Stripe event %s referenced unknown order %s", event_type, order_id)
+        return {"status": "ignored"}
+
+    # The event was signed by THIS tenant's account, so it may only touch this
+    # tenant's orders. The default route checks the slug-to-account match below.
+    owner_ok = (
+        order.tenant_id == expected_tenant_id
+        if expected_tenant_id is not None
+        else (await stripe_service.account_for_tenant(db, order.tenant_id)).tenant_slug
+        == account.tenant_slug
+    )
+    if not owner_ok:
+        logger.warning(
+            "Stripe event %s for order %s arrived on %s's webhook but the order "
+            "belongs to another tenant. Ignored.",
+            event_type,
+            order_id,
+            account.tenant_slug,
+        )
         return {"status": "ignored"}
 
     # Tenant-scope it like every other route in this file. The id alone is an

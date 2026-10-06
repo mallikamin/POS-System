@@ -34,6 +34,7 @@ from app.models.menu import Category, MenuItem, Modifier
 from app.models.order import Order, OrderItem, OrderItemModifier, OrderStatusLog
 from app.models.restaurant_config import RestaurantConfig
 from app.models.user import Role, User
+from app.config import settings
 from app.models.tenant import Tenant
 from app.schemas.public_order import PublicOrderCreate
 from app.services import audit_service, email_service, order_service, stripe_service
@@ -301,6 +302,21 @@ async def notify_customer(
     eager-loaded before this is called, so the task outliving the request's
     DB session is safe.
     """
+    # The sender (EMAIL_FROM), its authenticated domain and the email's branding
+    # are ONE shop's (Chick Shack's). Another shop's customers must not get mail
+    # from Chick Shack's address, so only tenants listed in EMAIL_TENANT_SLUGS
+    # are emailed. A shop not listed simply sends no email; its order page still
+    # tracks the order live.
+    slug = await db.scalar(select(Tenant.slug).where(Tenant.id == tenant_id))
+    if (slug or "") not in settings.email_tenant_slugs:
+        logger.info(
+            "No %s email for order %s: tenant %s has no sender of its own.",
+            event,
+            order.order_number,
+            slug,
+        )
+        return
+
     currency = await get_currency(db, tenant_id)
     shop_name = await get_shop_name(db, tenant_id)
     task = asyncio.create_task(
@@ -936,6 +952,8 @@ async def accept_order(
             )
 
         intent_id = order.stripe_payment_intent_id
+        # The order's OWN shop's Stripe account. Each tenant has its own.
+        account = await stripe_service.account_for_tenant(db, order.tenant_id)
 
         # ⚠️ THE INVARIANT (OI-65). An unconfirmed card order cannot be
         # accepted, by any route, ever. `list_merchant_orders` also hides it,
@@ -949,7 +967,7 @@ async def accept_order(
         if order.payment_authorized_at is None or intent_id is None:
             try:
                 resolved_id, authorized = await stripe_service.authorization_for_session(
-                    order.stripe_checkout_session_id
+                    account, order.stripe_checkout_session_id
                 )
             except stripe_service.StripeError as exc:
                 # Cannot confirm the money, so cannot commit the kitchen.
@@ -977,7 +995,9 @@ async def accept_order(
                 # authorised when the customer paid. If the shop struck an
                 # item in between, the customer must not be charged the
                 # original figure.
-                status = await stripe_service.capture_for_order(intent_id, order.total)
+                status = await stripe_service.capture_for_order(
+                    account, intent_id, order.total
+                )
             except stripe_service.StripeError as exc:
                 raise PublicOrderError(
                     f"Could not take the payment, so the order has not been accepted. {exc}"
@@ -1186,7 +1206,8 @@ async def reject_order(
     order = await _get_pending_online_order(db, tenant_id, order_id)
 
     if order.stripe_payment_intent_id and order.payment_captured_at is None:
-        released = await stripe_service.cancel(order.stripe_payment_intent_id)
+        account = await stripe_service.account_for_tenant(db, order.tenant_id)
+        released = await stripe_service.cancel(account, order.stripe_payment_intent_id)
         await _log_stripe_event(
             db,
             tenant_id,
@@ -1251,8 +1272,10 @@ async def reconcile_late_authorization(
     if order.payment_captured_at is not None:
         return False
 
+    account = await stripe_service.account_for_tenant(db, order.tenant_id)
+
     if order.rejected_at is not None:
-        released = await stripe_service.cancel(intent_id)
+        released = await stripe_service.cancel(account, intent_id)
         await _log_stripe_event(
             db,
             tenant_id,
@@ -1274,7 +1297,9 @@ async def reconcile_late_authorization(
     # Already accepted: the kitchen has committed to the food. Take the
     # payment now, same capture call accept_order makes.
     try:
-        capture_status = await stripe_service.capture_for_order(intent_id, order.total)
+        capture_status = await stripe_service.capture_for_order(
+            account, intent_id, order.total
+        )
     except stripe_service.StripeError:
         logger.exception(
             "Late capture failed for already-accepted order %s (%s). Food may already "
@@ -1414,10 +1439,14 @@ async def publish_authorized_card_orders(
     if not waiting:
         return []
 
+    # Resolved once, before the concurrent checks: every order here belongs to
+    # `tenant_id`, and an AsyncSession must not be shared across tasks.
+    account = await stripe_service.account_for_tenant(db, tenant_id)
+
     async def _check(order: Order) -> tuple[Order, str | None, bool]:
         try:
             intent_id, authorized = await stripe_service.authorization_for_session(
-                order.stripe_checkout_session_id  # type: ignore[arg-type]
+                account, order.stripe_checkout_session_id  # type: ignore[arg-type]
             )
         except stripe_service.StripeNotConfigured:
             return order, None, False

@@ -40,6 +40,18 @@ from app.services.public_order_service import PublicOrderError
 from app.services.stripe_service import StripeError, StripeNotConfigured
 
 
+def _own_account() -> stripe_service.StripeAccount:
+    """The test tenant's Stripe account, read from settings AS PATCHED NOW.
+
+    conftest makes the test tenant the default (global-settings) Stripe
+    tenant. Asserting a mock was awaited with this exact account, rather than
+    `ANY`, also proves the call used the order's OWN shop's account.
+    """
+    return stripe_service.account_for_slug(
+        stripe_service.settings.STRIPE_DEFAULT_TENANT_SLUG
+    )
+
+
 def _card_order(tenant: Tenant, user: User, **overrides) -> Order:
     """An online order placed but not yet answered, with a card authorised."""
     fields = {
@@ -137,7 +149,7 @@ async def test_accepting_a_card_order_captures_it(
         )
 
     # The order total is passed, not left to default to the authorised amount.
-    capture.assert_awaited_once_with("pi_test_123", 1300)
+    capture.assert_awaited_once_with(_own_account(), "pi_test_123", 1300)
     assert order.accepted_at is not None
     assert order.payment_captured_at is not None
 
@@ -227,8 +239,8 @@ async def test_accepting_a_card_order_resolves_a_missing_intent_id_and_captures_
             db, tenant.id, card_order_pending_intent.id, admin_user.id, 30
         )
 
-    resolve.assert_awaited_once_with("cs_test_123")
-    capture.assert_awaited_once_with("pi_resolved_456", 1300)
+    resolve.assert_awaited_once_with(_own_account(), "cs_test_123")
+    capture.assert_awaited_once_with(_own_account(), "pi_resolved_456", 1300)
     assert order.stripe_payment_intent_id == "pi_resolved_456"
     assert order.payment_captured_at is not None
     assert order.payment_authorized_at is not None
@@ -571,7 +583,7 @@ async def test_rejecting_a_card_order_cancels_the_authorisation(
             db, tenant.id, card_order.id, admin_user.id, "Too busy"
         )
 
-    cancel.assert_awaited_once_with("pi_test_123")
+    cancel.assert_awaited_once_with(_own_account(), "pi_test_123")
     assert order.rejected_at is not None
     assert order.status == "voided"
 
@@ -706,7 +718,7 @@ def test_webhook_is_refused_when_no_signing_secret_is_configured() -> None:
     """
     with patch.object(stripe_service.settings, "STRIPE_WEBHOOK_SECRET", ""):
         with pytest.raises(StripeError, match="refusing"):
-            stripe_service.verify_webhook(b"{}", "sig")
+            stripe_service.verify_webhook(_own_account(), b"{}", "sig")
 
 
 class _StripeLike:
@@ -809,7 +821,7 @@ def test_nothing_stripe_works_without_a_secret_key() -> None:
     """
     with patch.object(stripe_service.settings, "STRIPE_SECRET_KEY", ""):
         with pytest.raises(StripeNotConfigured):
-            stripe_service._client()
+            stripe_service._client(_own_account())
 
 
 # ---------------------------------------------------------------------------
@@ -830,15 +842,17 @@ async def test_capture_is_bounded_by_the_current_order_total() -> None:
     notice -- Stripe did exactly what it was told.
     """
     intent = _StripeLike({"status": "requires_capture", "amount_capturable": 1300})
+    account = _own_account()
 
     with patch.object(stripe_service, "_retrieve_blocking", return_value=intent):
         with patch.object(
             stripe_service, "capture", new=AsyncMock(return_value="succeeded")
         ) as capture:
-            result = await stripe_service.capture_for_order("pi_x", 900)
+            result = await stripe_service.capture_for_order(account, "pi_x", 900)
 
     assert result == "succeeded"
-    capture.assert_awaited_once_with("pi_x", amount=900)
+    # The same account that read the intent is the one that captures it.
+    capture.assert_awaited_once_with(account, "pi_x", amount=900)
 
 
 @pytest.mark.asyncio
@@ -849,7 +863,7 @@ async def test_capture_refuses_when_the_order_is_worth_more_than_was_held() -> N
     with patch.object(stripe_service, "_retrieve_blocking", return_value=intent):
         with patch.object(stripe_service, "capture", new=AsyncMock()) as capture:
             with pytest.raises(StripeError, match="worth more than was authorised"):
-                await stripe_service.capture_for_order("pi_x", 1300)
+                await stripe_service.capture_for_order(_own_account(), "pi_x", 1300)
 
     # Nothing may be taken when the amounts disagree.
     capture.assert_not_awaited()
@@ -862,7 +876,10 @@ async def test_capture_of_an_already_succeeded_intent_is_not_a_second_charge() -
 
     with patch.object(stripe_service, "_retrieve_blocking", return_value=intent):
         with patch.object(stripe_service, "capture", new=AsyncMock()) as capture:
-            assert await stripe_service.capture_for_order("pi_x", 1300) == "succeeded"
+            assert (
+                await stripe_service.capture_for_order(_own_account(), "pi_x", 1300)
+                == "succeeded"
+            )
 
     capture.assert_not_awaited()
 
@@ -878,7 +895,7 @@ async def test_capture_raises_when_the_authorisation_is_gone() -> None:
 
     with patch.object(stripe_service, "_retrieve_blocking", return_value=intent):
         with pytest.raises(StripeError, match="No money is being held"):
-            await stripe_service.capture_for_order("pi_x", 1300)
+            await stripe_service.capture_for_order(_own_account(), "pi_x", 1300)
 
 
 # --- resolve_payment_intent_id: the fix for the 260731-001 incident ---------
@@ -893,7 +910,7 @@ async def test_resolve_payment_intent_id_reads_the_id_off_the_session() -> None:
     session = _StripeLike({"id": "cs_x", "payment_intent": "pi_resolved"})
 
     with patch.object(stripe_service, "_retrieve_session_blocking", return_value=session):
-        result = await stripe_service.resolve_payment_intent_id("cs_x")
+        result = await stripe_service.resolve_payment_intent_id(_own_account(), "cs_x")
 
     assert result == "pi_resolved"
 
@@ -909,7 +926,7 @@ async def test_resolve_payment_intent_id_handles_an_expanded_payment_intent() ->
     )
 
     with patch.object(stripe_service, "_retrieve_session_blocking", return_value=session):
-        result = await stripe_service.resolve_payment_intent_id("cs_x")
+        result = await stripe_service.resolve_payment_intent_id(_own_account(), "cs_x")
 
     assert result == "pi_expanded"
 
@@ -923,7 +940,7 @@ async def test_resolve_payment_intent_id_is_none_for_an_abandoned_checkout() -> 
     session = _StripeLike({"id": "cs_x", "payment_intent": None})
 
     with patch.object(stripe_service, "_retrieve_session_blocking", return_value=session):
-        result = await stripe_service.resolve_payment_intent_id("cs_x")
+        result = await stripe_service.resolve_payment_intent_id(_own_account(), "cs_x")
 
     assert result is None
 
@@ -963,12 +980,19 @@ def test_webhook_mode_must_match_the_configured_key(
          patch.object(stripe_service.settings, "STRIPE_SECRET_KEY", secret_key), \
          patch.object(stripe_service, "_client") as client:
         client.return_value.Webhook.construct_event.return_value = event
+        account = _own_account()
+        assert account.secret_key == secret_key
 
         if accepted:
-            assert stripe_service.verify_webhook(b"{}", "sig") is event
+            assert stripe_service.verify_webhook(account, b"{}", "sig") is event
         else:
             with pytest.raises(StripeError, match="mode mismatch"):
-                stripe_service.verify_webhook(b"{}", "sig")
+                stripe_service.verify_webhook(account, b"{}", "sig")
+
+        # Verified with this account's own signing secret.
+        client.return_value.Webhook.construct_event.assert_called_once_with(
+            b"{}", "sig", "whsec_x"
+        )
 
 
 # --- H-3: the webhook is tenant-scoped like every other route --------------
@@ -1014,9 +1038,12 @@ async def test_a_currency_that_the_stripe_account_cannot_settle_is_refused(
 
     with patch.object(stripe_service.settings, "STRIPE_SUCCESS_URL", "https://x/ok"), \
          patch.object(stripe_service.settings, "STRIPE_CANCEL_URL", "https://x/no"), \
-         patch.object(stripe_service.settings, "STRIPE_ACCOUNT_CURRENCY", "gbp"):
+         patch.object(stripe_service.settings, "STRIPE_ACCOUNT_CURRENCY", "gbp"), \
+         patch.object(stripe_service.settings, "STRIPE_SECRET_KEY", "sk_test_x"):
         with pytest.raises(StripeNotConfigured, match="PKR"):
-            await stripe_service.create_checkout_session(order, currency="PKR")
+            await stripe_service.create_checkout_session(
+                _own_account(), order, currency="PKR"
+            )
 
 
 @pytest.mark.asyncio
@@ -1031,10 +1058,15 @@ async def test_unset_return_urls_read_as_unavailable_not_as_a_broken_server(
     order = _card_order(tenant, admin_user)
     order.items = []
 
+    # A key IS set, so the refusal below is provably about the missing return
+    # URLs and not the (separately tested) missing key.
     with patch.object(stripe_service.settings, "STRIPE_SUCCESS_URL", ""), \
-         patch.object(stripe_service.settings, "STRIPE_CANCEL_URL", ""):
-        with pytest.raises(StripeNotConfigured):
-            await stripe_service.create_checkout_session(order, currency="GBP")
+         patch.object(stripe_service.settings, "STRIPE_CANCEL_URL", ""), \
+         patch.object(stripe_service.settings, "STRIPE_SECRET_KEY", "sk_test_x"):
+        with pytest.raises(StripeNotConfigured, match="STRIPE_SUCCESS_URL"):
+            await stripe_service.create_checkout_session(
+                _own_account(), order, currency="GBP"
+            )
 
 
 # --- Regression: `timeout=` is not a Stripe API parameter -------------------
@@ -1066,6 +1098,11 @@ class _StrictSessionApi:
         "success_url",
         "cancel_url",
         "idempotency_key",
+        # A REQUEST OPTION, like idempotency_key: stripe 15.3.1's
+        # `_request_options.extract_options_from_dict` strips it out of the
+        # params and sends it as the Authorization header, never as a field.
+        # This is how each tenant's own key reaches Stripe.
+        "api_key",
     }
 
     def __init__(self) -> None:
@@ -1099,11 +1136,13 @@ async def test_checkout_session_sends_no_parameter_stripe_would_reject(
     with patch.object(stripe_service, "_client", return_value=fake_stripe), \
          patch.object(stripe_service.settings, "STRIPE_SUCCESS_URL", "https://x/ok"), \
          patch.object(stripe_service.settings, "STRIPE_CANCEL_URL", "https://x/no"), \
-         patch.object(stripe_service.settings, "STRIPE_ACCOUNT_CURRENCY", "gbp"):
+         patch.object(stripe_service.settings, "STRIPE_ACCOUNT_CURRENCY", "gbp"), \
+         patch.object(stripe_service.settings, "STRIPE_SECRET_KEY", "sk_test_x"):
         url, session_id, intent_id = await stripe_service.create_checkout_session(
-            order, currency="GBP"
+            _own_account(), order, currency="GBP"
         )
 
+    assert sessions.captured["api_key"] == "sk_test_x"
     assert session_id == "cs_test_1"
     assert intent_id == "pi_test_1"
     assert url.startswith("https://checkout.stripe.com/")
@@ -1129,7 +1168,7 @@ def test_the_http_timeout_is_configured_on_the_client_not_the_call() -> None:
         with patch.object(
             stripe_service.settings, "STRIPE_SECRET_KEY", "sk_test_x"
         ):
-            stripe_service._client()
+            stripe_service._client(_own_account())
         assert real_stripe.default_http_client is not None
         assert getattr(real_stripe.default_http_client, "_timeout", None) == 20
     finally:
@@ -1489,7 +1528,7 @@ async def test_late_authorization_captures_an_already_accepted_order(
         response = await client.post("/api/v1/public/stripe/webhook", content=b"{}")
 
     assert response.status_code == 200
-    capture.assert_awaited_once_with("pi_late_capture", 1300)
+    capture.assert_awaited_once_with(_own_account(), "pi_late_capture", 1300)
 
     db.expunge_all()
     refreshed = (
@@ -1623,7 +1662,7 @@ async def test_late_authorization_releases_an_already_rejected_order(
         response = await client.post("/api/v1/public/stripe/webhook", content=b"{}")
 
     assert response.status_code == 200
-    cancel.assert_awaited_once_with("pi_late_cancel")
+    cancel.assert_awaited_once_with(_own_account(), "pi_late_cancel")
 
     db.expunge_all()
     refreshed = (

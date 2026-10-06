@@ -38,14 +38,110 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import uuid
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.config import settings
 from app.models.order import Order
+from app.models.tenant import Tenant
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Which Stripe account a tenant's money goes to
+# ---------------------------------------------------------------------------
+#
+# Each shop has its OWN Stripe account (Chick Shack 2026-07, Ali Fish & Chips
+# 2026-10). Money must never land in another shop's account, so the account is
+# resolved per tenant on every call and passed to Stripe as a per-request
+# `api_key`. Nothing here sets the module-global `stripe.api_key`.
+#
+# * The original STRIPE_* settings belong to ONE tenant only:
+#   STRIPE_DEFAULT_TENANT_SLUG (chick-shack). That keeps Chick Shack's live
+#   configuration exactly as it was.
+# * Any other tenant reads its own variables, suffixed with its slug in upper
+#   case with dashes as underscores, e.g. for `ali-fish-chips`:
+#       STRIPE_SECRET_KEY__ALI_FISH_CHIPS
+#       STRIPE_WEBHOOK_SECRET__ALI_FISH_CHIPS   (optional)
+#       STRIPE_SUCCESS_URL__ALI_FISH_CHIPS
+#       STRIPE_CANCEL_URL__ALI_FISH_CHIPS
+#       STRIPE_ACCOUNT_CURRENCY__ALI_FISH_CHIPS (default gbp)
+#   Each must also be listed in the compose file's `environment:` block, which
+#   has no `env_file:`.
+# * ⚠️ A tenant with no key of its own gets NO card payment. It never falls
+#   back to the default account: that would put one shop's takings in
+#   another shop's bank.
+
+
+@dataclass(frozen=True)
+class StripeAccount:
+    tenant_slug: str
+    secret_key: str
+    webhook_secret: str
+    success_url: str
+    cancel_url: str
+    currency: str
+
+    @property
+    def configured(self) -> bool:
+        return bool(self.secret_key)
+
+    @property
+    def webhook_configured(self) -> bool:
+        return bool(self.webhook_secret)
+
+    @property
+    def live_mode(self) -> bool:
+        # `rk_live_` included: a live RESTRICTED key is a normal thing to deploy.
+        return self.secret_key.startswith(("sk_live_", "rk_live_"))
+
+
+def _env_suffix(slug: str) -> str:
+    return slug.strip().upper().replace("-", "_")
+
+
+def account_for_slug(slug: str) -> StripeAccount:
+    slug = (slug or "").strip().lower()
+    if slug == settings.STRIPE_DEFAULT_TENANT_SLUG.strip().lower():
+        return StripeAccount(
+            tenant_slug=slug,
+            secret_key=settings.STRIPE_SECRET_KEY,
+            webhook_secret=settings.STRIPE_WEBHOOK_SECRET,
+            success_url=settings.STRIPE_SUCCESS_URL,
+            cancel_url=settings.STRIPE_CANCEL_URL,
+            currency=settings.STRIPE_ACCOUNT_CURRENCY,
+        )
+    suffix = _env_suffix(slug)
+    return StripeAccount(
+        tenant_slug=slug,
+        secret_key=os.environ.get(f"STRIPE_SECRET_KEY__{suffix}", "").strip(),
+        webhook_secret=os.environ.get(f"STRIPE_WEBHOOK_SECRET__{suffix}", "").strip(),
+        success_url=os.environ.get(f"STRIPE_SUCCESS_URL__{suffix}", "").strip(),
+        cancel_url=os.environ.get(f"STRIPE_CANCEL_URL__{suffix}", "").strip(),
+        currency=os.environ.get(f"STRIPE_ACCOUNT_CURRENCY__{suffix}", "gbp").strip(),
+    )
+
+
+# tenant_id -> slug. Slugs do not change, so one lookup per tenant per process.
+_slug_cache: dict[uuid.UUID, str] = {}
+
+
+async def account_for_tenant(db: AsyncSession, tenant_id: uuid.UUID) -> StripeAccount:
+    slug = _slug_cache.get(tenant_id)
+    if slug is None:
+        slug = await db.scalar(select(Tenant.slug).where(Tenant.id == tenant_id))
+        if not slug:
+            # Unknown tenant: an account with no key, i.e. "not configured".
+            return StripeAccount("", "", "", "", "", "gbp")
+        _slug_cache[tenant_id] = slug
+    return account_for_slug(slug)
 
 # Stripe recommends short client-side timeouts; a checkout that hangs is worse
 # than one that fails, because the customer is sitting in front of it.
@@ -78,15 +174,21 @@ class StripeNotConfigured(StripeError):
     """No secret key. Card payment is simply not offered."""
 
 
-def _client() -> Any:
-    """Return the configured stripe module.
+def _client(account: StripeAccount) -> Any:
+    """Return the stripe module, after checking this tenant has an account.
 
     Imported lazily so the application starts, and the whole non-card system
     keeps working, on a box where the package is not installed yet -- which is
     the state of every deploy before this feature ships.
+
+    ⚠️ The key is NOT set globally. Every call passes `api_key=account.secret_key`,
+    so a call that forgot it fails with "no API key" instead of silently using
+    another shop's account.
     """
-    if not settings.stripe_configured:
-        raise StripeNotConfigured("Stripe is not configured.")
+    if not account.configured:
+        raise StripeNotConfigured(
+            f"Stripe is not configured for tenant '{account.tenant_slug}'."
+        )
     try:
         import stripe
     except ModuleNotFoundError as exc:  # pragma: no cover - deployment state
@@ -94,7 +196,6 @@ def _client() -> Any:
             "The stripe package is not installed on this backend."
         ) from exc
 
-    stripe.api_key = settings.STRIPE_SECRET_KEY
     stripe.max_network_retries = 2
 
     # ⚠️ `timeout=` is NOT a per-call argument. Passing it to `.create()` sends
@@ -239,14 +340,16 @@ def _line_items(order: Order, currency: str) -> list[dict[str, Any]]:
 
 
 def _create_session_blocking(
+    account: StripeAccount,
     order: Order,
     currency: str,
     shop_name: str,
     success_url: str,
     cancel_url: str,
 ) -> Any:
-    stripe = _client()
+    stripe = _client(account)
     return stripe.checkout.Session.create(
+        api_key=account.secret_key,
         mode="payment",
         line_items=_line_items(order, currency),
         # The entire model in one parameter: hold the money, do not take it.
@@ -276,6 +379,7 @@ def _create_session_blocking(
 
 
 async def create_checkout_session(
+    account: StripeAccount,
     order: Order,
     *,
     currency: str = "GBP",
@@ -288,8 +392,14 @@ async def create_checkout_session(
     Raises rather than returning a sentinel: a customer who was told they are
     being taken to a payment page must not silently end up somewhere else.
     """
-    success = success_url or settings.STRIPE_SUCCESS_URL
-    cancel = cancel_url or settings.STRIPE_CANCEL_URL
+    if not account.configured:
+        raise StripeNotConfigured(
+            f"Stripe is not configured for tenant '{account.tenant_slug}'."
+        )
+    # The return URLs are the tenant's own: a shared default would send one
+    # shop's customers back to another shop's website after paying.
+    success = success_url or account.success_url
+    cancel = cancel_url or account.cancel_url
     if not success or not cancel:
         # StripeNotConfigured, not StripeError, so the route answers 503 "card
         # payment is not available" instead of 502 Bad Gateway. Missing config
@@ -304,7 +414,7 @@ async def create_checkout_session(
     # The account settles in one currency. A session in any other is rejected by
     # Stripe on the payment page, in front of a customer who has already
     # committed to the order. Fail here, internally, where it is our problem.
-    expected = (settings.STRIPE_ACCOUNT_CURRENCY or "").strip().lower()
+    expected = (account.currency or "").strip().lower()
     if expected and currency.strip().lower() != expected:
         logger.error(
             "Tenant currency %s does not match the Stripe account currency %s; "
@@ -328,7 +438,7 @@ async def create_checkout_session(
 
     try:
         session = await asyncio.to_thread(
-            _create_session_blocking, order, currency, shop_name, success, cancel
+            _create_session_blocking, account, order, currency, shop_name, success, cancel
         )
     except StripeNotConfigured:
         raise
@@ -355,12 +465,16 @@ async def create_checkout_session(
     return session["url"], session["id"], str(payment_intent)
 
 
-def _retrieve_session_blocking(checkout_session_id: str) -> Any:
-    stripe = _client()
-    return stripe.checkout.Session.retrieve(checkout_session_id)
+def _retrieve_session_blocking(account: StripeAccount, checkout_session_id: str) -> Any:
+    stripe = _client(account)
+    return stripe.checkout.Session.retrieve(
+        checkout_session_id, api_key=account.secret_key
+    )
 
 
-async def resolve_payment_intent_id(checkout_session_id: str) -> str | None:
+async def resolve_payment_intent_id(
+    account: StripeAccount, checkout_session_id: str
+) -> str | None:
     """Look up the PaymentIntent Stripe actually attached to a Checkout Session.
 
     The reliable way to find it -- `create_checkout_session` returns one only
@@ -375,7 +489,9 @@ async def resolve_payment_intent_id(checkout_session_id: str) -> str | None:
     order: nothing to capture.
     """
     try:
-        session = await asyncio.to_thread(_retrieve_session_blocking, checkout_session_id)
+        session = await asyncio.to_thread(
+            _retrieve_session_blocking, account, checkout_session_id
+        )
     except StripeNotConfigured:
         raise
     except Exception as exc:
@@ -401,14 +517,18 @@ async def resolve_payment_intent_id(checkout_session_id: str) -> str | None:
 AUTHORIZED_STATUSES = frozenset({"requires_capture", "succeeded"})
 
 
-def _retrieve_session_expanded_blocking(checkout_session_id: str) -> Any:
-    stripe = _client()
+def _retrieve_session_expanded_blocking(
+    account: StripeAccount, checkout_session_id: str
+) -> Any:
+    stripe = _client(account)
     return stripe.checkout.Session.retrieve(
-        checkout_session_id, expand=["payment_intent"]
+        checkout_session_id, expand=["payment_intent"], api_key=account.secret_key
     )
 
 
-async def authorization_for_session(checkout_session_id: str) -> tuple[str | None, bool]:
+async def authorization_for_session(
+    account: StripeAccount, checkout_session_id: str
+) -> tuple[str | None, bool]:
     """Ask Stripe whether this Checkout Session's money is actually confirmed.
 
     Returns `(payment_intent_id, is_authorized)`.
@@ -426,7 +546,7 @@ async def authorization_for_session(checkout_session_id: str) -> tuple[str | Non
     """
     try:
         session = await asyncio.to_thread(
-            _retrieve_session_expanded_blocking, checkout_session_id
+            _retrieve_session_expanded_blocking, account, checkout_session_id
         )
     except StripeNotConfigured:
         raise
@@ -440,7 +560,9 @@ async def authorization_for_session(checkout_session_id: str) -> tuple[str | Non
     if isinstance(intent, str):
         # Not expanded (older API behaviour) -- we have the id but not the
         # status, so we cannot claim it is authorised. Read it properly.
-        status = str(field(await asyncio.to_thread(_retrieve_blocking, intent), "status", ""))
+        status = str(
+            field(await asyncio.to_thread(_retrieve_blocking, account, intent), "status", "")
+        )
         return intent, status in AUTHORIZED_STATUSES
 
     intent_id = field(intent, "id") or None
@@ -448,17 +570,23 @@ async def authorization_for_session(checkout_session_id: str) -> tuple[str | Non
     return intent_id, status in AUTHORIZED_STATUSES
 
 
-def _capture_blocking(payment_intent_id: str, amount: int | None) -> Any:
-    stripe = _client()
+def _capture_blocking(
+    account: StripeAccount, payment_intent_id: str, amount: int | None
+) -> Any:
+    stripe = _client(account)
     params: dict[str, Any] = {}
     if amount is not None:
         # A partial capture automatically releases the remainder, so this is
         # also how an order reduced after the fact would settle honestly.
         params["amount_to_capture"] = amount
-    return stripe.PaymentIntent.capture(payment_intent_id, **params)
+    return stripe.PaymentIntent.capture(
+        payment_intent_id, api_key=account.secret_key, **params
+    )
 
 
-async def capture(payment_intent_id: str, amount: int | None = None) -> str:
+async def capture(
+    account: StripeAccount, payment_intent_id: str, amount: int | None = None
+) -> str:
     """Take the money that was held. Returns the resulting PaymentIntent status.
 
     **Failures propagate.** If the card cannot be charged, the shop must not be
@@ -469,7 +597,9 @@ async def capture(payment_intent_id: str, amount: int | None = None) -> str:
     Accept tap must not read as a payment failure.
     """
     try:
-        intent = await asyncio.to_thread(_capture_blocking, payment_intent_id, amount)
+        intent = await asyncio.to_thread(
+            _capture_blocking, account, payment_intent_id, amount
+        )
     except StripeNotConfigured:
         raise
     except Exception as exc:
@@ -485,12 +615,14 @@ async def capture(payment_intent_id: str, amount: int | None = None) -> str:
     return str(status)
 
 
-def _retrieve_blocking(payment_intent_id: str) -> Any:
-    stripe = _client()
-    return stripe.PaymentIntent.retrieve(payment_intent_id)
+def _retrieve_blocking(account: StripeAccount, payment_intent_id: str) -> Any:
+    stripe = _client(account)
+    return stripe.PaymentIntent.retrieve(payment_intent_id, api_key=account.secret_key)
 
 
-async def capture_for_order(payment_intent_id: str, order_total: int) -> str:
+async def capture_for_order(
+    account: StripeAccount, payment_intent_id: str, order_total: int
+) -> str:
     """Capture what the order is worth **now**, never what was authorised then.
 
     `capture()` with no amount takes the full authorised amount. That is wrong
@@ -512,7 +644,7 @@ async def capture_for_order(payment_intent_id: str, order_total: int) -> str:
       of a partial capture by itself.
     """
     try:
-        intent = await asyncio.to_thread(_retrieve_blocking, payment_intent_id)
+        intent = await asyncio.to_thread(_retrieve_blocking, account, payment_intent_id)
     except StripeNotConfigured:
         raise
     except Exception as exc:
@@ -539,10 +671,12 @@ async def capture_for_order(payment_intent_id: str, order_total: int) -> str:
             "nothing has been taken -- collect the difference or re-authorise."
         )
 
-    return await capture(payment_intent_id, amount=order_total)
+    return await capture(account, payment_intent_id, amount=order_total)
 
 
-async def retrieve_payment_intent(payment_intent_id: str) -> dict[str, Any]:
+async def retrieve_payment_intent(
+    account: StripeAccount, payment_intent_id: str
+) -> dict[str, Any]:
     """Read-only lookup for reconciliation (OI-58d) -- never mutates Stripe state.
 
     Unlike `capture_for_order`, this is not on any money-moving path, so a
@@ -550,7 +684,7 @@ async def retrieve_payment_intent(payment_intent_id: str) -> dict[str, Any]:
     rather than treated as an outage to work around.
     """
     try:
-        intent = await asyncio.to_thread(_retrieve_blocking, payment_intent_id)
+        intent = await asyncio.to_thread(_retrieve_blocking, account, payment_intent_id)
     except StripeNotConfigured:
         raise
     except Exception as exc:
@@ -564,12 +698,12 @@ async def retrieve_payment_intent(payment_intent_id: str) -> dict[str, Any]:
     }
 
 
-def _cancel_blocking(payment_intent_id: str) -> Any:
-    stripe = _client()
-    return stripe.PaymentIntent.cancel(payment_intent_id)
+def _cancel_blocking(account: StripeAccount, payment_intent_id: str) -> Any:
+    stripe = _client(account)
+    return stripe.PaymentIntent.cancel(payment_intent_id, api_key=account.secret_key)
 
 
-async def cancel(payment_intent_id: str) -> bool:
+async def cancel(account: StripeAccount, payment_intent_id: str) -> bool:
     """Release a hold on rejection. Returns True if the money is not ours.
 
     **Failures are swallowed here, unlike capture, and the asymmetry is
@@ -580,7 +714,7 @@ async def cancel(payment_intent_id: str) -> bool:
     let the rejection stand.
     """
     try:
-        intent = await asyncio.to_thread(_cancel_blocking, payment_intent_id)
+        intent = await asyncio.to_thread(_cancel_blocking, account, payment_intent_id)
     except StripeNotConfigured:
         logger.warning(
             "Stripe not configured; cannot cancel %s. The hold will expire.",
@@ -606,20 +740,25 @@ async def cancel(payment_intent_id: str) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def verify_webhook(payload: bytes, signature: str) -> dict[str, Any]:
-    """Verify a webhook came from Stripe and return the event.
+def verify_webhook(
+    account: StripeAccount, payload: bytes, signature: str
+) -> dict[str, Any]:
+    """Verify a webhook came from this tenant's Stripe account and return the event.
 
     Without this the endpoint is an unauthenticated POST that claims orders
     have been paid. Verification is mandatory: if no signing secret is
     configured, the endpoint refuses everything rather than trusting anything.
     """
-    if not settings.stripe_webhook_configured:
-        raise StripeError("STRIPE_WEBHOOK_SECRET is not set; refusing the webhook.")
+    if not account.webhook_configured:
+        raise StripeError(
+            f"No webhook signing secret for tenant '{account.tenant_slug}'; "
+            "refusing the webhook."
+        )
 
-    stripe = _client()
+    stripe = _client(account)
     try:
         event = stripe.Webhook.construct_event(
-            payload, signature, settings.STRIPE_WEBHOOK_SECRET
+            payload, signature, account.webhook_secret
         )
     except Exception as exc:
         # Covers both a bad signature and a malformed body. Neither is worth
@@ -632,24 +771,13 @@ def verify_webhook(payload: bytes, signature: str) -> dict[str, Any]:
     # paid when no money exists -- is the kind of thing nobody finds until the
     # books do not balance. The endpoint secret differs per mode so this is
     # unlikely, but the assertion costs one comparison and removes the question.
-    if bool(field(event, "livemode", False)) is not is_live_mode():
+    if bool(field(event, "livemode", False)) is not account.live_mode:
         raise StripeError(
             "Webhook mode mismatch: this event's livemode does not match the "
             "configured Stripe key. Refusing it."
         )
 
     return event
-
-
-def is_live_mode() -> bool:
-    """True when configured with a live key rather than a test one.
-
-    `rk_live_` is included because a **restricted** key is a perfectly ordinary
-    thing to deploy -- arguably the better thing to deploy -- and matching only
-    `sk_live_` would classify a live restricted key as test mode, then reject
-    every genuine live event as a mode mismatch.
-    """
-    return settings.STRIPE_SECRET_KEY.startswith(("sk_live_", "rk_live_"))
 
 
 def _metadata_uuid(event: dict[str, Any], key: str) -> uuid.UUID | None:

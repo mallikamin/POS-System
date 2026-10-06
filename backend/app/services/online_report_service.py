@@ -172,6 +172,7 @@ async def get_stripe_reconciliation(
 
     rows = []
     mismatches = 0
+    account = await stripe_service.account_for_tenant(db, tenant_id)
     for o in orders:
         db_captured_amount = o.total if o.payment_captured_at else 0
         row = {
@@ -185,7 +186,7 @@ async def get_stripe_reconciliation(
         }
         try:
             intent = await stripe_service.retrieve_payment_intent(
-                o.stripe_payment_intent_id  # type: ignore[arg-type]
+                account, o.stripe_payment_intent_id  # type: ignore[arg-type]
             )
         except stripe_service.StripeError as exc:
             row["error"] = str(exc)

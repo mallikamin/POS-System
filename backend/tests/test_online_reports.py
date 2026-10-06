@@ -364,7 +364,11 @@ async def test_stripe_reconciliation_flags_a_match(
         payment_status="paid",
     )
 
-    async def fake_retrieve(payment_intent_id: str) -> dict:
+    async def fake_retrieve(
+        account: stripe_service.StripeAccount, payment_intent_id: str
+    ) -> dict:
+        # Looked up in the report's OWN tenant's Stripe account.
+        assert account.tenant_slug == tenant.slug
         assert payment_intent_id == "pi_match"
         return {"status": "succeeded", "amount_received": 2500, "amount_capturable": 0}
 
@@ -403,7 +407,7 @@ async def test_stripe_reconciliation_flags_a_mismatch(
         payment_status="paid",
     )
 
-    async def fake_retrieve(payment_intent_id: str) -> dict:
+    async def fake_retrieve(_account, payment_intent_id: str) -> dict:
         return {"status": "succeeded", "amount_received": 2000, "amount_capturable": 0}
 
     date_from, date_to = _today_range()
@@ -436,7 +440,7 @@ async def test_stripe_reconciliation_reports_a_lookup_failure_without_crashing(
         stripe_payment_intent_id="pi_gone",
     )
 
-    async def fake_retrieve(payment_intent_id: str) -> dict:
+    async def fake_retrieve(_account, payment_intent_id: str) -> dict:
         raise stripe_service.StripeError("No such payment_intent: 'pi_gone'")
 
     date_from, date_to = _today_range()
@@ -472,7 +476,7 @@ async def test_stripe_reconciliation_csv_downloads(
         payment_status="paid",
     )
 
-    async def fake_retrieve(payment_intent_id: str) -> dict:
+    async def fake_retrieve(_account, payment_intent_id: str) -> dict:
         return {"status": "succeeded", "amount_received": 1000, "amount_capturable": 0}
 
     date_from, date_to = _today_range()

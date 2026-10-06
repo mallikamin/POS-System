@@ -135,11 +135,38 @@ async def override_get_db():
 
 # ── Tenant A (primary) ────────────────────────────────────────────────
 TENANT_ID = uuid.uuid4()
+TENANT_SLUG = "test-restaurant"
+
+
+@pytest.fixture(autouse=True)
+def _test_tenant_owns_the_single_shop_integrations(monkeypatch):
+    """Make the primary test tenant the shop that owns the global Stripe and
+    email configuration (Chick Shack's role in production).
+
+    Production gives the original STRIPE_* settings and the email sender to
+    exactly one tenant slug (STRIPE_DEFAULT_TENANT_SLUG, EMAIL_TENANT_SLUGS);
+    every other tenant gets its own Stripe account or none, and no email. The
+    pre-existing suites were written for a single global account, so they run
+    as that owning tenant. `other-restaurant` stays a NON-owning tenant, which
+    is exactly what the per-tenant isolation tests in
+    test_stripe_tenant_accounts.py rely on.
+
+    The slug cache is cleared before and after each test so no test sees a
+    tenant_id -> slug mapping left by another.
+    """
+    from app.config import settings
+    from app.services import stripe_service
+
+    monkeypatch.setattr(settings, "STRIPE_DEFAULT_TENANT_SLUG", TENANT_SLUG)
+    monkeypatch.setattr(settings, "EMAIL_TENANT_SLUGS", TENANT_SLUG)
+    stripe_service._slug_cache.clear()
+    yield
+    stripe_service._slug_cache.clear()
 
 
 @pytest_asyncio.fixture
 async def tenant(db: AsyncSession) -> Tenant:
-    t = Tenant(id=TENANT_ID, tenant_id=TENANT_ID, name="Test Restaurant", slug="test-restaurant", is_active=True)
+    t = Tenant(id=TENANT_ID, tenant_id=TENANT_ID, name="Test Restaurant", slug=TENANT_SLUG, is_active=True)
     db.add(t)
     await db.flush()
     return t
