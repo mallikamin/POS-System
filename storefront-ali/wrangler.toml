@@ -1,0 +1,20 @@
+name = "ali-fish-chips-storefront"
+compatibility_date = "2025-01-01"
+
+# Serve the client's real domain. Cloudflare manages the DNS record and the
+# SSL certificate for custom domains automatically, but any pre-existing A /
+# CNAME on the same hostname (GoDaddy parking records were auto-imported into
+# the zone) must be deleted first or this errors.
+[[routes]]
+pattern = "alifishandchips.uk"
+custom_domain = true
+
+[[routes]]
+pattern = "www.alifishandchips.uk"
+custom_domain = true
+
+# Static SPA. No worker script: Cloudflare serves ./dist directly and falls
+# back to index.html so client-side view state survives a deep link / refresh.
+[assets]
+directory = "./dist"
+not_found_handling = "single-page-application"

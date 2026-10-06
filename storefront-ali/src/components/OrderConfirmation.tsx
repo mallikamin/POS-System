@@ -1,0 +1,320 @@
+import { useEffect, useState } from "react";
+import { SHOP } from "../data/menu";
+import { formatGBP } from "../lib/money";
+import { fetchOrderStatus } from "../lib/api";
+import type { OrderTiming } from "../lib/delivery";
+import type { ApiOrderResponse, ApiOrderStatus } from "../lib/api";
+
+interface Props {
+  order: ApiOrderResponse;
+  onDone: () => void;
+  /**
+   * The same pre-order decision Checkout made when the order was placed —
+   * passed in rather than re-derived here so a Stripe round trip (or just
+   * the clock ticking past a cut-off while this page is open) can never show
+   * a different answer to the one the customer already saw.
+   */
+  timing: OrderTiming;
+  /**
+   * The customer has just come back from Stripe having completed the Checkout
+   * page, so their card is AUTHORISED — the money is held, not taken.
+   *
+   * Not derivable from the order: it was stashed before the redirect, so its
+   * `payment_status` still reads `unpaid`, and it stays `unpaid` until the shop
+   * accepts and the capture writes a payment row. This is the only thing that
+   * distinguishes "card details taken, awaiting the shop" from "pay on
+   * delivery", and the two must never read the same.
+   */
+  cardAuthorised?: boolean;
+}
+
+/** How often to ask the shop whether they have answered yet. */
+const POLL_INTERVAL_MS = 10_000;
+
+/**
+ * Stop polling after this long.
+ *
+ * An order nobody answers is a phone call, not an infinite loop. Twenty minutes
+ * is well past the shop's own busiest-case response time and stops a tab left
+ * open overnight hitting the API every ten seconds until the battery dies.
+ */
+const POLL_WINDOW_MS = 20 * 60 * 1000;
+
+/**
+ * Once the shop has accepted, keep watching for longer.
+ *
+ * The twenty-minute window above answers "has anyone looked at this yet". After
+ * an accept the remaining question is "has it left the shop", and the shop can
+ * legitimately promise up to 90 minutes. Giving up at 20 would blank the page
+ * exactly when the customer starts checking it.
+ */
+const ACCEPTED_POLL_WINDOW_MS = 2 * 60 * 60 * 1000;
+
+/**
+ * What the customer sees after placing an order.
+ *
+ * The order is real by this point: it exists in the POS and is sitting on the
+ * shop's tablet awaiting accept or reject. What is NOT yet known is whether the
+ * shop has taken it, so this screen polls
+ * `GET /public/{tenant}/orders/{id}/status` and says only what is true at the
+ * time — "received", then "confirmed, about 45 minutes", or the shop's own
+ * reason for turning it down.
+ *
+ * It deliberately never claims payment has been taken. Orders are created
+ * unpaid and settled in the shop until Stripe exists.
+ */
+export default function OrderConfirmation({
+  order,
+  timing,
+  onDone,
+  cardAuthorised = false,
+}: Props) {
+  const [status, setStatus] = useState<ApiOrderStatus | null>(null);
+  const [gaveUp, setGaveUp] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    let timer: number | undefined;
+    let accepted = false;
+    const startedAt = Date.now();
+
+    async function poll(): Promise<void> {
+      try {
+        const next = await fetchOrderStatus(order.id);
+        if (cancelled) return;
+        setStatus(next);
+
+        // Only rejection and completion are terminal. Accept is NOT: the order
+        // still has to be made and handed over, and those are the updates the
+        // customer actually waits for.
+        if (next.rejected || next.completed) return;
+
+        accepted = next.accepted;
+      } catch {
+        // A failed poll is not worth showing the customer: their order was
+        // accepted by the server, only this status check failed. Keep trying.
+        if (cancelled) return;
+      }
+
+      const budget = accepted ? ACCEPTED_POLL_WINDOW_MS : POLL_WINDOW_MS;
+      if (Date.now() - startedAt > budget) {
+        // Only ever surfaced while still unanswered. Once accepted, the last
+        // known state stays on screen rather than being replaced by a warning.
+        if (!accepted) setGaveUp(true);
+        return;
+      }
+      timer = window.setTimeout(() => void poll(), POLL_INTERVAL_MS);
+    }
+
+    void poll();
+
+    return () => {
+      cancelled = true;
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
+  }, [order.id]);
+
+  // A pre-order is not a slow order. Placed while the shop is shut (or, for
+  // delivery, past its cut-off), it will not be answered until they open —
+  // so this page must never tell the customer it is "taking longer than
+  // usual" and send them to ring a closed shop.
+  const preOrder = !timing.immediate;
+
+  const collecting = order.service_type !== "delivery";
+  const accepted = status?.accepted === true;
+  const rejected = status?.rejected === true;
+  const eta = status?.eta_minutes ?? order.eta_minutes;
+
+  // The shop has made the food: it is on the counter, or with the driver.
+  const ready = status?.ready === true;
+  const completed = status?.completed === true;
+
+  // `paid` is the server's word, read from the payments table, and it only
+  // becomes true once the shop has accepted and the card has actually been
+  // captured. An order that went through Stripe but has not been accepted yet
+  // is authorised, not paid — the money is held, not taken.
+  const paidByCard = status?.paid === true;
+  const awaitingCapture = !paidByCard && cardAuthorised;
+
+  return (
+    <div className="px-4 py-16 max-w-md mx-auto text-center space-y-5">
+      <div
+        aria-hidden
+        className={`mx-auto grid place-items-center w-16 h-16 rounded-full text-3xl font-bold ${
+          rejected ? "bg-ember/15 text-ember" : "bg-emerald-600 text-white"
+        }`}
+      >
+        {rejected ? "!" : "✓"}
+      </div>
+
+      <h1 className="font-display text-2xl">
+        {rejected
+          ? "We couldn't take this one"
+          : completed
+            ? collecting
+              ? "Enjoy your food"
+              : "Delivered"
+            : ready
+              ? collecting
+                ? "Ready to collect"
+                : "On its way"
+              : accepted
+                ? "Order confirmed"
+                : "Order received"}
+      </h1>
+
+      <p className="text-fg/70">
+        Your order number is{" "}
+        <strong className="text-flame-light">{order.order_number}</strong>.
+      </p>
+
+      {rejected ? (
+        <div className="card p-4 space-y-2 border-ember/40 text-left">
+          <p className="text-sm text-fg/80">
+            {status?.rejection_reason?.trim()
+              ? status.rejection_reason
+              : "The shop is unable to take this order right now."}
+          </p>
+          <p className="text-sm text-fg/70">
+            Nothing has been charged. Give us a ring and we'll sort it out.
+          </p>
+        </div>
+      ) : completed ? (
+        <div className="card p-4 border-emerald-500/40">
+          <p className="font-semibold text-emerald-700">
+            {collecting ? "Collected. Thanks!" : "Delivered. Thanks!"}
+          </p>
+          <p className="text-sm text-fg/70 mt-1">
+            We hope it was good. See you again soon.
+          </p>
+        </div>
+      ) : ready ? (
+        <div className="card p-4 border-emerald-500/40">
+          <p className="font-semibold text-emerald-700">
+            {collecting
+              ? "Your order is ready and waiting"
+              : "Your order has left the shop"}
+          </p>
+          <p className="text-sm text-fg/70 mt-1">
+            {collecting
+              ? `Come to ${SHOP.addressLines.join(", ")}.`
+              : "The driver is on the way to the address you gave us."}
+          </p>
+        </div>
+      ) : accepted ? (
+        <div className="card p-4 border-emerald-500/40">
+          {/* "Confirmed", never "ready" — the food has not been made yet. Telling
+              a customer their order is ready and having it not be there is worse
+              than telling them nothing at all. */}
+          <p className="font-semibold text-emerald-700">
+            Confirmed
+            {eta
+              ? `: ${collecting ? "ready to collect" : "with you"} in about ${eta} minutes`
+              : ""}
+          </p>
+          <p className="text-sm text-fg/70 mt-1">
+            {collecting
+              ? `We'll let you know when it's ready. Come to ${SHOP.addressLines.join(", ")}.`
+              : "We'll let you know the moment it leaves the shop."}
+          </p>
+        </div>
+      ) : (
+        <div className="card p-4">
+          <p className="font-semibold">
+            {preOrder
+              ? "Pre-order received"
+              : "The shop is confirming your order"}
+          </p>
+          <p className="text-sm text-fg/70 mt-1">
+            {preOrder ? (
+              <>
+                We've got it.{" "}
+                {timing.closedReason === "delivery_not_open_yet"
+                  ? "Online delivery hasn't started yet today, so it"
+                  : timing.closedReason === "delivery_cutoff"
+                    ? "Online delivery has finished for tonight, so it"
+                    : timing.closedReason === "collection_cutoff"
+                      ? "Online collection has finished for tonight, so it"
+                      : "The shop is closed at the moment, so it"}{" "}
+                will be accepted when we open at{" "}
+                <strong className="text-fg">{timing.opensAt}</strong>.
+                You'll get a confirmation email then too. Nothing more for
+                you to do, just keep your order number safe.
+              </>
+            ) : gaveUp ? (
+              "This is taking longer than usual. Please give us a ring to check."
+            ) : (
+              `This usually takes a minute or two. We'll show your ${
+                collecting ? "collection" : "delivery"
+              } time here as soon as it's confirmed.`
+            )}
+          </p>
+        </div>
+      )}
+
+      {/* Server totals, not the basket's. If the two ever disagreed, this is
+          the one the shop will charge. */}
+      <div className="card p-4 text-left space-y-2">
+        {order.lines.map((line, index) => (
+          <div
+            key={`${line.name}-${index}`}
+            className="flex justify-between gap-4 text-sm"
+          >
+            <span className="text-fg/70">
+              {line.quantity} × {line.name}
+              {line.modifiers.length > 0 && (
+                <span className="block text-xs text-fg/65">
+                  {line.modifiers.join(", ")}
+                </span>
+              )}
+            </span>
+            <span className="text-fg/70 shrink-0">{formatGBP(line.total)}</span>
+          </div>
+        ))}
+        {order.service_fee > 0 && (
+          <div className="flex justify-between text-sm text-fg/70 pt-2 border-t border-paper-line">
+            <span>Platform Fee</span>
+            <span>{formatGBP(order.service_fee)}</span>
+          </div>
+        )}
+        {/* `> 0` also guards a pending order stashed by an older bundle,
+            where `tip` is undefined after the Stripe round trip. */}
+        {order.tip > 0 && (
+          <div className="flex justify-between text-sm text-fg/70 pt-2 border-t border-paper-line">
+            <span>Tip</span>
+            <span>{formatGBP(order.tip)}</span>
+          </div>
+        )}
+        {order.delivery_fee > 0 && (
+          <div className="flex justify-between text-sm text-fg/70 pt-2 border-t border-paper-line">
+            <span>Delivery</span>
+            <span>{formatGBP(order.delivery_fee)}</span>
+          </div>
+        )}
+        <div className="flex justify-between font-display text-lg pt-2 border-t border-paper-line">
+          <span>Total</span>
+          <span>{formatGBP(order.total)}</span>
+        </div>
+        {/* Three states, and the middle one is the whole point of saying this
+            carefully. Money is only TAKEN when the shop accepts, so between
+            paying and being accepted the honest words are "held", not "paid" —
+            the customer's statement will show a pending amount and nothing has
+            actually left their account yet. Claiming "paid" here and then
+            having the shop reject the order would make this screen a lie. */}
+        <p className="text-xs text-fg/65">
+          {paidByCard
+            ? "Paid by card."
+            : awaitingCapture
+              ? "Card details taken. We only charge you once the shop accepts your order."
+              : `Payable on ${collecting ? "collection" : "delivery"}.`}
+        </p>
+      </div>
+
+      <p className="text-sm text-fg/65">Any problems, call {SHOP.phones[0]}.</p>
+
+      <button onClick={onDone} className="btn-ghost tap h-12">
+        Back to menu
+      </button>
+    </div>
+  );
+}

@@ -96,6 +96,17 @@ services:
       - STRIPE_SUCCESS_URL=${STRIPE_SUCCESS_URL:-}
       - STRIPE_CANCEL_URL=${STRIPE_CANCEL_URL:-}
       - STRIPE_ACCOUNT_CURRENCY=${STRIPE_ACCOUNT_CURRENCY:-gbp}
+      # The STRIPE_* keys above are Chick Shack's account ONLY
+      # (STRIPE_DEFAULT_TENANT_SLUG). Every other shop has its own account under
+      # slug-suffixed names, and with no key of its own a shop simply gets no
+      # card payment: it never falls back to Chick Shack's account.
+      - STRIPE_DEFAULT_TENANT_SLUG=${STRIPE_DEFAULT_TENANT_SLUG:-chick-shack}
+      # Ali Fish & Chips (tenant `ali-fish-chips`), own Stripe account, 2026-10.
+      - STRIPE_SECRET_KEY__ALI_FISH_CHIPS=${STRIPE_SECRET_KEY__ALI_FISH_CHIPS:-}
+      - STRIPE_WEBHOOK_SECRET__ALI_FISH_CHIPS=${STRIPE_WEBHOOK_SECRET__ALI_FISH_CHIPS:-}
+      - STRIPE_SUCCESS_URL__ALI_FISH_CHIPS=${STRIPE_SUCCESS_URL__ALI_FISH_CHIPS:-}
+      - STRIPE_CANCEL_URL__ALI_FISH_CHIPS=${STRIPE_CANCEL_URL__ALI_FISH_CHIPS:-}
+      - STRIPE_ACCOUNT_CURRENCY__ALI_FISH_CHIPS=${STRIPE_ACCOUNT_CURRENCY__ALI_FISH_CHIPS:-gbp}
       # Google Wallet loyalty cards (Danny's). Same rule as every block here: a
       # key in .env.demo that is not named HERE never reaches the container. The
       # key is the service account's JSON, base64 in one line (the container is
