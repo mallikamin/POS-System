@@ -29,7 +29,7 @@ export default function CartPanel({ onClose, onCheckout }: Props) {
           <button
             onClick={onClose}
             aria-label="Close"
-            className="w-9 h-9 rounded-full border border-paper-line text-fg/70 hover:text-fg"
+            className="w-11 h-11 rounded-full border border-paper-line text-fg/70 hover:text-fg"
           >
             ✕
           </button>
@@ -78,7 +78,7 @@ export default function CartPanel({ onClose, onCheckout }: Props) {
               <div className="flex items-center gap-1 mt-3">
                 <button
                   onClick={() => setQuantity(line.key, line.quantity - 1)}
-                  className="w-9 h-9 rounded-lg border border-paper-line"
+                  className="w-11 h-11 rounded-lg border border-paper-line"
                   aria-label={`Reduce ${line.itemName}`}
                 >
                   −
@@ -86,7 +86,7 @@ export default function CartPanel({ onClose, onCheckout }: Props) {
                 <span className="w-8 text-center text-sm">{line.quantity}</span>
                 <button
                   onClick={() => setQuantity(line.key, line.quantity + 1)}
-                  className="w-9 h-9 rounded-lg border border-paper-line"
+                  className="w-11 h-11 rounded-lg border border-paper-line"
                   aria-label={`Add another ${line.itemName}`}
                 >
                   +

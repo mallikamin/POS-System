@@ -101,13 +101,13 @@ export default function Checkout({ onBack, onPlaced }: Props) {
   const serviceFee = SHOP.serviceFee;
   const total = subtotal + deliveryFee + serviceFee + tip;
 
-  // Email is REQUIRED, not a nicety. It is the channel the shop uses to tell the
-  // customer their order was accepted and how long it will be — and Imran's own
-  // worked example is an order placed at 14:00 and accepted at 15:30, long after
-  // the confirmation screen has stopped polling. Without an address that
-  // customer never finds out. Deliberately a shape check only: anything
-  // stricter rejects real addresses, and the real proof is the mail arriving.
-  const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+  // Email is OPTIONAL for Ali. The backend sends customer email only for shops
+  // with their own sending domain (`EMAIL_TENANT_SLUGS`), and Ali has none yet,
+  // so requiring an address would promise an email that never comes. If one is
+  // typed it must at least look like an address. Make it required again, with
+  // the "we'll email you" wording, once his sender is set up.
+  const emailOk =
+    email.trim() === "" || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
   const contactOk =
     name.trim().length > 1 && phone.trim().length >= 7 && emailOk;
   const addressOk =
@@ -219,7 +219,10 @@ export default function Checkout({ onBack, onPlaced }: Props) {
 
   return (
     <div className="px-4 pb-32 pt-6 max-w-xl mx-auto space-y-6">
-      <button onClick={onBack} className="text-sm text-fg/70 hover:text-fg">
+      <button
+        onClick={onBack}
+        className="inline-flex items-center h-11 -my-2 pr-3 text-sm text-fg/70 hover:text-fg"
+      >
         ← Back to menu
       </button>
 
@@ -272,16 +275,16 @@ export default function Checkout({ onBack, onPlaced }: Props) {
         />
         <input
           className="field"
-          placeholder="Email address"
+          placeholder="Email address (optional)"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           type="email"
           autoComplete="email"
-          required
           aria-invalid={email.trim().length > 0 && !emailOk}
         />
         <p className="text-xs text-fg/70">
-          We'll email you when the shop confirms your order and how long it will be.
+          After you order, keep the next page open: it shows when the shop
+          accepts your order and how long it will be.
         </p>
       </section>
 
@@ -473,17 +476,14 @@ export default function Checkout({ onBack, onPlaced }: Props) {
                   <strong className="text-fg">{timing.opensAt}</strong>{" "}
                   today, so this will be a{" "}
                   <strong className="text-fg">pre-order</strong>. We'll take
-                  it now and it'll be accepted then. You'll get a confirmation
-                  email too.
+                  it now and it'll be accepted then.
                 </>
               ) : timing.closedReason === "delivery_cutoff" ? (
                 <>
                   Online delivery has finished for tonight, so this will be a{" "}
                   <strong className="text-fg">pre-order</strong>. We'll take
                   it now and it'll be accepted when we open at{" "}
-                  <strong className="text-fg">{timing.opensAt}</strong>.
-                  You'll get a confirmation email then too.
-                </>
+                  <strong className="text-fg">{timing.opensAt}</strong>.                </>
               ) : timing.closedReason === "collection_cutoff" ? (
                 <>
                   Online collection orders have finished for tonight, so this
@@ -497,9 +497,7 @@ export default function Checkout({ onBack, onPlaced }: Props) {
                   We're closed at the moment, so this will be a{" "}
                   <strong className="text-fg">pre-order</strong>. We'll take
                   it now and it'll be accepted when we open at{" "}
-                  <strong className="text-fg">{timing.opensAt}</strong>.
-                  You'll get a confirmation email then too.
-                </>
+                  <strong className="text-fg">{timing.opensAt}</strong>.                </>
               )}
             </p>
           )}

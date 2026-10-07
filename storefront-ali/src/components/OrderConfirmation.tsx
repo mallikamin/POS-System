@@ -238,8 +238,7 @@ export default function OrderConfirmation({
                       : "The shop is closed at the moment, so it"}{" "}
                 will be accepted when we open at{" "}
                 <strong className="text-fg">{timing.opensAt}</strong>.
-                You'll get a confirmation email then too. Nothing more for
-                you to do, just keep your order number safe.
+                Nothing more for you to do, just keep your order number safe.
               </>
             ) : gaveUp ? (
               "This is taking longer than usual. Please give us a ring to check."

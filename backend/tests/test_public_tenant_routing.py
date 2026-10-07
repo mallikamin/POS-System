@@ -242,7 +242,9 @@ async def test_a_paused_shop_refuses_the_order_and_writes_nothing(
     )
 
     assert resp.status_code == 503, resp.text
-    assert "07719 566 889" in resp.json()["detail"]
+    # A shop with no wording of its own gets the generic one, never Chick Shack's number.
+    assert "phone the restaurant" in resp.json()["detail"]
+    assert "07719" not in resp.json()["detail"]
     after = (await db.execute(select(func.count(Order.id)))).scalar_one()
     assert after == before, "a paused shop must not create an order row at all"
 
@@ -280,7 +282,52 @@ async def test_the_menu_tells_the_storefront_it_is_paused(
     await _set_paused(db, tenant.id, True)
     paused = await client.get("/api/v1/public/test-restaurant/menu")
     assert paused.json()["ordering_paused"] is True
-    assert "07719 566 889" in paused.json()["ordering_paused_message"]
+    assert "phone the restaurant" in paused.json()["ordering_paused_message"]
+    assert "07719" not in paused.json()["ordering_paused_message"]
+
+
+@pytest.mark.parametrize(
+    ("slug", "own_number", "foreign_number"),
+    [
+        ("chick-shack", "07719 566 889", "01436 811329"),
+        ("ali-fish-chips", "01436 811329", "07719 566 889"),
+    ],
+)
+async def test_each_shop_pauses_with_its_own_phone_number(
+    client: AsyncClient,
+    db: AsyncSession,
+    tenant: Tenant,
+    uk_menu: MenuItem,
+    slug: str,
+    own_number: str,
+    foreign_number: str,
+):
+    """2026-10-07: Ali's paused storefront told customers to phone Chick Shack.
+
+    The message carries a phone number, so it must be the shop's own, on both
+    the menu (what the storefront shows) and the order refusal (a stale tab).
+    """
+    tenant.slug = slug
+    await db.flush()
+    await _set_paused(db, tenant.id, True)
+
+    menu = await client.get(f"/api/v1/public/{slug}/menu")
+    message = menu.json()["ordering_paused_message"]
+    assert own_number in message
+    assert foreign_number not in message
+
+    refused = await client.post(
+        f"/api/v1/public/{slug}/orders",
+        json={
+            "service_type": "collection",
+            "customer_name": "Test Customer",
+            "customer_phone": "07909313456",
+            "items": [{"menu_item_id": str(uk_menu.id), "quantity": 1}],
+        },
+    )
+    assert refused.status_code == 503, refused.text
+    assert own_number in refused.json()["detail"]
+    assert foreign_number not in refused.json()["detail"]
 
 
 async def test_pausing_is_per_tenant_and_cannot_close_another_shop(

@@ -92,6 +92,32 @@ ONLINE_ORDERING_PAUSED_MESSAGE = (
     "patience in this regard."
 )
 
+#: The pause message carries a phone number, so it is per shop. Chick Shack's
+#: number must never reach another shop's customers (2026-10-07: Ali Fish &
+#: Chips, same village, was telling its customers to phone Chick Shack). A shop
+#: not listed gets wording with no number rather than someone else's.
+_PAUSED_MESSAGE_BY_SLUG = {
+    "chick-shack": ONLINE_ORDERING_PAUSED_MESSAGE,
+    "ali-fish-chips": (
+        "We're very busy at the moment, so we've paused online orders for a "
+        "little while. Please call us on 01436 811329 to place your order. "
+        "Thanks for your patience."
+    ),
+}
+GENERIC_PAUSED_MESSAGE = (
+    "We're very busy at the moment, so we've paused online orders for a little "
+    "while. Please phone the restaurant to place your order. Thanks for your "
+    "patience."
+)
+
+
+async def online_ordering_paused_message(db: AsyncSession, tenant_id: uuid.UUID) -> str:
+    """The pause wording for this shop, with its own phone number."""
+    slug = (
+        await db.execute(select(Tenant.slug).where(Tenant.id == tenant_id))
+    ).scalar_one_or_none()
+    return _PAUSED_MESSAGE_BY_SLUG.get(slug or "", GENERIC_PAUSED_MESSAGE)
+
 
 class OnlineOrderingPaused(PublicOrderError):
     """The shop has stopped taking online orders during a rush.
@@ -571,7 +597,7 @@ async def create_public_order(
     # when the kitchen is drowning; a stale browser tab must not be able to
     # push one more order through, and a client-side check is a suggestion.
     if await is_online_ordering_paused(db, tenant_id):
-        raise OnlineOrderingPaused(ONLINE_ORDERING_PAUSED_MESSAGE)
+        raise OnlineOrderingPaused(await online_ordering_paused_message(db, tenant_id))
 
     # Normalised once, here, and reused for the block check and the customer
     # link below, so both compare the same string against `customers.phone`.

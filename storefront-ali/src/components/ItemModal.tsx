@@ -148,7 +148,7 @@ export default function ItemModal({ item, categoryName, onClose }: Props) {
           <button
             onClick={onClose}
             aria-label="Close"
-            className="w-10 h-10 rounded-full border border-paper-line text-fg/70 hover:text-fg shrink-0"
+            className="w-11 h-11 rounded-full border border-paper-line text-fg/70 hover:text-fg shrink-0"
           >
             ✕
           </button>

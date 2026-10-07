@@ -143,7 +143,9 @@ async def get_public_menu(
             "categories": categories,
             "ordering_paused": paused,
             "ordering_paused_message": (
-                public_order_service.ONLINE_ORDERING_PAUSED_MESSAGE if paused else None
+                await public_order_service.online_ordering_paused_message(db, tenant_id)
+                if paused
+                else None
             ),
             "promotion": (
                 {
