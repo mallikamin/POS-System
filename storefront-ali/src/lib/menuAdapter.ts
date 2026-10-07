@@ -100,7 +100,11 @@ function toVariants(item: ApiMenuItem, variantGroup: ApiModifierGroup | undefine
   }));
 }
 
-function toMenuItem(item: ApiMenuItem, categoryId: string): MenuItem | null {
+function toMenuItem(
+  item: ApiMenuItem,
+  categoryId: string,
+  categoryImage: ImageName | undefined,
+): MenuItem | null {
   const variantGroup = item.modifier_groups.find((group) =>
     isVariantGroup(group, item.name),
   );
@@ -124,8 +128,12 @@ function toMenuItem(item: ApiMenuItem, categoryId: string): MenuItem | null {
       .map(toModifierGroup),
     // Always set, never left undefined: `itemImage` treats undefined as "fall
     // back to the category", and the category id here is a UUID the local
-    // CATEGORIES list would not match. Resolving it now avoids that lookup.
-    image: IMAGE_BY_ITEM_NAME.get(nameKey(item.name)) ?? null,
+    // CATEGORIES list would not match. So the category fallback is resolved
+    // here: the item's own entry (photo or explicit null) wins, else the
+    // section photo matched by category name.
+    image: IMAGE_BY_ITEM_NAME.has(nameKey(item.name))
+      ? (IMAGE_BY_ITEM_NAME.get(nameKey(item.name)) ?? null)
+      : (categoryImage ?? null),
   };
 }
 
@@ -140,15 +148,15 @@ export function adaptMenu(apiCategories: ApiCategory[]): AdaptedMenu {
   const items: MenuItem[] = [];
 
   for (const apiCategory of apiCategories) {
+    const image = CATEGORY_IMAGE_BY_NAME.get(nameKey(apiCategory.name));
     const adapted = apiCategory.items
-      .map((item) => toMenuItem(item, apiCategory.id))
+      .map((item) => toMenuItem(item, apiCategory.id, image))
       .filter((item): item is MenuItem => item !== null);
 
     // An empty category would render as a heading over nothing, and would still
     // take a slot on the sticky category rail.
     if (adapted.length === 0) continue;
 
-    const image = CATEGORY_IMAGE_BY_NAME.get(nameKey(apiCategory.name));
     categories.push({
       id: apiCategory.id,
       name: apiCategory.name,

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { fromPrice, itemImage, splitItemNumber } from "../data/menu";
-import type { Category, MenuItem } from "../types";
-import { imageThumb } from "../types";
+import type { Category, ImageName, MenuItem } from "../types";
+import { imageHero, imageThumb } from "../types";
 import { formatGBP } from "../lib/money";
 import { useMenu } from "../store/menu";
 import ItemModal from "./ItemModal";
@@ -9,9 +9,10 @@ import ItemModal from "./ItemModal";
 /**
  * The menu, built for Ali's ~195 numbered items on a phone.
  *
- * Text-first compact rows rather than photo cards: there are no food photos
- * yet, and at this size a list you can scan beats cards you have to scroll
- * past. The printed item number gets its own column, because that is how phone
+ * Text-first compact rows rather than photo cards: at this size a list you
+ * can scan beats cards you have to scroll past. Each section opens with its
+ * photo as a banner; a row only gets a thumbnail when the item has a photo of
+ * its own, so a section photo is not repeated down every row. The printed item number gets its own column, because that is how phone
  * customers and the kitchen already refer to dishes ("two number 95s").
  *
  * Navigation, in order of how people actually find things:
@@ -36,10 +37,19 @@ function matchesQuery(item: MenuItem, query: string): boolean {
   );
 }
 
-function ItemRow({ item, onOpen }: { item: MenuItem; onOpen: () => void }) {
+function ItemRow({
+  item,
+  sectionImage,
+  onOpen,
+}: {
+  item: MenuItem;
+  sectionImage: ImageName | undefined;
+  onOpen: () => void;
+}) {
   const { number, title } = splitItemNumber(item.name);
   const multi = item.variants.length > 1;
-  const img = itemImage(item);
+  const own = itemImage(item);
+  const img = own === sectionImage ? null : own;
 
   return (
     <li>
@@ -120,11 +130,29 @@ function CategorySection({
       <h2 className="font-display text-xl uppercase tracking-wide text-flame mb-2">
         {category.name}
       </h2>
-      <ul className="card divide-y divide-paper-line overflow-hidden">
-        {items.map((item) => (
-          <ItemRow key={item.id} item={item} onOpen={() => onOpen(item)} />
-        ))}
-      </ul>
+      <div className="card overflow-hidden">
+        {category.image && (
+          <img
+            src={imageHero(category.image)}
+            alt=""
+            width={720}
+            height={480}
+            loading="lazy"
+            decoding="async"
+            className="w-full h-28 sm:h-36 object-cover border-b border-paper-line"
+          />
+        )}
+        <ul className="divide-y divide-paper-line">
+          {items.map((item) => (
+            <ItemRow
+              key={item.id}
+              item={item}
+              sectionImage={category.image}
+              onOpen={() => onOpen(item)}
+            />
+          ))}
+        </ul>
+      </div>
     </section>
   );
 }

@@ -33,16 +33,42 @@ export interface Category {
  * Self-hosted rather than hotlinked so the site has no third-party runtime
  * dependency and everything is served from the same Cloudflare edge.
  *
- * NO PHOTOS YET. Ali's site launches text-first: no food photography has been
- * supplied, and stock photos of someone else's food are worse than none. The
- * union is therefore empty (`never`), which makes it a compile error to point
- * an item at a photo file that does not exist, so a broken image is impossible.
+ * PLACEHOLDER STOCK PHOTOS (2026-10-07, Malik's instruction): one Pexels photo
+ * per menu section, named by the section's id in the seeded menu JSON. Pexels
+ * licence, free for commercial use; sources in `public/img/CREDITS.md`. Replace
+ * with the shop's own photos when they arrive. The union stays closed, so
+ * pointing at a file that does not exist is a compile error.
  *
- * To add a photo later: put `<name>.webp` in BOTH `public/img/thumb/` and
- * `public/img/hero/`, replace `never` with `"<name>"` (a union as names grow),
- * and give the item or category that `image` in `data/menu.ts`.
+ * To add a photo: put `<name>.webp` in BOTH `public/img/thumb/` and
+ * `public/img/hero/`, add `"<name>"` to the union, and give the item or
+ * category that `image` in `data/menu.ts`.
  */
-export type ImageName = never;
+export type ImageName =
+  | "chip-shop"
+  | "burgers"
+  | "snacks"
+  | "starters"
+  | "tandoori-starters"
+  | "sizzlers"
+  | "vegetable"
+  | "korma"
+  | "biryani"
+  | "traditional"
+  | "chefs"
+  | "breads"
+  | "rice"
+  | "sauces"
+  | "accompaniments"
+  | "kebabs"
+  | "hoggies"
+  | "wraps"
+  | "pizzas"
+  | "special-pizzas"
+  | "calzones"
+  | "set-meals"
+  | "boxes"
+  | "kids"
+  | "dips";
 
 export const imageThumb = (n: ImageName) => `/img/thumb/${n}.webp`;
 export const imageHero = (n: ImageName) => `/img/hero/${n}.webp`;
