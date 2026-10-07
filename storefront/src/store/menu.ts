@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import type { Category, MenuItem } from "../types";
 import { CATEGORIES, MENU_ITEMS, SHOP } from "../data/menu";
-import { fetchMenu } from "../lib/api";
+import { fetchMenu, type ApiPromotion } from "../lib/api";
 import { adaptMenu } from "../lib/menuAdapter";
 
 /**
@@ -36,6 +36,8 @@ interface MenuState {
    */
   orderingPaused: boolean;
   pausedMessage: string | null;
+  /** A running promotion from the server, or null. Display only. */
+  promotion: ApiPromotion | null;
   load: () => Promise<void>;
 }
 
@@ -49,6 +51,7 @@ export const useMenu = create<MenuState>()((set) => ({
   currency: SHOP.currency,
   orderingPaused: false,
   pausedMessage: null,
+  promotion: null,
 
   load: async () => {
     // Mark the fetch in flight. On first mount this is already the state; on a
@@ -73,6 +76,7 @@ export const useMenu = create<MenuState>()((set) => ({
         currency: response.currency,
         orderingPaused: response.ordering_paused ?? false,
         pausedMessage: response.ordering_paused_message ?? null,
+        promotion: response.promotion ?? null,
       });
     } catch {
       // `api.ts` has already turned this into something loggable. Here the only

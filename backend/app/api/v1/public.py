@@ -66,6 +66,7 @@ from app.services import (
     order_service,
     order_visibility,
     print_service,
+    promotions,
     public_order_service,
     stripe_service,
 )
@@ -135,6 +136,7 @@ async def get_public_menu(
     tenant_id = await _resolve_tenant_id(db, tenant_slug)
     currency, categories = await public_order_service.get_public_menu(db, tenant_id)
     paused = await public_order_service.is_online_ordering_paused(db, tenant_id)
+    promo = promotions.active_promotion(tenant_slug)
     return PublicMenuResponse.model_validate(
         {
             "currency": currency,
@@ -142,6 +144,17 @@ async def get_public_menu(
             "ordering_paused": paused,
             "ordering_paused_message": (
                 public_order_service.ONLINE_ORDERING_PAUSED_MESSAGE if paused else None
+            ),
+            "promotion": (
+                {
+                    "code": promo.code,
+                    "label": promo.label,
+                    "percent_bps": promo.percent_bps,
+                    "min_subtotal": promo.min_subtotal,
+                    "ends_at": promo.ends_at,
+                }
+                if promo
+                else None
             ),
         },
         from_attributes=True,
@@ -915,6 +928,7 @@ def _to_merchant_summary(order: Order, currency: str) -> MerchantOrderSummary:
         ],
         subtotal=order.subtotal,
         tax_amount=order.tax_amount,
+        discount_amount=order.discount_amount or 0,
         service_fee=order.service_fee,
         tip=order.tip,
         delivery_fee=order.delivery_fee,
@@ -947,6 +961,7 @@ def _to_public_response(order: Order, currency: str) -> PublicOrderResponse:
         ],
         subtotal=order.subtotal,
         tax_amount=order.tax_amount,
+        discount_amount=order.discount_amount or 0,
         service_fee=order.service_fee,
         tip=order.tip,
         delivery_fee=order.delivery_fee,

@@ -15,6 +15,7 @@ import { ApiError, createCheckoutSession, placeOrder } from "../lib/api";
 import type { ApiOrderResponse } from "../lib/api";
 import { savePendingOrder } from "../lib/pendingOrder";
 import { cardPaymentOffered } from "../lib/cardPayment";
+import { promoDiscount, promoPercent } from "../lib/promo";
 
 interface Props {
   onBack: () => void;
@@ -98,7 +99,10 @@ export default function Checkout({ onBack, onPlaced }: Props) {
 
   const deliveryFee = delivery?.ok ? delivery.fee : 0;
   const serviceFee = SHOP.serviceFee;
-  const total = subtotal + deliveryFee + serviceFee + tip;
+  // Shown, not decided, here: the server applies the same rule and charges its own figure.
+  const promotion = useMenu((s) => s.promotion);
+  const discount = promoDiscount(promotion, subtotal);
+  const total = subtotal - discount + deliveryFee + serviceFee + tip;
 
   // Email is REQUIRED, not a nicety. It is the channel the shop uses to tell the
   // customer their order was accepted and how long it will be — and Imran's own
@@ -436,6 +440,18 @@ export default function Checkout({ onBack, onPlaced }: Props) {
           <span>Subtotal</span>
           <span>{formatGBP(subtotal)}</span>
         </div>
+        {discount > 0 && promotion && (
+          <div className="flex justify-between text-ember font-semibold">
+            <span>{promotion.label}</span>
+            <span>-{formatGBP(discount)}</span>
+          </div>
+        )}
+        {discount === 0 && promotion && subtotal < promotion.min_subtotal && (
+          <p className="text-sm text-ember">
+            Add {formatGBP(promotion.min_subtotal - subtotal)} more to get{" "}
+            {promoPercent(promotion)}% off today.
+          </p>
+        )}
         {serviceFee > 0 && (
           <div className="flex justify-between text-cream/70">
             <span>Platform Fee</span>

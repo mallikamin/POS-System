@@ -97,6 +97,8 @@ def _order_lines(order: Order, currency: str) -> str:
 
 def _totals(order: Order, currency: str) -> str:
     rows = [f"{'Subtotal':<48} {_money(order.subtotal, currency)}"]
+    if order.discount_amount:
+        rows.append(f"{'Discount':<48} -{_money(order.discount_amount, currency)}")
     if order.tax_amount:
         rows.append(f"{'Tax':<48} {_money(order.tax_amount, currency)}")
     if order.service_fee:
@@ -196,6 +198,8 @@ def _html_items_table(order: Order, currency: str) -> str:
 
 def _html_totals_table(order: Order, currency: str) -> str:
     rows = [("Subtotal", order.subtotal, False)]
+    if order.discount_amount:
+        rows.append(("Discount", -order.discount_amount, False))
     if order.tax_amount:
         rows.append(("Tax", order.tax_amount, False))
     if order.service_fee:
@@ -213,7 +217,7 @@ def _html_totals_table(order: Order, currency: str) -> str:
         cells.append(
             f"""<tr>
 <td style="padding:4px 0; font-size:{size}; font-weight:{weight}; color:{_C_BODY_TEXT};">{label}</td>
-<td style="padding:4px 0; font-size:{size}; font-weight:{weight}; color:{_C_BODY_TEXT}; text-align:right;">{html_escape(_money(amount, currency))}</td>
+<td style="padding:4px 0; font-size:{size}; font-weight:{weight}; color:{_C_BODY_TEXT}; text-align:right;">{html_escape(_money(amount, currency) if amount >= 0 else "-" + _money(-amount, currency))}</td>
 </tr>"""
         )
     return (

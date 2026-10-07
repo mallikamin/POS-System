@@ -79,6 +79,18 @@ export interface ApiMenuResponse {
   /** The shop has paused online ordering during a rush (Imran, 2026-08-04). */
   ordering_paused?: boolean;
   ordering_paused_message?: string | null;
+  /** A running promotion, for display only. The server decides the discount. */
+  promotion?: ApiPromotion | null;
+}
+
+export interface ApiPromotion {
+  code: string;
+  label: string;
+  /** 2000 = 20% */
+  percent_bps: number;
+  /** Food subtotal before the discount must be at least this. */
+  min_subtotal: Pence;
+  ends_at: string;
 }
 
 export interface ApiOrderLineRequest {
@@ -154,6 +166,7 @@ export interface ApiOrderResponse {
   lines: ApiOrderLine[];
   subtotal: Pence;
   tax_amount: Pence;
+  discount_amount: Pence;
   service_fee: Pence;
   tip: Pence;
   delivery_fee: Pence;

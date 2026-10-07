@@ -1121,6 +1121,12 @@ export default function OnlineOrdersPage() {
                 ) : null}
 
                 <div className="mt-3 border-t border-secondary-200 pt-2 text-sm">
+                  {order.discount_amount > 0 ? (
+                    <div className="flex justify-between font-semibold text-green-700">
+                      <span>Discount</span>
+                      <span>-{formatMoney(order.discount_amount, order.currency)}</span>
+                    </div>
+                  ) : null}
                   {order.service_fee > 0 ? (
                     <div className="flex justify-between text-secondary-600">
                       <span>Platform Fee</span>

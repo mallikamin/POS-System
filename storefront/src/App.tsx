@@ -12,6 +12,7 @@ import Checkout from "./components/Checkout";
 import OrderConfirmation from "./components/OrderConfirmation";
 import ConsentBar from "./components/ConsentBar";
 import { trackPurchase } from "./lib/analytics";
+import { promoPercent } from "./lib/promo";
 import {
   returnFromStripe,
   stripReturnParams,
@@ -55,6 +56,7 @@ export default function App() {
   const menuSource = useMenu((s) => s.source);
   const orderingPaused = useMenu((s) => s.orderingPaused);
   const pausedMessage = useMenu((s) => s.pausedMessage);
+  const promotion = useMenu((s) => s.promotion);
 
   // Coming back from Stripe.
   //
@@ -237,6 +239,20 @@ export default function App() {
                   when we open.
                 </p>
               )
+            )}
+            {/* Present only while the server says a promotion is running, so
+                it disappears by itself when the day ends. */}
+            {promotion && !orderingPaused && (
+              <div className="mt-4 card p-4 border-flame/60 bg-flame/15">
+                <p className="font-display text-xl text-cream">
+                  {promotion.label}
+                </p>
+                <p className="text-sm text-cream/80 mt-1">
+                  Today only: {promoPercent(promotion)}% off the entire menu on
+                  orders of {formatGBP(promotion.min_subtotal)} or more. Applied
+                  automatically at checkout.
+                </p>
+              </div>
             )}
             {/* Imran asked (2026-08-03) for last-order/delivery-window times
                 to be visible on the site itself, not just shown reactively

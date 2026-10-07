@@ -311,6 +311,26 @@ def _line_items(order: Order, currency: str) -> list[dict[str, Any]]:
 
     itemised = sum(line["quantity"] * line["price_data"]["unit_amount"] for line in lines)
 
+    discount = order.discount_amount or 0
+    if discount and itemised - discount == order.total:
+        # Checkout cannot show a negative line, so a discounted order is one
+        # line for the exact total, saying what came off.
+        return [
+            {
+                "quantity": 1,
+                "price_data": {
+                    "currency": currency.lower(),
+                    "unit_amount": order.total,
+                    "product_data": {
+                        "name": f"Order {order.order_number}",
+                        "description": (
+                            f"Includes {discount // 100}.{discount % 100:02d} discount"
+                        ),
+                    },
+                },
+            }
+        ]
+
     if itemised != order.total:
         # Not an error worth failing an order over, but absolutely worth saying
         # out loud -- it means the breakdown and the total have diverged.

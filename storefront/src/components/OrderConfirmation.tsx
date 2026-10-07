@@ -262,6 +262,13 @@ export default function OrderConfirmation({
             <span className="text-cream/70 shrink-0">{formatGBP(line.total)}</span>
           </div>
         ))}
+        {/* `> 0` also guards an order stashed by an older bundle (undefined). */}
+        {order.discount_amount > 0 && (
+          <div className="flex justify-between text-sm text-ember font-semibold pt-2 border-t border-ink-line">
+            <span>Discount</span>
+            <span>-{formatGBP(order.discount_amount)}</span>
+          </div>
+        )}
         {order.service_fee > 0 && (
           <div className="flex justify-between text-sm text-cream/70 pt-2 border-t border-ink-line">
             <span>Platform Fee</span>

@@ -82,6 +82,20 @@ class PublicCategory(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class PublicPromotion(BaseModel):
+    """A running promotion, for the storefront to DISPLAY.
+
+    The order endpoint re-derives the discount itself; nothing here is trusted
+    back from the browser.
+    """
+
+    code: str
+    label: str
+    percent_bps: int
+    min_subtotal: int
+    ends_at: datetime
+
+
 class PublicMenuResponse(BaseModel):
     """Only active categories, available items and available modifiers.
 
@@ -97,6 +111,8 @@ class PublicMenuResponse(BaseModel):
     # never for enforcing.
     ordering_paused: bool = False
     ordering_paused_message: str | None = None
+    # No default on purpose: the endpoint must say "none" out loud.
+    promotion: PublicPromotion | None
 
 
 # ---------------------------------------------------------------------------
@@ -271,6 +287,7 @@ class PublicOrderResponse(BaseModel):
     lines: list[PublicOrderLine] = []
     subtotal: int
     tax_amount: int
+    discount_amount: int
     service_fee: int
     tip: int = 0
     delivery_fee: int
@@ -337,6 +354,7 @@ class MerchantOrderSummary(BaseModel):
     lines: list[PublicOrderLine] = []
     subtotal: int
     tax_amount: int
+    discount_amount: int
     service_fee: int
     tip: int = 0
     delivery_fee: int

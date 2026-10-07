@@ -37,7 +37,14 @@ from app.models.user import Role, User
 from app.config import settings
 from app.models.tenant import Tenant
 from app.schemas.public_order import PublicOrderCreate
-from app.services import audit_service, email_service, order_service, stripe_service
+from app.models.discount import OrderDiscount
+from app.services import (
+    audit_service,
+    email_service,
+    order_service,
+    promotions,
+    stripe_service,
+)
 from app.services.order_visibility import is_card_order, is_real_order
 from app.utils.security import hash_password
 
@@ -599,7 +606,18 @@ async def create_public_order(
     tax_amount, goods_total = order_service.compute_tax(
         subtotal, tax_rate_bps, prices_include_tax
     )
-    total = goods_total + delivery_fee + service_fee + data.tip
+
+    # A running promotion (see `promotions`), decided from the subtotal priced
+    # above, never from anything the browser sent. It comes off last, after
+    # tax and fees, which is the rule `order_service.order_total` applies to
+    # every discount, so a later re-total cannot move the figure.
+    tenant_slug = (
+        await db.execute(select(Tenant.slug).where(Tenant.id == tenant_id))
+    ).scalar_one_or_none()
+    promo = promotions.active_promotion(tenant_slug)
+    discount_amount = promotions.discount_for(promo, subtotal)
+
+    total = goods_total + delivery_fee + service_fee + data.tip - discount_amount
 
     system_user = await _get_or_create_online_user(db, tenant_id)
 
@@ -649,7 +667,7 @@ async def create_public_order(
         customer_id=customer_id,
         subtotal=subtotal,
         tax_amount=tax_amount,
-        discount_amount=0,
+        discount_amount=discount_amount,
         total=total,
         notes=data.notes,
         service_type=data.service_type,
@@ -673,6 +691,24 @@ async def create_public_order(
     )
     db.add(order)
     await db.flush()
+
+    if discount_amount:
+        # Recorded as a discount line, not only as the rollup on the order:
+        # `discount_service._sync_order_discount` rebuilds `discount_amount`
+        # from these rows, so a rollup with no row would be wiped to 0 the
+        # first time anything re-synced it.
+        db.add(
+            OrderDiscount(
+                tenant_id=tenant_id,
+                order_id=order.id,
+                label=promo.label,
+                source_type="promotion",
+                amount=discount_amount,
+                percent_bps=promo.percent_bps,
+                note=promo.code,
+                applied_by=system_user.id,
+            )
+        )
 
     db.add(
         OrderStatusLog(

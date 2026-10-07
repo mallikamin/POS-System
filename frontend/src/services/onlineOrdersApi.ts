@@ -40,6 +40,7 @@ export interface OnlineOrder {
   lines: OnlineOrderLine[];
   subtotal: number;
   tax_amount: number;
+  discount_amount: number;
   service_fee: number;
   tip: number;
   delivery_fee: number;
