@@ -1,3 +1,5 @@
+import type { PhotoName } from "./data/photos";
+
 /**
  * Storefront domain types.
  *
@@ -33,42 +35,12 @@ export interface Category {
  * Self-hosted rather than hotlinked so the site has no third-party runtime
  * dependency and everything is served from the same Cloudflare edge.
  *
- * PLACEHOLDER STOCK PHOTOS (2026-10-07, Malik's instruction): one Pexels photo
- * per menu section, named by the section's id in the seeded menu JSON. Pexels
- * licence, free for commercial use; sources in `public/img/CREDITS.md`. Replace
- * with the shop's own photos when they arrive. The union stays closed, so
- * pointing at a file that does not exist is a compile error.
- *
- * To add a photo: put `<name>.webp` in BOTH `public/img/thumb/` and
- * `public/img/hero/`, add `"<name>"` to the union, and give the item or
- * category that `image` in `data/menu.ts`.
+ * PLACEHOLDER STOCK PHOTOS (2026-10-07, Malik's instruction): one photo per
+ * dish, generated into `data/photos.ts` with sources in `public/img/CREDITS.md`.
+ * Replace with the shop's own photos when they arrive (same file name). The
+ * union is closed, so pointing at a file that does not exist is a compile error.
  */
-export type ImageName =
-  | "chip-shop"
-  | "burgers"
-  | "snacks"
-  | "starters"
-  | "tandoori-starters"
-  | "sizzlers"
-  | "vegetable"
-  | "korma"
-  | "biryani"
-  | "traditional"
-  | "chefs"
-  | "breads"
-  | "rice"
-  | "sauces"
-  | "accompaniments"
-  | "kebabs"
-  | "hoggies"
-  | "wraps"
-  | "pizzas"
-  | "special-pizzas"
-  | "calzones"
-  | "set-meals"
-  | "boxes"
-  | "kids"
-  | "dips";
+export type ImageName = PhotoName;
 
 export const imageThumb = (n: ImageName) => `/img/thumb/${n}.webp`;
 export const imageHero = (n: ImageName) => `/img/hero/${n}.webp`;

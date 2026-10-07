@@ -32,6 +32,7 @@ import type {
 } from "../types";
 import { NO_VARIANT } from "../types";
 import { CATEGORIES, MENU_ITEMS, itemImage } from "../data/menu";
+import { PHOTO_BY_ITEM_NAME } from "../data/photos";
 import type { ApiCategory, ApiMenuItem, ApiModifierGroup } from "./api";
 
 /**
@@ -52,9 +53,12 @@ function nameKey(name: string): string {
  * Photo for each locally-known item, with the item→category fallback already
  * resolved. `null` is a real value here: it means "deliberately no photo".
  */
-const IMAGE_BY_ITEM_NAME: ReadonlyMap<string, ImageName | null> = new Map(
-  MENU_ITEMS.map((item) => [nameKey(item.name), itemImage(item)] as const),
-);
+const IMAGE_BY_ITEM_NAME: ReadonlyMap<string, ImageName | null> = new Map([
+  // One photo per dish, keyed by the exact API item name.
+  ...Object.entries(PHOTO_BY_ITEM_NAME).map(([name, photo]) => [nameKey(name), photo] as const),
+  // Hand-set entries in data/menu.ts win (including an explicit null opt-out).
+  ...MENU_ITEMS.map((item) => [nameKey(item.name), itemImage(item)] as const),
+]);
 
 const CATEGORY_IMAGE_BY_NAME: ReadonlyMap<string, ImageName | undefined> = new Map(
   CATEGORIES.map((category) => [nameKey(category.name), category.image] as const),

@@ -18,41 +18,10 @@ import type { Category, ImageName, MenuItem, ShopConfig } from "../types";
  * API cannot be reached the page says so and gives the shop's phone number
  * instead of showing a menu that cannot be ordered from.
  *
- * `CATEGORIES` and `MENU_ITEMS` are only the photo lookup used by
- * `menuAdapter.ts`, matched to the API by `name` (so names must match the
- * seeded category names). Every item in a section shows the section's photo
- * unless `MENU_ITEMS` gives it its own (or `image: null` to opt out). The
- * photos are placeholder stock; see `ImageName` in types.ts.
+ * `CATEGORIES` and `MENU_ITEMS` stay exported (empty) for the name-based photo
+ * lookup in `menuAdapter.ts`. Per-dish photos come from `data/photos.ts`.
  */
-const section = (id: ImageName, name: string, sort: number): Category => ({ id, name, sort, image: id });
-
-export const CATEGORIES: Category[] = [
-  section("chip-shop", "Traditional Chip Shop", 1),
-  section("burgers", "American Burgers", 2),
-  section("snacks", "Snacks", 3),
-  section("starters", "Starters", 4),
-  section("tandoori-starters", "Tandoori Starters", 5),
-  section("sizzlers", "Tandoori Sizzlers", 6),
-  section("vegetable", "Vegetable Dishes", 7),
-  section("korma", "Korma Dishes", 8),
-  section("biryani", "Biryani Dishes", 9),
-  section("traditional", "Traditional Dishes", 10),
-  section("chefs", "Chef's Specialities", 11),
-  section("breads", "Indian Breads", 12),
-  section("rice", "Rice", 13),
-  section("sauces", "Sauces", 14),
-  section("accompaniments", "Accompaniments", 15),
-  section("kebabs", "Turkish Kebabs", 16),
-  section("hoggies", "Hoggies", 17),
-  section("wraps", "Wraps", 18),
-  section("pizzas", "Fresh Italian Pizzas", 19),
-  section("special-pizzas", "Italian Special Pizzas", 20),
-  section("calzones", "Italian Calzones", 21),
-  section("set-meals", "Set Meals", 22),
-  section("boxes", "Boxes & Specials", 23),
-  section("kids", "Kids Corner", 24),
-  section("dips", "Dips", 25),
-];
+export const CATEGORIES: Category[] = [];
 export const MENU_ITEMS: MenuItem[] = [];
 
 // ---------------------------------------------------------------------------
