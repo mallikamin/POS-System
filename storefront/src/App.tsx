@@ -4,7 +4,13 @@ import { formatGBP } from "./lib/money";
 import { isOpenNow } from "./lib/delivery";
 import type { OrderTiming } from "./lib/delivery";
 import { itemCountOf, subtotalOf, useCart } from "./store/cart";
-import { DEFAULT_PAUSED_MESSAGE, useMenu } from "./store/menu";
+import {
+  CLOSURE_BADGE,
+  CLOSURE_NOTICE,
+  CLOSURE_TITLE,
+  DEFAULT_PAUSED_MESSAGE,
+  useMenu,
+} from "./store/menu";
 import type { ApiOrderResponse } from "./lib/api";
 import MenuBrowser from "./components/MenuBrowser";
 import CartPanel from "./components/CartPanel";
@@ -57,6 +63,8 @@ export default function App() {
   const orderingPaused = useMenu((s) => s.orderingPaused);
   const pausedMessage = useMenu((s) => s.pausedMessage);
   const promotion = useMenu((s) => s.promotion);
+  // Closed, as opposed to paused for a rush: see CLOSURE_NOTICE.
+  const closed = orderingPaused && CLOSURE_NOTICE !== null;
 
   // Coming back from Stripe.
   //
@@ -183,12 +191,18 @@ export default function App() {
             </button>
             <span
               className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${
-                open
-                  ? "border-emerald-500/40 text-emerald-400"
-                  : "border-ink-line text-cream/50"
+                closed
+                  ? "border-ember/50 text-ember"
+                  : open
+                    ? "border-emerald-500/40 text-emerald-400"
+                    : "border-ink-line text-cream/50"
               }`}
             >
-              {open ? "Open now" : `Opens ${SHOP.openTime}`}
+              {closed
+                ? CLOSURE_BADGE
+                : open
+                  ? "Open now"
+                  : `Opens ${SHOP.openTime}`}
             </span>
           </div>
         </header>
@@ -208,7 +222,18 @@ export default function App() {
                 — a customer who builds a whole basket before being told to
                 phone has been wasted, and this outranks the closed/pre-order
                 notice below because it is the reason they cannot order at all. */}
-            {orderingPaused ? (
+            {closed ? (
+              /* A closure is the one thing on this page nobody may miss, so it
+                 is sized like a headline, not like the rush notice below. */
+              <div className="mt-5 card p-5 sm:p-6 text-center border-2 border-ember/60 bg-ember/10">
+                <p className="font-display text-2xl sm:text-3xl text-ember leading-tight">
+                  {CLOSURE_TITLE}
+                </p>
+                <p className="mt-3 text-lg sm:text-xl text-cream leading-snug">
+                  {CLOSURE_NOTICE}
+                </p>
+              </div>
+            ) : orderingPaused ? (
               <p className="mt-4 card p-3 text-sm text-ember border-ember/40">
                 {pausedMessage ?? DEFAULT_PAUSED_MESSAGE}
               </p>
@@ -258,7 +283,12 @@ export default function App() {
                 to be visible on the site itself, not just shown reactively
                 once a customer is already past a cut-off. Always shown, same
                 card treatment as the Allergen Notice below. */}
-            <div className="mt-4 card p-3 text-xs text-cream/70">
+            <div
+              className={`mt-4 card p-3 text-xs text-cream/70 ${
+                /* Opening hours beside a closure notice read as a contradiction. */
+                closed ? "hidden" : ""
+              }`}
+            >
               <p className="font-bold uppercase tracking-wide text-cream/90">
                 Hours
               </p>

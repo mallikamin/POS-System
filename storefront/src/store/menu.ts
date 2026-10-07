@@ -107,3 +107,26 @@ export const DEFAULT_PAUSED_MESSAGE =
   "We are facing high demand at the moment, please directly call the " +
   "restaurant 07719 566 889 to place your order. We appreciate your " +
   "patience in this regard.";
+
+/**
+ * Temporary closure (Malik, 2026-09-21). While set, this replaces the paused
+ * wording everywhere, including the server-supplied one: the rush message
+ * tells people to phone, and nobody is there to answer. It only shows while
+ * ordering is paused on the POS, so resuming there reopens the site with no
+ * deploy.
+ *
+ * 2026-10-07: reopening Thursday 8 October at 4pm. The notice switches itself
+ * off at that moment (15:00 UTC = 16:00 BST), so after reopening a rush pause
+ * shows the normal busy wording without another deploy.
+ */
+const REOPENS_AT = Date.parse("2026-10-08T15:00:00Z");
+
+export const CLOSURE_NOTICE: string | null =
+  Date.now() < REOPENS_AT
+    ? "We reopen on Thursday 8 October at 4pm. Welcome Back Bonus: order " +
+      "£30 or more on Thursday and get 20% off the entire menu."
+    : null;
+
+/** Headline and header badge, shown only while CLOSURE_NOTICE is set. */
+export const CLOSURE_TITLE = "Back Thursday at 4pm";
+export const CLOSURE_BADGE = "Reopening Thu 4pm";
