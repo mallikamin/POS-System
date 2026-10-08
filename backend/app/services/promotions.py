@@ -42,9 +42,11 @@ PROMOTIONS: dict[str, tuple[Promotion, ...]] = {
             label="Welcome Back 20% off",
             percent_bps=2000,
             min_subtotal=3000,
-            # 2026-10-08 00:00 BST .. 2026-10-09 00:00 BST
+            # 2026-10-08 00:00 BST .. 22:00 BST. Ended at shop close, not
+            # midnight (Malik, 2026-10-08), so out-of-hours pre-orders placed
+            # Thursday night for Friday do not get it.
             starts_at=datetime(2026, 10, 7, 23, 0, tzinfo=timezone.utc),
-            ends_at=datetime(2026, 10, 8, 23, 0, tzinfo=timezone.utc),
+            ends_at=datetime(2026, 10, 8, 21, 0, tzinfo=timezone.utc),
         ),
     ),
 }

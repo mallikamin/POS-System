@@ -39,8 +39,9 @@ def _utc(*a: int) -> datetime:
         (_utc(2026, 10, 7, 22, 59, 59), False),  # Wed 23:59:59 BST
         (_utc(2026, 10, 7, 23, 0, 0), True),  # Thu 00:00 BST
         (_utc(2026, 10, 8, 15, 0, 0), True),  # Thu 16:00 BST, opening
-        (_utc(2026, 10, 8, 22, 59, 59), True),  # Thu 23:59:59 BST
-        (_utc(2026, 10, 8, 23, 0, 0), False),  # Fri 00:00 BST
+        (_utc(2026, 10, 8, 20, 59, 59), True),  # Thu 21:59:59 BST
+        (_utc(2026, 10, 8, 21, 0, 0), False),  # Thu 22:00 BST, shop close
+        (_utc(2026, 10, 8, 22, 30, 0), False),  # Thu night pre-order for Friday
         (_utc(2026, 10, 15, 15, 0, 0), False),  # the following Thursday
     ],
 )
